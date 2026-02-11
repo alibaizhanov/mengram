@@ -91,17 +91,16 @@ def create_cloud_api() -> FastAPI:
             _extractor = ConversationExtractor(_llm_client)
         return _extractor
 
-    # Embedder (shared)
+    # Embedder (shared — API-based, no PyTorch)
     _embedder = None
 
     def get_embedder():
         nonlocal _embedder
         if _embedder is None:
-            try:
-                from engine.vector.embedder import Embedder
-                _embedder = Embedder()
-            except ImportError:
-                _embedder = None
+            openai_key = os.environ.get("OPENAI_API_KEY", "")
+            if openai_key:
+                from cloud.embedder import CloudEmbedder
+                _embedder = CloudEmbedder(provider="openai", api_key=openai_key)
         return _embedder
 
     # ---- Auth middleware ----
