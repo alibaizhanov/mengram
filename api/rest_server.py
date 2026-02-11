@@ -54,6 +54,11 @@ class RecallRequest(BaseModel):
     query: str
     top_k: int = 5
 
+class ChatRequest(BaseModel):
+    messages: list[Message]
+    system: str = ""
+    auto_remember: bool = True
+
 class SearchRequest(BaseModel):
     query: str
     top_k: int = 5
@@ -128,6 +133,69 @@ def create_rest_api(brain: ObsidianMemBrain) -> "FastAPI":
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # --- Chat (main feature for Web UI) ---
+
+    @app.post("/api/chat")
+    async def chat(req: ChatRequest):
+        """
+        Chat with LLM + automatic memory.
+        
+        1. Recalls context from vault based on user's message
+        2. Sends to LLM with context in system prompt
+        3. Remembers the conversation (extracts entities/knowledge)
+        4. Returns response + graph updates
+        """
+        from engine.extractor.conversation_extractor import MockLLMClient
+
+        if isinstance(brain.llm_client, MockLLMClient):
+            raise HTTPException(
+                status_code=503,
+                detail="LLM not configured. Set provider/api_key in config.yaml"
+            )
+
+        messages = [{"role": m.role, "content": m.content} for m in req.messages]
+
+        # 1. Get last user message for recall
+        last_user = ""
+        for m in reversed(messages):
+            if m["role"] == "user":
+                last_user = m["content"]
+                break
+
+        # 2. Recall relevant context
+        context = ""
+        if last_user:
+            try:
+                context = brain.recall(last_user, top_k=5)
+            except Exception:
+                pass
+
+        # 3. Build system prompt with context
+        system = req.system or "You are a helpful assistant with access to the user's knowledge base."
+        if context:
+            system += f"\n\n<memory_context>\n{context}\n</memory_context>"
+
+        # 4. Call LLM
+        try:
+            response = brain.llm_client.chat(messages, system=system)
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"LLM error: {str(e)}")
+
+        # 5. Remember (async-ish, non-blocking for response)
+        new_entities = []
+        if req.auto_remember and len(messages) >= 2:
+            try:
+                result = brain.remember(messages + [{"role": "assistant", "content": response}])
+                new_entities = result.get("created", []) + result.get("updated", [])
+            except Exception as e:
+                print(f"⚠️  Remember error: {e}", file=sys.stderr)
+
+        return {
+            "response": response,
+            "context_used": bool(context),
+            "new_entities": new_entities,
+        }
 
     # --- Remember ---
 
@@ -270,6 +338,25 @@ def create_rest_api(brain: ObsidianMemBrain) -> "FastAPI":
     async def health():
         """Health check."""
         return {"status": "ok", "version": "0.6.0"}
+
+    # --- Static files for Web UI ---
+    from fastapi.responses import FileResponse
+
+    web_dir = Path(__file__).parent.parent / "web"
+
+    @app.get("/")
+    async def index():
+        index_file = web_dir / "index.html"
+        if index_file.exists():
+            return FileResponse(index_file)
+        return {"message": "ObsidianMem API. Web UI not found. Docs at /docs"}
+
+    @app.get("/static/{filepath:path}")
+    async def static_files(filepath: str):
+        file = web_dir / "static" / filepath
+        if file.exists() and file.is_file():
+            return FileResponse(file)
+        raise HTTPException(status_code=404)
 
     return app
 

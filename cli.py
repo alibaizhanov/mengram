@@ -338,6 +338,45 @@ def cmd_api(args):
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
 
 
+def cmd_web(args):
+    """Start Web UI — chat + knowledge graph"""
+    config_path = args.config or str(DEFAULT_CONFIG)
+
+    if not Path(config_path).exists():
+        print(f"❌ Run: obsidian-mem init")
+        sys.exit(1)
+
+    try:
+        import fastapi
+        import uvicorn
+    except ImportError:
+        print("❌ FastAPI not installed: pip install obsidian-mem[api]")
+        sys.exit(1)
+
+    from engine.brain import create_brain
+    from api.rest_server import create_rest_api
+
+    brain = create_brain(config_path)
+
+    if brain.use_vectors:
+        _ = brain.vector_store
+
+    app = create_rest_api(brain)
+
+    url = f"http://localhost:{args.port}"
+    print(f"🧠 ObsidianMem Web UI")
+    print(f"   {url}")
+    print(f"   API docs: {url}/docs")
+    print()
+
+    if not args.no_open:
+        import threading
+        import webbrowser
+        threading.Timer(1.0, lambda: webbrowser.open(url)).start()
+
+    uvicorn.run(app, host="0.0.0.0", port=args.port, log_level="info")
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="obsidian-mem",
@@ -371,6 +410,12 @@ def main():
     p_api.add_argument("--host", default="0.0.0.0", help="Host (default: 0.0.0.0)")
     p_api.add_argument("--port", type=int, default=8420, help="Port (default: 8420)")
 
+    # web
+    p_web = sub.add_parser("web", help="Start Web UI (chat + knowledge graph)")
+    p_web.add_argument("--config", help="Config path")
+    p_web.add_argument("--port", type=int, default=8420, help="Port (default: 8420)")
+    p_web.add_argument("--no-open", action="store_true", help="Don't open browser")
+
     args = parser.parse_args()
 
     if args.command == "init":
@@ -383,6 +428,8 @@ def main():
         cmd_stats(args)
     elif args.command == "api":
         cmd_api(args)
+    elif args.command == "web":
+        cmd_web(args)
     else:
         parser.print_help()
 

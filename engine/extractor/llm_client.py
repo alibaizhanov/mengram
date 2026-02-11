@@ -20,6 +20,15 @@ class LLMClient(ABC):
         """Отправить промпт, получить ответ"""
         pass
 
+    def chat(self, messages: list[dict], system: str = "") -> str:
+        """Multi-turn chat. Default: use last user message as prompt."""
+        last_user = ""
+        for m in reversed(messages):
+            if m["role"] == "user":
+                last_user = m["content"]
+                break
+        return self.complete(last_user, system=system)
+
 
 class AnthropicClient(LLMClient):
     """Claude через Anthropic API"""
@@ -38,6 +47,15 @@ class AnthropicClient(LLMClient):
             max_tokens=4096,
             system=system or "You are a knowledge extraction assistant.",
             messages=[{"role": "user", "content": prompt}],
+        )
+        return response.content[0].text
+
+    def chat(self, messages: list[dict], system: str = "") -> str:
+        response = self.client.messages.create(
+            model=self.model,
+            max_tokens=4096,
+            system=system or "You are a helpful assistant.",
+            messages=messages,
         )
         return response.content[0].text
 
@@ -60,6 +78,15 @@ class OpenAIClient(LLMClient):
                 {"role": "system", "content": system or "You are a knowledge extraction assistant."},
                 {"role": "user", "content": prompt},
             ],
+        )
+        return response.choices[0].message.content
+
+    def chat(self, messages: list[dict], system: str = "") -> str:
+        msgs = [{"role": "system", "content": system or "You are a helpful assistant."}]
+        msgs.extend(messages)
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=msgs,
         )
         return response.choices[0].message.content
 
@@ -90,6 +117,27 @@ class OllamaClient(LLMClient):
         with urllib.request.urlopen(req) as resp:
             result = json.loads(resp.read())
             return result["response"]
+
+    def chat(self, messages: list[dict], system: str = "") -> str:
+        import urllib.request
+        import json
+
+        msgs = [{"role": "system", "content": system or "You are a helpful assistant."}]
+        msgs.extend(messages)
+        data = json.dumps({
+            "model": self.model,
+            "messages": msgs,
+            "stream": False,
+        }).encode()
+
+        req = urllib.request.Request(
+            f"{self.base_url}/api/chat",
+            data=data,
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req) as resp:
+            result = json.loads(resp.read())
+            return result["message"]["content"]
 
 
 def create_llm_client(config: dict) -> LLMClient:

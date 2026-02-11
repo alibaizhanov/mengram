@@ -14,5 +14,7 @@ mcp>=1.0
 sentence-transformers>=2.2.0    # Локальные embeddings (all-MiniLM-L6-v2)
 numpy>=1.24.0
 
-# Optional: faster vector search for large vaults
-# faiss-cpu>=1.7.0
+# Cloud API
+fastapi>=0.100
+uvicorn>=0.20
+psycopg2-binary>=2.9

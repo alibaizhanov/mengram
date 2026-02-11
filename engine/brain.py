@@ -38,7 +38,8 @@ class ObsidianMemBrain:
                  use_vectors: bool = True, vector_db_path: Optional[str] = None):
         self.vault_path = vault_path
         self.vault_manager = VaultManager(vault_path)
-        self.extractor = ConversationExtractor(llm_client or MockLLMClient())
+        self.llm_client = llm_client or MockLLMClient()
+        self.extractor = ConversationExtractor(self.llm_client)
         self.use_vectors = use_vectors
 
         # Graph — ленивая загрузка
