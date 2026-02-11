@@ -298,7 +298,7 @@ def parse_vault(vault_path: str) -> list[ParsedNote]:
             note = parse_note(str(md_file))
             notes.append(note)
         except Exception as e:
-            print(f"⚠️  Ошибка парсинга {md_file}: {e}")
+            print(f"⚠️  Ошибка парсинга {md_file}: {e}", file=sys.stderr)
 
     return notes
 

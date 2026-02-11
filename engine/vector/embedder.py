@@ -8,6 +8,7 @@ Embedder — генерация векторных embeddings.
 - Полностью локально, ничего не отправляется в облако
 """
 
+import sys
 from sentence_transformers import SentenceTransformer
 from typing import Optional
 import numpy as np
@@ -24,9 +25,9 @@ class Embedder:
     def model(self) -> SentenceTransformer:
         """Lazy loading — модель загружается при первом использовании"""
         if self._model is None:
-            print(f"🧠 Загружаю модель {self.model_name}...")
+            print(f"🧠 Загружаю модель {self.model_name}...", file=sys.stderr)
             self._model = SentenceTransformer(self.model_name)
-            print(f"✅ Модель загружена ({self.dimensions}D)")
+            print(f"✅ Модель загружена ({self.dimensions}D)", file=sys.stderr)
         return self._model
 
     @property
@@ -72,11 +73,11 @@ if __name__ == "__main__":
     ]
 
     vectors = embedder.embed_batch(texts)
-    print(f"\n📐 Vectors shape: {vectors.shape}")
+    print(f"\n📐 Vectors shape: {vectors.shape}", file=sys.stderr)
 
     query = embedder.embed("проблема с производительностью базы данных")
     results = embedder.search(query, vectors, top_k=3)
 
-    print(f"\n🔍 Query: 'проблема с производительностью базы данных'")
+    print(f"\n🔍 Query: 'проблема с производительностью базы данных'", file=sys.stderr)
     for idx, score in results:
-        print(f"   {score:.3f}  {texts[idx]}")
+        print(f"   {score:.3f}  {texts[idx]}", file=sys.stderr)

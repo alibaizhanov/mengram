@@ -1,11 +1,11 @@
+import sys
 """
-Vault Manager — создаёт и обновляет .md файлы в Obsidian vault.
+Vault Manager v2 — создаёт/обновляет .md файлы с Rich Knowledge.
 
-Берёт ExtractionResult (entities + relations) и:
-1. Создаёт .md файл для каждой новой entity
-2. Обновляет существующие файлы новыми фактами
-3. Добавляет [[wikilinks]] для связей
-4. Поддерживает YAML frontmatter
+Секции в .md файле:
+  ## Facts — короткие факты
+  ## Relations — связи с другими entities
+  ## Knowledge — решения, формулы, рецепты, конфиги (с артефактами)
 """
 
 import re
@@ -19,64 +19,80 @@ from engine.extractor.conversation_extractor import (
     ExtractionResult,
     ExtractedEntity,
     ExtractedRelation,
+    ExtractedKnowledge,
 )
 
 
 class VaultManager:
-    """Управляет Obsidian vault — создаёт/обновляет .md файлы"""
+    """Управляет Obsidian vault"""
 
     def __init__(self, vault_path: str):
         self.vault_path = Path(vault_path)
         self.vault_path.mkdir(parents=True, exist_ok=True)
-        print(f"📁 Vault: {self.vault_path.absolute()}")
+        print(f"📁 Vault: {self.vault_path.absolute()}", file=sys.stderr)
 
     def process_extraction(self, extraction: ExtractionResult) -> dict:
         """
-        Главный метод — обрабатывает результат извлечения.
-        Создаёт/обновляет файлы в vault.
-
-        Returns:
-            {"created": [...], "updated": [...]}
+        Главный метод — обрабатывает извлечённые знания.
+        Создаёт/обновляет файлы.
         """
         stats = {"created": [], "updated": []}
 
-        # 1. Обрабатываем каждую entity
+        # 1. Обрабатываем entities
         for entity in extraction.entities:
             file_path = self._entity_file_path(entity.name)
 
-            # Находим связи для этой entity
             entity_relations = [
                 r for r in extraction.relations
                 if r.from_entity == entity.name or r.to_entity == entity.name
             ]
 
+            entity_knowledge = [
+                k for k in extraction.knowledge
+                if k.entity == entity.name
+            ]
+
             if file_path.exists():
-                self._update_note(file_path, entity, entity_relations)
+                self._update_note(file_path, entity, entity_relations, entity_knowledge)
                 stats["updated"].append(entity.name)
             else:
-                self._create_note(file_path, entity, entity_relations)
+                self._create_note(file_path, entity, entity_relations, entity_knowledge)
                 stats["created"].append(entity.name)
 
-        # 2. Создаём файлы для entities упомянутых только в relations
+        # 2. Knowledge для entities которые ещё не обработаны
         all_entity_names = {e.name for e in extraction.entities}
+        for k in extraction.knowledge:
+            if k.entity and k.entity not in all_entity_names:
+                file_path = self._entity_file_path(k.entity)
+                if file_path.exists():
+                    self._append_knowledge(file_path, [k])
+                    if k.entity not in stats["updated"]:
+                        stats["updated"].append(k.entity)
+                else:
+                    stub = ExtractedEntity(name=k.entity, entity_type="concept", facts=[])
+                    self._create_note(file_path, stub, [], [k])
+                    stats["created"].append(k.entity)
+                    all_entity_names.add(k.entity)
+
+        # 3. Stub files for entities only in relations
         for rel in extraction.relations:
             for name in (rel.from_entity, rel.to_entity):
                 if name not in all_entity_names:
                     file_path = self._entity_file_path(name)
                     if not file_path.exists():
                         stub = ExtractedEntity(name=name, entity_type="concept", facts=[])
-                        self._create_note(file_path, stub, [])
+                        self._create_note(file_path, stub, [], [])
                         stats["created"].append(name)
                         all_entity_names.add(name)
 
         return stats
 
     def _create_note(self, file_path: Path, entity: ExtractedEntity,
-                     relations: list[ExtractedRelation]):
+                     relations: list[ExtractedRelation],
+                     knowledge: list[ExtractedKnowledge] = None):
         """Создаёт новый .md файл"""
         now = datetime.now().strftime("%Y-%m-%d %H:%M")
 
-        # Frontmatter
         frontmatter = {
             "type": entity.entity_type,
             "created": now,
@@ -84,22 +100,20 @@ class VaultManager:
             "tags": [entity.entity_type],
         }
 
-        # Контент
         lines = []
         lines.append(f"# {entity.name}\n")
 
-        # Факты
+        # Facts
         if entity.facts:
-            lines.append("## Факты\n")
+            lines.append("## Facts\n")
             for fact in entity.facts:
-                # Превращаем упоминания других entities в [[links]]
-                linked_fact = self._add_wikilinks(fact, entity.name)
-                lines.append(f"- {linked_fact}")
+                linked = self._add_wikilinks(fact, entity.name)
+                lines.append(f"- {linked}")
             lines.append("")
 
-        # Связи
+        # Relations
         if relations:
-            lines.append("## Связи\n")
+            lines.append("## Relations\n")
             for rel in relations:
                 other = rel.to_entity if rel.from_entity == entity.name else rel.from_entity
                 direction = "→" if rel.from_entity == entity.name else "←"
@@ -107,96 +121,195 @@ class VaultManager:
                 lines.append(f"- {direction} **{rel.relation_type}** [[{other}]]{desc}")
             lines.append("")
 
-        # Записываем файл
+        # Knowledge
+        if knowledge:
+            lines.append("## Knowledge\n")
+            for k in knowledge:
+                lines.append(self._format_knowledge_entry(k))
+            lines.append("")
+
         content = self._format_with_frontmatter(frontmatter, "\n".join(lines))
         file_path.write_text(content, encoding="utf-8")
 
     def _update_note(self, file_path: Path, entity: ExtractedEntity,
-                     relations: list[ExtractedRelation]):
-        """Обновляет существующий .md файл — добавляет новые факты"""
+                     relations: list[ExtractedRelation],
+                     knowledge: list[ExtractedKnowledge] = None):
+        """Обновляет существующий .md файл"""
         content = file_path.read_text(encoding="utf-8")
         now = datetime.now().strftime("%Y-%m-%d %H:%M")
 
-        # Парсим frontmatter
         frontmatter, body = self._parse_frontmatter(content)
         frontmatter["updated"] = now
 
-        # Получаем существующие факты
         existing_facts = self._extract_existing_facts(body)
 
-        # Добавляем новые факты (только уникальные)
+        # New facts
         new_facts = []
         for fact in entity.facts:
-            # Проверяем что факт не дубликат (нечёткое сравнение)
             if not self._fact_exists(fact, existing_facts):
                 new_facts.append(fact)
 
-        if not new_facts and not relations:
-            return  # Нечего обновлять
-
-        # Добавляем новые факты в секцию "Факты"
         if new_facts:
-            facts_section = "\n## Обновления\n\n"
-            facts_section += f"*{now}*\n\n"
-            for fact in new_facts:
-                linked_fact = self._add_wikilinks(fact, entity.name)
-                facts_section += f"- {linked_fact}\n"
-            body = body.rstrip() + "\n" + facts_section
+            if "## Facts" in body:
+                # Append to existing Facts section
+                insert_pos = body.find("## Facts")
+                # Find end of Facts section (next ## or end)
+                next_section = self._find_next_section(body, insert_pos + 1)
+                insert_at = next_section if next_section else len(body)
+                new_lines = ""
+                for fact in new_facts:
+                    linked = self._add_wikilinks(fact, entity.name)
+                    new_lines += f"- {linked}\n"
+                body = body[:insert_at].rstrip() + "\n" + new_lines + "\n" + body[insert_at:]
+            else:
+                body = body.rstrip() + "\n\n## Facts\n\n"
+                for fact in new_facts:
+                    linked = self._add_wikilinks(fact, entity.name)
+                    body += f"- {linked}\n"
 
-        # Добавляем новые связи
-        new_relations = []
+        # New relations
         existing_links = set(re.findall(r"\[\[([^\]]+)\]\]", body))
-        for rel in relations:
-            other = rel.to_entity if rel.from_entity == entity.name else rel.from_entity
-            if other not in existing_links:
-                new_relations.append(rel)
+        new_rels = [r for r in relations
+                    if (r.to_entity if r.from_entity == entity.name else r.from_entity) not in existing_links]
+        if new_rels:
+            if "## Relations" in body:
+                insert_pos = body.find("## Relations")
+                next_section = self._find_next_section(body, insert_pos + 1)
+                insert_at = next_section if next_section else len(body)
+                new_lines = ""
+                for rel in new_rels:
+                    other = rel.to_entity if rel.from_entity == entity.name else rel.from_entity
+                    direction = "→" if rel.from_entity == entity.name else "←"
+                    desc = f": {rel.description}" if rel.description else ""
+                    new_lines += f"- {direction} **{rel.relation_type}** [[{other}]]{desc}\n"
+                body = body[:insert_at].rstrip() + "\n" + new_lines + "\n" + body[insert_at:]
+            else:
+                body = body.rstrip() + "\n\n## Relations\n\n"
+                for rel in new_rels:
+                    other = rel.to_entity if rel.from_entity == entity.name else rel.from_entity
+                    direction = "→" if rel.from_entity == entity.name else "←"
+                    desc = f": {rel.description}" if rel.description else ""
+                    body += f"- {direction} **{rel.relation_type}** [[{other}]]{desc}\n"
 
-        if new_relations:
-            rel_section = "\n### Новые связи\n\n"
-            for rel in new_relations:
-                other = rel.to_entity if rel.from_entity == entity.name else rel.from_entity
-                direction = "→" if rel.from_entity == entity.name else "←"
-                desc = f": {rel.description}" if rel.description else ""
-                rel_section += f"- {direction} **{rel.relation_type}** [[{other}]]{desc}\n"
-            body = body.rstrip() + "\n" + rel_section
+        # Knowledge
+        if knowledge:
+            self._write_with_knowledge(file_path, frontmatter, body, knowledge)
+            return
 
-        # Записываем обновлённый файл
+        if new_facts or new_rels:
+            content = self._format_with_frontmatter(frontmatter, body)
+            file_path.write_text(content, encoding="utf-8")
+
+    def _append_knowledge(self, file_path: Path, knowledge: list[ExtractedKnowledge]):
+        """Добавляет knowledge к существующему файлу"""
+        content = file_path.read_text(encoding="utf-8")
+        now = datetime.now().strftime("%Y-%m-%d %H:%M")
+        frontmatter, body = self._parse_frontmatter(content)
+        frontmatter["updated"] = now
+        self._write_with_knowledge(file_path, frontmatter, body, knowledge)
+
+    def _write_with_knowledge(self, file_path: Path, frontmatter: dict,
+                              body: str, knowledge: list[ExtractedKnowledge]):
+        """Записывает файл с новыми knowledge entries"""
+        existing_titles = set(re.findall(r"\*\*\[[\w]+\]\s+(.+?)\*\*", body))
+
+        new_knowledge = [k for k in knowledge if k.title not in existing_titles]
+        if not new_knowledge:
+            content = self._format_with_frontmatter(frontmatter, body)
+            file_path.write_text(content, encoding="utf-8")
+            return
+
+        if "## Knowledge" in body:
+            # Append to existing Knowledge section
+            for k in new_knowledge:
+                body = body.rstrip() + "\n\n" + self._format_knowledge_entry(k)
+        else:
+            body = body.rstrip() + "\n\n## Knowledge\n\n"
+            for k in new_knowledge:
+                body += self._format_knowledge_entry(k) + "\n"
+
         content = self._format_with_frontmatter(frontmatter, body)
         file_path.write_text(content, encoding="utf-8")
 
-    def _add_wikilinks(self, text: str, current_entity: str) -> str:
-        """
-        Находит упоминания entities в тексте и оборачивает в [[wikilinks]].
-        Ищет по существующим файлам в vault.
-        """
-        existing_notes = {
-            p.stem for p in self.vault_path.glob("*.md")
-        }
+    def _format_knowledge_entry(self, k: ExtractedKnowledge) -> str:
+        """Форматирует одну knowledge entry"""
+        now = datetime.now().strftime("%Y-%m-%d")
+        entity_name = k.entity
 
+        lines = []
+        lines.append(f"**[{k.knowledge_type}] {k.title}** ({now})")
+        
+        # Content with wikilinks
+        linked_content = self._add_wikilinks(k.content, entity_name)
+        lines.append(linked_content)
+
+        # Artifact (code block)
+        if k.artifact:
+            artifact = k.artifact.strip()
+            # Auto-detect language for code block
+            lang = self._detect_artifact_lang(artifact, k.knowledge_type)
+            lines.append(f"\n```{lang}")
+            lines.append(artifact)
+            lines.append("```")
+
+        lines.append("")  # blank line after entry
+        return "\n".join(lines)
+
+    def _detect_artifact_lang(self, artifact: str, knowledge_type: str) -> str:
+        """Определяет язык для code block"""
+        # By content
+        if artifact.strip().startswith("SELECT") or artifact.strip().startswith("select"):
+            return "sql"
+        if artifact.strip().startswith("{") or artifact.strip().startswith("["):
+            return "json"
+        if artifact.strip().startswith("<"):
+            return "xml"
+        if artifact.strip().startswith("def ") or artifact.strip().startswith("import "):
+            return "python"
+        if artifact.strip().startswith("public ") or artifact.strip().startswith("private "):
+            return "java"
+        if ":" in artifact and not artifact.strip().startswith("http"):
+            return "yaml"
+        if artifact.strip().startswith("$") or artifact.strip().startswith("#!"):
+            return "bash"
+
+        # By knowledge type
+        type_map = {
+            "command": "bash",
+            "config": "yaml",
+            "formula": "math",
+            "sql": "sql",
+        }
+        return type_map.get(knowledge_type, "")
+
+    def _find_next_section(self, body: str, start: int) -> Optional[int]:
+        """Находит начало следующей ## секции"""
+        match = re.search(r"\n## ", body[start:])
+        if match:
+            return start + match.start()
+        return None
+
+    # --- Existing helpers (unchanged) ---
+
+    def _add_wikilinks(self, text: str, current_entity: str) -> str:
+        existing_notes = {p.stem for p in self.vault_path.glob("*.md")}
         for note_name in existing_notes:
             if note_name == current_entity:
                 continue
-            # Case-insensitive замена, но сохраняем оригинальный регистр
             pattern = re.compile(re.escape(note_name), re.IGNORECASE)
-            # Не оборачиваем если уже в [[ ]]
             if f"[[{note_name}]]" not in text:
                 text = pattern.sub(f"[[{note_name}]]", text, count=1)
-
         return text
 
     def _entity_file_path(self, entity_name: str) -> Path:
-        """Путь к .md файлу для entity"""
-        # Убираем символы недопустимые в именах файлов
         safe_name = re.sub(r'[<>:"/\\|?*]', '_', entity_name)
         return self.vault_path / f"{safe_name}.md"
 
     def _format_with_frontmatter(self, frontmatter: dict, body: str) -> str:
-        """Собирает файл: frontmatter + body"""
         fm_str = yaml.dump(frontmatter, allow_unicode=True, default_flow_style=False).strip()
         return f"---\n{fm_str}\n---\n\n{body.strip()}\n"
 
     def _parse_frontmatter(self, content: str) -> tuple[dict, str]:
-        """Парсит frontmatter из файла"""
         match = re.match(r"^---\s*\n(.*?)\n---\s*\n", content, re.DOTALL)
         if not match:
             return {}, content
@@ -208,21 +321,17 @@ class VaultManager:
         return fm, body
 
     def _extract_existing_facts(self, body: str) -> list[str]:
-        """Извлекает существующие факты из body"""
         facts = []
         for line in body.split("\n"):
             line = line.strip()
-            if line.startswith("- "):
-                # Убираем [[links]] для сравнения
+            if line.startswith("- ") and "**" not in line and "[" not in line[:3]:
                 clean = re.sub(r"\[\[([^\]]+)\]\]", r"\1", line[2:])
                 facts.append(clean.lower().strip())
         return facts
 
     def _fact_exists(self, new_fact: str, existing_facts: list[str]) -> bool:
-        """Проверяет есть ли уже такой факт (нечёткое сравнение)"""
         new_clean = new_fact.lower().strip()
         for existing in existing_facts:
-            # Простое сравнение: если >70% слов совпадают
             new_words = set(new_clean.split())
             existing_words = set(existing.split())
             if not new_words:
@@ -233,56 +342,20 @@ class VaultManager:
         return False
 
     def get_vault_stats(self) -> dict:
-        """Статистика vault"""
         files = list(self.vault_path.glob("*.md"))
         types = {}
+        knowledge_count = 0
         for f in files:
             content = f.read_text(encoding="utf-8")
-            fm, _ = self._parse_frontmatter(content)
+            fm, body = self._parse_frontmatter(content)
             t = fm.get("type", "unknown")
             types[t] = types.get(t, 0) + 1
-        return {"total_notes": len(files), "by_type": types}
+            knowledge_count += len(re.findall(r"\*\*\[\w+\]", body))
+        return {
+            "total_notes": len(files),
+            "by_type": types,
+            "knowledge_entries": knowledge_count,
+        }
 
     def list_notes(self) -> list[str]:
-        """Список всех заметок"""
         return sorted([p.stem for p in self.vault_path.glob("*.md")])
-
-
-if __name__ == "__main__":
-    from engine.extractor.conversation_extractor import (
-        ConversationExtractor, MockLLMClient
-    )
-
-    print("🧪 Тест Vault Manager\n")
-
-    # 1. Извлекаем знания (mock)
-    extractor = ConversationExtractor(MockLLMClient())
-    conversation = [
-        {"role": "user", "content": "Я работаю в Uzum Bank, backend разработчик. Делаю микросервисы на Spring Boot."},
-        {"role": "assistant", "content": "Какие БД используете?"},
-        {"role": "user", "content": "PostgreSQL 15. Проблема с connection pool в Проект Alpha."},
-    ]
-    extraction = extractor.extract(conversation)
-
-    # 2. Записываем в vault
-    vault = VaultManager("./test_vault_auto")
-    stats = vault.process_extraction(extraction)
-
-    print(f"\n📊 Результат:")
-    print(f"   Создано: {stats['created']}")
-    print(f"   Обновлено: {stats['updated']}")
-
-    # 3. Показываем что создалось
-    print(f"\n📁 Файлы в vault:")
-    for note in vault.list_notes():
-        print(f"   📄 {note}.md")
-
-    print(f"\n📈 Статистика: {vault.get_vault_stats()}")
-
-    # 4. Показываем содержимое одного файла
-    user_file = vault.vault_path / "User.md"
-    if user_file.exists():
-        print(f"\n{'='*50}")
-        print(f"📄 User.md:")
-        print(f"{'='*50}")
-        print(user_file.read_text())

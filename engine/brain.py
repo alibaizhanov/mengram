@@ -15,6 +15,7 @@ ObsidianMem Brain — главный оркестратор.
 
 import re
 import yaml
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -65,25 +66,45 @@ class ObsidianMemBrain:
             from engine.vector.embedder import Embedder
             from engine.vector.vector_store import VectorStore
 
-            print("🧠 Инициализирую semantic search...")
+            print("🧠 Инициализирую semantic search...", file=sys.stderr)
             embedder = Embedder()
             self._vector_store = VectorStore(
                 db_path=self._vector_db_path,
                 embedder=embedder,
             )
 
-            # Если vault не пуст и store пустой — индексируем
+            # Auto-sync: index only new/missing entities
             stats = self._vector_store.stats()
             vault_notes = list(Path(self.vault_path).glob("*.md"))
+            indexed_entities = stats.get("total_entities", 0)
+
             if vault_notes and stats["total_chunks"] == 0:
-                print("📝 Первичная индексация vault...")
+                print("📝 Первичная индексация vault...", file=sys.stderr)
                 self._reindex_vault()
+            elif len(vault_notes) > indexed_entities:
+                # Find which entities are missing
+                indexed_ids = set()
+                try:
+                    rows = self._vector_store.conn.execute(
+                        "SELECT DISTINCT entity_name FROM chunks"
+                    ).fetchall()
+                    indexed_ids = {r[0] for r in rows}
+                except Exception:
+                    pass
+                missing = [f.stem for f in vault_notes if f.stem not in indexed_ids]
+                if missing:
+                    print(f"📝 Индексирую {len(missing)} новых заметок...", file=sys.stderr)
+                    self._index_entities(missing)
+                    stats = self._vector_store.stats()
+                    print(f"✅ Semantic search готов ({stats['total_chunks']} chunks)", file=sys.stderr)
+                else:
+                    print(f"✅ Semantic search готов ({stats['total_chunks']} chunks)", file=sys.stderr)
             else:
-                print(f"✅ Semantic search готов ({stats['total_chunks']} chunks)")
+                print(f"✅ Semantic search готов ({stats['total_chunks']} chunks)", file=sys.stderr)
 
         except ImportError as e:
-            print(f"⚠️  sentence-transformers не установлен: {e}")
-            print("   pip install sentence-transformers")
+            print(f"⚠️  sentence-transformers не установлен: {e}", file=sys.stderr)
+            print("   pip install sentence-transformers", file=sys.stderr)
             self.use_vectors = False
             self._vector_store = None
 
@@ -95,16 +116,16 @@ class ObsidianMemBrain:
         2. Записывает в vault (.md файлы)
         3. Индексирует новые данные для semantic search
         """
-        print("🧠 Извлекаю знания из разговора...")
+        print("🧠 Извлекаю знания из разговора...", file=sys.stderr)
 
         # 1. Извлекаем через LLM
         extraction = self.extractor.extract(conversation)
-        print(f"   📊 Найдено: {len(extraction.entities)} entities, {len(extraction.relations)} relations")
+        print(f"   📊 Найдено: {len(extraction.entities)} entities, {len(extraction.relations)} relations, {len(extraction.knowledge)} knowledge", file=sys.stderr)
 
         # 2. Записываем в vault
         stats = self.vault_manager.process_extraction(extraction)
-        print(f"   📝 Создано: {stats['created']}")
-        print(f"   📝 Обновлено: {stats['updated']}")
+        print(f"   📝 Создано: {stats['created']}", file=sys.stderr)
+        print(f"   📝 Обновлено: {stats['updated']}", file=sys.stderr)
 
         # 3. Инвалидируем граф
         self._graph = None
@@ -156,7 +177,7 @@ class ObsidianMemBrain:
                     if contexts:
                         return self._assemble_context(query, contexts)
             except Exception as e:
-                print(f"⚠️  Vector search error: {e}")
+                print(f"⚠️  Vector search error: {e}", file=sys.stderr)
 
         # === 2. GRAPH SEARCH ===
         graph = self.graph
@@ -189,22 +210,34 @@ class ObsidianMemBrain:
         return f"Ничего не найдено по запросу: '{query}'"
 
     def recall_all(self) -> str:
-        notes = parse_vault(self.vault_path)
-        if not notes:
-            return "Vault пуст. Пока нет сохранённых знаний."
+        """Full vault overview with knowledge entries."""
+        vault = Path(self.vault_path)
+        files = sorted(vault.glob("*.md"), key=lambda f: f.stat().st_mtime, reverse=True)
+        if not files:
+            return "Vault is empty. No knowledge saved yet."
 
-        lines = [f"# Знания в vault ({len(notes)} заметок)\n"]
-        for note in notes:
-            lines.append(f"## {note.title}")
-            lines.append(f"Тип: {note.frontmatter.get('type', 'unknown')}")
-            if note.tags:
-                lines.append(f"Теги: {', '.join(note.tags)}")
-            body = note.raw_content
-            if "---" in body:
-                body = body.split("---", 2)[-1]
-            preview = body.strip()[:200]
-            if preview:
-                lines.append(preview)
+        lines = [f"# Knowledge vault ({len(files)} entities)\n"]
+        for f in files:
+            data = self._get_entity_data(f.stem)
+            lines.append(f"## {f.stem} ({data.get('type', 'unknown')})")
+
+            if data["facts"]:
+                for fact in data["facts"][:5]:
+                    lines.append(f"- {fact}")
+
+            if data["relations"]:
+                for r in data["relations"][:5]:
+                    arrow = "→" if r["direction"] == "outgoing" else "←"
+                    lines.append(f"- {arrow} {r['type']}: {r['target']}")
+
+            if data["knowledge"]:
+                lines.append("\nKnowledge:")
+                for k in data["knowledge"]:
+                    lines.append(f"  **[{k['type']}] {k['title']}**")
+                    lines.append(f"  {k['content'][:300]}")
+                    if k.get("artifact"):
+                        lines.append(f"  ```\n  {k['artifact'][:500]}\n  ```")
+
             lines.append("")
         return "\n".join(lines)
 
@@ -229,7 +262,7 @@ class ObsidianMemBrain:
                     data["score"] = round(vr.score, 3)
                     results.append(data)
             except Exception as e:
-                print(f"⚠️  Search error: {e}")
+                print(f"⚠️  Search error: {e}", file=sys.stderr)
 
         if not results:
             graph = self.graph
@@ -240,6 +273,84 @@ class ObsidianMemBrain:
                 results.append(data)
 
         return results
+
+    def get_profile(self) -> str:
+        """
+        Generate comprehensive user profile from vault.
+        Used as MCP resource for proactive context.
+        """
+        vault = Path(self.vault_path)
+        files = sorted(vault.glob("*.md"), key=lambda f: f.stat().st_mtime, reverse=True)
+        if not files:
+            return "Memory vault is empty. No user context available yet."
+
+        sections = []
+        entities_by_type = {}
+
+        for f in files:
+            data = self._get_entity_data(f.stem)
+            etype = data.get("type", "unknown")
+            if etype not in entities_by_type:
+                entities_by_type[etype] = []
+            entities_by_type[etype].append(data)
+
+        # Build profile
+        sections.append("# User Knowledge Profile\n")
+
+        for etype in ["person", "company", "project", "technology", "concept"]:
+            entities = entities_by_type.get(etype, [])
+            if not entities:
+                continue
+            plural = {"person": "People", "company": "Companies", "project": "Projects",
+                      "technology": "Technologies", "concept": "Concepts"}.get(etype, etype.title() + "s")
+            sections.append(f"\n## {plural}")
+            for e in entities[:10]:
+                name = e["entity"]
+                facts = e.get("facts", [])[:5]
+                knowledge = e.get("knowledge", [])
+                rels = e.get("relations", [])[:5]
+
+                lines = [f"\n### {name}"]
+                if facts:
+                    for fact in facts:
+                        lines.append(f"- {fact}")
+                if knowledge:
+                    for k in knowledge[:3]:
+                        lines.append(f"- [{k['type']}] {k['title']}: {k['content'][:150]}")
+                        if k.get("artifact"):
+                            lines.append(f"  ```{k['artifact'][:200]}```")
+                if rels:
+                    for r in rels:
+                        arrow = "→" if r["direction"] == "outgoing" else "←"
+                        lines.append(f"- {arrow} {r['type']}: {r['target']}")
+                sections.append("\n".join(lines))
+
+        return "\n".join(sections)
+
+    def get_recent_knowledge(self, limit: int = 10) -> str:
+        """Get most recent knowledge entries across all entities."""
+        vault = Path(self.vault_path)
+        files = sorted(vault.glob("*.md"), key=lambda f: f.stat().st_mtime, reverse=True)
+
+        all_knowledge = []
+        for f in files[:20]:
+            data = self._get_entity_data(f.stem)
+            for k in data.get("knowledge", []):
+                k["_entity"] = f.stem
+                all_knowledge.append(k)
+
+        if not all_knowledge:
+            return "No knowledge entries yet."
+
+        lines = ["# Recent Knowledge\n"]
+        for k in all_knowledge[:limit]:
+            lines.append(f"**[{k['type']}] {k['title']}** → {k['_entity']}")
+            lines.append(k['content'][:200])
+            if k.get("artifact"):
+                lines.append(f"```{k['artifact'][:300]}```")
+            lines.append("")
+
+        return "\n".join(lines)
 
     def get_stats(self) -> dict:
         vault_stats = self.vault_manager.get_vault_stats()
@@ -252,12 +363,13 @@ class ObsidianMemBrain:
     # --- Internal ---
 
     def _get_entity_data(self, entity_name: str) -> dict:
-        data = {"entity": entity_name, "type": "unknown", "facts": [], "relations": []}
+        data = {"entity": entity_name, "type": "unknown", "facts": [], "relations": [], "knowledge": []}
         file_path = Path(self.vault_path) / f"{entity_name}.md"
         if not file_path.exists():
             return data
 
         content = file_path.read_text(encoding="utf-8")
+        body = content
 
         fm_match = re.match(r"^---\s*\n(.*?)\n---\s*\n", content, re.DOTALL)
         if fm_match:
@@ -266,14 +378,15 @@ class ObsidianMemBrain:
                 data["type"] = fm.get("type", "unknown")
             except:
                 pass
+            body = content[fm_match.end():]
 
-        for line in content.split("\n"):
+        for line in body.split("\n"):
             line = line.strip()
             if line.startswith("- ") and "**" not in line:
                 fact = re.sub(r"\[\[([^\]]+)\]\]", r"\1", line[2:])
                 data["facts"].append(fact)
 
-        for line in content.split("\n"):
+        for line in body.split("\n"):
             line = line.strip()
             if ("→ **" in line or "← **" in line) and "[[" in line:
                 rel_match = re.search(r"(→|←)\s+\*\*(\w+)\*\*\s+\[\[([^\]]+)\]\]", line)
@@ -284,21 +397,53 @@ class ObsidianMemBrain:
                         "target": target,
                         "direction": "outgoing" if direction == "→" else "incoming",
                     })
+
+        # Extract knowledge entries
+        knowledge_matches = re.findall(
+            r"\*\*\[(\w+)\]\s+(.+?)\*\*.*?\n(.*?)(?=\n\*\*\[|\n## |\Z)",
+            body, re.DOTALL
+        )
+        for k_type, k_title, k_body in knowledge_matches:
+            k_body = k_body.strip()
+            # Separate content from artifact (code block)
+            artifact = None
+            code_match = re.search(r"```\w*\n(.*?)```", k_body, re.DOTALL)
+            if code_match:
+                artifact = code_match.group(1).strip()
+                k_content = k_body[:code_match.start()].strip()
+            else:
+                k_content = k_body
+            k_content = re.sub(r"\[\[([^\]]+)\]\]", r"\1", k_content)
+            data["knowledge"].append({
+                "type": k_type,
+                "title": k_title,
+                "content": k_content,
+                "artifact": artifact,
+            })
+
         return data
 
     def _build_rich_context(self, entity_name: str, score: float = 0.0) -> Optional[str]:
         data = self._get_entity_data(entity_name)
-        if not data["facts"] and not data["relations"]:
+        if not data["facts"] and not data["relations"] and not data["knowledge"]:
             return None
 
         lines = [f"## {entity_name} ({data['type']}) [relevance: {score:.2f}]"]
         for fact in data["facts"][:10]:
             lines.append(f"- {fact}")
         if data["relations"]:
-            lines.append("\nСвязи:")
+            lines.append("\nRelations:")
             for rel in data["relations"][:8]:
                 arrow = "→" if rel["direction"] == "outgoing" else "←"
                 lines.append(f"  {arrow} {rel['type']}: {rel['target']}")
+        if data["knowledge"]:
+            lines.append("\nKnowledge:")
+            for k in data["knowledge"][:5]:
+                lines.append(f"  [{k['type']}] {k['title']}: {k['content'][:200]}")
+                if k.get("artifact"):
+                    # Include artifact truncated
+                    artifact = k["artifact"][:300]
+                    lines.append(f"    ```{artifact}```")
         return "\n".join(lines)
 
     def _expand_via_graph(self, entity_name: str, seen: set) -> list[str]:
@@ -351,10 +496,10 @@ class ObsidianMemBrain:
         return "\n".join(lines)
 
     def _rebuild_graph(self):
-        print("🔄 Обновляю граф знаний...")
+        print("🔄 Обновляю граф знаний...", file=sys.stderr)
         self._graph = build_graph_from_vault(self.vault_path)
         stats = self._graph.stats()
-        print(f"   ✅ {stats['total_entities']} entities, {stats['total_relations']} relations")
+        print(f"   ✅ {stats['total_entities']} entities, {stats['total_relations']} relations", file=sys.stderr)
 
     def _reindex_vault(self):
         if not self._vector_store:
@@ -363,7 +508,7 @@ class ObsidianMemBrain:
         if not notes:
             return
 
-        print(f"📝 Индексирую {len(notes)} заметок...")
+        print(f"📝 Индексирую {len(notes)} заметок...", file=sys.stderr)
         all_chunks = []
         for note in notes:
             entity_id = note.name.lower().replace(" ", "_")
@@ -379,7 +524,7 @@ class ObsidianMemBrain:
         if all_chunks:
             self._vector_store.add_chunks_batch(all_chunks)
             stats = self._vector_store.stats()
-            print(f"✅ Indexed: {stats['total_chunks']} chunks")
+            print(f"✅ Indexed: {stats['total_chunks']} chunks", file=sys.stderr)
 
     def _index_entities(self, entity_names: list[str]):
         if not self._vector_store:
@@ -411,11 +556,11 @@ class ObsidianMemBrain:
                         "position": chunk.position,
                     })
             except Exception as e:
-                print(f"⚠️  Error indexing {name}: {e}")
+                print(f"⚠️  Error indexing {name}: {e}", file=sys.stderr)
 
         if chunks:
             self._vector_store.add_chunks_batch(chunks)
-            print(f"   🔍 Indexed {len(chunks)} chunks for {len(entity_names)} entities")
+            print(f"   🔍 Indexed {len(chunks)} chunks for {len(entity_names)} entities", file=sys.stderr)
 
 
 def load_config(config_path: str = "config.yaml") -> dict:

@@ -1,13 +1,27 @@
 """
-Conversation Extractor — извлекает знания из разговоров с AI.
+Conversation Extractor v2 — извлекает RICH знания из разговоров.
 
-Берёт разговор (user + assistant сообщения) и с помощью LLM:
-1. Извлекает сущности (люди, проекты, технологии, компании)
-2. Извлекает факты о каждой сущности
-3. Определяет связи между сущностями
-4. Возвращает структурированные данные для записи в vault
+Извлекает:
+1. Entities (person, project, technology, company, concept)
+2. Facts — короткие утверждения
+3. Relations — связи между entities
+4. Knowledge — решения, формулы, рецепты, конфиги, команды (с артефактами)
+
+Knowledge — это killer feature. LLM сам определяет тип знания:
+  [solution] — решение проблемы (код, конфиг)
+  [formula] — формула, уравнение
+  [treatment] — лечение, назначение
+  [experiment] — результат эксперимента
+  [recipe] — рецепт (кулинария, процесс)
+  [decision] — принятое решение
+  [command] — полезная команда / инструкция
+  [reference] — ссылка, источник
+  [insight] — наблюдение, инсайт
+  [example] — пример, кейс
+  ... любой другой тип который подходит по смыслу
 """
 
+import sys
 import json
 from dataclasses import dataclass, field
 from typing import Optional
@@ -15,43 +29,53 @@ from typing import Optional
 from engine.extractor.llm_client import LLMClient
 
 
-EXTRACTION_PROMPT = """Ты — система извлечения знаний. Проанализируй разговор между пользователем и AI-ассистентом.
+EXTRACTION_PROMPT = """You are a knowledge extraction system. Analyze the conversation and extract ALL knowledge.
 
-Извлеки ВСЕ сущности, факты и связи. Верни ТОЛЬКО валидный JSON без markdown.
+Return ONLY valid JSON without markdown. Be thorough — extract everything useful.
 
-Правила:
+Rules:
 - entity_type: person, project, technology, company, concept
-- Факты — короткие, конкретные утверждения
-- Связи — как сущности связаны друг с другом
-- Если пользователь говорит "я" — это сущность с именем "User" (type: person)
-- Извлекай даже неявные факты (если говорит "мы используем Kafka" — значит есть проект где используется Kafka)
+- facts: short, specific statements about each entity
+- relations: how entities are connected
+- knowledge: RICH knowledge entries — solutions, code, formulas, treatments, recipes, commands, examples, insights
+  - Each knowledge entry has: type tag, title, content, and optional artifact (code/config/formula/dosage/etc)
+  - The knowledge type tag should be chosen by YOU based on context — common types include: solution, formula, treatment, experiment, recipe, decision, command, reference, insight, example, debug, config, pattern, tip
+  - If the conversation contains code snippets, configs, commands, formulas — ALWAYS capture them as artifacts
+- If user says "I" or "me" — that's entity "User" (type: person)
+- Extract even implicit knowledge
 
-Формат ответа (строго JSON, без ```):
+Response format (strict JSON, no ```):
 {{
   "entities": [
     {{
-      "name": "Имя сущности",
+      "name": "Entity Name",
       "type": "person|project|technology|company|concept",
-      "facts": [
-        "факт 1 об этой сущности",
-        "факт 2 об этой сущности"
-      ]
+      "facts": ["fact 1", "fact 2"]
     }}
   ],
   "relations": [
     {{
-      "from": "Имя сущности 1",
-      "to": "Имя сущности 2",
+      "from": "Entity 1",
+      "to": "Entity 2",
       "type": "works_at|uses|member_of|related_to|depends_on|created_by",
-      "description": "описание связи"
+      "description": "relationship description"
+    }}
+  ],
+  "knowledge": [
+    {{
+      "entity": "Entity this knowledge belongs to",
+      "type": "solution|formula|command|insight|...",
+      "title": "Short descriptive title",
+      "content": "Detailed explanation",
+      "artifact": "code/config/formula/command (optional, null if none)"
     }}
   ]
 }}
 
-РАЗГОВОР:
+CONVERSATION:
 {conversation}
 
-Извлеки знания (верни ТОЛЬКО JSON):"""
+Extract knowledge (return ONLY JSON):"""
 
 
 @dataclass
@@ -78,14 +102,33 @@ class ExtractedRelation:
 
 
 @dataclass
+class ExtractedKnowledge:
+    """Извлечённое знание — solution, formula, command, etc."""
+    entity: str           # к какой entity относится
+    knowledge_type: str   # solution, formula, treatment, command, insight, ...
+    title: str            # краткий заголовок
+    content: str          # подробное описание
+    artifact: Optional[str] = None  # код, конфиг, формула, команда
+
+    def __repr__(self):
+        has_artifact = "📎" if self.artifact else ""
+        return f"Knowledge([{self.knowledge_type}] {self.title} → {self.entity} {has_artifact})"
+
+
+@dataclass
 class ExtractionResult:
     """Результат извлечения знаний из разговора"""
     entities: list[ExtractedEntity] = field(default_factory=list)
     relations: list[ExtractedRelation] = field(default_factory=list)
+    knowledge: list[ExtractedKnowledge] = field(default_factory=list)
     raw_response: str = ""
 
     def __repr__(self):
-        return f"ExtractionResult(entities={len(self.entities)}, relations={len(self.relations)})"
+        return (
+            f"ExtractionResult(entities={len(self.entities)}, "
+            f"relations={len(self.relations)}, "
+            f"knowledge={len(self.knowledge)})"
+        )
 
 
 class ConversationExtractor:
@@ -95,66 +138,47 @@ class ConversationExtractor:
         self.llm = llm_client
 
     def extract(self, conversation: list[dict]) -> ExtractionResult:
-        """
-        Извлекает знания из разговора.
-
-        Args:
-            conversation: список сообщений [{"role": "user"|"assistant", "content": "..."}]
-
-        Returns:
-            ExtractionResult с entities и relations
-        """
-        # Форматируем разговор
         conv_text = self._format_conversation(conversation)
-
-        # Вызываем LLM
         prompt = EXTRACTION_PROMPT.format(conversation=conv_text)
         raw_response = self.llm.complete(prompt)
-
-        # Парсим JSON
         return self._parse_response(raw_response)
 
     def extract_from_text(self, text: str) -> ExtractionResult:
-        """Извлекает знания из произвольного текста"""
         conversation = [{"role": "user", "content": text}]
         return self.extract(conversation)
 
     def _format_conversation(self, conversation: list[dict]) -> str:
-        """Форматирует разговор в текст"""
         lines = []
         for msg in conversation:
-            role = "Пользователь" if msg["role"] == "user" else "Ассистент"
+            role = "User" if msg["role"] == "user" else "Assistant"
             lines.append(f"{role}: {msg['content']}")
         return "\n\n".join(lines)
 
     def _parse_response(self, raw: str) -> ExtractionResult:
-        """Парсит JSON ответ от LLM"""
         result = ExtractionResult(raw_response=raw)
 
-        # Чистим ответ от markdown
+        # Clean markdown
         clean = raw.strip()
         if clean.startswith("```"):
-            # Убираем ```json и ```
             lines = clean.split("\n")
             clean = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
 
         try:
             data = json.loads(clean)
         except json.JSONDecodeError:
-            # Пробуем найти JSON в тексте
             start = raw.find("{")
             end = raw.rfind("}") + 1
             if start >= 0 and end > start:
                 try:
                     data = json.loads(raw[start:end])
                 except json.JSONDecodeError:
-                    print(f"⚠️  Не удалось распарсить JSON от LLM")
+                    print(f"⚠️  Failed to parse JSON from LLM", file=sys.stderr)
                     return result
             else:
-                print(f"⚠️  LLM не вернул JSON")
+                print(f"⚠️  LLM returned no JSON", file=sys.stderr)
                 return result
 
-        # Извлекаем entities
+        # Entities
         for e in data.get("entities", []):
             result.entities.append(ExtractedEntity(
                 name=e.get("name", "Unknown"),
@@ -162,7 +186,7 @@ class ConversationExtractor:
                 facts=e.get("facts", []),
             ))
 
-        # Извлекаем relations
+        # Relations
         for r in data.get("relations", []):
             result.relations.append(ExtractedRelation(
                 from_entity=r.get("from", ""),
@@ -171,16 +195,25 @@ class ConversationExtractor:
                 description=r.get("description", ""),
             ))
 
+        # Knowledge (NEW)
+        for k in data.get("knowledge", []):
+            result.knowledge.append(ExtractedKnowledge(
+                entity=k.get("entity", ""),
+                knowledge_type=k.get("type", "insight"),
+                title=k.get("title", ""),
+                content=k.get("content", ""),
+                artifact=k.get("artifact"),
+            ))
+
         return result
 
 
-# --- Для тестирования без LLM API ---
+# --- Mock for testing ---
 
 class MockLLMClient(LLMClient):
-    """Мок для тестирования без реального LLM"""
+    """Mock LLM for testing without API"""
 
     def complete(self, prompt: str, system: str = "") -> str:
-        """Возвращает пример извлечённых данных"""
         return json.dumps({
             "entities": [
                 {
@@ -195,7 +228,7 @@ class MockLLMClient(LLMClient):
                 {
                     "name": "Uzum Bank",
                     "type": "company",
-                    "facts": ["Банк в Узбекистане", "Использует микросервисную архитектуру"]
+                    "facts": ["Банк в Узбекистане", "Микросервисная архитектура"]
                 },
                 {
                     "name": "Проект Alpha",
@@ -205,7 +238,7 @@ class MockLLMClient(LLMClient):
                 {
                     "name": "PostgreSQL",
                     "type": "technology",
-                    "facts": ["Основная БД", "Версия 15", "Проблема с connection pool exhaustion"]
+                    "facts": ["Основная БД", "Версия 15"]
                 },
                 {
                     "name": "Spring Boot",
@@ -219,31 +252,21 @@ class MockLLMClient(LLMClient):
                 {"from": "Проект Alpha", "to": "PostgreSQL", "type": "uses", "description": "Основная БД"},
                 {"from": "Проект Alpha", "to": "Spring Boot", "type": "uses", "description": "Backend фреймворк"},
                 {"from": "Uzum Bank", "to": "Проект Alpha", "type": "related_to", "description": "Проект банка"}
+            ],
+            "knowledge": [
+                {
+                    "entity": "PostgreSQL",
+                    "type": "solution",
+                    "title": "Connection pool exhaustion fix",
+                    "content": "OOM при 200+ WebSocket соединениях. Каждый WS держал отдельный connection. Решение: Redis кеш для UserService и BlockedAccountService.",
+                    "artifact": "spring.datasource.hikari.maximum-pool-size: 20\nspring.datasource.hikari.idle-timeout: 30000\nspring.datasource.hikari.connection-timeout: 5000"
+                },
+                {
+                    "entity": "PostgreSQL",
+                    "type": "command",
+                    "title": "Check active connections",
+                    "content": "Мониторинг активных соединений PostgreSQL",
+                    "artifact": "SELECT count(*), state FROM pg_stat_activity GROUP BY state;"
+                }
             ]
         }, ensure_ascii=False)
-
-
-if __name__ == "__main__":
-    # Тест с мок-клиентом (без реального API)
-    print("🧪 Тест Conversation Extractor (mock LLM)\n")
-
-    extractor = ConversationExtractor(MockLLMClient())
-
-    conversation = [
-        {"role": "user", "content": "Я работаю в Uzum Bank, backend разработчик. Делаю микросервисы на Spring Boot."},
-        {"role": "assistant", "content": "Отлично! Какие базы данных используете?"},
-        {"role": "user", "content": "PostgreSQL 15 как основная БД. Сейчас проблема с connection pool в Проект Alpha."},
-    ]
-
-    result = extractor.extract(conversation)
-    print(f"📊 {result}\n")
-
-    print("Entities:")
-    for e in result.entities:
-        print(f"  {e}")
-        for fact in e.facts:
-            print(f"    • {fact}")
-
-    print(f"\nRelations:")
-    for r in result.relations:
-        print(f"  {r}")
