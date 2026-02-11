@@ -305,6 +305,39 @@ def cmd_stats(args):
     sys.argv = old_argv
 
 
+def cmd_api(args):
+    """Start REST API server"""
+    config_path = args.config or str(DEFAULT_CONFIG)
+
+    if not Path(config_path).exists():
+        print(f"❌ Run: obsidian-mem init")
+        sys.exit(1)
+
+    try:
+        import fastapi
+        import uvicorn
+    except ImportError:
+        print("❌ FastAPI not installed: pip install obsidian-mem[api]")
+        sys.exit(1)
+
+    from engine.brain import create_brain
+    from api.rest_server import create_rest_api
+
+    brain = create_brain(config_path)
+
+    # Warmup vector store
+    if brain.use_vectors:
+        _ = brain.vector_store
+
+    app = create_rest_api(brain)
+
+    print(f"🧠 ObsidianMem REST API")
+    print(f"   http://localhost:{args.port}")
+    print(f"   Docs: http://localhost:{args.port}/docs")
+
+    uvicorn.run(app, host=args.host, port=args.port, log_level="info")
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="obsidian-mem",
@@ -332,6 +365,12 @@ def main():
     p_stats = sub.add_parser("stats", help="Vault statistics")
     p_stats.add_argument("--config", help="Config path")
 
+    # api
+    p_api = sub.add_parser("api", help="Start REST API server")
+    p_api.add_argument("--config", help="Config path")
+    p_api.add_argument("--host", default="0.0.0.0", help="Host (default: 0.0.0.0)")
+    p_api.add_argument("--port", type=int, default=8420, help="Port (default: 8420)")
+
     args = parser.parse_args()
 
     if args.command == "init":
@@ -342,6 +381,8 @@ def main():
         cmd_status(args)
     elif args.command == "stats":
         cmd_stats(args)
+    elif args.command == "api":
+        cmd_api(args)
     else:
         parser.print_help()
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "obsidian-mem"
-version = "0.5.0"
+version = "0.6.0"
 description = "AI memory as a typed knowledge graph in Obsidian. Like Mem0, but you own your data."
 readme = "README.md"
 license = {text = "MIT"}
@@ -39,11 +39,14 @@ anthropic = ["anthropic>=0.40"]
 openai = ["openai>=1.0"]
 embeddings = ["sentence-transformers>=2.2"]
 mcp = ["mcp>=1.0"]
+api = ["fastapi>=0.100", "uvicorn>=0.20"]
 all = [
     "anthropic>=0.40",
     "openai>=1.0",
     "sentence-transformers>=2.2",
     "mcp>=1.0",
+    "fastapi>=0.100",
+    "uvicorn>=0.20",
 ]
 dev = ["pytest>=7.0", "pytest-asyncio>=0.21"]
 
