@@ -13,9 +13,11 @@ Developers get API key, integrate in 3 lines:
 import os
 import sys
 from typing import Optional
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from cloud.store import CloudStore
@@ -114,6 +116,12 @@ def create_cloud_api() -> FastAPI:
         return user_id
 
     # ---- Public endpoints ----
+
+    @app.get("/", response_class=HTMLResponse)
+    async def landing():
+        """Landing page."""
+        landing_path = Path(__file__).parent / "landing.html"
+        return landing_path.read_text(encoding="utf-8")
 
     @app.post("/v1/signup", response_model=SignupResponse)
     async def signup(req: SignupRequest):

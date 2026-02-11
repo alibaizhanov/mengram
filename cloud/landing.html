@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ObsidianMem — Memory Layer for AI Apps</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #06060a;
+            --bg-card: #0c0c14;
+            --bg-card-hover: #10101c;
+            --border: #1a1a2e;
+            --border-glow: #7c3aed;
+            --text-primary: #e8e8f0;
+            --text-secondary: #8888a8;
+            --text-dim: #55556a;
+            --accent: #7c3aed;
+            --accent-light: #a78bfa;
+            --accent-glow: rgba(124, 58, 237, 0.15);
+            --green: #22c55e;
+            --green-dim: rgba(34, 197, 94, 0.12);
+            --pink: #ec4899;
+            --blue: #3b82f6;
+            --orange: #f97316;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: 'Outfit', sans-serif;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ---- Noise texture overlay ---- */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 9999;
+        }
+
+        /* ---- Grid background ---- */
+        .grid-bg {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-image: 
+                linear-gradient(rgba(124,58,237,0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(124,58,237,0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* ---- Glow orbs ---- */
+        .orb {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(120px);
+            pointer-events: none;
+            z-index: 0;
+        }
+        .orb-1 { width: 600px; height: 600px; background: rgba(124,58,237,0.08); top: -200px; right: -100px; }
+        .orb-2 { width: 400px; height: 400px; background: rgba(236,72,153,0.05); bottom: 200px; left: -100px; }
+        .orb-3 { width: 500px; height: 500px; background: rgba(59,130,246,0.05); bottom: -200px; right: 200px; }
+
+        /* ---- Layout ---- */
+        .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+
+        /* ---- Nav ---- */
+        nav {
+            padding: 24px 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .logo {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 700;
+            font-size: 18px;
+            color: var(--text-primary);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .logo-icon {
+            width: 32px; height: 32px;
+            background: linear-gradient(135deg, var(--accent), var(--pink));
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 16px;
+        }
+        .nav-links { display: flex; gap: 32px; align-items: center; }
+        .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+        .nav-links a:hover { color: var(--text-primary); }
+        .nav-gh {
+            display: flex; align-items: center; gap: 6px;
+            padding: 8px 16px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+        .nav-gh:hover { border-color: var(--text-dim); }
+
+        /* ---- Hero ---- */
+        .hero {
+            padding: 120px 0 80px;
+            text-align: center;
+        }
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 16px;
+            background: var(--accent-glow);
+            border: 1px solid rgba(124,58,237,0.2);
+            border-radius: 100px;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--accent-light);
+            margin-bottom: 32px;
+        }
+        .hero-badge .dot {
+            width: 6px; height: 6px;
+            background: var(--green);
+            border-radius: 50%;
+            animation: pulse-dot 2s infinite;
+        }
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        .hero h1 {
+            font-size: clamp(42px, 6vw, 72px);
+            font-weight: 800;
+            line-height: 1.05;
+            letter-spacing: -2px;
+            margin-bottom: 24px;
+            background: linear-gradient(135deg, #fff 0%, #a78bfa 50%, #ec4899 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .hero p {
+            font-size: 19px;
+            color: var(--text-secondary);
+            max-width: 580px;
+            margin: 0 auto 48px;
+            line-height: 1.6;
+            font-weight: 400;
+        }
+        .hero-cta { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+        .btn {
+            padding: 14px 32px;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.25s;
+            border: none;
+            font-family: 'Outfit', sans-serif;
+        }
+        .btn-primary {
+            background: var(--accent);
+            color: #fff;
+            box-shadow: 0 0 40px rgba(124,58,237,0.3);
+        }
+        .btn-primary:hover {
+            background: #6d28d9;
+            box-shadow: 0 0 60px rgba(124,58,237,0.4);
+            transform: translateY(-2px);
+        }
+        .btn-secondary {
+            background: transparent;
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+        .btn-secondary:hover { border-color: var(--text-dim); transform: translateY(-2px); }
+
+        /* ---- Code preview ---- */
+        .code-section {
+            padding: 40px 0 100px;
+        }
+        .code-block {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            overflow: hidden;
+            max-width: 700px;
+            margin: 0 auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+        }
+        .code-header {
+            padding: 14px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .code-dot { width: 12px; height: 12px; border-radius: 50%; }
+        .code-dot-r { background: #ef4444; }
+        .code-dot-y { background: #eab308; }
+        .code-dot-g { background: #22c55e; }
+        .code-lang {
+            margin-left: auto;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            color: var(--text-dim);
+        }
+        .code-body {
+            padding: 24px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13.5px;
+            line-height: 1.7;
+            overflow-x: auto;
+        }
+        .code-body pre { margin: 0; }
+        .c-kw { color: #c084fc; }
+        .c-fn { color: #60a5fa; }
+        .c-str { color: #34d399; }
+        .c-cmt { color: #55556a; font-style: italic; }
+        .c-var { color: #f9a8d4; }
+        .c-num { color: #fbbf24; }
+
+        /* ---- Features ---- */
+        .features {
+            padding: 80px 0;
+        }
+        .features-title {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+        .features-title h2 {
+            font-size: 36px;
+            font-weight: 700;
+            letter-spacing: -1px;
+            margin-bottom: 12px;
+        }
+        .features-title p { color: var(--text-secondary); font-size: 17px; }
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+        .feature-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 32px;
+            transition: all 0.3s;
+        }
+        .feature-card:hover {
+            border-color: rgba(124,58,237,0.3);
+            transform: translateY(-4px);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+        }
+        .feature-icon {
+            width: 44px; height: 44px;
+            border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 20px;
+            margin-bottom: 20px;
+        }
+        .fi-purple { background: rgba(124,58,237,0.12); }
+        .fi-pink { background: rgba(236,72,153,0.12); }
+        .fi-blue { background: rgba(59,130,246,0.12); }
+        .fi-green { background: rgba(34,197,94,0.12); }
+        .fi-orange { background: rgba(249,115,22,0.12); }
+        .fi-cyan { background: rgba(6,182,212,0.12); }
+        .feature-card h3 {
+            font-size: 17px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        .feature-card p { color: var(--text-secondary); font-size: 14px; line-height: 1.6; }
+
+        /* ---- Comparison ---- */
+        .comparison {
+            padding: 80px 0;
+        }
+        .comparison h2 {
+            text-align: center;
+            font-size: 36px;
+            font-weight: 700;
+            letter-spacing: -1px;
+            margin-bottom: 48px;
+        }
+        .comp-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 15px;
+        }
+        .comp-table th, .comp-table td {
+            padding: 16px 24px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        .comp-table th {
+            font-weight: 600;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-dim);
+        }
+        .comp-table td:first-child { font-weight: 500; }
+        .comp-table .highlight { color: var(--green); font-weight: 600; }
+        .comp-table .dim { color: var(--text-dim); }
+        .comp-col-us { background: var(--accent-glow); }
+
+        /* ---- Signup ---- */
+        .signup-section {
+            padding: 100px 0;
+        }
+        .signup-box {
+            max-width: 520px;
+            margin: 0 auto;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 48px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        .signup-box::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 50%; transform: translateX(-50%);
+            width: 300px; height: 1px;
+            background: linear-gradient(90deg, transparent, var(--accent), transparent);
+        }
+        .signup-box h2 {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        .signup-box > p {
+            color: var(--text-secondary);
+            margin-bottom: 32px;
+            font-size: 15px;
+        }
+        .signup-form { display: flex; gap: 10px; margin-bottom: 20px; }
+        .signup-input {
+            flex: 1;
+            padding: 14px 18px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-size: 15px;
+            font-family: 'Outfit', sans-serif;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .signup-input:focus { border-color: var(--accent); }
+        .signup-input::placeholder { color: var(--text-dim); }
+        .signup-btn {
+            padding: 14px 28px;
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            font-family: 'Outfit', sans-serif;
+            cursor: pointer;
+            transition: all 0.25s;
+            white-space: nowrap;
+        }
+        .signup-btn:hover { background: #6d28d9; }
+        .signup-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .signup-result {
+            margin-top: 20px;
+            display: none;
+        }
+        .signup-result.show { display: block; }
+        .signup-result.success {
+            background: var(--green-dim);
+            border: 1px solid rgba(34,197,94,0.2);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: left;
+        }
+        .signup-result.error {
+            background: rgba(239,68,68,0.1);
+            border: 1px solid rgba(239,68,68,0.2);
+            border-radius: 12px;
+            padding: 16px;
+            color: #fca5a5;
+        }
+        .api-key-display {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px;
+            color: var(--green);
+            background: rgba(0,0,0,0.3);
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin: 12px 0;
+            word-break: break-all;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        .copy-btn {
+            background: none;
+            border: 1px solid rgba(34,197,94,0.3);
+            color: var(--green);
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            font-family: 'Outfit', sans-serif;
+            white-space: nowrap;
+        }
+        .copy-btn:hover { background: rgba(34,197,94,0.1); }
+        .signup-note { font-size: 13px; color: var(--text-dim); margin-top: 16px; }
+
+        /* ---- Footer ---- */
+        footer {
+            padding: 40px 0;
+            border-top: 1px solid var(--border);
+            text-align: center;
+            color: var(--text-dim);
+            font-size: 14px;
+        }
+        footer a { color: var(--text-secondary); text-decoration: none; }
+        footer a:hover { color: var(--text-primary); }
+
+        /* ---- Responsive ---- */
+        @media (max-width: 768px) {
+            .features-grid { grid-template-columns: 1fr; }
+            .hero { padding: 80px 0 60px; }
+            .signup-form { flex-direction: column; }
+            .nav-links { gap: 16px; }
+            .comp-table { font-size: 13px; }
+            .comp-table th, .comp-table td { padding: 12px 14px; }
+        }
+
+        /* ---- Animations ---- */
+        @keyframes fade-up {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate { animation: fade-up 0.6s ease-out forwards; opacity: 0; }
+        .delay-1 { animation-delay: 0.1s; }
+        .delay-2 { animation-delay: 0.2s; }
+        .delay-3 { animation-delay: 0.3s; }
+        .delay-4 { animation-delay: 0.4s; }
+    </style>
+</head>
+<body>
+    <div class="grid-bg"></div>
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+
+    <div class="container">
+        <!-- Nav -->
+        <nav>
+            <a href="/" class="logo">
+                <div class="logo-icon">🧠</div>
+                ObsidianMem
+            </a>
+            <div class="nav-links">
+                <a href="#features">Features</a>
+                <a href="#compare">Compare</a>
+                <a href="https://obsidian-mem-production.up.railway.app/docs" target="_blank">API Docs</a>
+                <a href="https://github.com/alibaizhanov/obsidian-mem" target="_blank" class="nav-gh">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                    Star
+                </a>
+            </div>
+        </nav>
+
+        <!-- Hero -->
+        <section class="hero">
+            <div class="hero-badge animate">
+                <span class="dot"></span>
+                Open Source &middot; Free Forever
+            </div>
+            <h1 class="animate delay-1">Memory layer<br>for AI apps</h1>
+            <p class="animate delay-2">Give your AI apps persistent memory in 3 lines of code. Semantic search, knowledge graphs, and rich context — not just flat facts.</p>
+            <div class="hero-cta animate delay-3">
+                <a href="#signup" class="btn btn-primary">Get API Key</a>
+                <a href="https://obsidian-mem-production.up.railway.app/docs" target="_blank" class="btn btn-secondary">View Docs →</a>
+            </div>
+        </section>
+
+        <!-- Code Preview -->
+        <section class="code-section animate delay-4">
+            <div class="code-block">
+                <div class="code-header">
+                    <span class="code-dot code-dot-r"></span>
+                    <span class="code-dot code-dot-y"></span>
+                    <span class="code-dot code-dot-g"></span>
+                    <span class="code-lang">python</span>
+                </div>
+                <div class="code-body">
+<pre><span class="c-kw">from</span> <span class="c-fn">obsidian_mem</span> <span class="c-kw">import</span> CloudMemory
+
+m = CloudMemory(api_key=<span class="c-str">"om-..."</span>)
+
+<span class="c-cmt"># Save knowledge from any conversation</span>
+m.add([
+    {<span class="c-str">"role"</span>: <span class="c-str">"user"</span>, <span class="c-str">"content"</span>: <span class="c-str">"Fixed OOM with Redis, pool=20"</span>},
+    {<span class="c-str">"role"</span>: <span class="c-str">"assistant"</span>, <span class="c-str">"content"</span>: <span class="c-str">"Noted the config."</span>},
+], user_id=<span class="c-str">"alice"</span>)
+
+<span class="c-cmt"># Semantic search — finds by meaning</span>
+results = m.search(<span class="c-str">"database issues"</span>, user_id=<span class="c-str">"alice"</span>)
+<span class="c-cmt"># → entities, facts, relations, knowledge with code artifacts</span></pre>
+                </div>
+            </div>
+        </section>
+
+        <!-- Features -->
+        <section class="features" id="features">
+            <div class="features-title">
+                <h2>Built for developers who ship</h2>
+                <p>Everything you need for AI memory — nothing you don't</p>
+            </div>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon fi-purple">🔮</div>
+                    <h3>Rich Knowledge</h3>
+                    <p>Not just flat facts. Solutions, configs, commands — with code artifacts. Your AI remembers <em>how</em>, not just <em>what</em>.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon fi-pink">🕸️</div>
+                    <h3>Knowledge Graph</h3>
+                    <p>Entities, relations, types. "Who uses what" and "what depends on what" — queryable graph built automatically.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon fi-blue">🔍</div>
+                    <h3>Semantic Search</h3>
+                    <p>OpenAI embeddings + pgvector. Find by meaning, not keywords. "database issues" finds Redis, HikariCP, pool configs.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon fi-green">⚡</div>
+                    <h3>3 Lines to Integrate</h3>
+                    <p>init → add → search. Works with any LLM: OpenAI, Anthropic, Ollama. Drop into existing apps in minutes.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon fi-orange">🖥️</div>
+                    <h3>Claude Desktop MCP</h3>
+                    <p>Built-in MCP server. Claude Desktop gets persistent memory across all conversations, all devices. Cloud-synced.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon fi-cyan">🔓</div>
+                    <h3>Open Source</h3>
+                    <p>MIT licensed. Run locally with Obsidian vault or use our cloud. Your data, your choice. Free forever.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Comparison -->
+        <section class="comparison" id="compare">
+            <h2>ObsidianMem vs Mem0</h2>
+            <table class="comp-table">
+                <thead>
+                    <tr>
+                        <th>Feature</th>
+                        <th class="comp-col-us">ObsidianMem</th>
+                        <th>Mem0 Platform</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Memory type</td>
+                        <td class="comp-col-us highlight">Rich — facts + code artifacts</td>
+                        <td>Flat facts only</td>
+                    </tr>
+                    <tr>
+                        <td>Knowledge graph</td>
+                        <td class="comp-col-us highlight">Built-in + visualizable</td>
+                        <td>Separate add-on</td>
+                    </tr>
+                    <tr>
+                        <td>Claude Desktop MCP</td>
+                        <td class="comp-col-us highlight">Native support</td>
+                        <td class="dim">Not available</td>
+                    </tr>
+                    <tr>
+                        <td>Local mode</td>
+                        <td class="comp-col-us highlight">Obsidian vault (.md files)</td>
+                        <td class="dim">Cloud only</td>
+                    </tr>
+                    <tr>
+                        <td>Pricing</td>
+                        <td class="comp-col-us highlight">Free</td>
+                        <td>$249/month (Pro)</td>
+                    </tr>
+                    <tr>
+                        <td>Open source</td>
+                        <td class="comp-col-us highlight">MIT license</td>
+                        <td>Open source (Apache 2.0)</td>
+                    </tr>
+                    <tr>
+                        <td>Data ownership</td>
+                        <td class="comp-col-us highlight">Full — local or self-host</td>
+                        <td>Their servers</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- Signup -->
+        <section class="signup-section" id="signup">
+            <div class="signup-box">
+                <h2>Get your API key</h2>
+                <p>Free. No credit card. Start building in 30 seconds.</p>
+                <div class="signup-form">
+                    <input type="email" class="signup-input" id="email-input" placeholder="your@email.com">
+                    <button class="signup-btn" id="signup-btn" onclick="signup()">Get Key</button>
+                </div>
+                <div class="signup-result" id="signup-result"></div>
+                <p class="signup-note">🔒 We only use your email to create your account. No spam.</p>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer>
+            <p>
+                ObsidianMem — Open source memory layer for AI.
+                &nbsp;&middot;&nbsp;
+                <a href="https://github.com/alibaizhanov/obsidian-mem">GitHub</a>
+                &nbsp;&middot;&nbsp;
+                <a href="https://obsidian-mem-production.up.railway.app/docs">API Docs</a>
+                &nbsp;&middot;&nbsp;
+                <a href="https://pypi.org/project/obsidian-mem/">PyPI</a>
+            </p>
+        </footer>
+    </div>
+
+    <script>
+        const API_URL = "https://obsidian-mem-production.up.railway.app";
+
+        async function signup() {
+            const email = document.getElementById("email-input").value.trim();
+            const btn = document.getElementById("signup-btn");
+            const result = document.getElementById("signup-result");
+
+            if (!email || !email.includes("@")) {
+                result.className = "signup-result show error";
+                result.innerHTML = "Please enter a valid email.";
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = "Creating...";
+
+            try {
+                const resp = await fetch(`${API_URL}/v1/signup`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email }),
+                });
+
+                const data = await resp.json();
+
+                if (resp.ok) {
+                    result.className = "signup-result show success";
+                    result.innerHTML = `
+                        <strong>✅ Account created!</strong>
+                        <p style="margin-top:8px; color: var(--text-secondary); font-size:14px;">
+                            Save your API key — it won't be shown again:
+                        </p>
+                        <div class="api-key-display">
+                            <span id="api-key-text">${data.api_key}</span>
+                            <button class="copy-btn" onclick="copyKey()">Copy</button>
+                        </div>
+                        <p style="margin-top:12px; font-size:13px; color: var(--text-dim);">
+                            Quick start:
+                        </p>
+                        <div style="background:rgba(0,0,0,0.3); border-radius:8px; padding:12px 16px; margin-top:8px; font-family:'JetBrains Mono',monospace; font-size:12px; color:#a78bfa; text-align:left;">
+                            pip install obsidian-mem<br>
+                            <span style="color:#55556a"># Then use CloudMemory(api_key="<span style="color:#34d399">${data.api_key.slice(0,12)}...</span>")</span>
+                        </div>
+                    `;
+                } else {
+                    result.className = "signup-result show error";
+                    result.innerHTML = data.detail || "Something went wrong. Try again.";
+                }
+            } catch (err) {
+                result.className = "signup-result show error";
+                result.innerHTML = "Network error. API might be waking up — try again in 10 seconds.";
+            }
+
+            btn.disabled = false;
+            btn.textContent = "Get Key";
+        }
+
+        function copyKey() {
+            const key = document.getElementById("api-key-text").textContent;
+            navigator.clipboard.writeText(key);
+            const btn = event.target;
+            btn.textContent = "Copied!";
+            setTimeout(() => btn.textContent = "Copy", 2000);
+        }
+
+        // Enter key support
+        document.getElementById("email-input").addEventListener("keydown", e => {
+            if (e.key === "Enter") signup();
+        });
+    </script>
+</body>
+</html>
