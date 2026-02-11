@@ -151,21 +151,50 @@ def create_cloud_api() -> FastAPI:
         updated = []
         knowledge_count = 0
 
-        for entity in extraction.get("entities", []):
-            name = entity.get("name", "")
+        for entity in extraction.entities:
+            name = entity.name
             if not name:
                 continue
 
             # Check if exists
             existing = store.get_entity(user_id, name)
 
+            # Build relations list for store
+            entity_relations = []
+            for rel in extraction.relations:
+                if rel.from_entity == name:
+                    entity_relations.append({
+                        "target": rel.to_entity,
+                        "type": rel.relation_type,
+                        "description": rel.description,
+                        "direction": "outgoing",
+                    })
+                elif rel.to_entity == name:
+                    entity_relations.append({
+                        "target": rel.from_entity,
+                        "type": rel.relation_type,
+                        "description": rel.description,
+                        "direction": "incoming",
+                    })
+
+            # Build knowledge list for store
+            entity_knowledge = []
+            for k in extraction.knowledge:
+                if k.entity == name:
+                    entity_knowledge.append({
+                        "type": k.knowledge_type,
+                        "title": k.title,
+                        "content": k.content,
+                        "artifact": k.artifact,
+                    })
+
             entity_id = store.save_entity(
                 user_id=user_id,
                 name=name,
-                type=entity.get("type", "concept"),
-                facts=entity.get("facts", []),
-                relations=entity.get("relations", []),
-                knowledge=entity.get("knowledge", []),
+                type=entity.entity_type,
+                facts=entity.facts,
+                relations=entity_relations,
+                knowledge=entity_knowledge,
             )
 
             if existing:
@@ -173,14 +202,14 @@ def create_cloud_api() -> FastAPI:
             else:
                 created.append(name)
 
-            knowledge_count += len(entity.get("knowledge", []))
+            knowledge_count += len(entity_knowledge)
 
             # Generate embeddings
             embedder = get_embedder()
             if embedder:
-                chunks = [name] + entity.get("facts", [])
-                for k in entity.get("knowledge", []):
-                    chunks.append(f"{k.get('title', '')} {k.get('content', '')}")
+                chunks = [name] + entity.facts
+                for k in entity_knowledge:
+                    chunks.append(f"{k['title']} {k['content']}")
 
                 store.delete_embeddings(entity_id)
                 for chunk in chunks:
