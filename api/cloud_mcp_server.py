@@ -9,7 +9,7 @@ Claude Desktop config:
   "mcpServers": {
     "mengram": {
       "command": "mengram",
-      "args": ["mcp", "--cloud"],
+      "args": ["server", "--cloud"],
       "env": {
         "MENGRAM_API_KEY": "mg-abc123...",
         "MENGRAM_URL": "https://mengram.io"
