@@ -4,7 +4,7 @@ Mengram Cloud Client — developer SDK.
 Usage:
     from mengram import CloudMemory
 
-    m = CloudMemory(api_key="om-...")
+    m = CloudMemory(api_key="mg-...")
 
     # Add memories from conversation
     m.add([

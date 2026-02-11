@@ -1,8 +1,8 @@
 # 🧠 Mengram
 
-**AI memory as a typed knowledge graph in Obsidian.**
+**AI memory layer for apps. Open-source Mem0 alternative.**
 
-Every conversation with your AI builds a structured second brain — people, projects, technologies, companies — all as `.md` files with `[[wikilinks]]` you can browse in [Obsidian](https://obsidian.md).
+Build persistent memory for AI agents and apps. Knowledge graph, semantic search, Cloud API & MCP server. Use locally with Obsidian vault or via cloud.
 
 Like [Mem0](https://github.com/mem0ai/mem0), but **you own your data** — and it actually saves your solutions with code, not just "user uses PostgreSQL".
 
@@ -62,7 +62,7 @@ Next time you ask "How did we fix the OOM?" → Claude **already knows**, with t
 ### 1. Install
 
 ```bash
-pip install mengram[all]
+pip install mengram-ai[all]
 ```
 
 ### 2. Setup (one command)
@@ -282,8 +282,8 @@ semantic_search:
 
 | Provider | Install | Cost |
 |---|---|---|
-| Anthropic (Claude) | `pip install mengram[anthropic]` | API pricing |
-| OpenAI (GPT) | `pip install mengram[openai]` | API pricing |
+| Anthropic (Claude) | `pip install mengram-ai[anthropic]` | API pricing |
+| OpenAI (GPT) | `pip install mengram-ai[openai]` | API pricing |
 | Ollama (local) | Install [ollama](https://ollama.ai) | Free |
 
 ---

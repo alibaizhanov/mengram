@@ -11,8 +11,8 @@ Claude Desktop config:
       "command": "mengram",
       "args": ["mcp", "--cloud"],
       "env": {
-        "MENGRAM_API_KEY": "om-abc123...",
-        "MENGRAM_URL": "https://mengram-production.up.railway.app"
+        "MENGRAM_API_KEY": "mg-abc123...",
+        "MENGRAM_URL": "https://mengram.io"
       }
     }
   }
@@ -252,7 +252,7 @@ async def main():
         sys.exit(1)
 
     api_key = os.environ.get("MENGRAM_API_KEY", "")
-    base_url = os.environ.get("MENGRAM_URL", "https://mengram-production.up.railway.app")
+    base_url = os.environ.get("MENGRAM_URL", "https://mengram.io")
     user_id = os.environ.get("MENGRAM_USER_ID", "default")
 
     if not api_key:

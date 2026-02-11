@@ -121,7 +121,7 @@ def create_rest_api(brain: MengramBrain) -> "FastAPI":
 
     app = FastAPI(
         title="Mengram API",
-        description="AI memory as a typed knowledge graph in Obsidian",
+        description="AI memory layer for apps",
         version="1.0.0",
     )
 

@@ -5,7 +5,7 @@ Hosted version — PostgreSQL + pgvector backend.
 Developers get API key, integrate in 3 lines:
 
     from mengram import CloudMemory
-    m = CloudMemory(api_key="om-...")
+    m = CloudMemory(api_key="mg-...")
     m.add(messages, user_id="alice")
     results = m.search("database issues", user_id="alice")
 """

@@ -199,12 +199,12 @@ def cmd_server(args):
     if getattr(args, 'cloud', False):
         # Cloud mode — connect to cloud API
         api_key = os.environ.get("MENGRAM_API_KEY", "")
-        base_url = os.environ.get("MENGRAM_URL", "https://mengram-production.up.railway.app")
+        base_url = os.environ.get("MENGRAM_URL", "https://mengram.io")
         user_id = os.environ.get("MENGRAM_USER_ID", "default")
 
         if not api_key:
             print("❌ Set MENGRAM_API_KEY environment variable")
-            print("   Get one: curl -X POST https://mengram-production.up.railway.app/v1/signup -d '{\"email\": \"you@email.com\"}'")
+            print("   Get one: curl -X POST https://mengram.io/v1/signup -d '{\"email\": \"you@email.com\"}'")
             sys.exit(1)
 
         print(f"🧠 Starting Mengram Cloud MCP server...", file=sys.stderr)
@@ -399,7 +399,7 @@ def cmd_web(args):
 def main():
     parser = argparse.ArgumentParser(
         prog="mengram",
-        description="🧠 Mengram — AI memory as a knowledge graph in Obsidian",
+        description="🧠 Mengram — AI memory layer for apps",
     )
     sub = parser.add_subparsers(dest="command")
 
