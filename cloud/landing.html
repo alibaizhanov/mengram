@@ -237,6 +237,34 @@
         .c-var { color: #f9a8d4; }
         .c-num { color: #fbbf24; }
 
+        /* Code tabs */
+        .code-tabs {
+            display: flex;
+            gap: 4px;
+            max-width: 700px;
+            margin: 0 auto 0;
+            padding: 0 4px;
+        }
+        .code-tab {
+            padding: 10px 20px;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-bottom: none;
+            border-radius: 10px 10px 0 0;
+            color: var(--text-dim);
+            font-size: 13px;
+            font-weight: 500;
+            font-family: 'Outfit', sans-serif;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .code-tab:hover { color: var(--text-secondary); }
+        .code-tab.active {
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border-color: var(--border);
+        }
+
         /* ---- Features ---- */
         .features {
             padding: 80px 0;
@@ -431,6 +459,46 @@
         .copy-btn:hover { background: rgba(34,197,94,0.1); }
         .signup-note { font-size: 13px; color: var(--text-dim); margin-top: 16px; }
 
+        /* ---- Local section ---- */
+        .local-section { padding: 80px 0; }
+        .local-box {
+            max-width: 620px;
+            margin: 0 auto;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 48px;
+        }
+        .local-header { text-align: center; margin-bottom: 36px; }
+        .local-header h2 { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+        .local-header p { color: var(--text-secondary); font-size: 15px; }
+        .local-steps { display: flex; flex-direction: column; gap: 24px; }
+        .local-step {
+            display: flex;
+            align-items: flex-start;
+            gap: 16px;
+        }
+        .step-num {
+            width: 32px; height: 32px; min-width: 32px;
+            background: var(--accent-glow);
+            border: 1px solid rgba(124,58,237,0.2);
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: 14px;
+            color: var(--accent-light);
+        }
+        .local-step h4 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+        .local-step code {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px;
+            color: var(--green);
+            background: rgba(0,0,0,0.3);
+            padding: 6px 14px;
+            border-radius: 6px;
+            display: inline-block;
+        }
+        .step-desc { color: var(--text-secondary); font-size: 13px; margin-top: 4px; }
+
         /* ---- Footer ---- */
         footer {
             padding: 40px 0;
@@ -497,21 +565,26 @@
             <h1 class="animate delay-1">Memory layer<br>for AI apps</h1>
             <p class="animate delay-2">Give your AI apps persistent memory in 3 lines of code. Semantic search, knowledge graphs, and rich context — not just flat facts.</p>
             <div class="hero-cta animate delay-3">
-                <a href="#signup" class="btn btn-primary">Get API Key</a>
-                <a href="https://obsidian-mem-production.up.railway.app/docs" target="_blank" class="btn btn-secondary">View Docs →</a>
+                <a href="#signup" class="btn btn-primary">Get Cloud API Key</a>
+                <a href="#local" class="btn btn-secondary">Self-hosted →</a>
             </div>
         </section>
 
-        <!-- Code Preview -->
+        <!-- Code Preview — Two tabs -->
         <section class="code-section animate delay-4">
+            <div class="code-tabs">
+                <button class="code-tab active" onclick="showTab('cloud')">☁️ Cloud API</button>
+                <button class="code-tab" onclick="showTab('local')">💻 Local (Obsidian)</button>
+                <button class="code-tab" onclick="showTab('mcp')">🖥️ Claude Desktop</button>
+            </div>
             <div class="code-block">
                 <div class="code-header">
                     <span class="code-dot code-dot-r"></span>
                     <span class="code-dot code-dot-y"></span>
                     <span class="code-dot code-dot-g"></span>
-                    <span class="code-lang">python</span>
+                    <span class="code-lang" id="code-lang-label">python</span>
                 </div>
-                <div class="code-body">
+                <div class="code-body" id="code-cloud">
 <pre><span class="c-kw">from</span> <span class="c-fn">obsidian_mem</span> <span class="c-kw">import</span> CloudMemory
 
 m = CloudMemory(api_key=<span class="c-str">"om-..."</span>)
@@ -525,6 +598,45 @@ m.add([
 <span class="c-cmt"># Semantic search — finds by meaning</span>
 results = m.search(<span class="c-str">"database issues"</span>, user_id=<span class="c-str">"alice"</span>)
 <span class="c-cmt"># → entities, facts, relations, knowledge with code artifacts</span></pre>
+                </div>
+                <div class="code-body" id="code-local" style="display:none">
+<pre><span class="c-cmt"># Install</span>
+<span class="c-fn">pip install</span> obsidian-mem
+
+<span class="c-cmt"># Setup — creates vault + config + Claude Desktop integration</span>
+<span class="c-fn">obsidian-mem</span> init
+
+<span class="c-cmt"># Or use in Python — 100% local, no cloud needed</span>
+<span class="c-kw">from</span> <span class="c-fn">obsidian_mem</span> <span class="c-kw">import</span> Memory
+
+m = Memory(vault_path=<span class="c-str">"~/obsidian-vault"</span>)
+
+m.add([
+    {<span class="c-str">"role"</span>: <span class="c-str">"user"</span>, <span class="c-str">"content"</span>: <span class="c-str">"Fixed OOM with Redis, pool=20"</span>},
+], user_id=<span class="c-str">"alice"</span>)
+
+results = m.search(<span class="c-str">"database issues"</span>)
+<span class="c-cmt"># → data stored as .md files in your Obsidian vault</span></pre>
+                </div>
+                <div class="code-body" id="code-mcp" style="display:none">
+<pre><span class="c-cmt"># 1. Install</span>
+<span class="c-fn">pip install</span> obsidian-mem
+
+<span class="c-cmt"># 2. Add to Claude Desktop config (claude_desktop_config.json):</span>
+{
+  <span class="c-str">"mcpServers"</span>: {
+    <span class="c-str">"obsidian-mem"</span>: {
+      <span class="c-str">"command"</span>: <span class="c-str">"obsidian-mem"</span>,
+      <span class="c-str">"args"</span>: [<span class="c-str">"server"</span>, <span class="c-str">"--cloud"</span>],
+      <span class="c-str">"env"</span>: {
+        <span class="c-str">"OBSIDIAN_MEM_API_KEY"</span>: <span class="c-str">"om-your-key"</span>
+      }
+    }
+  }
+}
+
+<span class="c-cmt"># 3. Restart Claude Desktop — done!</span>
+<span class="c-cmt"># Claude now remembers everything across conversations</span></pre>
                 </div>
             </div>
         </section>
@@ -620,6 +732,40 @@ results = m.search(<span class="c-str">"database issues"</span>, user_id=<span c
             </table>
         </section>
 
+        <!-- Local Install -->
+        <section class="local-section" id="local">
+            <div class="local-box">
+                <div class="local-header">
+                    <h2>Run 100% locally</h2>
+                    <p>No cloud, no account, no API key. Your data stays on your machine in Obsidian-compatible .md files.</p>
+                </div>
+                <div class="local-steps">
+                    <div class="local-step">
+                        <div class="step-num">1</div>
+                        <div>
+                            <h4>Install</h4>
+                            <code>pip install obsidian-mem</code>
+                        </div>
+                    </div>
+                    <div class="local-step">
+                        <div class="step-num">2</div>
+                        <div>
+                            <h4>Setup</h4>
+                            <code>obsidian-mem init</code>
+                            <p class="step-desc">Creates config, vault, and Claude Desktop integration</p>
+                        </div>
+                    </div>
+                    <div class="local-step">
+                        <div class="step-num">3</div>
+                        <div>
+                            <h4>Use</h4>
+                            <p class="step-desc">Claude Desktop now has persistent memory. Or use Python SDK in your apps.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <!-- Signup -->
         <section class="signup-section" id="signup">
             <div class="signup-box">
@@ -650,6 +796,15 @@ results = m.search(<span class="c-str">"database issues"</span>, user_id=<span c
 
     <script>
         const API_URL = "https://obsidian-mem-production.up.railway.app";
+
+        function showTab(tab) {
+            document.querySelectorAll('.code-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.code-body').forEach(b => b.style.display = 'none');
+            document.getElementById('code-' + tab).style.display = 'block';
+            event.target.classList.add('active');
+            const lang = tab === 'mcp' ? 'json' : (tab === 'local' ? 'bash / python' : 'python');
+            document.getElementById('code-lang-label').textContent = lang;
+        }
 
         async function signup() {
             const email = document.getElementById("email-input").value.trim();
