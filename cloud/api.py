@@ -584,7 +584,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             results = store.search_vector(user_id, emb, top_k=search_limit)
             # Fallback: if nothing found, retry with lower threshold
             if not results:
-                results = store.search_vector(user_id, emb, top_k=search_limit, min_score=0.25)
+                results = store.search_vector(user_id, emb, top_k=search_limit, min_score=0.15)
         else:
             results = store.search_text(user_id, req.query, top_k=search_limit)
 
@@ -674,6 +674,20 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                         processed.add(shorter)
 
         return {"merged": merged, "count": len(merged)}
+
+    @app.delete("/v1/entity/{name}")
+    async def delete_entity(name: str, user_id: str = Depends(auth)):
+        """Delete an entity and all its facts, relations, knowledge, embeddings."""
+        entity_id = store.get_entity_id(user_id, name)
+        if not entity_id:
+            raise HTTPException(status_code=404, detail=f"Entity '{name}' not found")
+        with store.conn.cursor() as cur:
+            cur.execute("DELETE FROM embeddings WHERE entity_id = %s", (entity_id,))
+            cur.execute("DELETE FROM knowledge WHERE entity_id = %s", (entity_id,))
+            cur.execute("DELETE FROM facts WHERE entity_id = %s", (entity_id,))
+            cur.execute("DELETE FROM relations WHERE source_id = %s OR target_id = %s", (entity_id, entity_id))
+            cur.execute("DELETE FROM entities WHERE id = %s", (entity_id,))
+        return {"deleted": name}
 
     @app.post("/v1/archive_fact")
     async def archive_fact(

@@ -301,11 +301,39 @@ class CloudStore:
         Auto-deduplicates: merges if similar entity exists.
         Returns entity_id.
         """
-        # Check for duplicate entity
+        # Normalize: if name is ALL CAPS and >3 chars, title-case it
+        if name == name.upper() and len(name) > 3 and ' ' not in name:
+            name = name.capitalize()
+
+        # Check for case-insensitive exact match first
+        with self.conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, name FROM entities WHERE user_id = %s AND LOWER(name) = LOWER(%s)",
+                (user_id, name)
+            )
+            exact = cur.fetchone()
+            if exact:
+                entity_id = str(exact[0])
+                existing_name = exact[1]
+                # Keep the more "normal" casing (not all-caps)
+                if existing_name != name:
+                    better_name = name if name != name.upper() else existing_name
+                    if better_name != existing_name:
+                        cur.execute(
+                            "UPDATE entities SET name = %s, updated_at = NOW() WHERE id = %s",
+                            (better_name, entity_id)
+                        )
+                else:
+                    cur.execute("UPDATE entities SET updated_at = NOW() WHERE id = %s", (entity_id,))
+
+                # Add facts, knowledge, relations below
+                self._add_facts_knowledge_relations(entity_id, user_id, name, facts, relations, knowledge)
+                return entity_id
+
+        # Check for duplicate entity (word-boundary match)
         duplicate = self.find_duplicate(user_id, name)
         if duplicate:
             existing_id, canonical_name = duplicate
-            # If incoming name is longer, it becomes the canonical name
             if len(name) > len(canonical_name):
                 canonical_name = name
                 with self.conn.cursor() as cur:
@@ -323,7 +351,6 @@ class CloudStore:
             print(f"🔀 Dedup: '{name}' → '{canonical_name}' (id: {entity_id})", file=sys.stderr)
         else:
             with self.conn.cursor() as cur:
-                # Upsert entity
                 cur.execute(
                     """INSERT INTO entities (user_id, name, type)
                        VALUES (%s, %s, %s)
@@ -334,8 +361,15 @@ class CloudStore:
                 )
                 entity_id = str(cur.fetchone()[0])
 
+        self._add_facts_knowledge_relations(entity_id, user_id, name, facts, relations, knowledge)
+        return entity_id
+
+    def _add_facts_knowledge_relations(self, entity_id: str, user_id: str, name: str,
+                                        facts: list[str] = None,
+                                        relations: list[dict] = None,
+                                        knowledge: list[dict] = None):
+        """Add facts, knowledge, and relations to an entity."""
         with self.conn.cursor() as cur:
-            # Add facts (skip duplicates)
             for fact in (facts or []):
                 cur.execute(
                     """INSERT INTO facts (entity_id, content)
@@ -343,8 +377,6 @@ class CloudStore:
                        ON CONFLICT (entity_id, content) DO NOTHING""",
                     (entity_id, fact)
                 )
-
-            # Add knowledge (skip duplicates)
             for k in (knowledge or []):
                 cur.execute(
                     """INSERT INTO knowledge (entity_id, type, title, content, artifact)
@@ -354,7 +386,6 @@ class CloudStore:
                      k.get("content", ""), k.get("artifact"))
                 )
 
-        # Relations (need target entity to exist)
         for rel in (relations or []):
             self._save_relation(user_id, entity_id, name, rel)
 
@@ -544,7 +575,7 @@ class CloudStore:
     # ---- Search ----
 
     def search_vector(self, user_id: str, embedding: list[float],
-                      top_k: int = 5, min_score: float = 0.5) -> list[dict]:
+                      top_k: int = 5, min_score: float = 0.3) -> list[dict]:
         """
         Semantic search using pgvector cosine similarity.
         Returns [{"entity": name, "type": type, "score": float, ...}]

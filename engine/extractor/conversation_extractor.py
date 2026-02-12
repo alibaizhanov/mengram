@@ -29,9 +29,9 @@ from typing import Optional
 from engine.extractor.llm_client import LLMClient
 
 
-EXTRACTION_PROMPT = """You are a knowledge extraction system. Analyze the conversation and extract IMPORTANT, LASTING knowledge.
+EXTRACTION_PROMPT = """You are a precision knowledge extraction system. Analyze the conversation and extract IMPORTANT, LASTING knowledge.
 
-Return ONLY valid JSON without markdown. Be selective — quality over quantity.
+Return ONLY valid JSON without markdown. Be VERY selective — quality over quantity.
 
 CRITICAL RULES:
 - ONLY extract entities that are NAMED and SPECIFIC (real names, real projects, real technologies)
@@ -42,6 +42,19 @@ CRITICAL RULES:
 - facts: short, specific, LASTING statements (preferences, roles, decisions — NOT temporary actions)
 - relations: how entities are connected
 - knowledge: solutions, code, formulas, commands with artifacts
+
+ENTITY NAMING RULES (VERY IMPORTANT):
+- Use EXACT casing from context: "Mengram" not "MENGRAM", "PostgreSQL" not "postgresql"
+- Use the FULL official name: "Ali Baizhanov" not "Ali", "Uzum Bank" not "uzum"
+- If the same entity appears with different casings, pick the most common/official one
+- NEVER create duplicate entities with different casing
+
+FACT ATTRIBUTION RULES (VERY IMPORTANT):
+- ONLY assign facts to the entity they DIRECTLY describe
+- If user discusses Project A (Python) and Project B (Java) in same conversation, DO NOT mix their tech stacks
+- A technology is "used by" a project ONLY if explicitly stated in context
+- If user talks about their day job (Java/Spring Boot) and a side project (Python/FastAPI), keep facts separate
+- When in doubt about which entity a fact belongs to, assign it to the person (User) not the project
 
 GOOD entities: "Ali Baizhanov", "Mengram", "Redis", "Uzum Bank", "Kubernetes"
 BAD entities: "OOM error", "User", "connection pool", "debugging session", "migration"
