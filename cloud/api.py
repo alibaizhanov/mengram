@@ -109,6 +109,71 @@ def create_cloud_api() -> FastAPI:
                 _embedder = CloudEmbedder(provider="openai", api_key=openai_key)
         return _embedder
 
+    # ---- LLM Re-ranking ----
+
+    def rerank_results(query: str, results: list[dict]) -> list[dict]:
+        """Use LLM to filter search results for relevance."""
+        if not results or len(results) <= 1:
+            return results
+
+        openai_key = os.environ.get("OPENAI_API_KEY", "")
+        if not openai_key:
+            return results
+
+        try:
+            import openai
+            client = openai.OpenAI(api_key=openai_key)
+
+            # Build candidate list for LLM
+            candidates = []
+            for i, r in enumerate(results):
+                facts_str = "; ".join(r.get("facts", [])[:5])
+                rels_str = "; ".join(
+                    f"{rel.get('type', '')} {rel.get('target', '')}"
+                    for rel in r.get("relations", [])[:3]
+                )
+                info = f"[{i}] {r['entity']} ({r['type']}): {facts_str}"
+                if rels_str:
+                    info += f" | relations: {rels_str}"
+                candidates.append(info)
+
+            prompt = f"""Given the user's query, select ONLY the entities that are directly relevant.
+
+Query: "{query}"
+
+Candidates:
+{chr(10).join(candidates)}
+
+Return ONLY a JSON array of indices of relevant entities, e.g. [0, 2, 4].
+If none are relevant, return [].
+Be strict — only include entities that directly answer or relate to the query."""
+
+            resp = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=100,
+                temperature=0,
+            )
+
+            text = resp.choices[0].message.content.strip()
+            # Parse JSON array from response
+            import json as json_mod
+            # Handle possible markdown wrapping
+            if "```" in text:
+                text = text.split("```")[1].replace("json", "").strip()
+            indices = json_mod.loads(text)
+
+            if isinstance(indices, list) and all(isinstance(i, int) for i in indices):
+                filtered = [results[i] for i in indices if 0 <= i < len(results)]
+                if filtered:
+                    return filtered
+
+            return results  # fallback if parsing fails
+
+        except Exception as e:
+            print(f"⚠️ Re-ranking failed, returning raw results: {e}", file=sys.stderr)
+            return results
+
     # ---- Auth middleware ----
 
     async def auth(authorization: str = Header(...)) -> str:
@@ -508,17 +573,27 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
     @app.post("/v1/search")
     async def search(req: SearchRequest, user_id: str = Depends(auth)):
-        """Semantic search across memories."""
+        """Semantic search across memories with LLM re-ranking."""
         embedder = get_embedder()
+
+        # Search with more candidates for re-ranking
+        search_limit = max(req.limit * 2, 10)
 
         if embedder:
             emb = embedder.embed(req.query)
-            results = store.search_vector(user_id, emb, top_k=req.limit)
+            results = store.search_vector(user_id, emb, top_k=search_limit)
             # Fallback: if nothing found, retry with lower threshold
             if not results:
-                results = store.search_vector(user_id, emb, top_k=req.limit, min_score=0.25)
+                results = store.search_vector(user_id, emb, top_k=search_limit, min_score=0.25)
         else:
-            results = store.search_text(user_id, req.query, top_k=req.limit)
+            results = store.search_text(user_id, req.query, top_k=search_limit)
+
+        # LLM re-ranking: filter to only relevant results
+        if results and len(results) > 1:
+            results = rerank_results(req.query, results)
+
+        # Limit to requested count
+        results = results[:req.limit]
 
         store.log_usage(user_id, "search")
 
