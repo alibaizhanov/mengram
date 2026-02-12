@@ -138,6 +138,72 @@ class CloudStore:
                 "UPDATE api_keys SET is_active = FALSE WHERE user_id = %s",
                 (user_id,)
             )
+        return self.create_api_key(user_id)
+
+    # ---- OAuth ----
+
+    def save_email_code(self, email: str, code: str):
+        """Save email verification code (expires in 10 min)."""
+        with self.conn.cursor() as cur:
+            cur.execute(
+                """CREATE TABLE IF NOT EXISTS email_codes (
+                    email TEXT PRIMARY KEY,
+                    code TEXT NOT NULL,
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                )"""
+            )
+            cur.execute(
+                """INSERT INTO email_codes (email, code, created_at) 
+                   VALUES (%s, %s, NOW())
+                   ON CONFLICT (email) DO UPDATE SET code = %s, created_at = NOW()""",
+                (email, code, code)
+            )
+
+    def verify_email_code(self, email: str, code: str) -> bool:
+        """Verify email code (valid for 10 min)."""
+        with self.conn.cursor() as cur:
+            cur.execute(
+                """SELECT 1 FROM email_codes 
+                   WHERE email = %s AND code = %s 
+                   AND created_at > NOW() - INTERVAL '10 minutes'""",
+                (email, code)
+            )
+            if cur.fetchone():
+                cur.execute("DELETE FROM email_codes WHERE email = %s", (email,))
+                return True
+            return False
+
+    def save_oauth_code(self, code: str, user_id: str, redirect_uri: str, state: str):
+        """Save OAuth authorization code (expires in 5 min)."""
+        with self.conn.cursor() as cur:
+            cur.execute(
+                """CREATE TABLE IF NOT EXISTS oauth_codes (
+                    code TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    redirect_uri TEXT,
+                    state TEXT,
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                )"""
+            )
+            cur.execute(
+                """INSERT INTO oauth_codes (code, user_id, redirect_uri, state)
+                   VALUES (%s, %s, %s, %s)""",
+                (code, user_id, redirect_uri, state)
+            )
+
+    def verify_oauth_code(self, code: str) -> Optional[dict]:
+        """Verify and consume OAuth code. Returns {user_id, redirect_uri, state} or None."""
+        with self.conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            cur.execute(
+                """SELECT user_id, redirect_uri, state FROM oauth_codes
+                   WHERE code = %s AND created_at > NOW() - INTERVAL '5 minutes'""",
+                (code,)
+            )
+            row = cur.fetchone()
+            if row:
+                cur.execute("DELETE FROM oauth_codes WHERE code = %s", (code,))
+                return {"user_id": str(row["user_id"]), "redirect_uri": row["redirect_uri"], "state": row["state"]}
+            return None
         return self.create_api_key(user_id, name="reset")
 
     # ---- Entities ----

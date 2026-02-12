@@ -12,10 +12,11 @@ Developers get API key, integrate in 3 lines:
 
 import os
 import sys
+import secrets
 from typing import Optional
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Depends, Header
+from fastapi import FastAPI, HTTPException, Depends, Header, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
@@ -216,6 +217,192 @@ def create_cloud_api() -> FastAPI:
         _send_api_key_email(req.email, new_key, is_reset=True)
 
         return {"message": "If this email is registered, a new API key has been sent."}
+
+    # ---- OAuth (for ChatGPT Custom GPTs) ----
+
+    @app.get("/oauth/authorize")
+    async def oauth_authorize(
+        client_id: str = "",
+        redirect_uri: str = "",
+        state: str = "",
+        response_type: str = "code",
+    ):
+        """OAuth authorize page — shows email login."""
+        return HTMLResponse(f"""<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mengram — Sign In</title>
+<style>
+  * {{ margin:0; padding:0; box-sizing:border-box; }}
+  body {{ font-family:-apple-system,system-ui,sans-serif; background:#0a0a0a; color:#e0e0e0;
+         display:flex; align-items:center; justify-content:center; min-height:100vh; }}
+  .card {{ background:#141414; border:1px solid #2a2a2a; border-radius:16px; padding:40px;
+           max-width:400px; width:100%; }}
+  h1 {{ font-size:24px; margin-bottom:8px; }}
+  p {{ color:#888; margin-bottom:24px; font-size:14px; }}
+  input {{ width:100%; padding:12px 16px; background:#1a1a1a; border:1px solid #333;
+           border-radius:8px; color:#e0e0e0; font-size:16px; margin-bottom:12px; outline:none; }}
+  input:focus {{ border-color:#646cff; }}
+  button {{ width:100%; padding:12px; background:#646cff; color:white; border:none;
+            border-radius:8px; font-size:16px; cursor:pointer; }}
+  button:hover {{ background:#5558dd; }}
+  .step {{ display:none; }}
+  .step.active {{ display:block; }}
+  .error {{ color:#ff4444; font-size:13px; margin-bottom:12px; display:none; }}
+  .logo {{ font-size:32px; margin-bottom:16px; }}
+</style>
+</head><body>
+<div class="card">
+  <div class="logo">🧠</div>
+  <h1>Sign in to Mengram</h1>
+  <p>Connect your memory to ChatGPT</p>
+
+  <div id="step1" class="step active">
+    <input type="email" id="email" placeholder="your@email.com" autofocus>
+    <div class="error" id="err1"></div>
+    <button onclick="sendCode()">Send verification code</button>
+  </div>
+
+  <div id="step2" class="step">
+    <p id="sentMsg" style="color:#888">Code sent to your email</p>
+    <input type="text" id="code" placeholder="Enter 6-digit code" maxlength="6">
+    <div class="error" id="err2"></div>
+    <button onclick="verifyCode()">Verify & Connect</button>
+  </div>
+</div>
+
+<script>
+const redirectUri = "{redirect_uri}";
+const state = "{state}";
+
+async function sendCode() {{
+  const email = document.getElementById('email').value.trim();
+  if (!email) return;
+  const res = await fetch('/oauth/send-code', {{
+    method: 'POST',
+    headers: {{'Content-Type': 'application/json'}},
+    body: JSON.stringify({{email}})
+  }});
+  const data = await res.json();
+  if (data.ok) {{
+    document.getElementById('step1').classList.remove('active');
+    document.getElementById('step2').classList.add('active');
+    document.getElementById('sentMsg').textContent = 'Code sent to ' + email;
+  }} else {{
+    document.getElementById('err1').textContent = data.error || 'Failed to send code';
+    document.getElementById('err1').style.display = 'block';
+  }}
+}}
+
+async function verifyCode() {{
+  const email = document.getElementById('email').value.trim();
+  const code = document.getElementById('code').value.trim();
+  const res = await fetch('/oauth/verify', {{
+    method: 'POST',
+    headers: {{'Content-Type': 'application/json'}},
+    body: JSON.stringify({{email, code, redirect_uri: redirectUri, state}})
+  }});
+  const data = await res.json();
+  if (data.redirect) {{
+    window.location.href = data.redirect;
+  }} else {{
+    document.getElementById('err2').textContent = data.error || 'Invalid code';
+    document.getElementById('err2').style.display = 'block';
+  }}
+}}
+
+document.getElementById('email').addEventListener('keydown', e => {{ if(e.key==='Enter') sendCode(); }});
+document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='Enter') verifyCode(); }});
+</script>
+</body></html>""")
+
+    @app.post("/oauth/send-code")
+    async def oauth_send_code(req: dict):
+        """Send email verification code for OAuth."""
+        email = req.get("email", "").strip().lower()
+        if not email:
+            return {"ok": False, "error": "Email required"}
+
+        # Check if user exists, if not create
+        user_id = store.get_user_by_email(email)
+        if not user_id:
+            user_id = store.create_user(email)
+            store.create_api_key(user_id)
+
+        # Generate and send 6-digit code
+        code = f"{secrets.randbelow(900000) + 100000}"
+        store.save_email_code(email, code)
+
+        # Send via Resend
+        resend_key = os.environ.get("RESEND_API_KEY")
+        if resend_key:
+            try:
+                import resend
+                resend.api_key = resend_key
+                resend.Emails.send({
+                    "from": "Mengram <onboarding@resend.dev>",
+                    "to": [email],
+                    "subject": "Mengram verification code",
+                    "html": f"<h2>Your code: {code}</h2><p>Expires in 10 minutes.</p>",
+                })
+            except Exception as e:
+                print(f"⚠️ Email send failed: {e}", file=sys.stderr)
+                return {"ok": False, "error": "Failed to send email"}
+        else:
+            print(f"⚠️ No RESEND_API_KEY, code for {email}: {code}", file=sys.stderr)
+
+        return {"ok": True}
+
+    @app.post("/oauth/verify")
+    async def oauth_verify(req: dict):
+        """Verify email code and create OAuth authorization code."""
+        email = req.get("email", "").strip().lower()
+        code = req.get("code", "").strip()
+        redirect_uri = req.get("redirect_uri", "")
+        state = req.get("state", "")
+
+        if not store.verify_email_code(email, code):
+            return {"error": "Invalid or expired code"}
+
+        user_id = store.get_user_by_email(email)
+        if not user_id:
+            return {"error": "User not found"}
+
+        # Create OAuth authorization code
+        oauth_code = secrets.token_urlsafe(32)
+        store.save_oauth_code(oauth_code, user_id, redirect_uri, state)
+
+        # Build redirect URL
+        separator = "&" if "?" in redirect_uri else "?"
+        redirect_url = f"{redirect_uri}{separator}code={oauth_code}&state={state}"
+
+        return {"redirect": redirect_url}
+
+    @app.post("/oauth/token")
+    async def oauth_token(
+        grant_type: str = Form("authorization_code"),
+        code: str = Form(""),
+        client_id: str = Form(""),
+        client_secret: str = Form(""),
+        redirect_uri: str = Form(""),
+    ):
+        """Exchange OAuth code for access token."""
+        if grant_type != "authorization_code":
+            raise HTTPException(status_code=400, detail="Unsupported grant_type")
+
+        result = store.verify_oauth_code(code)
+        if not result:
+            raise HTTPException(status_code=400, detail="Invalid or expired code")
+
+        # Get or create API key for this user
+        user_id = result["user_id"]
+        api_key = store.create_api_key(user_id, name="chatgpt-oauth")
+
+        return {
+            "access_token": api_key,
+            "token_type": "Bearer",
+            "scope": "read write",
+        }
 
     @app.get("/v1/health")
     async def health():
