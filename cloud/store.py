@@ -199,6 +199,16 @@ class CloudStore:
                 (src, tgt, rel.get("type", "related_to"), rel.get("description", ""))
             )
 
+    def get_entity_id(self, user_id: str, name: str) -> Optional[str]:
+        """Get entity ID by name."""
+        with self.conn.cursor() as cur:
+            cur.execute(
+                "SELECT id FROM entities WHERE user_id = %s AND name = %s",
+                (user_id, name)
+            )
+            row = cur.fetchone()
+            return str(row[0]) if row else None
+
     def get_entity(self, user_id: str, name: str) -> Optional[CloudEntity]:
         """Get entity with all data."""
         with self.conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:

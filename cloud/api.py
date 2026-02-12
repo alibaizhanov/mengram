@@ -284,6 +284,11 @@ def create_cloud_api() -> FastAPI:
                     embedder = get_embedder()
                     if embedder:
                         chunks = [name] + entity.facts
+                        for r in entity_relations:
+                            target = r.get("target", "")
+                            rel_type = r.get("type", "")
+                            if target and rel_type:
+                                chunks.append(f"{name} {rel_type} {target}")
                         for k in entity_knowledge:
                             chunks.append(f"{k['title']} {k['content']}")
 
@@ -329,6 +334,38 @@ def create_cloud_api() -> FastAPI:
         entities = store.get_all_entities(user_id)
         store.log_usage(user_id, "get_all")
         return {"memories": entities}
+
+    @app.post("/v1/reindex")
+    async def reindex(user_id: str = Depends(auth)):
+        """Re-generate all embeddings (includes relations now)."""
+        embedder = get_embedder()
+        if not embedder:
+            raise HTTPException(status_code=500, detail="No embedder configured")
+
+        entities = store.get_all_entities_full(user_id)
+        count = 0
+        for entity in entities:
+            name = entity["entity"]
+            entity_id = store.get_entity_id(user_id, name)
+            if not entity_id:
+                continue
+
+            chunks = [name] + entity.get("facts", [])
+            for r in entity.get("relations", []):
+                target = r.get("target", "")
+                rel_type = r.get("type", "")
+                if target and rel_type:
+                    chunks.append(f"{name} {rel_type} {target}")
+            for k in entity.get("knowledge", []):
+                chunks.append(f"{k.get('title', '')} {k.get('content', '')}")
+
+            store.delete_embeddings(entity_id)
+            embeddings = embedder.embed_batch(chunks)
+            for chunk, emb in zip(chunks, embeddings):
+                store.save_embedding(entity_id, chunk, emb)
+            count += 1
+
+        return {"reindexed": count}
 
     @app.get("/v1/memories/full")
     async def get_all_full(user_id: str = Depends(auth)):
