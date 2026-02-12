@@ -11,6 +11,7 @@ Usage:
 """
 
 import hashlib
+import json
 import secrets
 import sys
 from dataclasses import dataclass
@@ -54,6 +55,27 @@ class CloudStore:
         self.database_url = database_url
         self.conn = psycopg2.connect(database_url)
         self.conn.autocommit = True
+        self._migrate()
+
+    def _migrate(self):
+        """Auto-migrate: add new columns if missing."""
+        with self.conn.cursor() as cur:
+            # facts.created_at for temporal queries
+            cur.execute("""
+                ALTER TABLE facts ADD COLUMN IF NOT EXISTS created_at 
+                TIMESTAMPTZ DEFAULT NOW()
+            """)
+            # facts.archived for conflict resolution
+            cur.execute("""
+                ALTER TABLE facts ADD COLUMN IF NOT EXISTS archived 
+                BOOLEAN DEFAULT FALSE
+            """)
+            # facts.superseded_by for tracking what replaced it
+            cur.execute("""
+                ALTER TABLE facts ADD COLUMN IF NOT EXISTS superseded_by 
+                TEXT DEFAULT NULL
+            """)
+        print("✅ Migration complete", file=sys.stderr)
 
     def close(self):
         if self.conn:
@@ -329,8 +351,8 @@ class CloudStore:
 
             entity_id = str(row["id"])
 
-            # Facts
-            cur.execute("SELECT content FROM facts WHERE entity_id = %s", (entity_id,))
+            # Facts (exclude archived)
+            cur.execute("SELECT content FROM facts WHERE entity_id = %s AND archived = FALSE", (entity_id,))
             facts = [r["content"] for r in cur.fetchall()]
 
             # Relations
@@ -396,9 +418,9 @@ class CloudStore:
                 "knowledge": [],
             } for e in entities}
 
-            # 2. Batch all facts
+            # 2. Batch all facts (exclude archived)
             cur.execute(
-                "SELECT entity_id, content FROM facts WHERE entity_id = ANY(%s::uuid[])",
+                "SELECT entity_id, content FROM facts WHERE entity_id = ANY(%s::uuid[]) AND archived = FALSE",
                 (entity_ids,)
             )
             for row in cur.fetchall():
@@ -519,9 +541,9 @@ class CloudStore:
                 "knowledge": [],
             } for r in scored_rows}
 
-            # Batch facts
+            # Batch facts (exclude archived)
             cur.execute(
-                "SELECT entity_id, content FROM facts WHERE entity_id = ANY(%s::uuid[])",
+                "SELECT entity_id, content FROM facts WHERE entity_id = ANY(%s::uuid[]) AND archived = FALSE",
                 (entity_ids,)
             )
             for row in cur.fetchall():
@@ -602,6 +624,106 @@ class CloudStore:
                         "knowledge": [k for k in entity.knowledge],
                     })
             return results
+
+    def search_temporal(self, user_id: str, after: str = None, before: str = None,
+                        top_k: int = 20) -> list[dict]:
+        """Search facts by time range. Returns entities with facts created in the window."""
+        with self.conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            conditions = ["e.user_id = %s", "f.archived = FALSE"]
+            params = [user_id]
+
+            if after:
+                conditions.append("f.created_at >= %s")
+                params.append(after)
+            if before:
+                conditions.append("f.created_at <= %s")
+                params.append(before)
+
+            where = " AND ".join(conditions)
+            cur.execute(
+                f"""SELECT e.name, e.type, f.content, f.created_at
+                    FROM facts f
+                    JOIN entities e ON e.id = f.entity_id
+                    WHERE {where}
+                    ORDER BY f.created_at DESC
+                    LIMIT %s""",
+                (*params, top_k)
+            )
+
+            # Group by entity
+            entity_map = {}
+            for row in cur.fetchall():
+                name = row["name"]
+                if name not in entity_map:
+                    entity_map[name] = {
+                        "entity": name,
+                        "type": row["type"],
+                        "facts": [],
+                    }
+                entity_map[name]["facts"].append({
+                    "content": row["content"],
+                    "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                })
+
+            return list(entity_map.values())
+
+    def archive_contradicted_facts(self, entity_id: str, new_facts: list[str],
+                                    llm_client) -> list[str]:
+        """Use LLM to find old facts contradicted by new ones. Archive them.
+        Returns list of archived fact contents."""
+        with self.conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            cur.execute(
+                "SELECT content FROM facts WHERE entity_id = %s AND archived = FALSE",
+                (entity_id,)
+            )
+            old_facts = [r["content"] for r in cur.fetchall()]
+
+        if not old_facts or not new_facts:
+            return []
+
+        # Ask LLM which old facts are contradicted
+        prompt = f"""Given these EXISTING facts about an entity:
+{json.dumps(old_facts)}
+
+And these NEW facts being added:
+{json.dumps(new_facts)}
+
+Which existing facts are CONTRADICTED or SUPERSEDED by the new facts?
+Only list facts that are directly contradicted (e.g. old: "lives in Almaty" vs new: "relocated to Dubai").
+Do NOT list facts that are just different topics.
+
+Return ONLY a JSON array of the contradicted old fact strings, or empty array [] if none.
+No markdown, no explanation."""
+
+        try:
+            response = llm_client.complete(prompt)
+            clean = response.strip()
+            if clean.startswith("```"):
+                lines = clean.split("\n")
+                clean = "\n".join(lines[1:-1])
+            contradicted = json.loads(clean)
+            if not isinstance(contradicted, list):
+                return []
+        except (json.JSONDecodeError, Exception) as e:
+            print(f"⚠️ Conflict resolution failed: {e}", file=sys.stderr)
+            return []
+
+        # Archive contradicted facts
+        archived = []
+        for old_fact in contradicted:
+            if old_fact in old_facts:
+                with self.conn.cursor() as cur:
+                    # Find matching new fact for superseded_by
+                    superseded_by = new_facts[0] if new_facts else None
+                    cur.execute(
+                        """UPDATE facts SET archived = TRUE, superseded_by = %s
+                           WHERE entity_id = %s AND content = %s AND archived = FALSE""",
+                        (superseded_by, entity_id, old_fact)
+                    )
+                archived.append(old_fact)
+                print(f"📦 Archived: '{old_fact}' → superseded by '{superseded_by}'", file=sys.stderr)
+
+        return archived
 
     # ---- Embeddings ----
 

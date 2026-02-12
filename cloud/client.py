@@ -33,6 +33,7 @@ Usage:
 import json
 import urllib.request
 import urllib.error
+import urllib.parse
 from typing import Optional
 
 
@@ -50,9 +51,14 @@ class CloudMemory:
         self.api_key = api_key
         self.base_url = (base_url or self.DEFAULT_BASE_URL).rstrip("/")
 
-    def _request(self, method: str, path: str, data: dict = None) -> dict:
+    def _request(self, method: str, path: str, data: dict = None,
+                 params: dict = None) -> dict:
         """Make authenticated API request."""
         url = f"{self.base_url}{path}"
+        if params:
+            query_string = "&".join(f"{k}={urllib.parse.quote(str(v))}" for k, v in params.items() if v is not None)
+            if query_string:
+                url = f"{url}?{query_string}"
         body = json.dumps(data).encode() if data else None
 
         req = urllib.request.Request(
@@ -142,6 +148,17 @@ class CloudMemory:
     def stats(self, user_id: str = "default") -> dict:
         """Get usage statistics."""
         return self._request("GET", "/v1/stats")
+
+    def timeline(self, after: str = None, before: str = None,
+                 user_id: str = "default", limit: int = 20) -> list[dict]:
+        """Temporal search — facts in a time range."""
+        params = {"limit": limit}
+        if after:
+            params["after"] = after
+        if before:
+            params["before"] = before
+        resp = self._request("GET", "/v1/timeline", params=params)
+        return resp.get("results", [])
 
     def graph(self, user_id: str = "default") -> dict:
         """Get knowledge graph (nodes + edges)."""

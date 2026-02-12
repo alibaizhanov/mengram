@@ -29,20 +29,25 @@ from typing import Optional
 from engine.extractor.llm_client import LLMClient
 
 
-EXTRACTION_PROMPT = """You are a knowledge extraction system. Analyze the conversation and extract ALL knowledge.
+EXTRACTION_PROMPT = """You are a knowledge extraction system. Analyze the conversation and extract IMPORTANT, LASTING knowledge.
 
-Return ONLY valid JSON without markdown. Be thorough — extract everything useful.
+Return ONLY valid JSON without markdown. Be selective — quality over quantity.
 
-Rules:
-- entity_type: person, project, technology, company, concept
-- facts: short, specific statements about each entity
+CRITICAL RULES:
+- ONLY extract entities that are NAMED and SPECIFIC (real names, real projects, real technologies)
+- If user says "I" or "me" — resolve to their ACTUAL NAME if known from context, otherwise use "User"
+- DO NOT create entities for: generic concepts (e.g. "OOM error", "debugging"), temporary states, error messages, vague terms
+- DO NOT create entities for things that are just part of a fact about another entity
+- entity_type: person, project, technology, company, concept (use concept SPARINGLY — only for important recurring themes)
+- facts: short, specific, LASTING statements (preferences, roles, decisions — NOT temporary actions)
 - relations: how entities are connected
-- knowledge: RICH knowledge entries — solutions, code, formulas, treatments, recipes, commands, examples, insights
-  - Each knowledge entry has: type tag, title, content, and optional artifact (code/config/formula/dosage/etc)
-  - The knowledge type tag should be chosen by YOU based on context — common types include: solution, formula, treatment, experiment, recipe, decision, command, reference, insight, example, debug, config, pattern, tip
-  - If the conversation contains code snippets, configs, commands, formulas — ALWAYS capture them as artifacts
-- If user says "I" or "me" — that's entity "User" (type: person)
-- Extract even implicit knowledge
+- knowledge: solutions, code, formulas, commands with artifacts
+
+GOOD entities: "Ali Baizhanov", "Mengram", "Redis", "Uzum Bank", "Kubernetes"
+BAD entities: "OOM error", "User", "connection pool", "debugging session", "migration"
+
+GOOD facts: "works as backend developer", "prefers dark mode", "lives in Almaty"
+BAD facts: "asked about OOM error", "is debugging something", "sent a message"
 
 Response format (strict JSON, no ```):
 {{

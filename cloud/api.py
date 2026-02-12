@@ -271,6 +271,16 @@ def create_cloud_api() -> FastAPI:
                                 "artifact": k.artifact,
                             })
 
+                    # Conflict resolution — archive contradicted facts
+                    existing_id = store.get_entity_id(user_id, name)
+                    if existing_id and entity.facts:
+                        try:
+                            archived = store.archive_contradicted_facts(
+                                existing_id, entity.facts, extractor.llm
+                            )
+                        except Exception as e:
+                            print(f"⚠️ Conflict check failed: {e}", file=sys.stderr)
+
                     entity_id = store.save_entity(
                         user_id=user_id,
                         name=name,
@@ -402,6 +412,17 @@ def create_cloud_api() -> FastAPI:
                         processed.add(shorter)
 
         return {"merged": merged, "count": len(merged)}
+
+    @app.get("/v1/timeline")
+    async def timeline(
+        after: str = None, before: str = None,
+        limit: int = 20,
+        user_id: str = Depends(auth)
+    ):
+        """Temporal search — what happened in a time range?
+        after/before: ISO datetime strings (e.g. 2025-02-01T00:00:00Z)"""
+        results = store.search_temporal(user_id, after=after, before=before, top_k=limit)
+        return {"results": results}
 
     @app.get("/v1/memories/full")
     async def get_all_full(user_id: str = Depends(auth)):

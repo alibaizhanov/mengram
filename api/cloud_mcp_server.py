@@ -166,6 +166,17 @@ def create_cloud_mcp_server(mem: CloudMemory, user_id: str = "default") -> "Serv
                 },
             ),
             Tool(
+                name="timeline",
+                description="Search memory by time. Use when user asks 'what did I do last week', 'when did I...', 'what happened in January'. Returns facts with timestamps.",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "after": {"type": "string", "description": "ISO datetime — start of range (e.g. 2025-02-01T00:00:00Z)"},
+                        "before": {"type": "string", "description": "ISO datetime — end of range"},
+                    },
+                },
+            ),
+            Tool(
                 name="vault_stats",
                 description="Memory statistics.",
                 inputSchema={"type": "object", "properties": {}},
@@ -227,6 +238,22 @@ def create_cloud_mcp_server(mem: CloudMemory, user_id: str = "default") -> "Serv
                     type="text",
                     text=json.dumps(results, ensure_ascii=False, indent=2),
                 )]
+
+            elif name == "timeline":
+                results = mem.timeline(
+                    after=arguments.get("after"),
+                    before=arguments.get("before"),
+                    user_id=user_id,
+                )
+                if not results:
+                    return [TextContent(type="text", text="No facts found in that time range.")]
+                lines = []
+                for entity in results:
+                    lines.append(f"## {entity['entity']} ({entity['type']})")
+                    for f in entity["facts"]:
+                        ts = f.get("created_at", "")[:10] if f.get("created_at") else ""
+                        lines.append(f"  [{ts}] {f['content']}")
+                return [TextContent(type="text", text="\n".join(lines))]
 
             elif name == "vault_stats":
                 stats = mem.stats(user_id=user_id)
