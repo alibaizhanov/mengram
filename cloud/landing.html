@@ -3,365 +3,437 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mengram — Memory Layer for AI Apps</title>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <title>Mengram — Your AI remembers you. Everywhere.</title>
+    <meta name="description" content="Give every AI persistent memory. ChatGPT, Claude, Perplexity — they all remember you with Mengram.">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Sora:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-primary: #06060a;
-            --bg-card: #0c0c14;
-            --bg-card-hover: #10101c;
+            --bg: #05050a;
+            --bg-card: #0a0a14;
+            --bg-elevated: #0f0f1a;
             --border: #1a1a2e;
-            --border-glow: #7c3aed;
-            --text-primary: #e8e8f0;
-            --text-secondary: #8888a8;
-            --text-dim: #55556a;
-            --accent: #7c3aed;
-            --accent-light: #a78bfa;
-            --accent-glow: rgba(124, 58, 237, 0.15);
-            --green: #22c55e;
-            --green-dim: rgba(34, 197, 94, 0.12);
-            --pink: #ec4899;
-            --blue: #3b82f6;
-            --orange: #f97316;
+            --border-hover: #2a2a44;
+            --text: #e8e8f0;
+            --text-2: #9898b0;
+            --text-3: #5a5a78;
+            --accent: #a855f7;
+            --accent-dim: rgba(168, 85, 247, 0.12);
+            --accent-glow: rgba(168, 85, 247, 0.25);
+            --green: #34d399;
+            --green-dim: rgba(52, 211, 153, 0.1);
+            --blue: #60a5fa;
+            --orange: #fb923c;
+            --pink: #f472b6;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            font-family: 'Outfit', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Sora', sans-serif;
             overflow-x: hidden;
             -webkit-font-smoothing: antialiased;
         }
 
-        /* ---- Noise texture overlay ---- */
+        /* Subtle grain */
         body::before {
             content: '';
             position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+            inset: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
             pointer-events: none;
             z-index: 9999;
         }
 
-        /* ---- Grid background ---- */
-        .grid-bg {
+        /* Ambient glow */
+        .glow-orb {
             position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background-image: 
-                linear-gradient(rgba(124,58,237,0.03) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(124,58,237,0.03) 1px, transparent 1px);
-            background-size: 60px 60px;
-            pointer-events: none;
-            z-index: 0;
-        }
-
-        /* ---- Glow orbs ---- */
-        .orb {
-            position: fixed;
+            width: 600px; height: 600px;
             border-radius: 50%;
             filter: blur(120px);
+            opacity: 0.07;
             pointer-events: none;
             z-index: 0;
         }
-        .orb-1 { width: 600px; height: 600px; background: rgba(124,58,237,0.08); top: -200px; right: -100px; }
-        .orb-2 { width: 400px; height: 400px; background: rgba(236,72,153,0.05); bottom: 200px; left: -100px; }
-        .orb-3 { width: 500px; height: 500px; background: rgba(59,130,246,0.05); bottom: -200px; right: 200px; }
+        .glow-orb.purple { background: #a855f7; top: -200px; right: -100px; }
+        .glow-orb.blue { background: #3b82f6; bottom: -200px; left: -100px; }
 
-        /* ---- Layout ---- */
-        .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+        .container {
+            max-width: 1080px;
+            margin: 0 auto;
+            padding: 0 24px;
+            position: relative;
+            z-index: 1;
+        }
 
         /* ---- Nav ---- */
         nav {
-            padding: 24px 0;
+            padding: 20px 0;
             display: flex;
             align-items: center;
             justify-content: space-between;
         }
         .logo {
-            font-family: 'JetBrains Mono', monospace;
+            font-size: 20px;
             font-weight: 700;
-            font-size: 18px;
-            color: var(--text-primary);
-            text-decoration: none;
+            letter-spacing: -0.5px;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
         }
-        .logo-icon {
-            width: 32px; height: 32px;
-            background: linear-gradient(135deg, var(--accent), var(--pink));
-            border-radius: 8px;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 16px;
-        }
-        .nav-links { display: flex; gap: 32px; align-items: center; }
+        .logo-icon { font-size: 22px; }
+        .nav-links { display: flex; gap: 28px; align-items: center; }
         .nav-links a {
-            color: var(--text-secondary);
+            color: var(--text-2);
             text-decoration: none;
             font-size: 14px;
-            font-weight: 500;
+            font-weight: 400;
             transition: color 0.2s;
         }
-        .nav-links a:hover { color: var(--text-primary); }
-        .nav-gh {
-            display: flex; align-items: center; gap: 6px;
-            padding: 8px 16px;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 13px;
+        .nav-links a:hover { color: var(--text); }
+
+        /* ---- Buttons ---- */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 24px;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            text-decoration: none;
             transition: all 0.2s;
+            cursor: pointer;
+            border: none;
+            font-family: 'Sora', sans-serif;
         }
-        .nav-gh:hover { border-color: var(--text-dim); }
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+            box-shadow: 0 0 20px var(--accent-dim);
+        }
+        .btn-primary:hover {
+            background: #9333ea;
+            transform: translateY(-1px);
+            box-shadow: 0 0 30px var(--accent-glow);
+        }
+        .btn-secondary {
+            background: transparent;
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+        .btn-secondary:hover {
+            border-color: var(--text-3);
+            transform: translateY(-1px);
+        }
+        .btn-ghost {
+            background: var(--accent-dim);
+            color: var(--accent);
+            border: 1px solid rgba(168, 85, 247, 0.2);
+        }
+        .btn-ghost:hover {
+            background: rgba(168, 85, 247, 0.18);
+            border-color: rgba(168, 85, 247, 0.4);
+        }
 
         /* ---- Hero ---- */
         .hero {
-            padding: 120px 0 80px;
             text-align: center;
+            padding: 100px 0 60px;
         }
         .hero-badge {
             display: inline-flex;
             align-items: center;
             gap: 8px;
             padding: 6px 16px;
-            background: var(--accent-glow);
-            border: 1px solid rgba(124,58,237,0.2);
             border-radius: 100px;
             font-size: 13px;
-            font-weight: 500;
-            color: var(--accent-light);
-            margin-bottom: 32px;
+            color: var(--green);
+            background: var(--green-dim);
+            border: 1px solid rgba(52, 211, 153, 0.15);
+            margin-bottom: 28px;
         }
-        .hero-badge .dot {
+        .hero-badge .pulse {
             width: 6px; height: 6px;
             background: var(--green);
             border-radius: 50%;
-            animation: pulse-dot 2s infinite;
+            animation: pulse 2s ease infinite;
         }
-        @keyframes pulse-dot {
+        @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.4; }
         }
         .hero h1 {
-            font-size: clamp(42px, 6vw, 72px);
+            font-size: clamp(42px, 6vw, 68px);
             font-weight: 800;
             line-height: 1.05;
             letter-spacing: -2px;
-            margin-bottom: 24px;
-            background: linear-gradient(135deg, #fff 0%, #a78bfa 50%, #ec4899 100%);
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, #fff 0%, #c4b5fd 50%, #a855f7 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
         }
         .hero p {
-            font-size: 19px;
-            color: var(--text-secondary);
-            max-width: 580px;
-            margin: 0 auto 48px;
+            font-size: 18px;
+            color: var(--text-2);
+            max-width: 560px;
+            margin: 0 auto 36px;
             line-height: 1.6;
-            font-weight: 400;
         }
-        .hero-cta { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
-        .btn {
-            padding: 14px 32px;
-            border-radius: 12px;
-            font-size: 15px;
-            font-weight: 600;
-            text-decoration: none;
-            cursor: pointer;
-            transition: all 0.25s;
-            border: none;
-            font-family: 'Outfit', sans-serif;
+        .hero-cta {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            flex-wrap: wrap;
         }
-        .btn-primary {
-            background: var(--accent);
-            color: #fff;
-            box-shadow: 0 0 40px rgba(124,58,237,0.3);
-        }
-        .btn-primary:hover {
-            background: #6d28d9;
-            box-shadow: 0 0 60px rgba(124,58,237,0.4);
-            transform: translateY(-2px);
-        }
-        .btn-secondary {
-            background: transparent;
-            color: var(--text-primary);
-            border: 1px solid var(--border);
-        }
-        .btn-secondary:hover { border-color: var(--text-dim); transform: translateY(-2px); }
 
-        /* ---- Code preview ---- */
-        .code-section {
-            padding: 40px 0 100px;
+        /* ---- Platforms bar ---- */
+        .platforms {
+            text-align: center;
+            padding: 40px 0 20px;
+            color: var(--text-3);
+            font-size: 13px;
         }
-        .code-block {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            overflow: hidden;
-            max-width: 700px;
-            margin: 0 auto;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+        .platforms-icons {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            margin-top: 16px;
+            font-size: 15px;
+            color: var(--text-2);
         }
-        .code-header {
-            padding: 14px 20px;
-            border-bottom: 1px solid var(--border);
+        .platforms-icons span {
             display: flex;
             align-items: center;
-            gap: 8px;
-        }
-        .code-dot { width: 12px; height: 12px; border-radius: 50%; }
-        .code-dot-r { background: #ef4444; }
-        .code-dot-y { background: #eab308; }
-        .code-dot-g { background: #22c55e; }
-        .code-lang {
-            margin-left: auto;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 12px;
-            color: var(--text-dim);
-        }
-        .code-body {
-            padding: 24px;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 13.5px;
-            line-height: 1.7;
-            overflow-x: auto;
-        }
-        .code-body pre { margin: 0; }
-        .c-kw { color: #c084fc; }
-        .c-fn { color: #60a5fa; }
-        .c-str { color: #34d399; }
-        .c-cmt { color: #55556a; font-style: italic; }
-        .c-var { color: #f9a8d4; }
-        .c-num { color: #fbbf24; }
-
-        /* Code tabs */
-        .code-tabs {
-            display: flex;
-            gap: 4px;
-            max-width: 700px;
-            margin: 0 auto 0;
-            padding: 0 4px;
-        }
-        .code-tab {
-            padding: 10px 20px;
-            background: transparent;
-            border: 1px solid var(--border);
-            border-bottom: none;
-            border-radius: 10px 10px 0 0;
-            color: var(--text-dim);
-            font-size: 13px;
-            font-weight: 500;
-            font-family: 'Outfit', sans-serif;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .code-tab:hover { color: var(--text-secondary); }
-        .code-tab.active {
-            background: var(--bg-card);
-            color: var(--text-primary);
-            border-color: var(--border);
+            gap: 6px;
         }
 
-        /* ---- Features ---- */
-        .features {
+        /* ---- How it works ---- */
+        .how-section {
             padding: 80px 0;
         }
-        .features-title {
+        .how-section h2 {
             text-align: center;
-            margin-bottom: 60px;
-        }
-        .features-title h2 {
-            font-size: 36px;
+            font-size: 32px;
             font-weight: 700;
             letter-spacing: -1px;
-            margin-bottom: 12px;
+            margin-bottom: 50px;
         }
-        .features-title p { color: var(--text-secondary); font-size: 17px; }
-        .features-grid {
+        .how-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 20px;
         }
-        .feature-card {
+        .how-card {
             background: var(--bg-card);
             border: 1px solid var(--border);
             border-radius: 16px;
-            padding: 32px;
+            padding: 32px 28px;
+            text-align: center;
             transition: all 0.3s;
         }
-        .feature-card:hover {
-            border-color: rgba(124,58,237,0.3);
-            transform: translateY(-4px);
-            box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+        .how-card:hover {
+            border-color: var(--border-hover);
+            transform: translateY(-2px);
         }
-        .feature-icon {
+        .how-num {
             width: 44px; height: 44px;
+            margin: 0 auto 20px;
             border-radius: 12px;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 20px;
-            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 18px;
         }
-        .fi-purple { background: rgba(124,58,237,0.12); }
-        .fi-pink { background: rgba(236,72,153,0.12); }
-        .fi-blue { background: rgba(59,130,246,0.12); }
-        .fi-green { background: rgba(34,197,94,0.12); }
-        .fi-orange { background: rgba(249,115,22,0.12); }
-        .fi-cyan { background: rgba(6,182,212,0.12); }
-        .feature-card h3 {
-            font-size: 17px;
+        .how-num.n1 { background: var(--accent-dim); color: var(--accent); }
+        .how-num.n2 { background: var(--green-dim); color: var(--green); }
+        .how-num.n3 { background: rgba(96, 165, 250, 0.1); color: var(--blue); }
+        .how-card h3 {
+            font-size: 18px;
             font-weight: 600;
             margin-bottom: 10px;
         }
-        .feature-card p { color: var(--text-secondary); font-size: 14px; line-height: 1.6; }
-
-        /* ---- Comparison ---- */
-        .comparison {
-            padding: 80px 0;
+        .how-card p {
+            color: var(--text-2);
+            font-size: 14px;
+            line-height: 1.6;
         }
-        .comparison h2 {
+
+        /* ---- Install Section ---- */
+        .install-section {
+            padding: 60px 0 80px;
+        }
+        .install-section h2 {
             text-align: center;
-            font-size: 36px;
+            font-size: 32px;
             font-weight: 700;
             letter-spacing: -1px;
-            margin-bottom: 48px;
+            margin-bottom: 12px;
         }
-        .comp-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 15px;
+        .install-section > p {
+            text-align: center;
+            color: var(--text-2);
+            font-size: 16px;
+            margin-bottom: 40px;
         }
-        .comp-table th, .comp-table td {
-            padding: 16px 24px;
-            text-align: left;
-            border-bottom: 1px solid var(--border);
+
+        .install-tabs {
+            display: flex;
+            justify-content: center;
+            gap: 6px;
+            margin-bottom: 30px;
         }
-        .comp-table th {
+        .install-tab {
+            padding: 10px 20px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--text-2);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            font-family: 'Sora', sans-serif;
+            transition: all 0.2s;
+        }
+        .install-tab:hover { border-color: var(--border-hover); color: var(--text); }
+        .install-tab.active {
+            background: var(--accent-dim);
+            border-color: rgba(168, 85, 247, 0.3);
+            color: var(--accent);
+        }
+
+        .install-panel {
+            display: none;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 36px;
+            max-width: 720px;
+            margin: 0 auto;
+        }
+        .install-panel.active { display: block; }
+
+        .steps { display: flex; flex-direction: column; gap: 24px; }
+        .step {
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+        }
+        .step-num {
+            min-width: 32px; height: 32px;
+            background: var(--accent-dim);
+            color: var(--accent);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 14px;
+        }
+        .step h4 {
+            font-size: 16px;
             font-weight: 600;
-            font-size: 13px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: var(--text-dim);
+            margin-bottom: 6px;
         }
-        .comp-table td:first-child { font-weight: 500; }
-        .comp-table .highlight { color: var(--green); font-weight: 600; }
-        .comp-table .dim { color: var(--text-dim); }
-        .comp-col-us { background: var(--accent-glow); }
+        .step p {
+            color: var(--text-2);
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        /* Code blocks inside panels */
+        .code-box {
+            background: rgba(0,0,0,0.4);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 14px 18px;
+            margin-top: 10px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            overflow-x: auto;
+            position: relative;
+        }
+        .code-box .copy-btn {
+            position: absolute;
+            top: 8px; right: 8px;
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            color: var(--text-3);
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            cursor: pointer;
+            font-family: 'Sora', sans-serif;
+        }
+        .code-box .copy-btn:hover { color: var(--text); border-color: var(--border-hover); }
+        .c-kw { color: #c084fc; }
+        .c-str { color: #34d399; }
+        .c-cmt { color: var(--text-3); }
+        .c-fn { color: #60a5fa; }
+
+        /* ---- Features ---- */
+        .features-section {
+            padding: 80px 0;
+        }
+        .features-section h2 {
+            text-align: center;
+            font-size: 32px;
+            font-weight: 700;
+            letter-spacing: -1px;
+            margin-bottom: 12px;
+        }
+        .features-section > p {
+            text-align: center;
+            color: var(--text-2);
+            font-size: 16px;
+            margin-bottom: 40px;
+        }
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+        .feat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 28px 24px;
+            transition: all 0.3s;
+        }
+        .feat-card:hover {
+            border-color: var(--border-hover);
+            transform: translateY(-2px);
+        }
+        .feat-icon {
+            font-size: 24px;
+            margin-bottom: 14px;
+        }
+        .feat-card h3 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        .feat-card p {
+            color: var(--text-2);
+            font-size: 13px;
+            line-height: 1.6;
+        }
 
         /* ---- Signup ---- */
         .signup-section {
-            padding: 100px 0;
+            padding: 80px 0;
         }
         .signup-box {
             max-width: 520px;
             margin: 0 auto;
+            text-align: center;
             background: var(--bg-card);
             border: 1px solid var(--border);
             border-radius: 20px;
-            padding: 48px;
-            text-align: center;
+            padding: 48px 40px;
             position: relative;
             overflow: hidden;
         }
@@ -369,609 +441,376 @@
             content: '';
             position: absolute;
             top: 0; left: 50%; transform: translateX(-50%);
-            width: 300px; height: 1px;
+            width: 200px; height: 1px;
             background: linear-gradient(90deg, transparent, var(--accent), transparent);
         }
         .signup-box h2 {
-            font-size: 28px;
+            font-size: 26px;
             font-weight: 700;
             margin-bottom: 8px;
         }
         .signup-box > p {
-            color: var(--text-secondary);
-            margin-bottom: 32px;
+            color: var(--text-2);
             font-size: 15px;
+            margin-bottom: 24px;
         }
-        .signup-form { display: flex; gap: 10px; margin-bottom: 20px; }
+        .signup-form {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
         .signup-input {
             flex: 1;
-            padding: 14px 18px;
-            background: var(--bg-primary);
+            padding: 12px 16px;
+            background: var(--bg);
             border: 1px solid var(--border);
             border-radius: 10px;
-            color: var(--text-primary);
+            color: var(--text);
             font-size: 15px;
-            font-family: 'Outfit', sans-serif;
+            font-family: 'Sora', sans-serif;
             outline: none;
             transition: border-color 0.2s;
         }
         .signup-input:focus { border-color: var(--accent); }
-        .signup-input::placeholder { color: var(--text-dim); }
+        .signup-input::placeholder { color: var(--text-3); }
         .signup-btn {
-            padding: 14px 28px;
+            padding: 12px 24px;
             background: var(--accent);
-            color: #fff;
+            color: white;
             border: none;
             border-radius: 10px;
             font-size: 15px;
             font-weight: 600;
-            font-family: 'Outfit', sans-serif;
             cursor: pointer;
-            transition: all 0.25s;
+            font-family: 'Sora', sans-serif;
+            transition: all 0.2s;
             white-space: nowrap;
         }
-        .signup-btn:hover { background: #6d28d9; }
+        .signup-btn:hover { background: #9333ea; }
         .signup-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        .signup-result {
-            margin-top: 20px;
-            display: none;
-        }
+        .signup-result { display: none; text-align: left; margin-top: 16px; }
         .signup-result.show { display: block; }
         .signup-result.success {
-            background: var(--green-dim);
-            border: 1px solid rgba(34,197,94,0.2);
-            border-radius: 12px;
-            padding: 20px;
-            text-align: left;
+            background: rgba(52, 211, 153, 0.06);
+            border: 1px solid rgba(52, 211, 153, 0.15);
+            padding: 16px;
+            border-radius: 10px;
         }
         .signup-result.error {
-            background: rgba(239,68,68,0.1);
-            border: 1px solid rgba(239,68,68,0.2);
-            border-radius: 12px;
+            background: rgba(239, 68, 68, 0.06);
+            border: 1px solid rgba(239, 68, 68, 0.15);
             padding: 16px;
-            color: #fca5a5;
+            border-radius: 10px;
+            color: #f87171;
         }
         .api-key-display {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 14px;
-            color: var(--green);
-            background: rgba(0,0,0,0.3);
-            padding: 12px 16px;
-            border-radius: 8px;
-            margin: 12px 0;
-            word-break: break-all;
             display: flex;
             align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-        }
-        .copy-btn {
-            background: none;
-            border: 1px solid rgba(34,197,94,0.3);
+            gap: 8px;
+            background: rgba(0,0,0,0.4);
+            border-radius: 8px;
+            padding: 10px 14px;
+            margin-top: 10px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
             color: var(--green);
+            word-break: break-all;
+        }
+        .api-key-display button {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            color: var(--text-2);
             padding: 4px 12px;
             border-radius: 6px;
-            font-size: 12px;
             cursor: pointer;
-            font-family: 'Outfit', sans-serif;
+            font-size: 12px;
             white-space: nowrap;
+            font-family: 'Sora', sans-serif;
         }
-        .copy-btn:hover { background: rgba(34,197,94,0.1); }
-        .signup-note { font-size: 13px; color: var(--text-dim); margin-top: 16px; }
-
-        /* ---- Local section ---- */
-        .local-section { padding: 80px 0; }
-
-        /* ---- Setup Guide section ---- */
-        .setup-section { padding: 80px 0; }
-        .setup-tabs {
-            display: flex; gap: 8px; justify-content: center;
-            margin-bottom: 32px; flex-wrap: wrap;
+        .signup-note {
+            font-size: 13px;
+            color: var(--text-3);
         }
-        .setup-tab {
-            padding: 10px 24px; border-radius: 8px; border: 1px solid #2a2a2a;
-            background: #141414; color: #888; cursor: pointer; font-size: 15px;
-            transition: all 0.2s;
-        }
-        .setup-tab:hover { border-color: #444; color: #e0e0e0; }
-        .setup-tab.active { border-color: #646cff; color: #e0e0e0; background: rgba(100,108,255,0.1); }
-        .setup-content {
-            max-width: 640px; margin: 0 auto;
-        }
-        .setup-steps { display: flex; flex-direction: column; gap: 24px; }
-        .setup-code {
-            background: #0a0a0a; border: 1px solid #2a2a2a; border-radius: 10px;
-            padding: 16px 20px; margin-top: 8px; overflow-x: auto;
-        }
-        .setup-code pre {
-            font-family: 'JetBrains Mono', monospace; font-size: 13px;
-            color: #a78bfa; line-height: 1.6; margin: 0;
-        }
-        .setup-link {
-            color: #646cff; text-decoration: none; font-weight: 600;
-        }
-        .setup-link:hover { text-decoration: underline; }
-        .setup-note {
-            text-align: center; margin-top: 32px; padding: 16px;
-            background: rgba(100,108,255,0.06); border: 1px solid rgba(100,108,255,0.15);
-            border-radius: 12px; max-width: 640px; margin-left: auto; margin-right: auto;
-            font-size: 14px; color: #ccc;
-        }
-        .local-box {
-            max-width: 620px;
-            margin: 0 auto;
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 20px;
-            padding: 48px;
-        }
-        .local-header { text-align: center; margin-bottom: 36px; }
-        .local-header h2 { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
-        .local-header p { color: var(--text-secondary); font-size: 15px; }
-        .local-steps { display: flex; flex-direction: column; gap: 24px; }
-        .local-step {
-            display: flex;
-            align-items: flex-start;
-            gap: 16px;
-        }
-        .step-num {
-            width: 32px; height: 32px; min-width: 32px;
-            background: var(--accent-glow);
-            border: 1px solid rgba(124,58,237,0.2);
-            border-radius: 50%;
-            display: flex; align-items: center; justify-content: center;
-            font-weight: 700; font-size: 14px;
-            color: var(--accent-light);
-        }
-        .local-step h4 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
-        .local-step code {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 14px;
-            color: var(--green);
-            background: rgba(0,0,0,0.3);
-            padding: 6px 14px;
-            border-radius: 6px;
-            display: inline-block;
-        }
-        .step-desc { color: var(--text-secondary); font-size: 13px; margin-top: 4px; }
 
         /* ---- Footer ---- */
         footer {
             padding: 40px 0;
-            border-top: 1px solid var(--border);
             text-align: center;
-            color: var(--text-dim);
-            font-size: 14px;
+            color: var(--text-3);
+            font-size: 13px;
+            border-top: 1px solid var(--border);
         }
-        footer a { color: var(--text-secondary); text-decoration: none; }
-        footer a:hover { color: var(--text-primary); }
+        footer a { color: var(--text-2); text-decoration: none; }
+        footer a:hover { color: var(--text); }
+
+        /* ---- Animations ---- */
+        .anim { opacity: 0; transform: translateY(16px); animation: fadeUp 0.6s ease forwards; }
+        .d1 { animation-delay: 0.1s; }
+        .d2 { animation-delay: 0.2s; }
+        .d3 { animation-delay: 0.3s; }
+        .d4 { animation-delay: 0.4s; }
+        @keyframes fadeUp {
+            to { opacity: 1; transform: translateY(0); }
+        }
 
         /* ---- Responsive ---- */
         @media (max-width: 768px) {
-            .features-grid { grid-template-columns: 1fr; }
-            .hero { padding: 80px 0 60px; }
+            .hero { padding: 60px 0 40px; }
+            .how-grid, .features-grid { grid-template-columns: 1fr; }
+            .install-tabs { flex-wrap: wrap; }
             .signup-form { flex-direction: column; }
-            .nav-links { gap: 16px; }
-            .comp-table { font-size: 13px; }
-            .comp-table th, .comp-table td { padding: 12px 14px; }
+            .nav-links { display: none; }
+            .hero-cta { flex-direction: column; align-items: center; }
+            .platforms-icons { flex-wrap: wrap; gap: 20px; }
         }
-
-        /* ---- Animations ---- */
-        @keyframes fade-up {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        .animate { animation: fade-up 0.6s ease-out forwards; opacity: 0; }
-        .delay-1 { animation-delay: 0.1s; }
-        .delay-2 { animation-delay: 0.2s; }
-        .delay-3 { animation-delay: 0.3s; }
-        .delay-4 { animation-delay: 0.4s; }
     </style>
 </head>
 <body>
-    <div class="grid-bg"></div>
-    <div class="orb orb-1"></div>
-    <div class="orb orb-2"></div>
-    <div class="orb orb-3"></div>
+    <div class="glow-orb purple"></div>
+    <div class="glow-orb blue"></div>
 
     <div class="container">
+
         <!-- Nav -->
-        <nav>
-            <a href="/" class="logo">
-                <div class="logo-icon">🧠</div>
-                Mengram
-            </a>
+        <nav class="anim">
+            <div class="logo">
+                <span class="logo-icon">🧠</span> Mengram
+            </div>
             <div class="nav-links">
+                <a href="#how">How it works</a>
+                <a href="#install">Install</a>
                 <a href="#features">Features</a>
-                <a href="#compare">Compare</a>
                 <a href="/dashboard">Dashboard</a>
-                <a href="https://mengram.io/docs" target="_blank">API Docs</a>
-                <a href="https://github.com/alibaizhanov/mengram" target="_blank" class="nav-gh">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
-                    Star
-                </a>
+                <a href="https://github.com/alibaizhanov/mengram">GitHub</a>
+                <a href="#signup" class="btn btn-ghost" style="padding:8px 18px; font-size:13px;">Get API Key</a>
             </div>
         </nav>
 
         <!-- Hero -->
         <section class="hero">
-            <div class="hero-badge animate">
-                <span class="dot"></span>
-                Open Source &middot; Free Forever
+            <div class="hero-badge anim">
+                <span class="pulse"></span>
+                Open Source · Cross-Platform · Free
             </div>
-            <h1 class="animate delay-1">Memory layer<br>for AI apps</h1>
-            <p class="animate delay-2">Give your AI apps persistent memory in 3 lines of code. Semantic search, knowledge graphs, and rich context — not just flat facts.</p>
-            <div class="hero-cta animate delay-3">
-                <a href="#signup" class="btn btn-primary">Get Cloud API Key</a>
-                <a href="#local" class="btn btn-secondary">Self-hosted →</a>
+            <h1 class="anim d1">Your AI remembers<br>you. Everywhere.</h1>
+            <p class="anim d2">One memory layer for all your AI chats. ChatGPT, Claude, Perplexity — they all know your name, your projects, your preferences. Install once, remember forever.</p>
+            <div class="hero-cta anim d3">
+                <a href="#install" class="btn btn-primary">⚡ Install Extension</a>
+                <a href="#signup" class="btn btn-secondary">Get API Key →</a>
             </div>
         </section>
 
-        <!-- Code Preview — Two tabs -->
-        <section class="code-section animate delay-4">
-            <div class="code-tabs">
-                <button class="code-tab active" onclick="showTab('cloud')">☁️ Cloud API</button>
-                <button class="code-tab" onclick="showTab('local')">💻 Local (Obsidian)</button>
-                <button class="code-tab" onclick="showTab('mcp')">🖥️ Claude Desktop</button>
+        <!-- Works with -->
+        <div class="platforms anim d4">
+            Works with
+            <div class="platforms-icons">
+                <span>💬 ChatGPT</span>
+                <span>🟣 Claude</span>
+                <span>🔍 Perplexity</span>
+                <span>🖥️ Claude Desktop</span>
+                <span>🔵 Cursor</span>
             </div>
-            <div class="code-block">
-                <div class="code-header">
-                    <span class="code-dot code-dot-r"></span>
-                    <span class="code-dot code-dot-y"></span>
-                    <span class="code-dot code-dot-g"></span>
-                    <span class="code-lang" id="code-lang-label">python</span>
+        </div>
+
+        <!-- How it works -->
+        <section class="how-section" id="how">
+            <h2>How it works</h2>
+            <div class="how-grid">
+                <div class="how-card">
+                    <div class="how-num n1">1</div>
+                    <h3>You chat with any AI</h3>
+                    <p>Use ChatGPT, Claude, Perplexity — any AI you prefer. Mengram works silently in the background.</p>
                 </div>
-                <div class="code-body" id="code-cloud">
-<pre><span class="c-kw">from</span> <span class="c-fn">mengram</span> <span class="c-kw">import</span> CloudMemory
-
-m = CloudMemory(api_key=<span class="c-str">"mg-..."</span>)
-
-<span class="c-cmt"># Save knowledge from any conversation</span>
-m.add([
-    {<span class="c-str">"role"</span>: <span class="c-str">"user"</span>, <span class="c-str">"content"</span>: <span class="c-str">"Fixed OOM with Redis, pool=20"</span>},
-    {<span class="c-str">"role"</span>: <span class="c-str">"assistant"</span>, <span class="c-str">"content"</span>: <span class="c-str">"Noted the config."</span>},
-], user_id=<span class="c-str">"alice"</span>)
-
-<span class="c-cmt"># Semantic search — finds by meaning</span>
-results = m.search(<span class="c-str">"database issues"</span>, user_id=<span class="c-str">"alice"</span>)
-<span class="c-cmt"># → entities, facts, relations, knowledge with code artifacts</span></pre>
+                <div class="how-card">
+                    <div class="how-num n2">2</div>
+                    <h3>Mengram extracts & saves</h3>
+                    <p>Important facts, decisions, preferences — automatically extracted and stored in your personal knowledge graph.</p>
                 </div>
-                <div class="code-body" id="code-local" style="display:none">
-<pre><span class="c-cmt"># Install</span>
-<span class="c-fn">pip install</span> mengram-ai
-
-<span class="c-cmt"># Setup — creates vault + config + Claude Desktop integration</span>
-<span class="c-fn">mengram</span> init
-
-<span class="c-cmt"># Or use in Python — 100% local, no cloud needed</span>
-<span class="c-kw">from</span> <span class="c-fn">mengram</span> <span class="c-kw">import</span> Memory
-
-m = Memory(vault_path=<span class="c-str">"~/obsidian-vault"</span>)
-
-m.add([
-    {<span class="c-str">"role"</span>: <span class="c-str">"user"</span>, <span class="c-str">"content"</span>: <span class="c-str">"Fixed OOM with Redis, pool=20"</span>},
-], user_id=<span class="c-str">"alice"</span>)
-
-results = m.search(<span class="c-str">"database issues"</span>)
-<span class="c-cmt"># → data stored as .md files in your Obsidian vault</span></pre>
+                <div class="how-card">
+                    <div class="how-num n3">3</div>
+                    <h3>Every AI knows you</h3>
+                    <p>Next conversation — your AI already knows your name, projects, tech stack. No repeating yourself.</p>
                 </div>
-                <div class="code-body" id="code-mcp" style="display:none">
-<pre><span class="c-cmt"># 1. Install</span>
-<span class="c-fn">pip install</span> mengram-ai
+            </div>
+        </section>
 
-<span class="c-cmt"># 2. Add to Claude Desktop config (claude_desktop_config.json):</span>
-{
+        <!-- Install -->
+        <section class="install-section" id="install">
+            <h2>Get started in 60 seconds</h2>
+            <p>Choose your preferred way to connect Mengram.</p>
+
+            <div class="install-tabs">
+                <button class="install-tab active" onclick="showInstall('ext')">🌐 Chrome Extension</button>
+                <button class="install-tab" onclick="showInstall('claude')">🟣 Claude Desktop</button>
+                <button class="install-tab" onclick="showInstall('api')">🔧 Python API</button>
+            </div>
+
+            <!-- Chrome Extension -->
+            <div class="install-panel active" id="panel-ext">
+                <div class="steps">
+                    <div class="step">
+                        <div class="step-num">1</div>
+                        <div>
+                            <h4>Get your API key</h4>
+                            <p><a href="#signup" style="color: var(--accent);">Sign up below</a> — free, 30 seconds, no credit card.</p>
+                        </div>
+                    </div>
+                    <div class="step">
+                        <div class="step-num">2</div>
+                        <div>
+                            <h4>Download extension</h4>
+                            <p>Download the zip file and unpack it.</p>
+                            <a href="/extension/download" class="btn btn-primary" style="margin-top: 10px; padding: 10px 20px; font-size: 14px;">
+                                ↓ Download Extension (.zip)
+                            </a>
+                        </div>
+                    </div>
+                    <div class="step">
+                        <div class="step-num">3</div>
+                        <div>
+                            <h4>Load in Chrome</h4>
+                            <p>Go to <code style="color: var(--accent); background: var(--accent-dim); padding: 2px 8px; border-radius: 4px; font-size: 13px;">chrome://extensions</code> → Enable Developer mode → "Load unpacked" → select the folder.</p>
+                        </div>
+                    </div>
+                    <div class="step">
+                        <div class="step-num">4</div>
+                        <div>
+                            <h4>Paste your API key</h4>
+                            <p>Click the Mengram icon in Chrome toolbar → paste your API key → Save. Done! Open ChatGPT and start chatting.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Claude Desktop -->
+            <div class="install-panel" id="panel-claude">
+                <div class="steps">
+                    <div class="step">
+                        <div class="step-num">1</div>
+                        <div>
+                            <h4>Install mengram</h4>
+                            <div class="code-box">
+                                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                                <code>pip install mengram-ai</code>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="step">
+                        <div class="step-num">2</div>
+                        <div>
+                            <h4>Find mengram path</h4>
+                            <div class="code-box">
+                                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                                <code>which mengram</code>
+                            </div>
+                            <p style="margin-top: 6px;">Copy the output — you'll need it in the next step.</p>
+                        </div>
+                    </div>
+                    <div class="step">
+                        <div class="step-num">3</div>
+                        <div>
+                            <h4>Add to Claude Desktop config</h4>
+                            <p>Open Settings → Developer → Edit Config, and add:</p>
+                            <div class="code-box">
+                                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+<pre>{
   <span class="c-str">"mcpServers"</span>: {
     <span class="c-str">"mengram"</span>: {
-      <span class="c-str">"command"</span>: <span class="c-str">"mengram"</span>,
+      <span class="c-str">"command"</span>: <span class="c-str">"/path/from/step2/mengram"</span>,
       <span class="c-str">"args"</span>: [<span class="c-str">"server"</span>, <span class="c-str">"--cloud"</span>],
       <span class="c-str">"env"</span>: {
-        <span class="c-str">"MENGRAM_API_KEY"</span>: <span class="c-str">"mg-your-key"</span>
+        <span class="c-str">"MENGRAM_API_KEY"</span>: <span class="c-str">"your-api-key"</span>,
+        <span class="c-str">"MENGRAM_URL"</span>: <span class="c-str">"https://mengram.io"</span>
       }
     }
   }
-}
+}</pre>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="step">
+                        <div class="step-num">4</div>
+                        <div>
+                            <h4>Restart Claude Desktop</h4>
+                            <p>Claude now has persistent memory. It remembers you across all conversations.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-<span class="c-cmt"># 3. Restart Claude Desktop — done!</span>
-<span class="c-cmt"># Claude now remembers everything across conversations</span></pre>
+            <!-- Python API -->
+            <div class="install-panel" id="panel-api">
+                <div class="steps">
+                    <div class="step">
+                        <div class="step-num">1</div>
+                        <div>
+                            <h4>Install</h4>
+                            <div class="code-box">
+                                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                                <code>pip install mengram-ai</code>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="step">
+                        <div class="step-num">2</div>
+                        <div>
+                            <h4>Use in your app</h4>
+                            <div class="code-box">
+                                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+<pre><span class="c-kw">from</span> <span class="c-fn">mengram</span> <span class="c-kw">import</span> CloudMemory
+
+m = CloudMemory(api_key=<span class="c-str">"your-api-key"</span>)
+
+<span class="c-cmt"># Save knowledge from conversation</span>
+m.add([
+    {<span class="c-str">"role"</span>: <span class="c-str">"user"</span>, <span class="c-str">"content"</span>: <span class="c-str">"Fixed OOM with Redis cache"</span>},
+    {<span class="c-str">"role"</span>: <span class="c-str">"assistant"</span>, <span class="c-str">"content"</span>: <span class="c-str">"Got it."</span>},
+])
+
+<span class="c-cmt"># Search — finds by meaning</span>
+results = m.search(<span class="c-str">"database issues"</span>)
+<span class="c-cmt"># → entities, facts, relations, knowledge</span></pre>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </section>
 
         <!-- Features -->
-        <section class="features" id="features">
-            <div class="features-title">
-                <h2>Built for developers who ship</h2>
-                <p>Everything you need for AI memory — nothing you don't</p>
-            </div>
+        <section class="features-section" id="features">
+            <h2>Not just flat facts</h2>
+            <p>Mengram builds a real knowledge graph from your conversations.</p>
             <div class="features-grid">
-                <div class="feature-card">
-                    <div class="feature-icon fi-purple">🔮</div>
-                    <h3>Rich Knowledge</h3>
-                    <p>Not just flat facts. Solutions, configs, commands — with code artifacts. Your AI remembers <em>how</em>, not just <em>what</em>.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon fi-pink">🕸️</div>
+                <div class="feat-card">
+                    <div class="feat-icon">🕸️</div>
                     <h3>Knowledge Graph</h3>
-                    <p>Entities, relations, types. "Who uses what" and "what depends on what" — queryable graph built automatically.</p>
+                    <p>Entities, relations, facts — not just text. "Ali works_at Uzum Bank", not "the user mentioned a bank".</p>
                 </div>
-                <div class="feature-card">
-                    <div class="feature-icon fi-blue">🔍</div>
-                    <h3>Semantic Search</h3>
-                    <p>OpenAI embeddings + pgvector. Find by meaning, not keywords. "database issues" finds Redis, HikariCP, pool configs.</p>
+                <div class="feat-card">
+                    <div class="feat-icon">🔍</div>
+                    <h3>Hybrid Search</h3>
+                    <p>Vector (semantic) + BM25 (keyword) + graph expansion. Finds "colleagues" even when facts are in English.</p>
                 </div>
-                <div class="feature-card">
-                    <div class="feature-icon fi-green">⏱️</div>
-                    <h3>Temporal Memory</h3>
-                    <p>"What did I do last week?" Every fact has a timestamp. Search by time range, track how knowledge evolves.</p>
+                <div class="feat-card">
+                    <div class="feat-icon">🧠</div>
+                    <h3>Auto-Remember</h3>
+                    <p>LLM extracts entities, decisions, code solutions — automatically. You just chat normally.</p>
                 </div>
-                <div class="feature-card">
-                    <div class="feature-icon fi-orange">🔄</div>
-                    <h3>Conflict Resolution</h3>
-                    <p>"Moved from Almaty to Dubai" — old location auto-archived. No duplicates, no stale data. Memory stays clean.</p>
+                <div class="feat-card">
+                    <div class="feat-icon">📝</div>
+                    <h3>Rich Knowledge</h3>
+                    <p>Not just "likes coffee". Stores code solutions, configs, commands — with full artifacts.</p>
                 </div>
-                <div class="feature-card">
-                    <div class="feature-icon fi-cyan">🔗</div>
-                    <h3>Multi-Client</h3>
-                    <p>Claude Desktop, ChatGPT, Cursor — one shared memory. Save in Claude, recall in ChatGPT. OAuth built-in.</p>
+                <div class="feat-card">
+                    <div class="feat-icon">🔗</div>
+                    <h3>Cross-Platform</h3>
+                    <p>Save in Claude Desktop, recall in ChatGPT. One memory, all your AIs.</p>
                 </div>
-                <div class="feature-card">
-                    <div class="feature-icon fi-purple">🧹</div>
-                    <h3>Auto Deduplication</h3>
-                    <p>"Ali" and "Ali Baizhanov" automatically merge. Smart word-boundary matching keeps memory clean.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon fi-pink">🖥️</div>
-                    <h3>MCP Server</h3>
-                    <p>Built-in MCP server. Claude Desktop and Cursor get persistent memory across all conversations. Cloud-synced.</p>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon fi-blue">🔓</div>
-                    <h3>Open Source</h3>
-                    <p>MIT licensed. Run locally with Obsidian vault or use our cloud. Your data, your choice. Free forever.</p>
-                </div>
-            </div>
-        </section>
-
-        <!-- Comparison -->
-        <section class="comparison" id="compare">
-            <h2>Mengram vs Mem0</h2>
-            <table class="comp-table">
-                <thead>
-                    <tr>
-                        <th>Feature</th>
-                        <th class="comp-col-us">Mengram</th>
-                        <th>Mem0 Platform</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td>Memory type</td>
-                        <td class="comp-col-us highlight">Rich — facts + code artifacts</td>
-                        <td>Flat facts only</td>
-                    </tr>
-                    <tr>
-                        <td>Knowledge graph</td>
-                        <td class="comp-col-us highlight">Built-in + visualizable</td>
-                        <td>Separate add-on</td>
-                    </tr>
-                    <tr>
-                        <td>Temporal queries</td>
-                        <td class="comp-col-us highlight">"What did I do last week?"</td>
-                        <td class="dim">Not available</td>
-                    </tr>
-                    <tr>
-                        <td>Conflict resolution</td>
-                        <td class="comp-col-us highlight">Auto-archives contradicted facts</td>
-                        <td class="dim">Duplicates everything</td>
-                    </tr>
-                    <tr>
-                        <td>Entity deduplication</td>
-                        <td class="comp-col-us highlight">"Ali" + "Ali Baizhanov" → auto-merge</td>
-                        <td class="dim">Manual only</td>
-                    </tr>
-                    <tr>
-                        <td>Multi-client</td>
-                        <td class="comp-col-us highlight">Claude + ChatGPT + Cursor</td>
-                        <td>API only</td>
-                    </tr>
-                    <tr>
-                        <td>Claude Desktop MCP</td>
-                        <td class="comp-col-us highlight">Native support</td>
-                        <td class="dim">Not available</td>
-                    </tr>
-                    <tr>
-                        <td>Local mode</td>
-                        <td class="comp-col-us highlight">Obsidian vault (.md files)</td>
-                        <td class="dim">Cloud only</td>
-                    </tr>
-                    <tr>
-                        <td>Pricing</td>
-                        <td class="comp-col-us highlight">Free</td>
-                        <td>$249/month (Pro)</td>
-                    </tr>
-                    <tr>
-                        <td>Open source</td>
-                        <td class="comp-col-us highlight">MIT license</td>
-                        <td>Open source (Apache 2.0)</td>
-                    </tr>
-                    <tr>
-                        <td>Data ownership</td>
-                        <td class="comp-col-us highlight">Full — local or self-host</td>
-                        <td>Their servers</td>
-                    </tr>
-                </tbody>
-            </table>
-        </section>
-
-        <!-- Setup Guide -->
-        <section class="setup-section" id="setup">
-            <div class="features-title">
-                <h2>Works with your favorite AI</h2>
-                <p>One memory, all your AI tools. Set up in 2 minutes.</p>
-            </div>
-
-            <div class="setup-tabs">
-                <button class="setup-tab active" onclick="showSetup('claude')">🟣 Claude Desktop</button>
-                <button class="setup-tab" onclick="showSetup('chatgpt')">🟢 ChatGPT</button>
-                <button class="setup-tab" onclick="showSetup('cursor')">🔵 Cursor</button>
-            </div>
-
-            <div class="setup-content" id="setup-claude">
-                <div class="setup-steps">
-                    <div class="local-step">
-                        <div class="step-num">1</div>
-                        <div>
-                            <h4>Get your API key</h4>
-                            <p class="step-desc">Sign up above — free, no credit card.</p>
-                        </div>
-                    </div>
-                    <div class="local-step">
-                        <div class="step-num">2</div>
-                        <div>
-                            <h4>Install</h4>
-                            <code>pip install mengram-ai</code>
-                        </div>
-                    </div>
-                    <div class="local-step">
-                        <div class="step-num">3</div>
-                        <div>
-                            <h4>Add to Claude Desktop config</h4>
-                            <p class="step-desc">Open <code>claude_desktop_config.json</code> and add:</p>
-                            <div class="setup-code">
-                                <pre>{
-  "mcpServers": {
-    "mengram": {
-      "command": "mengram",
-      "args": ["server", "--cloud"],
-      "env": {
-        "MENGRAM_API_KEY": "mg-your-key"
-      }
-    }
-  }
-}</pre>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="local-step">
-                        <div class="step-num">4</div>
-                        <div>
-                            <h4>Restart Claude Desktop</h4>
-                            <p class="step-desc">Done! Claude now remembers everything across conversations. Try: "What do you know about me?"</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="setup-content" id="setup-chatgpt" style="display:none">
-                <div class="setup-steps">
-                    <div class="local-step">
-                        <div class="step-num">1</div>
-                        <div>
-                            <h4>Open Mengram GPT</h4>
-                            <p class="step-desc">Click this link to open Mengram in ChatGPT:<br>
-                            <a href="#" class="setup-link" id="gpt-link">→ Open Mengram GPT</a><br>
-                            <span style="color:#888; font-size:12px;">Requires ChatGPT Plus ($20/month)</span></p>
-                        </div>
-                    </div>
-                    <div class="local-step">
-                        <div class="step-num">2</div>
-                        <div>
-                            <h4>Sign in with email</h4>
-                            <p class="step-desc">ChatGPT will ask you to connect Mengram. Click "Sign in" → enter your email → verification code → done.</p>
-                        </div>
-                    </div>
-                    <div class="local-step">
-                        <div class="step-num">3</div>
-                        <div>
-                            <h4>Start chatting</h4>
-                            <p class="step-desc">That's it! ChatGPT now automatically saves and recalls your memory. No setup, no API keys to manage.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="setup-content" id="setup-cursor" style="display:none">
-                <div class="setup-steps">
-                    <div class="local-step">
-                        <div class="step-num">1</div>
-                        <div>
-                            <h4>Get your API key</h4>
-                            <p class="step-desc">Sign up above — free, no credit card.</p>
-                        </div>
-                    </div>
-                    <div class="local-step">
-                        <div class="step-num">2</div>
-                        <div>
-                            <h4>Install</h4>
-                            <code>pip install mengram-ai</code>
-                        </div>
-                    </div>
-                    <div class="local-step">
-                        <div class="step-num">3</div>
-                        <div>
-                            <h4>Add to Cursor MCP config</h4>
-                            <p class="step-desc">Create or edit <code>~/.cursor/mcp.json</code>:</p>
-                            <div class="setup-code">
-                                <pre>{
-  "mcpServers": {
-    "mengram": {
-      "command": "mengram",
-      "args": ["server", "--cloud"],
-      "env": {
-        "MENGRAM_API_KEY": "mg-your-key"
-      }
-    }
-  }
-}</pre>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="local-step">
-                        <div class="step-num">4</div>
-                        <div>
-                            <h4>Restart Cursor</h4>
-                            <p class="step-desc">Cursor now remembers your codebase decisions, patterns, and solutions across projects.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="setup-note">
-                <p>🔄 <strong>Shared memory</strong> — save in Claude, recall in ChatGPT. All clients share the same memory.</p>
-            </div>
-        </section>
-
-        <!-- Local Install -->
-        <section class="local-section" id="local">
-            <div class="local-box">
-                <div class="local-header">
-                    <h2>Run 100% locally</h2>
-                    <p>No cloud, no account, no API key. Your data stays on your machine in Obsidian-compatible .md files.</p>
-                </div>
-                <div class="local-steps">
-                    <div class="local-step">
-                        <div class="step-num">1</div>
-                        <div>
-                            <h4>Install</h4>
-                            <code>pip install mengram-ai</code>
-                        </div>
-                    </div>
-                    <div class="local-step">
-                        <div class="step-num">2</div>
-                        <div>
-                            <h4>Setup</h4>
-                            <code>mengram init</code>
-                            <p class="step-desc">Creates config, vault, and Claude Desktop integration</p>
-                        </div>
-                    </div>
-                    <div class="local-step">
-                        <div class="step-num">3</div>
-                        <div>
-                            <h4>Use</h4>
-                            <p class="step-desc">Claude Desktop now has persistent memory. Or use Python SDK in your apps.</p>
-                        </div>
-                    </div>
+                <div class="feat-card">
+                    <div class="feat-icon">⚡</div>
+                    <h3>LLM Re-Ranking</h3>
+                    <p>Search results filtered by GPT-4o-mini for relevance. No noise, only what matters.</p>
                 </div>
             </div>
         </section>
@@ -979,27 +818,27 @@ results = m.search(<span class="c-str">"database issues"</span>)
         <!-- Signup -->
         <section class="signup-section" id="signup">
             <div class="signup-box">
-                <h2>Get your API key</h2>
-                <p>Free. No credit card. Start building in 30 seconds.</p>
+                <h2>Get your free API key</h2>
+                <p>No credit card. Start in 30 seconds.</p>
                 <div class="signup-form">
                     <input type="email" class="signup-input" id="email-input" placeholder="your@email.com">
                     <button class="signup-btn" id="signup-btn" onclick="signup()">Get Key</button>
                 </div>
                 <div class="signup-result" id="signup-result"></div>
-                <p class="signup-note">🔒 We only use your email to create your account. No spam.</p>
+                <p class="signup-note">🔒 Email only for account creation. No spam ever.</p>
             </div>
         </section>
 
         <!-- Footer -->
         <footer>
             <p>
-                Mengram — Open source memory layer for AI.
-                &nbsp;&middot;&nbsp;
+                Mengram — open source memory layer for AI
+                &nbsp;·&nbsp;
                 <a href="https://github.com/alibaizhanov/mengram">GitHub</a>
-                &nbsp;&middot;&nbsp;
-                <a href="https://mengram.io/docs">API Docs</a>
-                &nbsp;&middot;&nbsp;
+                &nbsp;·&nbsp;
                 <a href="https://pypi.org/project/mengram-ai/">PyPI</a>
+                &nbsp;·&nbsp;
+                <a href="https://mengram.io/docs">API Docs</a>
             </p>
         </footer>
     </div>
@@ -1007,13 +846,19 @@ results = m.search(<span class="c-str">"database issues"</span>)
     <script>
         const API_URL = "https://mengram.io";
 
-        function showTab(tab) {
-            document.querySelectorAll('.code-tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.code-body').forEach(b => b.style.display = 'none');
-            document.getElementById('code-' + tab).style.display = 'block';
+        function showInstall(tab) {
+            document.querySelectorAll('.install-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.install-panel').forEach(p => p.classList.remove('active'));
+            document.getElementById('panel-' + tab).classList.add('active');
             event.target.classList.add('active');
-            const lang = tab === 'mcp' ? 'json' : (tab === 'local' ? 'bash / python' : 'python');
-            document.getElementById('code-lang-label').textContent = lang;
+        }
+
+        function copyCode(btn) {
+            const box = btn.closest('.code-box');
+            const code = box.querySelector('pre, code');
+            navigator.clipboard.writeText(code.textContent);
+            btn.textContent = 'Copied!';
+            setTimeout(() => btn.textContent = 'Copy', 2000);
         }
 
         async function signup() {
@@ -1023,7 +868,7 @@ results = m.search(<span class="c-str">"database issues"</span>)
 
             if (!email || !email.includes("@")) {
                 result.className = "signup-result show error";
-                result.innerHTML = "Please enter a valid email.";
+                result.innerHTML = "Enter a valid email address.";
                 return;
             }
 
@@ -1036,26 +881,22 @@ results = m.search(<span class="c-str">"database issues"</span>)
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ email }),
                 });
-
                 const data = await resp.json();
 
                 if (resp.ok) {
                     result.className = "signup-result show success";
                     result.innerHTML = `
-                        <strong>✅ Account created!</strong>
-                        <p style="margin-top:8px; color: var(--text-secondary); font-size:14px;">
+                        <strong style="color: var(--green);">✅ Account created!</strong>
+                        <p style="margin-top:8px; color: var(--text-2); font-size:14px;">
                             Save your API key — it won't be shown again:
                         </p>
                         <div class="api-key-display">
                             <span id="api-key-text">${data.api_key}</span>
-                            <button class="copy-btn" onclick="copyKey()">Copy</button>
+                            <button onclick="copyKey()">Copy</button>
                         </div>
-                        <p style="margin-top:12px; font-size:13px; color: var(--text-dim);">
-                            Quick start:
-                        </p>
-                        <div style="background:rgba(0,0,0,0.3); border-radius:8px; padding:12px 16px; margin-top:8px; font-family:'JetBrains Mono',monospace; font-size:12px; color:#a78bfa; text-align:left;">
-                            pip install mengram-ai<br>
-                            <span style="color:#55556a"># Then use CloudMemory(api_key="<span style="color:#34d399">${data.api_key.slice(0,12)}...</span>")</span>
+                        <div style="display:flex; gap:10px; margin-top:16px; flex-wrap:wrap;">
+                            <a href="#install" class="btn btn-primary" style="padding:10px 18px; font-size:13px;">⚡ Install Extension</a>
+                            <a href="/dashboard" class="btn btn-secondary" style="padding:10px 18px; font-size:13px;">📊 Open Dashboard</a>
                         </div>
                     `;
                 } else {
@@ -1064,7 +905,7 @@ results = m.search(<span class="c-str">"database issues"</span>)
                 }
             } catch (err) {
                 result.className = "signup-result show error";
-                result.innerHTML = "Network error. API might be waking up — try again in 10 seconds.";
+                result.innerHTML = "Network error. Try again in a few seconds.";
             }
 
             btn.disabled = false;
@@ -1079,7 +920,6 @@ results = m.search(<span class="c-str">"database issues"</span>)
             setTimeout(() => btn.textContent = "Copy", 2000);
         }
 
-        // Enter key support
         document.getElementById("email-input").addEventListener("keydown", e => {
             if (e.key === "Enter") signup();
         });

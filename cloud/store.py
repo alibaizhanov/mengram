@@ -1075,3 +1075,27 @@ No markdown, no explanation."""
             edges = [dict(r) for r in cur.fetchall()]
 
             return {"nodes": nodes, "edges": edges}
+
+    def get_feed(self, user_id: str, limit: int = 50) -> dict:
+        """Get recent facts with entity info for Memory Feed."""
+        with self.conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            cur.execute(
+                """SELECT f.id, f.content, f.created_at, f.archived,
+                          e.name as entity_name, e.type as entity_type
+                   FROM facts f
+                   JOIN entities e ON e.id = f.entity_id
+                   WHERE e.user_id = %s AND f.archived = FALSE
+                   ORDER BY f.created_at DESC
+                   LIMIT %s""",
+                (user_id, limit)
+            )
+            items = []
+            for row in cur.fetchall():
+                items.append({
+                    "id": str(row["id"]),
+                    "fact": row["content"],
+                    "entity": row["entity_name"],
+                    "entity_type": row["entity_type"],
+                    "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                })
+            return {"feed": items, "total": len(items)}

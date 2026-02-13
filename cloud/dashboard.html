@@ -4,1006 +4,513 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mengram — Dashboard</title>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Sora:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
     <style>
         :root {
-            --bg: #06060a;
-            --bg-card: #0c0c14;
-            --bg-hover: #12121e;
-            --bg-input: #0a0a12;
+            --bg: #05050a;
+            --bg-card: #0a0a14;
+            --bg-elevated: #0f0f1a;
+            --bg-hover: #13132a;
             --border: #1a1a2e;
-            --border-active: #7c3aed;
+            --border-hover: #2a2a44;
             --text: #e8e8f0;
-            --text-2: #8888a8;
-            --text-3: #55556a;
-            --accent: #7c3aed;
-            --accent-light: #a78bfa;
-            --accent-glow: rgba(124,58,237,0.15);
-            --green: #22c55e;
-            --green-dim: rgba(34,197,94,0.12);
-            --pink: #ec4899;
-            --blue: #3b82f6;
-            --orange: #f97316;
-            --cyan: #06b6d4;
-            --red: #ef4444;
+            --text-2: #9898b0;
+            --text-3: #5a5a78;
+            --accent: #a855f7;
+            --accent-dim: rgba(168, 85, 247, 0.12);
+            --accent-glow: rgba(168, 85, 247, 0.25);
+            --green: #34d399;
+            --green-dim: rgba(52, 211, 153, 0.1);
+            --blue: #60a5fa;
+            --blue-dim: rgba(96, 165, 250, 0.1);
+            --orange: #fb923c;
+            --orange-dim: rgba(251, 147, 60, 0.1);
+            --pink: #f472b6;
+            --pink-dim: rgba(244, 114, 182, 0.1);
+            --red: #f87171;
+            --red-dim: rgba(248, 113, 113, 0.1);
         }
-
         * { margin: 0; padding: 0; box-sizing: border-box; }
-
-        body {
-            background: var(--bg);
-            color: var(--text);
-            font-family: 'Outfit', sans-serif;
-            -webkit-font-smoothing: antialiased;
-            min-height: 100vh;
-        }
+        body { background: var(--bg); color: var(--text); font-family: 'Sora', sans-serif; -webkit-font-smoothing: antialiased; min-height: 100vh; }
 
         /* ---- Login ---- */
-        .login-screen {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            padding: 24px;
-        }
-        .login-box {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 20px;
-            padding: 48px;
-            max-width: 420px;
-            width: 100%;
-            text-align: center;
-        }
-        .login-logo {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 24px;
-            font-weight: 700;
-            margin-bottom: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-        }
-        .login-logo-icon {
-            width: 36px; height: 36px;
-            background: linear-gradient(135deg, var(--accent), var(--pink));
-            border-radius: 10px;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 18px;
-        }
-        .login-sub { color: var(--text-2); font-size: 15px; margin-bottom: 32px; }
-        .login-input {
-            width: 100%;
-            padding: 14px 18px;
-            background: var(--bg-input);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            color: var(--text);
-            font-size: 14px;
-            font-family: 'JetBrains Mono', monospace;
-            outline: none;
-            margin-bottom: 16px;
-            transition: border-color 0.2s;
-        }
+        .login-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; }
+        .login-box { background: var(--bg-card); border: 1px solid var(--border); border-radius: 20px; padding: 48px 40px; max-width: 420px; width: 100%; text-align: center; }
+        .login-box h1 { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
+        .login-box p { color: var(--text-2); font-size: 14px; margin-bottom: 24px; }
+        .login-input { width: 100%; padding: 12px 16px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; color: var(--text); font-size: 14px; font-family: 'JetBrains Mono', monospace; outline: none; margin-bottom: 12px; }
         .login-input:focus { border-color: var(--accent); }
         .login-input::placeholder { color: var(--text-3); }
-        .login-btn {
-            width: 100%;
-            padding: 14px;
-            background: var(--accent);
-            color: #fff;
-            border: none;
-            border-radius: 10px;
-            font-size: 15px;
-            font-weight: 600;
-            font-family: 'Outfit', sans-serif;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .login-btn:hover { background: #6d28d9; }
-        .login-btn:disabled { opacity: 0.5; cursor: wait; }
-        .login-error {
-            color: var(--red);
-            font-size: 13px;
-            margin-top: 12px;
-            display: none;
-        }
+        .login-btn { width: 100%; padding: 12px; background: var(--accent); color: white; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; font-family: 'Sora', sans-serif; }
+        .login-btn:hover { background: #9333ea; }
+        .login-error { color: var(--red); font-size: 13px; margin-top: 12px; display: none; }
+        .login-links { margin-top: 20px; font-size: 13px; color: var(--text-3); }
+        .login-links a { color: var(--accent); text-decoration: none; }
 
-        /* ---- Dashboard Layout ---- */
-        .dashboard { display: none; min-height: 100vh; }
+        /* ---- App Shell ---- */
+        .app { display: none; }
+        .app.active { display: flex; min-height: 100vh; }
 
-        .topbar {
-            padding: 16px 32px;
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            background: var(--bg-card);
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
-        .topbar-left { display: flex; align-items: center; gap: 24px; }
-        .topbar-logo {
-            font-family: 'JetBrains Mono', monospace;
-            font-weight: 700;
-            font-size: 16px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            color: var(--text);
-            text-decoration: none;
-        }
-        .topbar-logo-icon {
-            width: 28px; height: 28px;
-            background: linear-gradient(135deg, var(--accent), var(--pink));
-            border-radius: 7px;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 14px;
-        }
+        .sidebar { width: 220px; background: var(--bg-card); border-right: 1px solid var(--border); padding: 20px 0; display: flex; flex-direction: column; position: fixed; top: 0; left: 0; bottom: 0; z-index: 10; }
+        .sidebar-logo { padding: 0 20px 20px; font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--border); margin-bottom: 12px; }
+        .sidebar-nav { flex: 1; padding: 8px 10px; }
+        .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px; color: var(--text-2); font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s; margin-bottom: 2px; }
+        .nav-item:hover { background: var(--bg-elevated); color: var(--text); }
+        .nav-item.active { background: var(--accent-dim); color: var(--accent); }
+        .nav-item .icon { font-size: 16px; width: 20px; text-align: center; }
+        .sidebar-footer { padding: 12px 20px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-3); }
+        .sidebar-footer a { color: var(--text-2); text-decoration: none; }
 
-        .tab-nav { display: flex; gap: 4px; }
-        .tab-btn {
-            padding: 8px 16px;
-            background: transparent;
-            border: 1px solid transparent;
-            border-radius: 8px;
-            color: var(--text-2);
-            font-size: 13px;
-            font-weight: 500;
-            font-family: 'Outfit', sans-serif;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .tab-btn:hover { color: var(--text); background: var(--bg-hover); }
-        .tab-btn.active { color: var(--text); background: var(--accent-glow); border-color: rgba(124,58,237,0.2); }
+        .main { flex: 1; margin-left: 220px; padding: 28px 32px; overflow-y: auto; }
 
-        .topbar-right { display: flex; align-items: center; gap: 16px; }
-        .search-box {
-            display: flex;
-            align-items: center;
-            background: var(--bg);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 0 12px;
-            transition: border-color 0.2s;
-        }
-        .search-box:focus-within { border-color: var(--accent); }
-        .search-icon { color: var(--text-3); font-size: 14px; margin-right: 8px; }
-        .search-input {
-            background: none;
-            border: none;
-            color: var(--text);
-            font-size: 13px;
-            font-family: 'Outfit', sans-serif;
-            padding: 8px 0;
-            outline: none;
-            width: 200px;
-        }
-        .search-input::placeholder { color: var(--text-3); }
-        .logout-btn {
-            background: none;
-            border: 1px solid var(--border);
-            color: var(--text-3);
-            padding: 7px 14px;
-            border-radius: 8px;
-            font-size: 12px;
-            font-family: 'Outfit', sans-serif;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .logout-btn:hover { border-color: var(--red); color: var(--red); }
-
-        /* ---- Main content ---- */
-        .main { padding: 32px; max-width: 1400px; margin: 0 auto; }
-
-        /* ---- Stats strip ---- */
-        .stats-strip {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 16px;
-            margin-bottom: 32px;
-        }
-        .stat-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 14px;
-            padding: 24px;
-            transition: all 0.2s;
-        }
-        .stat-card:hover { border-color: rgba(124,58,237,0.3); }
-        .stat-label { font-size: 12px; color: var(--text-3); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
-        .stat-value { font-size: 32px; font-weight: 700; letter-spacing: -1px; }
-        .stat-value.purple { color: var(--accent-light); }
+        /* Stats */
+        .stats-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 28px; }
+        .stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; }
+        .stat-label { font-size: 12px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+        .stat-value { font-size: 28px; font-weight: 700; }
+        .stat-value.purple { color: var(--accent); }
         .stat-value.green { color: var(--green); }
         .stat-value.blue { color: var(--blue); }
         .stat-value.orange { color: var(--orange); }
 
-        /* ---- Entities Tab ---- */
-        .entities-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-            gap: 16px;
-        }
-        .entity-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 14px;
-            padding: 24px;
-            cursor: pointer;
-            transition: all 0.25s;
-        }
-        .entity-card:hover {
-            border-color: rgba(124,58,237,0.3);
-            transform: translateY(-2px);
-            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
-        }
-        .entity-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
-        .entity-type-badge {
-            padding: 4px 10px;
-            border-radius: 6px;
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        .type-person { background: rgba(236,72,153,0.12); color: var(--pink); }
-        .type-project { background: rgba(59,130,246,0.12); color: var(--blue); }
-        .type-technology { background: rgba(124,58,237,0.12); color: var(--accent-light); }
-        .type-company { background: rgba(249,115,22,0.12); color: var(--orange); }
-        .type-concept { background: rgba(6,182,212,0.12); color: var(--cyan); }
-        .type-unknown { background: rgba(136,136,168,0.12); color: var(--text-2); }
-        .entity-name { font-size: 18px; font-weight: 600; }
-        .entity-facts { margin-top: 12px; }
-        .entity-fact {
-            color: var(--text-2);
-            font-size: 13px;
-            line-height: 1.5;
-            padding: 4px 0;
-            border-bottom: 1px solid rgba(26,26,46,0.5);
-        }
-        .entity-fact:last-child { border-bottom: none; }
-        .entity-meta {
-            margin-top: 14px;
-            display: flex;
-            gap: 16px;
-            font-size: 12px;
-            color: var(--text-3);
-        }
+        .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+        .page-header h2 { font-size: 22px; font-weight: 700; }
 
-        /* ---- Entity Detail Modal ---- */
-        .modal-overlay {
-            display: none;
-            position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            background: rgba(6,6,10,0.85);
-            z-index: 200;
-            align-items: center;
-            justify-content: center;
-            padding: 24px;
-        }
-        .modal-overlay.show { display: flex; }
-        .modal {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 20px;
-            max-width: 680px;
-            width: 100%;
-            max-height: 80vh;
-            overflow-y: auto;
-            padding: 36px;
-        }
-        .modal-close {
-            float: right;
-            background: none;
-            border: none;
-            color: var(--text-3);
-            font-size: 24px;
-            cursor: pointer;
-            padding: 4px;
-            line-height: 1;
-        }
-        .modal-close:hover { color: var(--text); }
-        .modal h2 { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
-        .modal-section { margin-top: 24px; }
-        .modal-section h3 {
-            font-size: 13px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: var(--text-3);
-            margin-bottom: 12px;
-        }
-        .modal-fact {
-            padding: 10px 14px;
-            background: var(--bg);
-            border-radius: 8px;
-            font-size: 14px;
-            color: var(--text-2);
-            margin-bottom: 6px;
-        }
-        .modal-relation {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 14px;
-            background: var(--bg);
-            border-radius: 8px;
-            font-size: 13px;
-            margin-bottom: 6px;
-        }
-        .relation-type {
-            color: var(--accent-light);
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 12px;
-        }
-        .relation-target { color: var(--blue); font-weight: 500; cursor: pointer; }
-        .relation-target:hover { text-decoration: underline; }
-        .modal-knowledge {
-            background: var(--bg);
-            border-radius: 10px;
-            padding: 16px;
-            margin-bottom: 10px;
-        }
-        .knowledge-header {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 8px;
-        }
-        .knowledge-type {
-            padding: 2px 8px;
-            background: var(--green-dim);
-            color: var(--green);
-            border-radius: 4px;
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: uppercase;
-        }
-        .knowledge-title { font-weight: 600; font-size: 14px; }
-        .knowledge-content { color: var(--text-2); font-size: 13px; line-height: 1.6; }
-        .knowledge-artifact {
-            margin-top: 10px;
-            padding: 12px 16px;
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 12px;
-            color: var(--green);
-            white-space: pre-wrap;
-            overflow-x: auto;
-        }
-        .delete-btn {
-            margin-top: 24px;
-            padding: 10px 20px;
-            background: rgba(239,68,68,0.1);
-            border: 1px solid rgba(239,68,68,0.2);
-            color: var(--red);
-            border-radius: 8px;
-            font-size: 13px;
-            font-family: 'Outfit', sans-serif;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .delete-btn:hover { background: rgba(239,68,68,0.2); }
+        /* Search */
+        .search-bar { display: flex; align-items: center; gap: 8px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 8px 14px; width: 280px; position: relative; }
+        .search-bar:focus-within { border-color: var(--accent); }
+        .search-bar input { background: none; border: none; color: var(--text); font-size: 13px; font-family: 'Sora', sans-serif; outline: none; flex: 1; }
+        .search-bar input::placeholder { color: var(--text-3); }
+        .search-dropdown { display: none; position: absolute; top: calc(100% + 6px); left: 0; right: 0; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; max-height: 320px; overflow-y: auto; z-index: 100; }
+        .search-dropdown.show { display: block; }
+        .search-item { padding: 10px 14px; cursor: pointer; border-bottom: 1px solid var(--border); font-size: 13px; }
+        .search-item:last-child { border-bottom: none; }
+        .search-item:hover { background: var(--bg-hover); }
+        .search-item .sname { font-weight: 600; }
+        .search-item .sfact { color: var(--text-2); font-size: 12px; margin-top: 2px; }
 
-        /* ---- Graph Tab ---- */
-        .graph-container {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            height: 600px;
-            position: relative;
-            overflow: hidden;
-        }
-        .graph-container svg { width: 100%; height: 100%; }
-        .graph-legend {
-            position: absolute;
-            top: 16px;
-            right: 16px;
-            background: rgba(6,6,10,0.9);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 14px 18px;
-            font-size: 12px;
-        }
-        .legend-item { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-        .legend-item:last-child { margin-bottom: 0; }
-        .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+        /* Tabs */
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
 
-        /* ---- Search Results ---- */
-        .search-results {
-            display: none;
-            position: absolute;
-            top: 100%;
-            right: 0;
-            margin-top: 8px;
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            width: 360px;
-            max-height: 400px;
-            overflow-y: auto;
-            box-shadow: 0 12px 40px rgba(0,0,0,0.5);
-            z-index: 101;
-        }
-        .search-results.show { display: block; }
-        .search-result-item {
-            padding: 14px 18px;
-            border-bottom: 1px solid var(--border);
-            cursor: pointer;
-            transition: background 0.15s;
-        }
-        .search-result-item:hover { background: var(--bg-hover); }
-        .search-result-item:last-child { border-bottom: none; }
-        .sr-name { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
-        .sr-score { font-size: 11px; color: var(--text-3); font-family: 'JetBrains Mono', monospace; }
-        .sr-fact { font-size: 12px; color: var(--text-2); margin-top: 4px; }
-        .search-empty { padding: 20px; text-align: center; color: var(--text-3); font-size: 13px; }
+        /* Feed */
+        .feed-list { display: flex; flex-direction: column; gap: 2px; }
+        .feed-item { display: flex; gap: 14px; padding: 14px 18px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; align-items: flex-start; transition: all 0.15s; }
+        .feed-item:hover { border-color: var(--border-hover); }
+        .feed-badge { display: inline-flex; padding: 3px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; white-space: nowrap; min-width: 80px; justify-content: center; }
+        .b-person { background: var(--blue-dim); color: var(--blue); }
+        .b-project { background: var(--accent-dim); color: var(--accent); }
+        .b-technology { background: var(--green-dim); color: var(--green); }
+        .b-company { background: var(--orange-dim); color: var(--orange); }
+        .b-concept { background: var(--pink-dim); color: var(--pink); }
+        .feed-content { flex: 1; }
+        .feed-fact { font-size: 14px; line-height: 1.5; }
+        .feed-meta { font-size: 11px; color: var(--text-3); margin-top: 4px; }
+        .feed-del { opacity: 0; background: none; border: none; color: var(--text-3); cursor: pointer; font-size: 14px; padding: 4px; }
+        .feed-item:hover .feed-del { opacity: 1; }
+        .feed-del:hover { color: var(--red); }
+        .feed-date { font-size: 12px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; padding: 16px 0 6px; }
 
-        /* Tab panels */
-        .tab-panel { display: none; }
-        .tab-panel.active { display: block; }
+        /* Empty */
+        .empty { text-align: center; padding: 80px 20px; color: var(--text-3); }
+        .empty .eicon { font-size: 48px; margin-bottom: 16px; }
+        .empty h3 { font-size: 18px; color: var(--text-2); margin-bottom: 8px; }
+        .empty p { font-size: 14px; max-width: 400px; margin: 0 auto; line-height: 1.6; }
+        .empty a { color: var(--accent); text-decoration: none; }
 
-        /* ---- Loading ---- */
-        .loading {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 80px;
-            color: var(--text-3);
-            font-size: 14px;
-        }
-        .spinner {
-            width: 20px; height: 20px;
-            border: 2px solid var(--border);
-            border-top-color: var(--accent);
-            border-radius: 50%;
-            animation: spin 0.6s linear infinite;
-            margin-right: 12px;
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
+        /* Graph */
+        .graph-box { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; height: calc(100vh - 200px); position: relative; overflow: hidden; }
+        .graph-box svg { width: 100%; height: 100%; }
+        .graph-legend { position: absolute; bottom: 16px; left: 16px; display: flex; gap: 14px; font-size: 11px; color: var(--text-2); background: rgba(5,5,10,0.8); padding: 8px 14px; border-radius: 8px; backdrop-filter: blur(8px); }
+        .ldot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 4px; }
 
-        /* ---- Empty state ---- */
-        .empty-state {
-            text-align: center;
-            padding: 80px 24px;
-            color: var(--text-3);
-        }
-        .empty-state .icon { font-size: 48px; margin-bottom: 16px; }
-        .empty-state p { font-size: 15px; max-width: 400px; margin: 0 auto; }
+        /* Entities */
+        .entities-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+        .e-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 22px 20px; cursor: pointer; transition: all 0.2s; }
+        .e-card:hover { border-color: var(--border-hover); transform: translateY(-1px); }
+        .e-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+        .e-name { font-size: 16px; font-weight: 600; }
+        .e-tag { font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 600; }
+        .e-facts { font-size: 13px; color: var(--text-2); line-height: 1.5; }
+        .e-count { font-size: 11px; color: var(--text-3); margin-top: 10px; }
 
-        /* ---- Responsive ---- */
+        /* Modal */
+        .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center; padding: 24px; }
+        .modal-bg.show { display: flex; }
+        .modal { background: var(--bg-card); border: 1px solid var(--border); border-radius: 20px; max-width: 640px; width: 100%; max-height: 80vh; overflow-y: auto; padding: 32px; }
+        .modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+        .modal-head h2 { font-size: 22px; font-weight: 700; }
+        .modal-x { background: none; border: none; color: var(--text-3); font-size: 20px; cursor: pointer; }
+        .modal-sec { margin-bottom: 20px; }
+        .modal-sec h3 { font-size: 13px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+        .m-fact { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--bg); border-radius: 8px; margin-bottom: 4px; font-size: 14px; }
+        .m-fact button { background: none; border: none; color: var(--text-3); cursor: pointer; opacity: 0; transition: 0.15s; }
+        .m-fact:hover button { opacity: 1; }
+        .m-fact button:hover { color: var(--red); }
+        .m-rel { padding: 6px 12px; background: var(--bg); border-radius: 8px; margin-bottom: 4px; font-size: 13px; color: var(--text-2); }
+        .m-rel span { color: var(--accent); font-weight: 500; }
+        .m-know { background: var(--bg); border-radius: 10px; padding: 14px; margin-bottom: 8px; }
+        .m-know .kt { font-size: 11px; background: var(--accent-dim); color: var(--accent); padding: 2px 8px; border-radius: 4px; font-weight: 600; }
+        .m-know .ktitle { font-weight: 600; font-size: 14px; margin-top: 6px; }
+        .m-know .kcontent { font-size: 13px; color: var(--text-2); margin-top: 4px; line-height: 1.5; }
+        .m-know pre { background: rgba(0,0,0,0.3); border-radius: 8px; padding: 10px; margin-top: 8px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--green); overflow-x: auto; }
+        .m-delete { background: var(--red-dim); color: var(--red); border: 1px solid rgba(248,113,113,0.2); padding: 10px 20px; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: 'Sora', sans-serif; width: 100%; margin-top: 12px; }
+        .m-delete:hover { background: rgba(248,113,113,0.15); }
+
+        /* Settings */
+        .set-section { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 24px; margin-bottom: 16px; }
+        .set-section h3 { font-size: 16px; font-weight: 600; margin-bottom: 12px; }
+        .set-section p { font-size: 14px; color: var(--text-2); line-height: 1.5; margin-bottom: 12px; }
+        .set-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border); }
+        .set-row:last-child { border-bottom: none; }
+        .set-row label { font-size: 14px; }
+        .set-row .val { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--text-2); }
+        .btn-s { padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: 'Sora', sans-serif; border: 1px solid var(--border); background: var(--bg-elevated); color: var(--text); transition: all 0.15s; text-decoration: none; display: inline-block; }
+        .btn-s:hover { border-color: var(--border-hover); }
+        .btn-d { background: var(--red-dim); color: var(--red); border-color: rgba(248,113,113,0.2); }
+        .loading { text-align: center; padding: 40px; color: var(--text-3); }
+
         @media (max-width: 768px) {
+            .sidebar { display: none; }
+            .main { margin-left: 0; }
             .stats-strip { grid-template-columns: repeat(2, 1fr); }
             .entities-grid { grid-template-columns: 1fr; }
-            .topbar { padding: 12px 16px; flex-wrap: wrap; gap: 12px; }
-            .main { padding: 16px; }
-            .search-input { width: 140px; }
+            .search-bar { width: 100%; }
         }
-
-        /* ---- Scrollbar ---- */
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: var(--text-3); }
     </style>
 </head>
 <body>
 
-    <!-- Login Screen -->
-    <div class="login-screen" id="login-screen">
-        <div class="login-box">
-            <div class="login-logo">
-                <div class="login-logo-icon">🧠</div>
-                Mengram
-            </div>
-            <p class="login-sub">Sign in with your API key</p>
-            <input type="password" class="login-input" id="api-key-input" placeholder="mg-... or om-...">
-            <button class="login-btn" id="login-btn" onclick="login()">Sign In</button>
-            <p class="login-error" id="login-error"></p>
-            <p style="margin-top: 20px; font-size: 12px; color: var(--text-3);">
-                Don't have a key? <a href="/" style="color: var(--accent-light);">Get one free →</a>
-                <br><a href="#" onclick="showReset(event)" style="color: var(--text-3); margin-top: 6px; display: inline-block;">Forgot your key?</a>
-            </p>
-            <div id="reset-form" style="display:none; margin-top: 16px;">
-                <input type="email" class="login-input" id="reset-email" placeholder="Your email address">
-                <button class="login-btn" style="background: var(--bg-hover); border: 1px solid var(--border);" onclick="resetKey()">Send New Key</button>
-                <p id="reset-msg" style="font-size: 13px; color: var(--green); margin-top: 10px; display: none;"></p>
-            </div>
+<div class="login-screen" id="login-screen">
+    <div class="login-box">
+        <h1>🧠 Mengram</h1>
+        <p>Enter your API key to access your memory dashboard.</p>
+        <input type="password" class="login-input" id="key-input" placeholder="om-..." autocomplete="off">
+        <button class="login-btn" onclick="doLogin()">Open Dashboard</button>
+        <div class="login-error" id="login-error">Invalid API key. Check and try again.</div>
+        <div class="login-links">Don't have a key? <a href="/">Sign up free →</a></div>
+    </div>
+</div>
+
+<div class="app" id="app">
+    <div class="sidebar">
+        <div class="sidebar-logo">🧠 Mengram</div>
+        <div class="sidebar-nav">
+            <div class="nav-item active" onclick="switchTab('feed')"><span class="icon">📋</span> Memory Feed</div>
+            <div class="nav-item" onclick="switchTab('graph')"><span class="icon">🕸️</span> Knowledge Graph</div>
+            <div class="nav-item" onclick="switchTab('entities')"><span class="icon">📦</span> Entities</div>
+            <div class="nav-item" onclick="switchTab('settings')"><span class="icon">⚙️</span> Settings</div>
         </div>
+        <div class="sidebar-footer"><a href="/">← Home</a> · <a href="/extension/download">Extension</a></div>
     </div>
 
-    <!-- Dashboard -->
-    <div class="dashboard" id="dashboard">
-        <!-- Topbar -->
-        <div class="topbar">
-            <div class="topbar-left">
-                <a href="/" class="topbar-logo">
-                    <div class="topbar-logo-icon">🧠</div>
-                    Mengram
-                </a>
-                <div class="tab-nav">
-                    <button class="tab-btn active" onclick="switchTab('entities')">Entities</button>
-                    <button class="tab-btn" onclick="switchTab('graph')">Graph</button>
-                </div>
-            </div>
-            <div class="topbar-right" style="position:relative">
-                <div class="search-box">
-                    <span class="search-icon">🔍</span>
-                    <input class="search-input" id="search-input" placeholder="Semantic search..." 
-                           oninput="debounceSearch()" onkeydown="if(event.key==='Escape') closeSearch()">
-                </div>
-                <div class="search-results" id="search-results"></div>
-                <button class="logout-btn" onclick="logout()">Logout</button>
-            </div>
+    <div class="main">
+        <div class="stats-strip">
+            <div class="stat-card"><div class="stat-label">Entities</div><div class="stat-value purple" id="s-ent">—</div></div>
+            <div class="stat-card"><div class="stat-label">Facts</div><div class="stat-value green" id="s-facts">—</div></div>
+            <div class="stat-card"><div class="stat-label">Relations</div><div class="stat-value blue" id="s-rels">—</div></div>
+            <div class="stat-card"><div class="stat-label">Knowledge</div><div class="stat-value orange" id="s-know">—</div></div>
         </div>
 
-        <div class="main">
-            <!-- Stats -->
-            <div class="stats-strip" id="stats-strip">
-                <div class="stat-card">
-                    <div class="stat-label">Entities</div>
-                    <div class="stat-value purple" id="stat-entities">—</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Facts</div>
-                    <div class="stat-value green" id="stat-facts">—</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Relations</div>
-                    <div class="stat-value blue" id="stat-relations">—</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Knowledge</div>
-                    <div class="stat-value orange" id="stat-knowledge">—</div>
-                </div>
+        <div class="tab-content active" id="tab-feed">
+            <div class="page-header">
+                <h2>Memory Feed</h2>
+                <div class="search-bar"><span>🔍</span><input id="search-input" placeholder="Semantic search..." onkeydown="if(event.key==='Enter')doSearch()"><div class="search-dropdown" id="search-dd"></div></div>
             </div>
+            <div id="feed-box" class="loading">Loading memories...</div>
+        </div>
 
-            <!-- Entities Tab -->
-            <div class="tab-panel active" id="panel-entities">
-                <div class="entities-grid" id="entities-grid"></div>
-            </div>
-
-            <!-- Graph Tab -->
-            <div class="tab-panel" id="panel-graph">
-                <div class="graph-container" id="graph-container">
-                    <div class="graph-legend">
-                        <div class="legend-item"><div class="legend-dot" style="background:#ec4899"></div> Person</div>
-                        <div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div> Project</div>
-                        <div class="legend-item"><div class="legend-dot" style="background:#a78bfa"></div> Technology</div>
-                        <div class="legend-item"><div class="legend-dot" style="background:#f97316"></div> Company</div>
-                        <div class="legend-item"><div class="legend-dot" style="background:#06b6d4"></div> Concept</div>
-                    </div>
+        <div class="tab-content" id="tab-graph">
+            <div class="page-header"><h2>Knowledge Graph</h2></div>
+            <div class="graph-box" id="graph-box">
+                <div class="graph-legend">
+                    <span><span class="ldot" style="background:var(--blue)"></span>Person</span>
+                    <span><span class="ldot" style="background:var(--accent)"></span>Project</span>
+                    <span><span class="ldot" style="background:var(--green)"></span>Technology</span>
+                    <span><span class="ldot" style="background:var(--orange)"></span>Company</span>
+                    <span><span class="ldot" style="background:var(--pink)"></span>Concept</span>
                 </div>
             </div>
         </div>
+
+        <div class="tab-content" id="tab-entities">
+            <div class="page-header"><h2>All Entities</h2></div>
+            <div class="entities-grid" id="ent-grid"></div>
+        </div>
+
+        <div class="tab-content" id="tab-settings">
+            <div class="page-header"><h2>Settings</h2></div>
+            <div class="set-section">
+                <h3>Chrome Extension</h3>
+                <p>Inject your memory into ChatGPT, Claude, and other AI chats automatically.</p>
+                <a href="/extension/download" class="btn-s">↓ Download Extension</a>
+            </div>
+            <div class="set-section">
+                <h3>API Key</h3>
+                <div class="set-row"><label>Current key</label><span class="val" id="key-display">om-****</span></div>
+                <div class="set-row"><label>Reset key</label><button class="btn-s btn-d" onclick="resetKey()">Reset Key</button></div>
+            </div>
+            <div class="set-section">
+                <h3>Data</h3>
+                <p>Export or delete all your memory data.</p>
+                <div style="display:flex;gap:10px;">
+                    <button class="btn-s" onclick="exportData()">Export JSON</button>
+                    <button class="btn-s btn-d" onclick="if(confirm('Delete ALL data? Cannot be undone.'))deleteAll()">Delete All</button>
+                </div>
+            </div>
+            <div class="set-section">
+                <h3>Links</h3>
+                <div class="set-row"><label>Homepage</label><a href="/" style="color:var(--accent);text-decoration:none;font-size:14px;">mengram.io</a></div>
+                <div class="set-row"><label>GitHub</label><a href="https://github.com/alibaizhanov/mengram" style="color:var(--accent);text-decoration:none;font-size:14px;">alibaizhanov/mengram</a></div>
+                <div class="set-row"><label>PyPI</label><a href="https://pypi.org/project/mengram-ai/" style="color:var(--accent);text-decoration:none;font-size:14px;">mengram-ai</a></div>
+            </div>
+        </div>
     </div>
+</div>
 
-    <!-- Entity Detail Modal -->
-    <div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this) closeModal()">
-        <div class="modal" id="modal-content"></div>
-    </div>
+<div class="modal-bg" id="modal-bg" onclick="if(event.target===this)closeModal()">
+    <div class="modal" id="modal-body"></div>
+</div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
-    <script>
-        const API_URL = window.location.origin;
-        let API_KEY = localStorage.getItem('mengram_api_key') || '';
-        let allEntities = [];
-        let searchTimeout = null;
+<script>
+const API = window.location.origin;
+let KEY = '';
+function H() { return { 'Authorization': `Bearer ${KEY}`, 'Content-Type': 'application/json' }; }
+function esc(s) { if(!s)return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+function escA(s) { return (s||'').replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
 
-        // ---- Auth ----
-        function headers() {
-            return { 'Authorization': `Bearer ${API_KEY}`, 'Content-Type': 'application/json' };
+document.getElementById('key-input').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+const saved = localStorage.getItem('mengram_key');
+if(saved) { KEY=saved; tryLogin(saved); }
+
+async function doLogin() { await tryLogin(document.getElementById('key-input').value.trim()); }
+async function tryLogin(k) {
+    if(!k) return;
+    try {
+        const r = await fetch(`${API}/v1/stats`, { headers: {'Authorization':`Bearer ${k}`} });
+        if(r.ok) {
+            KEY=k; localStorage.setItem('mengram_key',k);
+            document.getElementById('login-screen').style.display='none';
+            document.getElementById('app').classList.add('active');
+            document.getElementById('key-display').textContent = k.substring(0,8)+'****';
+            loadAll();
+        } else { document.getElementById('login-error').style.display='block'; }
+    } catch(e) { document.getElementById('login-error').style.display='block'; }
+}
+
+function switchTab(t) {
+    document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
+    document.getElementById('tab-'+t).classList.add('active');
+    event.currentTarget.classList.add('active');
+    if(t==='graph') loadGraph();
+    if(t==='entities') loadEntities();
+}
+
+async function loadAll() { loadStats(); loadFeed(); }
+
+async function loadStats() {
+    try {
+        const d = await (await fetch(`${API}/v1/stats`,{headers:H()})).json();
+        document.getElementById('s-ent').textContent = d.entities||0;
+        document.getElementById('s-facts').textContent = d.facts||0;
+        document.getElementById('s-rels').textContent = d.relations||0;
+        document.getElementById('s-know').textContent = d.knowledge||0;
+    } catch(e){}
+}
+
+// ---- Feed ----
+async function loadFeed() {
+    const box = document.getElementById('feed-box');
+    try {
+        const d = await (await fetch(`${API}/v1/feed?limit=100`,{headers:H()})).json();
+        if(!d.feed||!d.feed.length) {
+            box.innerHTML = `<div class="empty"><div class="eicon">🧠</div><h3>Your memory is empty</h3><p>Install the <a href="/extension/download">Chrome Extension</a> or use <a href="/">Claude Desktop MCP</a> to start building your AI memory.</p></div>`;
+            return;
         }
-
-        async function login() {
-            const key = document.getElementById('api-key-input').value.trim();
-            if (!key) return;
-
-            const btn = document.getElementById('login-btn');
-            btn.disabled = true;
-            btn.textContent = 'Connecting...';
-
-            try {
-                const resp = await fetch(`${API_URL}/v1/stats`, { headers: { 'Authorization': `Bearer ${key}` } });
-                if (!resp.ok) throw new Error('Invalid API key');
-
-                API_KEY = key;
-                localStorage.setItem('mengram_api_key', key);
-                showDashboard();
-            } catch (e) {
-                const err = document.getElementById('login-error');
-                err.style.display = 'block';
-                err.textContent = 'Invalid API key. Check and try again.';
-            }
-            btn.disabled = false;
-            btn.textContent = 'Sign In';
+        let h='<div class="feed-list">',last='';
+        for(const it of d.feed) {
+            const dt = it.created_at ? new Date(it.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : 'Unknown';
+            if(dt!==last) { h+=`<div class="feed-date">${dt}</div>`; last=dt; }
+            const bc = 'b-'+(it.entity_type||'concept');
+            const tm = it.created_at ? new Date(it.created_at).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}) : '';
+            h+=`<div class="feed-item">
+                <span class="feed-badge ${bc}">${esc(it.entity)}</span>
+                <div class="feed-content"><div class="feed-fact">${esc(it.fact)}</div><div class="feed-meta">${tm}</div></div>
+                <button class="feed-del" onclick="archFact('${escA(it.id)}','${escA(it.entity)}','${escA(it.fact)}',this)" title="Delete">✕</button>
+            </div>`;
         }
+        h+='</div>';
+        box.innerHTML=h;
+    } catch(e) { box.innerHTML='<div class="empty"><p>Failed to load feed.</p></div>'; }
+}
 
-        function logout() {
-            API_KEY = '';
-            localStorage.removeItem('mengram_api_key');
-            document.getElementById('dashboard').style.display = 'none';
-            document.getElementById('login-screen').style.display = 'flex';
+async function archFact(id,entity,fact,btn) {
+    if(!confirm(`Delete: "${fact}"?`)) return;
+    try {
+        await fetch(`${API}/v1/archive_fact`,{method:'POST',headers:H(),body:JSON.stringify({entity_name:entity,fact_content:fact})});
+        btn.closest('.feed-item').style.display='none';
+        loadStats();
+    } catch(e){}
+}
+
+// ---- Graph ----
+async function loadGraph() {
+    try {
+        const d = await (await fetch(`${API}/v1/graph`,{headers:H()})).json();
+        renderGraph(d);
+    } catch(e){}
+}
+
+function renderGraph(data) {
+    const box = document.getElementById('graph-box');
+    box.querySelectorAll('svg').forEach(s=>s.remove());
+    const W=box.clientWidth, HH=box.clientHeight;
+    const tc = {person:'#60a5fa',project:'#a855f7',technology:'#34d399',company:'#fb923c',concept:'#f472b6'};
+    const nodes = data.nodes.map(n=>({id:n.name,type:n.type,r:6+Math.min((n.facts_count||0)*1.5,18),c:tc[n.type]||'#888'}));
+    const ns = new Set(nodes.map(n=>n.id));
+    const links = data.edges.filter(e=>ns.has(e.source)&&ns.has(e.target)).map(e=>({source:e.source,target:e.target,type:e.type}));
+
+    const svg = d3.select(box).append('svg').attr('width',W).attr('height',HH);
+    const g = svg.append('g');
+
+    // Zoom
+    svg.call(d3.zoom().scaleExtent([0.3,4]).on('zoom', e => g.attr('transform', e.transform)));
+
+    const sim = d3.forceSimulation(nodes)
+        .force('link',d3.forceLink(links).id(d=>d.id).distance(90))
+        .force('charge',d3.forceManyBody().strength(-250))
+        .force('center',d3.forceCenter(W/2,HH/2))
+        .force('collision',d3.forceCollide().radius(d=>d.r+6));
+
+    const link = g.append('g').selectAll('line').data(links).join('line')
+        .attr('stroke','#1a1a2e').attr('stroke-width',1.2);
+
+    const node = g.append('g').selectAll('g').data(nodes).join('g')
+        .call(d3.drag()
+            .on('start',(e,d)=>{if(!e.active)sim.alphaTarget(0.3).restart();d.fx=d.x;d.fy=d.y;})
+            .on('drag',(e,d)=>{d.fx=e.x;d.fy=e.y;})
+            .on('end',(e,d)=>{if(!e.active)sim.alphaTarget(0);d.fx=null;d.fy=null;}));
+
+    node.append('circle').attr('r',d=>d.r).attr('fill',d=>d.c).attr('fill-opacity',0.15)
+        .attr('stroke',d=>d.c).attr('stroke-width',1.5).style('cursor','pointer')
+        .on('click',(e,d)=>openEntity(d.id));
+
+    // Glow on hover
+    node.on('mouseenter', function(e,d) { d3.select(this).select('circle').attr('fill-opacity',0.35).attr('stroke-width',2.5); })
+        .on('mouseleave', function(e,d) { d3.select(this).select('circle').attr('fill-opacity',0.15).attr('stroke-width',1.5); });
+
+    node.append('text').text(d=>d.id).attr('dy',d=>d.r+14).attr('text-anchor','middle')
+        .attr('fill','#9898b0').attr('font-size','11px').attr('font-family','Sora,sans-serif');
+
+    sim.on('tick',()=>{
+        link.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y).attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);
+        node.attr('transform',d=>`translate(${d.x},${d.y})`);
+    });
+}
+
+// ---- Entities ----
+async function loadEntities() {
+    const grid = document.getElementById('ent-grid');
+    try {
+        const d = await (await fetch(`${API}/v1/memories`,{headers:H()})).json();
+        const ents = d.memories||[];
+        if(!ents.length) { grid.innerHTML='<div class="empty"><div class="eicon">📦</div><h3>No entities yet</h3></div>'; return; }
+        grid.innerHTML = ents.map(e=>{
+            const bc='b-'+(e.type||'concept');
+            const facts = (e.facts||[]).slice(0,3).join(' · ');
+            return `<div class="e-card" onclick="openEntity('${escA(e.name)}')">
+                <div class="e-head"><span class="e-name">${esc(e.name)}</span><span class="e-tag ${bc}">${e.type}</span></div>
+                <div class="e-facts">${esc(facts)||'No facts yet'}</div>
+                <div class="e-count">${e.facts_count||e.facts?.length||0} facts</div>
+            </div>`;
+        }).join('');
+    } catch(e) { grid.innerHTML='<div class="empty"><p>Failed to load.</p></div>'; }
+}
+
+// ---- Modal ----
+async function openEntity(name) {
+    const bg=document.getElementById('modal-bg'), body=document.getElementById('modal-body');
+    body.innerHTML='<div class="loading">Loading...</div>'; bg.classList.add('show');
+    try {
+        const d = await (await fetch(`${API}/v1/memory/${encodeURIComponent(name)}`,{headers:H()})).json();
+        let h=`<div class="modal-head"><h2>${esc(d.entity)} <span class="e-tag b-${d.type}" style="font-size:12px;margin-left:8px">${d.type}</span></h2><button class="modal-x" onclick="closeModal()">✕</button></div>`;
+        if(d.facts?.length) {
+            h+='<div class="modal-sec"><h3>Facts</h3>';
+            for(const f of d.facts) h+=`<div class="m-fact"><span>${esc(f)}</span><button onclick="archFactM('${escA(name)}','${escA(f)}',this)">✕</button></div>`;
+            h+='</div>';
         }
-
-        // ---- Auto-login ----
-        if (API_KEY) {
-            showDashboard();
+        if(d.relations?.length) {
+            h+='<div class="modal-sec"><h3>Relations</h3>';
+            for(const r of d.relations) h+=`<div class="m-rel">${r.type} ${r.direction==='outgoing'?'→':'←'} <span>${esc(r.target)}</span></div>`;
+            h+='</div>';
         }
-
-        // ---- Dashboard ----
-        async function showDashboard() {
-            document.getElementById('login-screen').style.display = 'none';
-            document.getElementById('dashboard').style.display = 'block';
-            await loadData();
+        if(d.knowledge?.length) {
+            h+='<div class="modal-sec"><h3>Knowledge</h3>';
+            for(const k of d.knowledge) h+=`<div class="m-know"><span class="kt">${k.type}</span><div class="ktitle">${esc(k.title)}</div><div class="kcontent">${esc(k.content)}</div>${k.artifact?`<pre>${esc(k.artifact)}</pre>`:''}</div>`;
+            h+='</div>';
         }
+        h+=`<button class="m-delete" onclick="delEntity('${escA(name)}')">Delete "${esc(name)}" and all data</button>`;
+        body.innerHTML=h;
+    } catch(e) { body.innerHTML='<p style="color:var(--red)">Failed to load.</p>'; }
+}
+function closeModal() { document.getElementById('modal-bg').classList.remove('show'); }
+async function archFactM(entity,fact,btn) {
+    try { await fetch(`${API}/v1/archive_fact`,{method:'POST',headers:H(),body:JSON.stringify({entity_name:entity,fact_content:fact})}); btn.closest('.m-fact').style.display='none'; loadStats(); } catch(e){}
+}
+async function delEntity(name) {
+    if(!confirm(`Delete "${name}" and ALL its data?`)) return;
+    try { await fetch(`${API}/v1/entity/${encodeURIComponent(name)}`,{method:'DELETE',headers:H()}); closeModal(); loadAll(); } catch(e){}
+}
 
-        async function loadData() {
-            try {
-                const [statsResp, memoriesResp] = await Promise.all([
-                    fetch(`${API_URL}/v1/stats`, { headers: headers() }),
-                    fetch(`${API_URL}/v1/memories`, { headers: headers() }),
-                ]);
-
-                const stats = await statsResp.json();
-                const memories = await memoriesResp.json();
-
-                document.getElementById('stat-entities').textContent = stats.entities || 0;
-                document.getElementById('stat-facts').textContent = stats.facts || 0;
-                document.getElementById('stat-relations').textContent = stats.relations || 0;
-                document.getElementById('stat-knowledge').textContent = stats.knowledge || 0;
-
-                allEntities = memories.memories || [];
-                renderEntities(allEntities);
-            } catch (e) {
-                console.error('Load error:', e);
-            }
-        }
-
-        // ---- Render Entities ----
-        function renderEntities(entities) {
-            const grid = document.getElementById('entities-grid');
-
-            if (!entities.length) {
-                grid.innerHTML = `
-                    <div class="empty-state" style="grid-column: 1/-1">
-                        <div class="icon">🧠</div>
-                        <p>No memories yet. Start chatting with Claude Desktop — it'll save knowledge automatically.</p>
-                    </div>`;
-                return;
-            }
-
-            grid.innerHTML = entities.map(e => {
-                const type = e.type || 'unknown';
-                const facts = e.facts || [];
-                const relations = e.relations || [];
-                const knowledge = e.knowledge || [];
-                const shownFacts = facts.slice(0, 3);
-
-                return `
-                    <div class="entity-card" onclick="openEntity('${encodeURIComponent(e.name)}')">
-                        <div class="entity-header">
-                            <span class="entity-type-badge type-${type}">${type}</span>
-                            <span class="entity-name">${escHtml(e.name)}</span>
-                        </div>
-                        <div class="entity-facts">
-                            ${shownFacts.map(f => `<div class="entity-fact">• ${escHtml(f)}</div>`).join('')}
-                            ${facts.length > 3 ? `<div class="entity-fact" style="color:var(--text-3)">+${facts.length - 3} more</div>` : ''}
-                        </div>
-                        <div class="entity-meta">
-                            <span>${facts.length} facts</span>
-                            <span>${relations.length} relations</span>
-                            <span>${knowledge.length} knowledge</span>
-                        </div>
-                    </div>`;
+// ---- Search ----
+let sTimer;
+document.getElementById('search-input')?.addEventListener('input', e=>{
+    clearTimeout(sTimer);
+    const q=e.target.value.trim();
+    if(q.length<2){document.getElementById('search-dd').classList.remove('show');return;}
+    sTimer=setTimeout(()=>doSearch(q),400);
+});
+async function doSearch(q) {
+    if(!q) q=document.getElementById('search-input').value.trim();
+    if(!q) return;
+    const dd=document.getElementById('search-dd');
+    try {
+        const d = await (await fetch(`${API}/v1/search`,{method:'POST',headers:H(),body:JSON.stringify({query:q,limit:5})})).json();
+        if(d.results?.length) {
+            dd.innerHTML=d.results.map(r=>{
+                const fs=(r.facts||[]).slice(0,2).join(' · ');
+                return `<div class="search-item" onclick="openEntity('${escA(r.entity)}')"><div class="sname">${esc(r.entity)} <small style="color:var(--text-3)">${r.type}</small></div><div class="sfact">${esc(fs)}</div></div>`;
             }).join('');
-        }
+        } else { dd.innerHTML='<div style="padding:14px;color:var(--text-3);font-size:13px;text-align:center">No results</div>'; }
+        dd.classList.add('show');
+    } catch(e){}
+}
+document.addEventListener('click',e=>{if(!e.target.closest('.search-bar'))document.getElementById('search-dd')?.classList.remove('show');});
 
-        // ---- Entity Detail ----
-        async function openEntity(encodedName) {
-            const name = decodeURIComponent(encodedName);
-            const modal = document.getElementById('modal-content');
-            const overlay = document.getElementById('modal-overlay');
-
-            modal.innerHTML = `<div class="loading"><div class="spinner"></div>Loading...</div>`;
-            overlay.classList.add('show');
-
-            try {
-                const resp = await fetch(`${API_URL}/v1/memory/${encodeURIComponent(name)}`, { headers: headers() });
-                const data = await resp.json();
-
-                const type = data.type || 'unknown';
-                const facts = data.facts || [];
-                const relations = data.relations || [];
-                const knowledge = data.knowledge || [];
-
-                modal.innerHTML = `
-                    <button class="modal-close" onclick="closeModal()">×</button>
-                    <span class="entity-type-badge type-${type}" style="margin-bottom:12px;display:inline-block">${type}</span>
-                    <h2>${escHtml(data.entity || name)}</h2>
-
-                    ${facts.length ? `
-                    <div class="modal-section">
-                        <h3>Facts (${facts.length})</h3>
-                        ${facts.map(f => `<div class="modal-fact">${escHtml(f)}</div>`).join('')}
-                    </div>` : ''}
-
-                    ${relations.length ? `
-                    <div class="modal-section">
-                        <h3>Relations (${relations.length})</h3>
-                        ${relations.map(r => `
-                            <div class="modal-relation">
-                                <span class="relation-type">${escHtml(r.type || r.relation || '→')}</span>
-                                <span class="relation-target" onclick="openEntity('${encodeURIComponent(r.target || r.entity || '')}')">${escHtml(r.target || r.entity || '?')}</span>
-                                ${r.detail ? `<span style="color:var(--text-3);font-size:12px;margin-left:auto">${escHtml(r.detail)}</span>` : ''}
-                            </div>`).join('')}
-                    </div>` : ''}
-
-                    ${knowledge.length ? `
-                    <div class="modal-section">
-                        <h3>Knowledge (${knowledge.length})</h3>
-                        ${knowledge.map(k => `
-                            <div class="modal-knowledge">
-                                <div class="knowledge-header">
-                                    <span class="knowledge-type">${escHtml(k.type || 'note')}</span>
-                                    <span class="knowledge-title">${escHtml(k.title || '')}</span>
-                                </div>
-                                <div class="knowledge-content">${escHtml(k.content || '')}</div>
-                                ${k.artifact ? `<div class="knowledge-artifact">${escHtml(k.artifact)}</div>` : ''}
-                            </div>`).join('')}
-                    </div>` : ''}
-
-                    <button class="delete-btn" onclick="deleteEntity('${encodeURIComponent(name)}')">🗑 Delete this entity</button>
-                `;
-            } catch (e) {
-                modal.innerHTML = `<button class="modal-close" onclick="closeModal()">×</button><p>Error loading entity.</p>`;
-            }
-        }
-
-        function closeModal() {
-            document.getElementById('modal-overlay').classList.remove('show');
-        }
-
-        async function deleteEntity(encodedName) {
-            const name = decodeURIComponent(encodedName);
-            if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
-
-            try {
-                await fetch(`${API_URL}/v1/memory/${encodeURIComponent(name)}`, {
-                    method: 'DELETE',
-                    headers: headers(),
-                });
-                closeModal();
-                await loadData();
-            } catch (e) {
-                alert('Error deleting entity');
-            }
-        }
-
-        // ---- Search ----
-        function debounceSearch() {
-            clearTimeout(searchTimeout);
-            const q = document.getElementById('search-input').value.trim();
-            if (!q) { closeSearch(); return; }
-            searchTimeout = setTimeout(() => doSearch(q), 400);
-        }
-
-        async function doSearch(query) {
-            const box = document.getElementById('search-results');
-            box.innerHTML = `<div class="loading" style="padding:20px"><div class="spinner"></div>Searching...</div>`;
-            box.classList.add('show');
-
-            try {
-                const resp = await fetch(`${API_URL}/v1/search`, {
-                    method: 'POST',
-                    headers: headers(),
-                    body: JSON.stringify({ query, top_k: 8 }),
-                });
-                const data = await resp.json();
-                const results = data.results || [];
-
-                if (!results.length) {
-                    box.innerHTML = `<div class="search-empty">No results for "${escHtml(query)}"</div>`;
-                    return;
-                }
-
-                box.innerHTML = results.map(r => `
-                    <div class="search-result-item" onclick="openEntity('${encodeURIComponent(r.entity || r.name)}'); closeSearch();">
-                        <div style="display:flex;justify-content:space-between;align-items:center">
-                            <span class="sr-name">${escHtml(r.entity || r.name)}</span>
-                            <span class="sr-score">${(r.score || 0).toFixed(3)}</span>
-                        </div>
-                        ${(r.facts || []).slice(0, 2).map(f => `<div class="sr-fact">• ${escHtml(f)}</div>`).join('')}
-                    </div>`).join('');
-            } catch (e) {
-                box.innerHTML = `<div class="search-empty">Search error</div>`;
-            }
-        }
-
-        function closeSearch() {
-            document.getElementById('search-results').classList.remove('show');
-        }
-
-        // Close search on click outside
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('.topbar-right')) closeSearch();
-        });
-
-        // ---- Tabs ----
-        function switchTab(tab) {
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-            event.target.classList.add('active');
-            document.getElementById('panel-' + tab).classList.add('active');
-
-            if (tab === 'graph') loadGraph();
-        }
-
-        // ---- Knowledge Graph ----
-        async function loadGraph() {
-            const container = document.getElementById('graph-container');
-            // Remove old SVG
-            container.querySelectorAll('svg').forEach(s => s.remove());
-
-            try {
-                const resp = await fetch(`${API_URL}/v1/graph`, { headers: headers() });
-                const data = await resp.json();
-
-                const nodes = data.nodes || [];
-                const links = data.edges || data.links || [];
-
-                if (!nodes.length) {
-                    container.innerHTML += `<div class="empty-state"><div class="icon">🕸️</div><p>No graph data yet.</p></div>`;
-                    return;
-                }
-
-                renderGraph(container, nodes, links);
-            } catch (e) {
-                console.error('Graph error:', e);
-            }
-        }
-
-        function renderGraph(container, nodes, links) {
-            const width = container.clientWidth;
-            const height = container.clientHeight;
-
-            const typeColors = {
-                person: '#ec4899',
-                project: '#3b82f6',
-                technology: '#a78bfa',
-                company: '#f97316',
-                concept: '#06b6d4',
-                unknown: '#8888a8',
-            };
-
-            const svg = d3.select(container).append('svg')
-                .attr('width', width)
-                .attr('height', height);
-
-            // Zoom
-            const g = svg.append('g');
-            svg.call(d3.zoom().scaleExtent([0.2, 4]).on('zoom', (e) => {
-                g.attr('transform', e.transform);
-            }));
-
-            // Normalize links to use node indices
-            const nodeMap = {};
-            nodes.forEach((n, i) => { nodeMap[n.id || n.name] = i; });
-
-            const simLinks = links.map(l => ({
-                source: nodeMap[l.source] !== undefined ? nodeMap[l.source] : l.source,
-                target: nodeMap[l.target] !== undefined ? nodeMap[l.target] : l.target,
-                type: l.type || l.label || '',
-            })).filter(l => l.source !== undefined && l.target !== undefined);
-
-            const simulation = d3.forceSimulation(nodes)
-                .force('link', d3.forceLink(simLinks).distance(120))
-                .force('charge', d3.forceManyBody().strength(-300))
-                .force('center', d3.forceCenter(width / 2, height / 2))
-                .force('collision', d3.forceCollide().radius(40));
-
-            // Links
-            const link = g.append('g')
-                .selectAll('line')
-                .data(simLinks)
-                .enter().append('line')
-                .attr('stroke', '#1a1a2e')
-                .attr('stroke-width', 1.5);
-
-            // Link labels
-            const linkLabel = g.append('g')
-                .selectAll('text')
-                .data(simLinks)
-                .enter().append('text')
-                .text(d => d.type)
-                .attr('font-size', 9)
-                .attr('fill', '#55556a')
-                .attr('font-family', 'JetBrains Mono, monospace')
-                .attr('text-anchor', 'middle');
-
-            // Nodes
-            const node = g.append('g')
-                .selectAll('circle')
-                .data(nodes)
-                .enter().append('circle')
-                .attr('r', d => 8 + (d.facts_count || d.facts || 0) * 1.5)
-                .attr('fill', d => typeColors[d.type] || typeColors.unknown)
-                .attr('stroke', 'rgba(255,255,255,0.1)')
-                .attr('stroke-width', 1.5)
-                .style('cursor', 'pointer')
-                .on('click', (event, d) => openEntity(encodeURIComponent(d.name || d.id)))
-                .call(d3.drag()
-                    .on('start', (e, d) => { if (!e.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
-                    .on('drag', (e, d) => { d.fx = e.x; d.fy = e.y; })
-                    .on('end', (e, d) => { if (!e.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; })
-                );
-
-            // Node labels
-            const label = g.append('g')
-                .selectAll('text')
-                .data(nodes)
-                .enter().append('text')
-                .text(d => d.name || d.id)
-                .attr('font-size', 12)
-                .attr('font-weight', 500)
-                .attr('fill', '#e8e8f0')
-                .attr('font-family', 'Outfit, sans-serif')
-                .attr('text-anchor', 'middle')
-                .attr('dy', -16)
-                .style('pointer-events', 'none');
-
-            simulation.on('tick', () => {
-                link.attr('x1', d => d.source.x).attr('y1', d => d.source.y)
-                    .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
-                linkLabel.attr('x', d => (d.source.x + d.target.x) / 2)
-                    .attr('y', d => (d.source.y + d.target.y) / 2);
-                node.attr('cx', d => d.x).attr('cy', d => d.y);
-                label.attr('x', d => d.x).attr('y', d => d.y);
-            });
-        }
-
-        // ---- Helpers ----
-        function escHtml(str) {
-            if (!str) return '';
-            return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-        }
-
-        // Enter key on login
-        document.getElementById('api-key-input').addEventListener('keydown', e => {
-            if (e.key === 'Enter') login();
-        });
-
-        function showReset(e) {
-            e.preventDefault();
-            document.getElementById('reset-form').style.display = 'block';
-        }
-
-        async function resetKey() {
-            const email = document.getElementById('reset-email').value.trim();
-            if (!email) return;
-
-            const msg = document.getElementById('reset-msg');
-            msg.style.display = 'none';
-
-            try {
-                const resp = await fetch(`${API_URL}/v1/reset-key`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email }),
-                });
-                const data = await resp.json();
-                msg.style.display = 'block';
-                msg.textContent = data.message || 'Check your email for a new API key.';
-            } catch (e) {
-                msg.style.display = 'block';
-                msg.style.color = 'var(--red)';
-                msg.textContent = 'Error. Try again.';
-            }
-        }
-    </script>
+// ---- Settings ----
+async function resetKey() {
+    if(!confirm('Reset API key? Current key stops working.')) return;
+    try {
+        const d = await (await fetch(`${API}/v1/reset-key`,{method:'POST',headers:H()})).json();
+        if(d.api_key) { KEY=d.api_key; localStorage.setItem('mengram_key',d.api_key); document.getElementById('key-display').textContent=d.api_key.substring(0,8)+'****'; alert('New key: '+d.api_key+'\n\nSave it!'); }
+    } catch(e) { alert('Failed.'); }
+}
+async function exportData() {
+    try {
+        const d = await (await fetch(`${API}/v1/memories/full`,{headers:H()})).json();
+        const b=new Blob([JSON.stringify(d,null,2)],{type:'application/json'});
+        const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='mengram-export.json'; a.click();
+    } catch(e) { alert('Export failed.'); }
+}
+async function deleteAll() {
+    try {
+        const d = await (await fetch(`${API}/v1/memories`,{headers:H()})).json();
+        for(const e of (d.memories||[])) await fetch(`${API}/v1/entity/${encodeURIComponent(e.name)}`,{method:'DELETE',headers:H()});
+        loadAll(); alert('All data deleted.');
+    } catch(e) { alert('Failed.'); }
+}
+</script>
 </body>
 </html>

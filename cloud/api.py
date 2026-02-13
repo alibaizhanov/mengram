@@ -18,7 +18,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Depends, Header, Form
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from pydantic import BaseModel
 
 from cloud.store import CloudStore
@@ -251,6 +251,19 @@ Be strict — only include entities that directly answer or relate to the query.
         """Web dashboard."""
         dashboard_path = Path(__file__).parent / "dashboard.html"
         return dashboard_path.read_text(encoding="utf-8")
+
+    @app.get("/extension/download")
+    async def download_extension():
+        """Download Chrome extension zip."""
+        ext_path = Path(__file__).parent / "mengram-chrome-extension.zip"
+        if not ext_path.exists():
+            raise HTTPException(status_code=404, detail="Extension not available")
+        store.log_usage("system", "extension_download")
+        return FileResponse(
+            path=str(ext_path),
+            filename="mengram-chrome-extension.zip",
+            media_type="application/zip"
+        )
 
     @app.post("/v1/signup", response_model=SignupResponse)
     async def signup(req: SignupRequest):
@@ -760,6 +773,11 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     async def graph(user_id: str = Depends(auth)):
         """Knowledge graph for visualization."""
         return store.get_graph(user_id)
+
+    @app.get("/v1/feed")
+    async def feed(limit: int = 50, user_id: str = Depends(auth)):
+        """Memory feed — recent facts with timestamps for dashboard."""
+        return store.get_feed(user_id, limit=min(limit, 100))
 
     return app
 
