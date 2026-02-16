@@ -181,6 +181,22 @@ def create_cloud_mcp_server(mem: CloudMemory, user_id: str = "default") -> "Serv
                 description="Memory statistics.",
                 inputSchema={"type": "object", "properties": {}},
             ),
+            Tool(
+                name="run_agents",
+                description="Run memory agents that analyze, clean, and find patterns in memory. Use 'curator' to find contradictions and stale facts, 'connector' to find hidden patterns and insights, 'digest' for weekly summary, or 'all' for everything.",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "agent": {"type": "string", "enum": ["curator", "connector", "digest", "all"], "default": "all"},
+                        "auto_fix": {"type": "boolean", "default": True, "description": "Auto-archive low quality facts (curator)"},
+                    },
+                },
+            ),
+            Tool(
+                name="get_insights",
+                description="Get AI-generated insights about the user — patterns, connections, reflections from memory analysis. Call this when user asks 'what patterns do you see', 'what do you know about how I think', 'analyze my memory'.",
+                inputSchema={"type": "object", "properties": {}},
+            ),
         ]
 
     @server.call_tool()
@@ -261,6 +277,60 @@ def create_cloud_mcp_server(mem: CloudMemory, user_id: str = "default") -> "Serv
                     type="text",
                     text=json.dumps(stats, ensure_ascii=False, indent=2),
                 )]
+
+            elif name == "run_agents":
+                agent = arguments.get("agent", "all")
+                auto_fix = arguments.get("auto_fix", True)
+                result = mem.run_agents(agent=agent, auto_fix=auto_fix, user_id=user_id)
+                
+                lines = [f"🤖 Agent run complete ({agent})"]
+                
+                if agent == "all" and "agents" in result:
+                    r = result["agents"]
+                    # Curator
+                    c = r.get("curator", {})
+                    if c and c.get("health_score"):
+                        lines.append(f"\n🧹 **Curator** — Health: {int(c['health_score']*100)}%")
+                        if c.get("summary"): lines.append(c["summary"])
+                        meta = c.get("_meta", {})
+                        if meta.get("actions_taken"): lines.append(f"✅ Auto-fixed: {meta['actions_taken']} facts archived")
+                    # Connector
+                    cn = r.get("connector", {})
+                    if cn.get("patterns"):
+                        lines.append(f"\n🔗 **Connector** — {len(cn.get('connections',[]))} connections, {len(cn['patterns'])} patterns")
+                        for p in cn["patterns"][:3]:
+                            lines.append(f"- {p.get('pattern', '')}")
+                    if cn.get("suggestions"):
+                        lines.append("\n💡 **Suggestions:**")
+                        for s in cn["suggestions"][:3]:
+                            lines.append(f"- [{s.get('priority','?')}] {s.get('action','')}")
+                    # Digest
+                    d = r.get("digest", {})
+                    if d.get("headline"):
+                        lines.append(f"\n📰 **Digest:** {d['headline']}")
+                        if d.get("recommendation"):
+                            lines.append(f"💡 {d['recommendation']}")
+                else:
+                    lines.append(json.dumps(result, ensure_ascii=False, indent=2)[:2000])
+                
+                return [TextContent(type="text", text="\n".join(lines))]
+
+            elif name == "get_insights":
+                insights = mem.insights(user_id=user_id)
+                
+                if not insights.get("has_insights"):
+                    return [TextContent(type="text", text="No insights yet. Run agents first or add more memories.")]
+                
+                lines = ["🧠 **AI Insights from Memory**\n"]
+                for group in insights.get("groups", []):
+                    lines.append(f"### {group.get('title', '')}")
+                    for item in group.get("items", []):
+                        conf = int(item.get("confidence", 0) * 100)
+                        lines.append(f"- **{item.get('title', '')}** ({conf}% confidence)")
+                        lines.append(f"  {item.get('content', '')[:200]}")
+                    lines.append("")
+                
+                return [TextContent(type="text", text="\n".join(lines))]
 
             return [TextContent(type="text", text=f"Unknown tool: {name}")]
 

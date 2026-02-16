@@ -163,3 +163,95 @@ class CloudMemory:
     def graph(self, user_id: str = "default") -> dict:
         """Get knowledge graph (nodes + edges)."""
         return self._request("GET", "/v1/graph")
+
+    # ---- Agents ----
+
+    def run_agents(self, agent: str = "all", auto_fix: bool = False,
+                   user_id: str = "default") -> dict:
+        """
+        Run memory agents.
+        
+        Args:
+            agent: "curator", "connector", "digest", or "all"
+            auto_fix: Auto-archive low quality and stale facts (curator only)
+            
+        Returns:
+            Agent results with findings, patterns, suggestions
+        """
+        return self._request("POST", "/v1/agents/run",
+                             params={"agent": agent, "auto_fix": str(auto_fix).lower()})
+
+    def agent_history(self, agent: str = None, limit: int = 10,
+                      user_id: str = "default") -> list:
+        """Get agent run history."""
+        params = {"limit": limit}
+        if agent:
+            params["agent"] = agent
+        result = self._request("GET", "/v1/agents/history", params=params)
+        return result.get("runs", [])
+
+    def agent_status(self, user_id: str = "default") -> dict:
+        """Check which agents are due to run."""
+        return self._request("GET", "/v1/agents/status")
+
+    # ---- Insights & Reflections ----
+
+    def insights(self, user_id: str = "default") -> dict:
+        """Get AI insights from memory reflections."""
+        return self._request("GET", "/v1/insights")
+
+    def reflect(self, user_id: str = "default") -> dict:
+        """Trigger memory reflection — generates AI insights from facts."""
+        return self._request("POST", "/v1/reflect")
+
+    def reflections(self, scope: str = None, user_id: str = "default") -> list:
+        """Get all reflections. Optional scope: entity, cross, temporal."""
+        params = {}
+        if scope:
+            params["scope"] = scope
+        result = self._request("GET", "/v1/reflections", params=params)
+        return result.get("reflections", [])
+
+    # ---- Webhooks ----
+
+    def create_webhook(self, url: str, name: str = "",
+                       event_types: list = None, secret: str = "",
+                       user_id: str = "default") -> dict:
+        """
+        Create a webhook.
+        
+        Args:
+            url: URL to send POST requests to
+            name: Human-readable name
+            event_types: ["memory_add", "memory_update", "memory_delete"]
+            secret: Optional HMAC secret for signature verification
+        """
+        data = {"url": url, "name": name, "secret": secret}
+        if event_types:
+            data["event_types"] = event_types
+        result = self._request("POST", "/v1/webhooks", data)
+        return result.get("webhook", result)
+
+    def get_webhooks(self, user_id: str = "default") -> list:
+        """List all webhooks."""
+        result = self._request("GET", "/v1/webhooks")
+        return result.get("webhooks", [])
+
+    def update_webhook(self, webhook_id: int, url: str = None,
+                       name: str = None, event_types: list = None,
+                       active: bool = None, user_id: str = "default") -> dict:
+        """Update a webhook."""
+        data = {}
+        if url is not None: data["url"] = url
+        if name is not None: data["name"] = name
+        if event_types is not None: data["event_types"] = event_types
+        if active is not None: data["active"] = active
+        return self._request("PUT", f"/v1/webhooks/{webhook_id}", data)
+
+    def delete_webhook(self, webhook_id: int, user_id: str = "default") -> bool:
+        """Delete a webhook."""
+        try:
+            self._request("DELETE", f"/v1/webhooks/{webhook_id}")
+            return True
+        except Exception:
+            return False
