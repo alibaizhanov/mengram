@@ -65,9 +65,35 @@ class ResetKeyRequest(BaseModel):
 
 def create_cloud_api() -> FastAPI:
     app = FastAPI(
-        title="Mengram Cloud API",
-        description="Memory layer for AI apps — hosted",
+        title="Mengram API",
+        description="""
+## AI Memory Layer with Autonomous Agents
+
+Mengram gives your AI persistent memory with knowledge graph, autonomous agents, team sharing, and webhooks.
+
+### Authentication
+All endpoints require `Authorization: Bearer YOUR_API_KEY` header.
+
+### Quick Start
+```python
+from mengram.cloud.client import CloudMemory
+m = CloudMemory(api_key="om-...")
+m.add([{"role": "user", "content": "I use Python and Railway"}])
+results = m.search("deployment")
+```
+        """,
         version="2.2.0",
+        docs_url="/docs",
+        redoc_url="/redoc",
+        openapi_tags=[
+            {"name": "Memory", "description": "Store and retrieve memories from conversations"},
+            {"name": "Search", "description": "Semantic search across all memories"},
+            {"name": "Agents", "description": "Autonomous memory agents — Curator, Connector, Digest"},
+            {"name": "Teams", "description": "Shared team memory with invite codes"},
+            {"name": "Webhooks", "description": "HTTP notifications on memory events"},
+            {"name": "Insights", "description": "AI-generated reflections and patterns"},
+            {"name": "System", "description": "Health, stats, and account management"},
+        ],
     )
 
     app.add_middleware(
@@ -268,7 +294,7 @@ Be strict — only include entities that directly answer or relate to the query.
             media_type="application/zip"
         )
 
-    @app.post("/v1/signup", response_model=SignupResponse)
+    @app.post("/v1/signup", tags=["System"], response_model=SignupResponse)
     async def signup(req: SignupRequest):
         """Create account and get API key."""
         existing = store.get_user_by_email(req.email)
@@ -286,7 +312,7 @@ Be strict — only include entities that directly answer or relate to the query.
             message="API key sent to your email. Save it — it won't be shown again."
         )
 
-    @app.post("/v1/reset-key")
+    @app.post("/v1/reset-key", tags=["System"])
     async def reset_key(req: ResetKeyRequest):
         """Reset API key and send new one to email."""
         user_id = store.get_user_by_email(req.email)
@@ -485,13 +511,13 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             "scope": "read write",
         }
 
-    @app.get("/v1/health")
+    @app.get("/v1/health", tags=["System"])
     async def health():
         return {"status": "ok", "version": "2.2.0"}
 
     # ---- Protected endpoints ----
 
-    @app.post("/v1/add")
+    @app.post("/v1/add", tags=["Memory"])
     async def add(req: AddRequest, user_id: str = Depends(auth)):
         """
         Add memories from conversation.
@@ -610,7 +636,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             "message": "Processing in background. Memories will appear shortly.",
         }
 
-    @app.post("/v1/search")
+    @app.post("/v1/search", tags=["Search"])
     async def search(req: SearchRequest, user_id: str = Depends(auth)):
         """Semantic search across memories with LLM re-ranking."""
         embedder = get_embedder()
@@ -661,7 +687,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
         return {"results": results}
 
-    @app.get("/v1/memories")
+    @app.get("/v1/memories", tags=["Memory"])
     async def get_all(user_id_param: str = "default",
                       user_id: str = Depends(auth)):
         """Get all memories (entities)."""
@@ -669,7 +695,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         store.log_usage(user_id, "get_all")
         return {"memories": entities}
 
-    @app.post("/v1/reindex")
+    @app.post("/v1/reindex", tags=["Memory"])
     async def reindex(user_id: str = Depends(auth)):
         """Re-generate all embeddings (includes relations now)."""
         embedder = get_embedder()
@@ -701,7 +727,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
         return {"reindexed": count}
 
-    @app.post("/v1/dedup")
+    @app.post("/v1/dedup", tags=["Memory"])
     async def dedup(user_id: str = Depends(auth)):
         """Find and merge duplicate entities."""
         entities = store.get_all_entities(user_id)
@@ -737,7 +763,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
         return {"merged": merged, "count": len(merged)}
 
-    @app.delete("/v1/entity/{name}")
+    @app.delete("/v1/entity/{name}", tags=["Memory"])
     async def delete_entity(name: str, user_id: str = Depends(auth)):
         """Delete an entity and all its facts, relations, knowledge, embeddings."""
         entity_id = store.get_entity_id(user_id, name)
@@ -752,7 +778,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         store.fire_webhooks(user_id, "memory_delete", {"entity": name})
         return {"deleted": name}
 
-    @app.post("/v1/merge_user")
+    @app.post("/v1/merge_user", tags=["Memory"])
     async def merge_user_entity(user_id: str = Depends(auth)):
         """Merge 'User' entity into the primary person entity (e.g. 'Ali Baizhanov')."""
         user_entity_id = store.get_entity_id(user_id, "User")
@@ -770,7 +796,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         store.merge_entities(user_id, user_entity_id, target_id, target_name)
         return {"status": "merged", "from": "User", "into": target_name, "target_id": target_id}
 
-    @app.post("/v1/merge")
+    @app.post("/v1/merge", tags=["Memory"])
     async def merge_entities_endpoint(source: str, target: str, user_id: str = Depends(auth)):
         """Merge source entity into target. Source gets deleted, all data moves to target."""
         source_id = store.get_entity_id(user_id, source)
@@ -797,7 +823,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             cur.execute("UPDATE entities SET type = %s WHERE id = %s", (new_type, entity_id))
         return {"entity": name, "new_type": new_type}
 
-    @app.post("/v1/entity/{name}/dedup")
+    @app.post("/v1/entity/{name}/dedup", tags=["Memory"])
     async def dedup_entity(name: str, user_id: str = Depends(auth)):
         """Use LLM to deduplicate facts on an entity. Keeps best version, archives redundant ones."""
         entity_id = store.get_entity_id(user_id, name)
@@ -807,7 +833,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         result = store.dedup_entity_facts(entity_id, name, extractor.llm)
         return result
 
-    @app.post("/v1/dedup_all")
+    @app.post("/v1/dedup_all", tags=["Memory"])
     async def dedup_all_entities(user_id: str = Depends(auth)):
         """Deduplicate facts across ALL entities for this user."""
         entities = store.get_all_entities(user_id)
@@ -826,7 +852,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
     # ---- Reflection ----
 
-    @app.post("/v1/reflect")
+    @app.post("/v1/reflect", tags=["Insights"])
     async def trigger_reflection(user_id: str = Depends(auth)):
         """Manually trigger memory reflection. Generates AI insights from facts."""
         extractor = get_llm()
@@ -847,12 +873,12 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             "stats_before": stats,
         }
 
-    @app.get("/v1/reflections")
+    @app.get("/v1/reflections", tags=["Insights"])
     async def get_reflections(scope: str = None, user_id: str = Depends(auth)):
         """Get all reflections. Optional ?scope=entity|cross|temporal"""
         return {"reflections": store.get_reflections(user_id, scope=scope)}
 
-    @app.get("/v1/insights")
+    @app.get("/v1/insights", tags=["Insights"])
     async def get_insights(user_id: str = Depends(auth)):
         """Get formatted AI insights for dashboard."""
         return store.get_insights(user_id)
@@ -861,7 +887,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     # MEMORY AGENTS v2.0
     # =====================================================
 
-    @app.post("/v1/agents/run")
+    @app.post("/v1/agents/run", tags=["Agents"])
     async def run_agents(
         agent: str = "all",
         auto_fix: bool = False,
@@ -888,7 +914,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         else:
             raise HTTPException(status_code=400, detail=f"Unknown agent: {agent}. Use: curator, connector, digest, all")
 
-    @app.get("/v1/agents/history")
+    @app.get("/v1/agents/history", tags=["Agents"])
     async def agent_history(
         agent: str = None,
         limit: int = 10,
@@ -898,7 +924,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         runs = store.get_agent_history(user_id, agent_type=agent, limit=limit)
         return {"runs": runs, "total": len(runs)}
 
-    @app.get("/v1/agents/status")
+    @app.get("/v1/agents/status", tags=["Agents"])
     async def agent_status(user_id: str = Depends(auth)):
         """Check which agents are due to run."""
         due = store.should_run_agents(user_id)
@@ -912,7 +938,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     # WEBHOOKS
     # =====================================================
 
-    @app.post("/v1/webhooks")
+    @app.post("/v1/webhooks", tags=["Webhooks"])
     async def create_webhook(req: dict, user_id: str = Depends(auth)):
         """Create a webhook.
         Body: {"url": "https://...", "name": "My Hook", "event_types": ["memory_add"], "secret": "optional"}
@@ -932,13 +958,13 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
-    @app.get("/v1/webhooks")
+    @app.get("/v1/webhooks", tags=["Webhooks"])
     async def list_webhooks(user_id: str = Depends(auth)):
         """List all webhooks."""
         hooks = store.get_webhooks(user_id)
         return {"webhooks": hooks, "total": len(hooks)}
 
-    @app.put("/v1/webhooks/{webhook_id}")
+    @app.put("/v1/webhooks/{webhook_id}", tags=["Webhooks"])
     async def update_webhook(webhook_id: int, req: dict, user_id: str = Depends(auth)):
         """Update a webhook. Body: any of {url, name, event_types, active}"""
         result = store.update_webhook(
@@ -951,7 +977,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         )
         return result
 
-    @app.delete("/v1/webhooks/{webhook_id}")
+    @app.delete("/v1/webhooks/{webhook_id}", tags=["Webhooks"])
     async def delete_webhook(webhook_id: int, user_id: str = Depends(auth)):
         """Delete a webhook."""
         deleted = store.delete_webhook(user_id, webhook_id)
@@ -963,7 +989,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     # TEAMS — SHARED MEMORY
     # =====================================================
 
-    @app.post("/v1/teams")
+    @app.post("/v1/teams", tags=["Teams"])
     async def create_team(req: dict, user_id: str = Depends(auth)):
         """Create a team. Body: {"name": "My Team", "description": "optional"}"""
         name = req.get("name")
@@ -972,13 +998,13 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         team = store.create_team(user_id, name, req.get("description", ""))
         return {"status": "created", "team": team}
 
-    @app.get("/v1/teams")
+    @app.get("/v1/teams", tags=["Teams"])
     async def list_teams(user_id: str = Depends(auth)):
         """List user's teams."""
         teams = store.get_user_teams(user_id)
         return {"teams": teams, "total": len(teams)}
 
-    @app.post("/v1/teams/join")
+    @app.post("/v1/teams/join", tags=["Teams"])
     async def join_team(req: dict, user_id: str = Depends(auth)):
         """Join a team. Body: {"invite_code": "abc123"}"""
         code = req.get("invite_code")
@@ -990,7 +1016,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
-    @app.get("/v1/teams/{team_id}/members")
+    @app.get("/v1/teams/{team_id}/members", tags=["Teams"])
     async def team_members(team_id: int, user_id: str = Depends(auth)):
         """Get team members."""
         try:
@@ -999,7 +1025,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         except ValueError as e:
             raise HTTPException(status_code=403, detail=str(e))
 
-    @app.post("/v1/teams/{team_id}/share")
+    @app.post("/v1/teams/{team_id}/share", tags=["Teams"])
     async def share_entity(team_id: int, req: dict, user_id: str = Depends(auth)):
         """Share a memory with team. Body: {"entity": "Redis"}"""
         entity_name = req.get("entity")
@@ -1010,7 +1036,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
-    @app.post("/v1/teams/{team_id}/unshare")
+    @app.post("/v1/teams/{team_id}/unshare", tags=["Teams"])
     async def unshare_entity(team_id: int, req: dict, user_id: str = Depends(auth)):
         """Make a shared memory personal again. Body: {"entity": "Redis"}"""
         entity_name = req.get("entity")
@@ -1018,14 +1044,14 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             raise HTTPException(status_code=400, detail="entity name is required")
         return store.unshare_entity(user_id, entity_name)
 
-    @app.post("/v1/teams/{team_id}/leave")
+    @app.post("/v1/teams/{team_id}/leave", tags=["Teams"])
     async def leave_team(team_id: int, user_id: str = Depends(auth)):
         """Leave a team."""
         if store.leave_team(user_id, team_id):
             return {"status": "left"}
         raise HTTPException(status_code=400, detail="Cannot leave (owner or not a member)")
 
-    @app.delete("/v1/teams/{team_id}")
+    @app.delete("/v1/teams/{team_id}", tags=["Teams"])
     async def delete_team(team_id: int, user_id: str = Depends(auth)):
         """Delete a team (owner only)."""
         try:
@@ -1033,12 +1059,17 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             return {"status": "deleted"}
         except ValueError as e:
             raise HTTPException(status_code=403, detail=str(e))
+
+    @app.post("/v1/archive_fact", tags=["Memory"])
     async def archive_fact(
-        entity_name: str,
-        fact: str,
+        req: dict,
         user_id: str = Depends(auth)
     ):
         """Manually archive a wrong fact."""
+        entity_name = req.get("entity_name")
+        fact = req.get("fact_content") or req.get("fact")
+        if not entity_name or not fact:
+            raise HTTPException(status_code=400, detail="entity_name and fact_content required")
         entity_id = store.get_entity_id(user_id, entity_name)
         if not entity_id:
             raise HTTPException(status_code=404, detail=f"Entity '{entity_name}' not found")
@@ -1052,7 +1083,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 raise HTTPException(status_code=404, detail="Fact not found")
         return {"archived": fact, "entity": entity_name}
 
-    @app.get("/v1/timeline")
+    @app.get("/v1/timeline", tags=["Memory"])
     async def timeline(
         after: str = None, before: str = None,
         limit: int = 20,
@@ -1063,14 +1094,14 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         results = store.search_temporal(user_id, after=after, before=before, top_k=limit)
         return {"results": results}
 
-    @app.get("/v1/memories/full")
+    @app.get("/v1/memories/full", tags=["Memory"])
     async def get_all_full(user_id: str = Depends(auth)):
         """Get all memories with full facts, relations, knowledge. Single query."""
         entities = store.get_all_entities_full(user_id)
         store.log_usage(user_id, "get_all")
         return {"memories": entities}
 
-    @app.get("/v1/memory/{name}")
+    @app.get("/v1/memory/{name}", tags=["Memory"])
     async def get_memory(name: str, user_id: str = Depends(auth)):
         """Get specific entity details."""
         entity = store.get_entity(user_id, name)
@@ -1084,7 +1115,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             "knowledge": entity.knowledge,
         }
 
-    @app.delete("/v1/memory/{name}")
+    @app.delete("/v1/memory/{name}", tags=["Memory"])
     async def delete_memory(name: str, user_id: str = Depends(auth)):
         """Delete a memory."""
         deleted = store.delete_entity(user_id, name)
@@ -1092,17 +1123,17 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             raise HTTPException(status_code=404, detail=f"Entity '{name}' not found")
         return {"status": "deleted", "entity": name}
 
-    @app.get("/v1/stats")
+    @app.get("/v1/stats", tags=["System"])
     async def stats(user_id: str = Depends(auth)):
         """Usage statistics."""
         return store.get_stats(user_id)
 
-    @app.get("/v1/graph")
+    @app.get("/v1/graph", tags=["Memory"])
     async def graph(user_id: str = Depends(auth)):
         """Knowledge graph for visualization."""
         return store.get_graph(user_id)
 
-    @app.get("/v1/feed")
+    @app.get("/v1/feed", tags=["Memory"])
     async def feed(limit: int = 50, user_id: str = Depends(auth)):
         """Memory feed — recent facts with timestamps for dashboard."""
         return store.get_feed(user_id, limit=min(limit, 100))

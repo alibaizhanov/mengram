@@ -3,8 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mengram — Your AI remembers you. Everywhere.</title>
-    <meta name="description" content="Give every AI persistent memory. ChatGPT, Claude, Perplexity — they all remember you with Mengram.">
+    <title>Mengram — AI Memory Layer with Autonomous Agents</title>
+    <meta name="description" content="Open-source memory layer for AI apps. Memory agents that clean, analyze, and find patterns. Shared team memory. Webhooks. MCP + API. Free alternative to Mem0.">
+    <meta name="keywords" content="AI memory, LLM memory, Mem0 alternative, MCP server, Claude Desktop memory, knowledge graph, AI agents, shared memory, webhooks">
+    <meta name="author" content="Ali Baizhanov">
+    <link rel="canonical" href="https://mengram.io">
+    <!-- Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://mengram.io">
+    <meta property="og:title" content="Mengram — AI Memory Layer with Autonomous Agents">
+    <meta property="og:description" content="Open-source memory layer with agents that think. Not just storage — Mengram cleans, analyzes, and finds patterns in your AI conversations.">
+    <meta property="og:site_name" content="Mengram">
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Mengram — AI Memory Layer with Autonomous Agents">
+    <meta name="twitter:description" content="Open-source Mem0 alternative with memory agents, shared team memory, and webhooks.">
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Sora:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -590,13 +603,13 @@
         <section class="hero">
             <div class="hero-badge anim">
                 <span class="pulse"></span>
-                Open Source · Cross-Platform · Free
+                Open Source · Memory Agents · Team Sharing · Free
             </div>
-            <h1 class="anim d1">Your AI remembers<br>you. Everywhere.</h1>
-            <p class="anim d2">One memory layer for all your AI chats. ChatGPT, Claude, Cursor, Perplexity — they all know your name, your projects, your preferences. Connect once, remember forever.</p>
+            <h1 class="anim d1">Memory that<br>thinks for you.</h1>
+            <p class="anim d2">Open-source AI memory layer with autonomous agents. Not just storage — Mengram cleans, connects, and finds hidden patterns in your knowledge. Team sharing, webhooks, MCP + API.</p>
             <div class="hero-cta anim d3">
                 <a href="#install" class="btn btn-primary">⚡ Get Started Free</a>
-                <a href="#signup" class="btn btn-secondary">Get API Key →</a>
+                <a href="https://github.com/alibaizhanov/mengram" class="btn btn-secondary">GitHub →</a>
             </div>
         </section>
 
@@ -741,9 +754,24 @@ results = m.search(<span class="c-str">"database issues"</span>)
 
         <!-- Features -->
         <section class="features-section" id="features">
-            <h2>Not just flat facts</h2>
-            <p>Mengram builds a real knowledge graph from your conversations.</p>
+            <h2>What makes Mengram different</h2>
+            <p>Others store facts. Mengram thinks about them.</p>
             <div class="features-grid">
+                <div class="feat-card">
+                    <div class="feat-icon">🤖</div>
+                    <h3>Memory Agents</h3>
+                    <p>Curator cleans contradictions. Connector finds hidden patterns. Digest gives weekly briefs. Runs autonomously.</p>
+                </div>
+                <div class="feat-card">
+                    <div class="feat-icon">🤝</div>
+                    <h3>Team Memory</h3>
+                    <p>Share knowledge with your team. Everyone's AI sees the shared context. Invite code to join — 10 seconds.</p>
+                </div>
+                <div class="feat-card">
+                    <div class="feat-icon">🔔</div>
+                    <h3>Webhooks</h3>
+                    <p>Get notified when memories change. Connect to Slack, Zapier, Notion — any HTTP endpoint.</p>
+                </div>
                 <div class="feat-card">
                     <div class="feat-icon">🕸️</div>
                     <h3>Knowledge Graph</h3>
@@ -752,28 +780,82 @@ results = m.search(<span class="c-str">"database issues"</span>)
                 <div class="feat-card">
                     <div class="feat-icon">🔍</div>
                     <h3>Hybrid Search</h3>
-                    <p>Vector (semantic) + BM25 (keyword) + graph expansion. Finds "colleagues" even when facts are in English.</p>
+                    <p>Vector (semantic) + BM25 (keyword) + graph expansion + LLM re-ranking. Finds what matters.</p>
                 </div>
                 <div class="feat-card">
                     <div class="feat-icon">🧠</div>
-                    <h3>Auto-Remember</h3>
-                    <p>LLM extracts entities, decisions, code solutions — automatically. You just chat normally.</p>
+                    <h3>AI Reflections</h3>
+                    <p>Generates insights from your facts — behavioral patterns, skill clusters, strategic observations.</p>
                 </div>
-                <div class="feat-card">
-                    <div class="feat-icon">📝</div>
-                    <h3>Rich Knowledge</h3>
-                    <p>Not just "likes coffee". Stores code solutions, configs, commands — with full artifacts.</p>
-                </div>
-                <div class="feat-card">
-                    <div class="feat-icon">🔗</div>
-                    <h3>Cross-Platform</h3>
-                    <p>Save in Claude Desktop, recall in ChatGPT. One memory, all your AIs.</p>
-                </div>
-                <div class="feat-card">
-                    <div class="feat-icon">⚡</div>
-                    <h3>LLM Re-Ranking</h3>
-                    <p>Search results filtered by GPT-4o-mini for relevance. No noise, only what matters.</p>
-                </div>
+            </div>
+        </section>
+
+        <!-- Comparison -->
+        <section class="features-section" style="padding-top: 0;">
+            <h2>Mengram vs Mem0</h2>
+            <p>Both store AI memories. Mengram thinks about them.</p>
+            <div style="max-width: 700px; margin: 30px auto 0;">
+                <table style="width:100%;border-collapse:collapse;font-size:14px;">
+                    <thead>
+                        <tr style="border-bottom: 1px solid var(--border);">
+                            <th style="text-align:left;padding:12px 16px;color:var(--text-2);font-weight:500;"></th>
+                            <th style="text-align:center;padding:12px 16px;color:var(--accent);font-weight:600;">Mengram</th>
+                            <th style="text-align:center;padding:12px 16px;color:var(--text-2);font-weight:500;">Mem0</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr style="border-bottom: 1px solid var(--border);">
+                            <td style="padding:10px 16px;">Memory Storage</td>
+                            <td style="text-align:center;padding:10px;">✅</td>
+                            <td style="text-align:center;padding:10px;">✅</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--border);">
+                            <td style="padding:10px 16px;">Semantic Search</td>
+                            <td style="text-align:center;padding:10px;">✅</td>
+                            <td style="text-align:center;padding:10px;">✅</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--border);">
+                            <td style="padding:10px 16px;">Knowledge Graph</td>
+                            <td style="text-align:center;padding:10px;">✅</td>
+                            <td style="text-align:center;padding:10px;">✅</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--border);">
+                            <td style="padding:10px 16px;">Autonomous Agents</td>
+                            <td style="text-align:center;padding:10px;">✅ <span style="color:var(--green);font-size:11px;">3 agents</span></td>
+                            <td style="text-align:center;padding:10px;">❌</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--border);">
+                            <td style="padding:10px 16px;">Team Shared Memory</td>
+                            <td style="text-align:center;padding:10px;">✅</td>
+                            <td style="text-align:center;padding:10px;">❌</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--border);">
+                            <td style="padding:10px 16px;">AI Reflections & Insights</td>
+                            <td style="text-align:center;padding:10px;">✅</td>
+                            <td style="text-align:center;padding:10px;">❌</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--border);">
+                            <td style="padding:10px 16px;">Webhooks</td>
+                            <td style="text-align:center;padding:10px;">✅</td>
+                            <td style="text-align:center;padding:10px;">✅</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--border);">
+                            <td style="padding:10px 16px;">MCP Server</td>
+                            <td style="text-align:center;padding:10px;">✅</td>
+                            <td style="text-align:center;padding:10px;">❌</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--border);">
+                            <td style="padding:10px 16px;">Self-hostable</td>
+                            <td style="text-align:center;padding:10px;">✅</td>
+                            <td style="text-align:center;padding:10px;">✅</td>
+                        </tr>
+                        <tr>
+                            <td style="padding:10px 16px;font-weight:600;">Price</td>
+                            <td style="text-align:center;padding:10px;color:var(--green);font-weight:600;">Free</td>
+                            <td style="text-align:center;padding:10px;color:var(--text-2);">$19-249/mo</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </section>
 

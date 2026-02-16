@@ -258,20 +258,20 @@
             <div id="agents-box">
                 <div class="agents-intro" style="text-align:center;padding:40px 20px;color:var(--text-2);">
                     <div style="font-size:48px;margin-bottom:16px;">🤖</div>
-                    <h3 style="color:var(--text-1);margin-bottom:8px;">Memory Agents</h3>
+                    <h3 style="color:var(--text);margin-bottom:8px;">Memory Agents</h3>
                     <p>Autonomous agents that clean, analyze, and generate insights from your memory.</p>
                     <div style="display:flex;gap:20px;justify-content:center;margin-top:24px;flex-wrap:wrap;">
-                        <div style="background:var(--card);border-radius:12px;padding:16px;width:180px;text-align:left;">
+                        <div style="background:var(--bg-card);border-radius:12px;padding:16px;width:180px;text-align:left;">
                             <div style="font-size:24px;margin-bottom:8px;">🧹</div>
                             <strong style="color:var(--green);">Curator</strong>
                             <p style="font-size:12px;margin-top:4px;">Finds contradictions, stale facts, duplicates. Auto-cleans memory.</p>
                         </div>
-                        <div style="background:var(--card);border-radius:12px;padding:16px;width:180px;text-align:left;">
+                        <div style="background:var(--bg-card);border-radius:12px;padding:16px;width:180px;text-align:left;">
                             <div style="font-size:24px;margin-bottom:8px;">🔗</div>
                             <strong style="color:var(--blue);">Connector</strong>
                             <p style="font-size:12px;margin-top:4px;">Discovers hidden patterns, skill clusters, strategic insights.</p>
                         </div>
-                        <div style="background:var(--card);border-radius:12px;padding:16px;width:180px;text-align:left;">
+                        <div style="background:var(--bg-card);border-radius:12px;padding:16px;width:180px;text-align:left;">
                             <div style="font-size:24px;margin-bottom:8px;">📰</div>
                             <strong style="color:var(--orange);">Digest</strong>
                             <p style="font-size:12px;margin-top:4px;">Weekly summary of memory activity, trends, recommendations.</p>
@@ -318,11 +318,11 @@
                 <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;">
                     <div style="flex:1;min-width:200px;">
                         <label style="font-size:11px;color:var(--text-2);display:block;margin-bottom:4px;">Webhook URL</label>
-                        <input id="wh-url" placeholder="https://webhook.site/..." style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text-1);font-size:13px;">
+                        <input id="wh-url" placeholder="https://webhook.site/..." style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;">
                     </div>
                     <div style="min-width:120px;">
                         <label style="font-size:11px;color:var(--text-2);display:block;margin-bottom:4px;">Name (optional)</label>
-                        <input id="wh-name" placeholder="My Hook" style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text-1);font-size:13px;">
+                        <input id="wh-name" placeholder="My Hook" style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;">
                     </div>
                     <button onclick="createWebhook()" style="padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;">+ Add</button>
                 </div>
@@ -334,14 +334,14 @@
                 <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;">
                     <div style="flex:1;min-width:150px;">
                         <label style="font-size:11px;color:var(--text-2);display:block;margin-bottom:4px;">Create new team</label>
-                        <input id="team-name" placeholder="Team name" style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text-1);font-size:13px;">
+                        <input id="team-name" placeholder="Team name" style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;">
                     </div>
                     <button onclick="createTeam()" style="padding:8px 16px;background:var(--green);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;">+ Create</button>
                 </div>
                 <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-top:10px;">
                     <div style="flex:1;min-width:150px;">
                         <label style="font-size:11px;color:var(--text-2);display:block;margin-bottom:4px;">Join existing team</label>
-                        <input id="invite-code" placeholder="Paste invite code" style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text-1);font-size:13px;">
+                        <input id="invite-code" placeholder="Paste invite code" style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;">
                     </div>
                     <button onclick="joinTeam()" style="padding:8px 16px;background:var(--blue);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;">Join</button>
                 </div>
@@ -457,7 +457,7 @@ function renderAgentResults(type, data) {
 function renderCuratorResult(r) {
     if (!r || r.status === 'error') return '<div style="color:var(--red)">Curator failed</div>';
     const meta = r._meta || {};
-    let html = `<div style="background:var(--card);border-radius:12px;padding:16px;margin-bottom:12px;border-left:3px solid var(--green);">`;
+    let html = `<div style="background:var(--bg-card);border-radius:12px;padding:16px;margin-bottom:12px;border-left:3px solid var(--green);">`;
     html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">`;
     html += `<strong style="color:var(--green);">🧹 Curator</strong>`;
     html += `<span style="font-size:12px;color:var(--text-2);">Health: <strong style="color:${(r.health_score||0)>0.7?'var(--green)':'var(--orange)'}">${Math.round((r.health_score||0)*100)}%</strong></span>`;
@@ -479,7 +479,7 @@ function renderCuratorResult(r) {
 
 function renderConnectorResult(r) {
     if (!r || r.status === 'error') return '<div style="color:var(--red)">Connector failed</div>';
-    let html = `<div style="background:var(--card);border-radius:12px;padding:16px;margin-bottom:12px;border-left:3px solid var(--blue);">`;
+    let html = `<div style="background:var(--bg-card);border-radius:12px;padding:16px;margin-bottom:12px;border-left:3px solid var(--blue);">`;
     html += `<strong style="color:var(--blue);">🔗 Connector</strong>`;
     if (r.connections?.length) {
         html += `<div style="margin-top:10px;"><strong style="font-size:12px;">Hidden Connections</strong>`;
@@ -509,9 +509,9 @@ function renderConnectorResult(r) {
 
 function renderDigestResult(r) {
     if (!r || r.status === 'error') return '<div style="color:var(--red)">Digest failed</div>';
-    let html = `<div style="background:var(--card);border-radius:12px;padding:16px;margin-bottom:12px;border-left:3px solid var(--orange);">`;
+    let html = `<div style="background:var(--bg-card);border-radius:12px;padding:16px;margin-bottom:12px;border-left:3px solid var(--orange);">`;
     html += `<strong style="color:var(--orange);">📰 Weekly Digest</strong>`;
-    if (r.headline) html += `<p style="font-size:15px;font-weight:600;color:var(--text-1);margin:8px 0;">${r.headline}</p>`;
+    if (r.headline) html += `<p style="font-size:15px;font-weight:600;color:var(--text);margin:8px 0;">${r.headline}</p>`;
     if (r.highlights?.length) {
         html += `<ul style="font-size:13px;color:var(--text-2);padding-left:20px;margin:8px 0;">`;
         r.highlights.forEach(h => { html += `<li style="margin:4px 0;">${h}</li>`; });
@@ -531,7 +531,7 @@ async function loadAgentHistory() {
         d.runs.forEach(r => {
             const icons = {curator:'🧹',connector:'🔗',digest:'📰'};
             const time = new Date(r.created_at).toLocaleString();
-            html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--card);border-radius:8px;margin-bottom:4px;font-size:12px;">`;
+            html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg-card);border-radius:8px;margin-bottom:4px;font-size:12px;">`;
             html += `<span>${icons[r.agent_type]||'🤖'} <strong>${r.agent_type}</strong></span>`;
             html += `<span style="color:var(--text-2);">${r.issues_found} findings${r.actions_taken ? `, ${r.actions_taken} fixed` : ''}</span>`;
             html += `<span style="color:var(--text-2);">${time}</span>`;
@@ -642,6 +642,7 @@ async function loadStats() {
 // ---- Feed ----
 async function loadFeed() {
     const box = document.getElementById('feed-box');
+    box.innerHTML = `<div style="padding:16px;">${[1,2,3,4,5].map(()=>'<div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;"><div style="width:80px;height:24px;background:var(--bg-elevated);border-radius:6px;animation:pulse 1.5s infinite;"></div><div style="flex:1;height:16px;background:var(--bg-elevated);border-radius:4px;animation:pulse 1.5s infinite;"></div></div>').join('')}</div><style>@keyframes pulse{0%,100%{opacity:0.4}50%{opacity:0.8}}</style>`;
     try {
         const d = await (await fetch(`${API}/v1/feed?limit=100`,{headers:H()})).json();
         if(!d.feed||!d.feed.length) {
@@ -774,7 +775,10 @@ async function openEntity(name) {
             for(const k of d.knowledge) h+=`<div class="m-know"><span class="kt">${k.type}</span><div class="ktitle">${esc(k.title)}</div><div class="kcontent">${esc(k.content)}</div>${k.artifact?`<pre>${esc(k.artifact)}</pre>`:''}</div>`;
             h+='</div>';
         }
-        h+=`<button class="m-delete" onclick="delEntity('${escA(name)}')">Delete "${esc(name)}" and all data</button>`;
+        h+=`<div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;">`;
+        h+=`<button class="m-delete" style="flex:1;" onclick="delEntity('${escA(name)}')">🗑️ Delete "${esc(name)}"</button>`;
+        h+=`<button style="flex:1;padding:10px;background:var(--green-dim);color:var(--green);border:1px solid var(--green);border-radius:8px;cursor:pointer;font-size:13px;" onclick="shareEntityDialog('${escA(name)}')">🤝 Share to Team</button>`;
+        h+=`</div>`;
         body.innerHTML=h;
     } catch(e) { body.innerHTML='<p style="color:var(--red)">Failed to load.</p>'; }
 }
@@ -785,6 +789,21 @@ async function archFactM(entity,fact,btn) {
 async function delEntity(name) {
     if(!confirm(`Delete "${name}" and ALL its data?`)) return;
     try { await fetch(`${API}/v1/entity/${encodeURIComponent(name)}`,{method:'DELETE',headers:H()}); closeModal(); loadAll(); } catch(e){}
+}
+async function shareEntityDialog(name) {
+    try {
+        const d = await (await fetch(`${API}/v1/teams`,{headers:H()})).json();
+        if (!d.teams?.length) { alert('No teams yet. Create a team in Settings first.'); return; }
+        const teamNames = d.teams.map((t,i) => `${i+1}. ${t.name}`).join('\n');
+        const choice = prompt(`Share "${name}" to which team?\n\n${teamNames}\n\nEnter number:`);
+        if (!choice) return;
+        const idx = parseInt(choice) - 1;
+        if (idx < 0 || idx >= d.teams.length) { alert('Invalid choice'); return; }
+        const team = d.teams[idx];
+        const r = await fetch(`${API}/v1/teams/${team.id}/share`, {method:'POST', headers:H(), body:JSON.stringify({entity:name})});
+        if (r.ok) { alert(`✅ "${name}" shared with ${team.name}!`); }
+        else { const err = await r.json(); alert(err.detail || 'Failed to share'); }
+    } catch(e) { alert('Error: ' + e.message); }
 }
 
 // ---- Search ----
@@ -804,7 +823,8 @@ async function doSearch(q) {
         if(d.results?.length) {
             dd.innerHTML=d.results.map(r=>{
                 const fs=(r.facts||[]).slice(0,2).join(' · ');
-                return `<div class="search-item" onclick="openEntity('${escA(r.entity)}')"><div class="sname">${esc(r.entity)} <small style="color:var(--text-3)">${r.type}</small></div><div class="sfact">${esc(fs)}</div></div>`;
+                const teamBadge = r.team_shared ? '<span style="background:var(--green-dim);color:var(--green);padding:1px 5px;border-radius:3px;font-size:10px;margin-left:4px;">team</span>' : '';
+                return `<div class="search-item" onclick="openEntity('${escA(r.entity)}')"><div class="sname">${esc(r.entity)} <small style="color:var(--text-3)">${r.type}</small>${teamBadge}</div><div class="sfact">${esc(fs)}</div></div>`;
             }).join('');
         } else { dd.innerHTML='<div style="padding:14px;color:var(--text-3);font-size:13px;text-align:center">No results</div>'; }
         dd.classList.add('show');
@@ -827,7 +847,7 @@ async function loadWebhooks() {
             const status = w.active ? '<span style="color:var(--green);">●</span>' : '<span style="color:var(--text-2);">○</span>';
             const lastTriggered = w.last_triggered ? new Date(w.last_triggered).toLocaleString() : 'never';
             const error = w.last_error ? `<div style="color:var(--red);font-size:11px;margin-top:4px;">Last error: ${esc(w.last_error).substring(0,80)}</div>` : '';
-            html += `<div style="background:var(--card);border-radius:10px;padding:12px;margin-bottom:8px;">
+            html += `<div style="background:var(--bg-card);border-radius:10px;padding:12px;margin-bottom:8px;">
                 <div style="display:flex;justify-content:space-between;align-items:center;">
                     <div>
                         ${status} <strong style="font-size:13px;">${esc(w.name) || 'Unnamed'}</strong>
@@ -895,7 +915,7 @@ async function loadTeams() {
         let html = '';
         d.teams.forEach(t => {
             const isOwner = t.role === 'owner';
-            html += `<div style="background:var(--card);border-radius:10px;padding:12px;margin-bottom:8px;">
+            html += `<div style="background:var(--bg-card);border-radius:10px;padding:12px;margin-bottom:8px;">
                 <div style="display:flex;justify-content:space-between;align-items:center;">
                     <div>
                         <strong style="font-size:14px;">${esc(t.name)}</strong>
