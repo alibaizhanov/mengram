@@ -10,8 +10,10 @@ Usage:
     results = store.search("database pool", user_id="...", top_k=5)
 """
 
+import datetime
 import hashlib
 import json
+import math
 import secrets
 import sys
 from dataclasses import dataclass
@@ -103,6 +105,22 @@ class CloudStore:
                 pass  # Index may already exist or dimensions mismatch
 
         print("✅ Migration complete (v1.5: HNSW + tsvector)", file=sys.stderr)
+
+        # --- v1.6 Importance scoring ---
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                ALTER TABLE facts ADD COLUMN IF NOT EXISTS importance 
+                FLOAT DEFAULT 0.5
+            """)
+            cur.execute("""
+                ALTER TABLE facts ADD COLUMN IF NOT EXISTS access_count 
+                INTEGER DEFAULT 0
+            """)
+            cur.execute("""
+                ALTER TABLE facts ADD COLUMN IF NOT EXISTS last_accessed 
+                TIMESTAMPTZ DEFAULT NULL
+            """)
+        print("✅ Migration complete (v1.6: importance scoring)", file=sys.stderr)
 
     def close(self):
         if self.conn:
@@ -391,6 +409,52 @@ class CloudStore:
         self._add_facts_knowledge_relations(entity_id, user_id, name, facts, relations, knowledge)
         return entity_id
 
+    @staticmethod
+    def estimate_importance(fact: str) -> float:
+        """Estimate fact importance 0.0-1.0 based on content patterns."""
+        f = fact.lower().strip()
+
+        # Identity / role — highest
+        if any(p in f for p in [
+            'is a ', 'works as', 'works at', 'ceo of', 'founder of',
+            'created by', 'built by', 'lives in', 'born in', 'age ',
+            'studies at', 'graduated from', 'native language',
+            'citizenship', 'nationality'
+        ]):
+            return 0.9
+
+        # Skills / tech stack — high
+        if any(p in f for p in [
+            'uses ', 'primary language', 'tech stack', 'proficient in',
+            'expert in', 'main database', 'built with', 'powered by',
+            'written in', 'developed in', 'architecture'
+        ]):
+            return 0.8
+
+        # Long-term preferences — medium-high
+        if any(p in f for p in [
+            'prefers ', 'always ', 'never ', 'favorite', 'hates',
+            'allergic', 'dietary', 'philosophy'
+        ]):
+            return 0.7
+
+        # Goals / plans — medium
+        if any(p in f for p in [
+            'wants to', 'plans to', 'goal', 'learning', 'interested in',
+            'considering', 'thinking about', 'exploring'
+        ]):
+            return 0.6
+
+        # Current state — medium-low
+        if any(p in f for p in [
+            'currently', 'right now', 'working on', 'building',
+            'deployed', 'version', 'released'
+        ]):
+            return 0.5
+
+        # Default
+        return 0.5
+
     def _add_facts_knowledge_relations(self, entity_id: str, user_id: str, name: str,
                                         facts: list[str] = None,
                                         relations: list[dict] = None,
@@ -398,11 +462,12 @@ class CloudStore:
         """Add facts, knowledge, and relations to an entity."""
         with self.conn.cursor() as cur:
             for fact in (facts or []):
+                importance = self.estimate_importance(fact)
                 cur.execute(
-                    """INSERT INTO facts (entity_id, content)
-                       VALUES (%s, %s)
+                    """INSERT INTO facts (entity_id, content, importance)
+                       VALUES (%s, %s, %s)
                        ON CONFLICT (entity_id, content) DO NOTHING""",
-                    (entity_id, fact)
+                    (entity_id, fact, importance)
                 )
             for k in (knowledge or []):
                 cur.execute(
@@ -614,7 +679,6 @@ class CloudStore:
         4. Graph expansion: follow relations to find connected entities
         5. Recency boost + dedup + limit
         """
-        import datetime
         embedding_str = f"[{','.join(str(x) for x in embedding)}]"
 
         with self.conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
@@ -778,15 +842,54 @@ class CloudStore:
                     "knowledge": [],
                 }
 
-            # Batch facts (exclude archived)
+            # Batch facts (exclude archived) — sorted by importance
             cur.execute(
-                "SELECT entity_id, content FROM facts WHERE entity_id = ANY(%s::uuid[]) AND archived = FALSE",
+                """SELECT id, entity_id, content, importance, access_count, last_accessed
+                   FROM facts WHERE entity_id = ANY(%s::uuid[]) AND archived = FALSE
+                   ORDER BY importance DESC""",
                 (entity_ids,)
             )
+            fact_ids_accessed = []
             for row in cur.fetchall():
                 eid = str(row["entity_id"])
                 if eid in entity_map:
-                    entity_map[eid]["facts"].append(row["content"])
+                    # Apply Ebbinghaus decay: importance * e^(-0.03 * days_since_access)
+                    base_imp = float(row["importance"] or 0.5)
+                    if row["last_accessed"]:
+                        try:
+                            days_since = (now - row["last_accessed"].replace(
+                                tzinfo=datetime.timezone.utc)).days
+                            decay = math.exp(-0.03 * days_since)
+                        except Exception:
+                            decay = 1.0
+                    else:
+                        decay = 0.8  # never accessed = slight penalty
+                    # Access frequency boost: log(1 + access_count) * 0.05
+                    access_boost = math.log1p(row["access_count"] or 0) * 0.05
+                    effective_imp = min(base_imp * decay + access_boost, 1.0)
+
+                    entity_map[eid]["facts"].append({
+                        "content": row["content"],
+                        "importance": round(effective_imp, 3)
+                    })
+                    fact_ids_accessed.append(str(row["id"]))
+
+            # Sort facts by effective importance, return as strings
+            for eid in entity_map:
+                sorted_facts = sorted(
+                    entity_map[eid]["facts"],
+                    key=lambda f: f["importance"], reverse=True
+                )
+                entity_map[eid]["facts"] = [f["content"] for f in sorted_facts]
+
+            # Track fact access — update access_count and last_accessed
+            if fact_ids_accessed:
+                cur.execute(
+                    """UPDATE facts 
+                       SET access_count = access_count + 1, last_accessed = NOW()
+                       WHERE id = ANY(%s::uuid[])""",
+                    (fact_ids_accessed,)
+                )
 
             # Batch relations
             cur.execute(
@@ -1081,6 +1184,7 @@ No markdown, no explanation."""
         with self.conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
             cur.execute(
                 """SELECT f.id, f.content, f.created_at, f.archived,
+                          f.importance, f.access_count,
                           e.name as entity_name, e.type as entity_type
                    FROM facts f
                    JOIN entities e ON e.id = f.entity_id
@@ -1096,6 +1200,8 @@ No markdown, no explanation."""
                     "fact": row["content"],
                     "entity": row["entity_name"],
                     "entity_type": row["entity_type"],
+                    "importance": round(float(row["importance"] or 0.5), 2),
+                    "access_count": row["access_count"] or 0,
                     "created_at": row["created_at"].isoformat() if row["created_at"] else None,
                 })
             return {"feed": items, "total": len(items)}

@@ -67,7 +67,7 @@ def create_cloud_api() -> FastAPI:
     app = FastAPI(
         title="Mengram Cloud API",
         description="Memory layer for AI apps — hosted",
-        version="1.0.0",
+        version="1.6.0",
     )
 
     app.add_middleware(
@@ -487,7 +487,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
     @app.get("/v1/health")
     async def health():
-        return {"status": "ok", "version": "1.0.0"}
+        return {"status": "ok", "version": "1.6.0"}
 
     # ---- Protected endpoints ----
 

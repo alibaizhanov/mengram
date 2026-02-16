@@ -335,9 +335,13 @@ async function loadFeed() {
             if(dt!==last) { h+=`<div class="feed-date">${dt}</div>`; last=dt; }
             const bc = 'b-'+(it.entity_type||'concept');
             const tm = it.created_at ? new Date(it.created_at).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}) : '';
+            const imp = it.importance || 0.5;
+            const impColor = imp >= 0.8 ? '#a855f7' : imp >= 0.6 ? '#6366f1' : imp >= 0.4 ? '#64748b' : '#334155';
+            const impLabel = imp >= 0.8 ? '●●●' : imp >= 0.6 ? '●●○' : imp >= 0.4 ? '●○○' : '○○○';
+            const accInfo = it.access_count > 0 ? ` · recalled ${it.access_count}×` : '';
             h+=`<div class="feed-item">
                 <span class="feed-badge ${bc}">${esc(it.entity)}</span>
-                <div class="feed-content"><div class="feed-fact">${esc(it.fact)}</div><div class="feed-meta">${tm}</div></div>
+                <div class="feed-content"><div class="feed-fact">${esc(it.fact)}</div><div class="feed-meta">${tm}<span style="color:${impColor};margin-left:8px" title="Importance: ${imp}">${impLabel}</span>${accInfo}</div></div>
                 <button class="feed-del" onclick="archFact('${escA(it.id)}','${escA(it.entity)}','${escA(it.fact)}',this)" title="Delete">✕</button>
             </div>`;
         }
