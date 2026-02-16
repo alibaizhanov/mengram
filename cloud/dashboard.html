@@ -328,6 +328,25 @@
                 </div>
             </div>
             <div class="set-section">
+                <h3>🤝 Teams — Shared Memory</h3>
+                <p>Share memories with your team. Everyone's AI sees the shared context.</p>
+                <div id="teams-list" style="margin:12px 0;"></div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;">
+                    <div style="flex:1;min-width:150px;">
+                        <label style="font-size:11px;color:var(--text-2);display:block;margin-bottom:4px;">Create new team</label>
+                        <input id="team-name" placeholder="Team name" style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text-1);font-size:13px;">
+                    </div>
+                    <button onclick="createTeam()" style="padding:8px 16px;background:var(--green);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;">+ Create</button>
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-top:10px;">
+                    <div style="flex:1;min-width:150px;">
+                        <label style="font-size:11px;color:var(--text-2);display:block;margin-bottom:4px;">Join existing team</label>
+                        <input id="invite-code" placeholder="Paste invite code" style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text-1);font-size:13px;">
+                    </div>
+                    <button onclick="joinTeam()" style="padding:8px 16px;background:var(--blue);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;">Join</button>
+                </div>
+            </div>
+            <div class="set-section">
                 <h3>API Key</h3>
                 <div class="set-row"><label>Current key</label><span class="val" id="key-display">om-****</span></div>
                 <div class="set-row"><label>Reset key</label><button class="btn-s btn-d" onclick="resetKey()">Reset Key</button></div>
@@ -389,7 +408,7 @@ function switchTab(t) {
     if(t==='entities') loadEntities();
     if(t==='insights') loadInsights();
     if(t==='agents') loadAgentHistory();
-    if(t==='settings') loadWebhooks();
+    if(t==='settings') { loadWebhooks(); loadTeams(); }
 }
 
 async function loadAll() { loadStats(); loadFeed(); }
@@ -862,6 +881,82 @@ async function deleteWebhook(id) {
         await fetch(`${API}/v1/webhooks/${id}`, {method:'DELETE', headers:H()});
         loadWebhooks();
     } catch(e) { alert('Failed'); }
+}
+
+// ---- Teams ----
+async function loadTeams() {
+    const box = document.getElementById('teams-list');
+    try {
+        const d = await (await fetch(`${API}/v1/teams`, {headers:H()})).json();
+        if (!d.teams?.length) {
+            box.innerHTML = '<p style="color:var(--text-2);font-size:13px;">No teams yet. Create one or join with an invite code.</p>';
+            return;
+        }
+        let html = '';
+        d.teams.forEach(t => {
+            const isOwner = t.role === 'owner';
+            html += `<div style="background:var(--card);border-radius:10px;padding:12px;margin-bottom:8px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <div>
+                        <strong style="font-size:14px;">${esc(t.name)}</strong>
+                        <span style="font-size:11px;padding:2px 6px;border-radius:4px;margin-left:6px;background:${isOwner?'var(--accent-dim)':'rgba(100,200,100,0.15)'};color:${isOwner?'var(--accent)':'var(--green)'};">${t.role}</span>
+                    </div>
+                    <div style="display:flex;gap:6px;">
+                        ${isOwner ? `<button onclick="if(confirm('Delete team?'))deleteTeam(${t.id})" style="padding:4px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--red);cursor:pointer;font-size:11px;">Delete</button>` : 
+                        `<button onclick="if(confirm('Leave team?'))leaveTeam(${t.id})" style="padding:4px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text-2);cursor:pointer;font-size:11px;">Leave</button>`}
+                    </div>
+                </div>
+                <div style="font-size:12px;color:var(--text-2);margin-top:6px;">
+                    👥 ${t.member_count} members · 📦 ${t.shared_memories} shared memories
+                    ${t.invite_code ? ` · <span style="cursor:pointer;color:var(--accent);" onclick="copyInvite('${t.invite_code}')" title="Click to copy">🔗 ${t.invite_code}</span>` : ''}
+                </div>
+            </div>`;
+        });
+        box.innerHTML = html;
+    } catch(e) {
+        box.innerHTML = '<p style="color:var(--red);font-size:13px;">Failed to load teams.</p>';
+    }
+}
+
+function copyInvite(code) {
+    navigator.clipboard.writeText(code);
+    alert('Invite code copied: ' + code + '\nShare it with your team!');
+}
+
+async function createTeam() {
+    const name = document.getElementById('team-name').value.trim();
+    if (!name) { alert('Team name is required'); return; }
+    try {
+        const r = await fetch(`${API}/v1/teams`, {method:'POST', headers:H(), body: JSON.stringify({name})});
+        const d = await r.json();
+        if (r.ok) {
+            document.getElementById('team-name').value = '';
+            loadTeams();
+            alert(`Team created! Invite code: ${d.team?.invite_code}\nShare it with your team.`);
+        } else { alert(d.detail || 'Failed'); }
+    } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function joinTeam() {
+    const code = document.getElementById('invite-code').value.trim();
+    if (!code) { alert('Invite code is required'); return; }
+    try {
+        const r = await fetch(`${API}/v1/teams/join`, {method:'POST', headers:H(), body: JSON.stringify({invite_code: code})});
+        const d = await r.json();
+        if (r.ok) {
+            document.getElementById('invite-code').value = '';
+            loadTeams();
+            alert(`Joined team: ${d.team_name}!`);
+        } else { alert(d.detail || 'Failed'); }
+    } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function deleteTeam(id) {
+    try { await fetch(`${API}/v1/teams/${id}`, {method:'DELETE', headers:H()}); loadTeams(); } catch(e) { alert('Failed'); }
+}
+
+async function leaveTeam(id) {
+    try { await fetch(`${API}/v1/teams/${id}/leave`, {method:'POST', headers:H()}); loadTeams(); } catch(e) { alert('Failed'); }
 }
 
 async function resetKey() {

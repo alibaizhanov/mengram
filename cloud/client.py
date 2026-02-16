@@ -255,3 +255,30 @@ class CloudMemory:
             return True
         except Exception:
             return False
+
+    # ---- Teams ----
+
+    def create_team(self, name: str, description: str = "",
+                    user_id: str = "default") -> dict:
+        """Create a team. Returns team info with invite_code."""
+        result = self._request("POST", "/v1/teams", {"name": name, "description": description})
+        return result.get("team", result)
+
+    def join_team(self, invite_code: str, user_id: str = "default") -> dict:
+        """Join a team via invite code."""
+        return self._request("POST", "/v1/teams/join", {"invite_code": invite_code})
+
+    def get_teams(self, user_id: str = "default") -> list:
+        """List user's teams."""
+        result = self._request("GET", "/v1/teams")
+        return result.get("teams", [])
+
+    def share_memory(self, entity_name: str, team_id: int,
+                     user_id: str = "default") -> dict:
+        """Share a memory entity with a team."""
+        return self._request("POST", f"/v1/teams/{team_id}/share", {"entity": entity_name})
+
+    def unshare_memory(self, entity_name: str, team_id: int,
+                       user_id: str = "default") -> dict:
+        """Make a shared memory personal again."""
+        return self._request("POST", f"/v1/teams/{team_id}/unshare", {"entity": entity_name})

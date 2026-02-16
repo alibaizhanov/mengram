@@ -2306,3 +2306,329 @@ Be specific and personal, not generic. No markdown, just JSON."""
             t.start()
 
         print(f"🔔 Fired {len(hooks)} webhooks for {event_type} ({user_id})", file=sys.stderr)
+
+    # =====================================================
+    # SHARED MEMORY — TEAMS
+    # =====================================================
+
+    def ensure_teams_table(self):
+        """Create teams infrastructure."""
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS teams (
+                    id SERIAL PRIMARY KEY,
+                    name VARCHAR(255) NOT NULL,
+                    description TEXT DEFAULT '',
+                    invite_code VARCHAR(20) UNIQUE NOT NULL,
+                    created_by VARCHAR(255) NOT NULL,
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS team_members (
+                    id SERIAL PRIMARY KEY,
+                    team_id INTEGER REFERENCES teams(id) ON DELETE CASCADE,
+                    user_id VARCHAR(255) NOT NULL,
+                    role VARCHAR(20) DEFAULT 'member',
+                    joined_at TIMESTAMPTZ DEFAULT NOW(),
+                    UNIQUE(team_id, user_id)
+                )
+            """)
+            # Add team_id column to entities if not exists
+            cur.execute("""
+                DO $$ BEGIN
+                    ALTER TABLE entities ADD COLUMN team_id INTEGER REFERENCES teams(id);
+                EXCEPTION WHEN duplicate_column THEN NULL;
+                END $$
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_entities_team
+                ON entities(team_id) WHERE team_id IS NOT NULL
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_team_members_user
+                ON team_members(user_id)
+            """)
+            self.conn.commit()
+
+    def create_team(self, user_id: str, name: str, description: str = "") -> dict:
+        """Create a new team. Creator becomes owner."""
+        self.ensure_teams_table()
+        invite_code = secrets.token_urlsafe(8)[:10]
+
+        with self.conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            cur.execute("""
+                INSERT INTO teams (name, description, invite_code, created_by)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id, name, description, invite_code, created_at
+            """, (name, description, invite_code, user_id))
+            team = cur.fetchone()
+            team_id = team["id"]
+
+            # Creator is owner
+            cur.execute("""
+                INSERT INTO team_members (team_id, user_id, role)
+                VALUES (%s, %s, 'owner')
+            """, (team_id, user_id))
+            self.conn.commit()
+
+            return {
+                "id": team_id,
+                "name": team["name"],
+                "description": team["description"],
+                "invite_code": team["invite_code"],
+                "role": "owner",
+                "created_at": team["created_at"].isoformat() if team["created_at"] else None
+            }
+
+    def join_team(self, user_id: str, invite_code: str) -> dict:
+        """Join a team via invite code."""
+        self.ensure_teams_table()
+        with self.conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            cur.execute("SELECT id, name FROM teams WHERE invite_code = %s", (invite_code,))
+            team = cur.fetchone()
+            if not team:
+                raise ValueError("Invalid invite code")
+
+            try:
+                cur.execute("""
+                    INSERT INTO team_members (team_id, user_id, role)
+                    VALUES (%s, %s, 'member')
+                """, (team["id"], user_id))
+                self.conn.commit()
+            except Exception:
+                self.conn.rollback()
+                raise ValueError("Already a member of this team")
+
+            return {"team_id": team["id"], "team_name": team["name"], "role": "member"}
+
+    def get_user_teams(self, user_id: str) -> list:
+        """Get all teams user belongs to."""
+        self.ensure_teams_table()
+        with self.conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            cur.execute("""
+                SELECT t.id, t.name, t.description, t.invite_code,
+                       tm.role, t.created_by, t.created_at,
+                       (SELECT COUNT(*) FROM team_members WHERE team_id = t.id) as member_count,
+                       (SELECT COUNT(*) FROM entities WHERE team_id = t.id) as shared_memories
+                FROM teams t
+                JOIN team_members tm ON tm.team_id = t.id
+                WHERE tm.user_id = %s
+                ORDER BY t.created_at DESC
+            """, (user_id,))
+            return [{
+                "id": r["id"],
+                "name": r["name"],
+                "description": r["description"],
+                "invite_code": r["invite_code"] if r["role"] == "owner" else None,
+                "role": r["role"],
+                "member_count": r["member_count"],
+                "shared_memories": r["shared_memories"],
+                "created_at": r["created_at"].isoformat() if r["created_at"] else None
+            } for r in cur.fetchall()]
+
+    def get_team_members(self, user_id: str, team_id: int) -> list:
+        """Get members of a team (must be a member)."""
+        self.ensure_teams_table()
+        with self.conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            # Check membership
+            cur.execute(
+                "SELECT role FROM team_members WHERE team_id = %s AND user_id = %s",
+                (team_id, user_id)
+            )
+            if not cur.fetchone():
+                raise ValueError("Not a member of this team")
+
+            cur.execute("""
+                SELECT user_id, role, joined_at
+                FROM team_members WHERE team_id = %s
+                ORDER BY joined_at
+            """, (team_id,))
+            return [{
+                "user_id": r["user_id"],
+                "role": r["role"],
+                "joined_at": r["joined_at"].isoformat() if r["joined_at"] else None
+            } for r in cur.fetchall()]
+
+    def leave_team(self, user_id: str, team_id: int) -> bool:
+        """Leave a team."""
+        self.ensure_teams_table()
+        with self.conn.cursor() as cur:
+            cur.execute(
+                "DELETE FROM team_members WHERE team_id = %s AND user_id = %s AND role != 'owner'",
+                (team_id, user_id)
+            )
+            self.conn.commit()
+            return cur.rowcount > 0
+
+    def delete_team(self, user_id: str, team_id: int) -> bool:
+        """Delete a team (owner only). Shared entities become personal to their creators."""
+        self.ensure_teams_table()
+        with self.conn.cursor() as cur:
+            cur.execute(
+                "SELECT role FROM team_members WHERE team_id = %s AND user_id = %s",
+                (team_id, user_id)
+            )
+            row = cur.fetchone()
+            if not row or row[0] != "owner":
+                raise ValueError("Only the owner can delete a team")
+
+            # Unshare all entities (they become personal again)
+            cur.execute("UPDATE entities SET team_id = NULL WHERE team_id = %s", (team_id,))
+            cur.execute("DELETE FROM teams WHERE id = %s", (team_id,))
+            self.conn.commit()
+            return True
+
+    def share_entity(self, user_id: str, entity_name: str, team_id: int) -> dict:
+        """Share a personal entity with a team."""
+        self.ensure_teams_table()
+        # Verify membership
+        with self.conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            cur.execute(
+                "SELECT 1 FROM team_members WHERE team_id = %s AND user_id = %s",
+                (team_id, user_id)
+            )
+            if not cur.fetchone():
+                raise ValueError("Not a member of this team")
+
+            cur.execute(
+                "UPDATE entities SET team_id = %s WHERE user_id = %s AND LOWER(name) = LOWER(%s)",
+                (team_id, user_id, entity_name)
+            )
+            if cur.rowcount == 0:
+                raise ValueError(f"Entity '{entity_name}' not found")
+            self.conn.commit()
+            return {"entity": entity_name, "team_id": team_id, "status": "shared"}
+
+    def unshare_entity(self, user_id: str, entity_name: str) -> dict:
+        """Make a shared entity personal again."""
+        with self.conn.cursor() as cur:
+            cur.execute(
+                "UPDATE entities SET team_id = NULL WHERE user_id = %s AND LOWER(name) = LOWER(%s)",
+                (user_id, entity_name)
+            )
+            self.conn.commit()
+            return {"entity": entity_name, "status": "personal"}
+
+    def get_user_team_ids(self, user_id: str) -> list:
+        """Get list of team IDs user belongs to. Cached-friendly."""
+        self.ensure_teams_table()
+        with self.conn.cursor() as cur:
+            cur.execute(
+                "SELECT team_id FROM team_members WHERE user_id = %s", (user_id,)
+            )
+            return [r[0] for r in cur.fetchall()]
+
+    def search_vector_with_teams(self, user_id: str, embedding: list[float],
+                                  top_k: int = 5, min_score: float = 0.3,
+                                  query_text: str = "") -> list[dict]:
+        """
+        Same as search_vector but includes shared team memories.
+        Results from team entities are marked with team_shared=True.
+        """
+        team_ids = self.get_user_team_ids(user_id)
+
+        if not team_ids:
+            # No teams — use normal search
+            return self.search_vector(user_id, embedding, top_k, min_score, query_text)
+
+        embedding_str = f"[{','.join(str(x) for x in embedding)}]"
+
+        with self.conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            # Vector search: personal + team entities
+            cur.execute(
+                """SELECT DISTINCT ON (e.id)
+                       e.id, e.name, e.type, e.user_id, e.team_id,
+                       1 - (emb.embedding <=> %s::vector) AS score,
+                       e.updated_at
+                   FROM embeddings emb
+                   JOIN entities e ON e.id = emb.entity_id
+                   WHERE (e.user_id = %s OR e.team_id = ANY(%s))
+                     AND 1 - (emb.embedding <=> %s::vector) > %s
+                   ORDER BY e.id, score DESC""",
+                (embedding_str, user_id, team_ids, embedding_str, min_score)
+            )
+            vector_rows = cur.fetchall()
+            vector_rows.sort(key=lambda r: float(r["score"]), reverse=True)
+            vector_ranked = {str(r["id"]): (i + 1, r) for i, r in enumerate(vector_rows[:20])}
+
+            # BM25 text search
+            bm25_ranked = {}
+            if query_text:
+                words = [w.strip() for w in query_text.split() if len(w.strip()) >= 2]
+                if words:
+                    cur.execute(
+                        """SELECT DISTINCT ON (e.id)
+                               e.id, e.name, e.type, e.user_id, e.team_id,
+                               ts_rank(emb.tsv, plainto_tsquery('english', %s)) AS rank,
+                               e.updated_at
+                           FROM embeddings emb
+                           JOIN entities e ON e.id = emb.entity_id
+                           WHERE (e.user_id = %s OR e.team_id = ANY(%s))
+                             AND emb.tsv @@ plainto_tsquery('english', %s)
+                           ORDER BY e.id, rank DESC""",
+                        (query_text, user_id, team_ids, query_text)
+                    )
+                    bm25_rows = cur.fetchall()
+                    bm25_rows.sort(key=lambda r: float(r["rank"]), reverse=True)
+                    bm25_ranked = {str(r["id"]): (i + 1, r) for i, r in enumerate(bm25_rows[:20])}
+
+            # RRF merge
+            k = 60
+            all_entity_ids = set(vector_ranked.keys()) | set(bm25_ranked.keys())
+            rrf_scores = {}
+            entity_info = {}
+
+            for eid in all_entity_ids:
+                score = 0.0
+                if eid in vector_ranked:
+                    rank, row = vector_ranked[eid]
+                    score += 1.0 / (k + rank)
+                    entity_info[eid] = {
+                        "name": row["name"], "type": row["type"],
+                        "updated_at": row.get("updated_at"),
+                        "team_shared": row["team_id"] is not None and row["user_id"] != user_id
+                    }
+                if eid in bm25_ranked:
+                    rank, row = bm25_ranked[eid]
+                    score += 1.0 / (k + rank)
+                    if eid not in entity_info:
+                        entity_info[eid] = {
+                            "name": row["name"], "type": row["type"],
+                            "updated_at": row.get("updated_at"),
+                            "team_shared": row["team_id"] is not None and row["user_id"] != user_id
+                        }
+                rrf_scores[eid] = score
+
+            # Sort and build results
+            sorted_results = sorted(rrf_scores.items(), key=lambda x: x[1], reverse=True)[:top_k]
+
+            results = []
+            for eid, score in sorted_results:
+                info = entity_info[eid]
+                # Fetch facts
+                cur.execute(
+                    """SELECT content, importance FROM facts
+                       WHERE entity_id = %s AND archived = FALSE
+                       ORDER BY importance DESC, created_at DESC LIMIT 15""",
+                    (eid,)
+                )
+                facts = [r["content"] for r in cur.fetchall()]
+
+                # Fetch knowledge
+                cur.execute(
+                    "SELECT type, title, content, artifact FROM knowledge WHERE entity_id = %s LIMIT 5",
+                    (eid,)
+                )
+                knowledge = [dict(r) for r in cur.fetchall()]
+
+                results.append({
+                    "entity": info["name"],
+                    "type": info["type"],
+                    "score": round(score, 4),
+                    "facts": facts,
+                    "knowledge": knowledge,
+                    "team_shared": info.get("team_shared", False),
+                })
+
+            return results

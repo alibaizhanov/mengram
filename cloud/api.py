@@ -67,7 +67,7 @@ def create_cloud_api() -> FastAPI:
     app = FastAPI(
         title="Mengram Cloud API",
         description="Memory layer for AI apps — hosted",
-        version="2.1.0",
+        version="2.2.0",
     )
 
     app.add_middleware(
@@ -487,7 +487,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
     @app.get("/v1/health")
     async def health():
-        return {"status": "ok", "version": "2.1.0"}
+        return {"status": "ok", "version": "2.2.0"}
 
     # ---- Protected endpoints ----
 
@@ -620,11 +620,11 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
         if embedder:
             emb = embedder.embed(req.query)
-            results = store.search_vector(user_id, emb, top_k=search_limit,
+            results = store.search_vector_with_teams(user_id, emb, top_k=search_limit,
                                           query_text=req.query)
             # Fallback: if nothing found, retry with lower threshold
             if not results:
-                results = store.search_vector(user_id, emb, top_k=search_limit,
+                results = store.search_vector_with_teams(user_id, emb, top_k=search_limit,
                                               min_score=0.15, query_text=req.query)
         else:
             results = store.search_text(user_id, req.query, top_k=search_limit)
@@ -959,7 +959,80 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             raise HTTPException(status_code=404, detail="Webhook not found")
         return {"status": "deleted", "id": webhook_id}
 
-    @app.post("/v1/archive_fact")
+    # =====================================================
+    # TEAMS — SHARED MEMORY
+    # =====================================================
+
+    @app.post("/v1/teams")
+    async def create_team(req: dict, user_id: str = Depends(auth)):
+        """Create a team. Body: {"name": "My Team", "description": "optional"}"""
+        name = req.get("name")
+        if not name:
+            raise HTTPException(status_code=400, detail="name is required")
+        team = store.create_team(user_id, name, req.get("description", ""))
+        return {"status": "created", "team": team}
+
+    @app.get("/v1/teams")
+    async def list_teams(user_id: str = Depends(auth)):
+        """List user's teams."""
+        teams = store.get_user_teams(user_id)
+        return {"teams": teams, "total": len(teams)}
+
+    @app.post("/v1/teams/join")
+    async def join_team(req: dict, user_id: str = Depends(auth)):
+        """Join a team. Body: {"invite_code": "abc123"}"""
+        code = req.get("invite_code")
+        if not code:
+            raise HTTPException(status_code=400, detail="invite_code is required")
+        try:
+            result = store.join_team(user_id, code)
+            return {"status": "joined", **result}
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    @app.get("/v1/teams/{team_id}/members")
+    async def team_members(team_id: int, user_id: str = Depends(auth)):
+        """Get team members."""
+        try:
+            members = store.get_team_members(user_id, team_id)
+            return {"members": members, "total": len(members)}
+        except ValueError as e:
+            raise HTTPException(status_code=403, detail=str(e))
+
+    @app.post("/v1/teams/{team_id}/share")
+    async def share_entity(team_id: int, req: dict, user_id: str = Depends(auth)):
+        """Share a memory with team. Body: {"entity": "Redis"}"""
+        entity_name = req.get("entity")
+        if not entity_name:
+            raise HTTPException(status_code=400, detail="entity name is required")
+        try:
+            return store.share_entity(user_id, entity_name, team_id)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    @app.post("/v1/teams/{team_id}/unshare")
+    async def unshare_entity(team_id: int, req: dict, user_id: str = Depends(auth)):
+        """Make a shared memory personal again. Body: {"entity": "Redis"}"""
+        entity_name = req.get("entity")
+        if not entity_name:
+            raise HTTPException(status_code=400, detail="entity name is required")
+        return store.unshare_entity(user_id, entity_name)
+
+    @app.post("/v1/teams/{team_id}/leave")
+    async def leave_team(team_id: int, user_id: str = Depends(auth)):
+        """Leave a team."""
+        if store.leave_team(user_id, team_id):
+            return {"status": "left"}
+        raise HTTPException(status_code=400, detail="Cannot leave (owner or not a member)")
+
+    @app.delete("/v1/teams/{team_id}")
+    async def delete_team(team_id: int, user_id: str = Depends(auth)):
+        """Delete a team (owner only)."""
+        try:
+            store.delete_team(user_id, team_id)
+            return {"status": "deleted"}
+        except ValueError as e:
+            raise HTTPException(status_code=403, detail=str(e))
     async def archive_fact(
         entity_name: str,
         fact: str,
