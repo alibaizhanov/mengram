@@ -282,3 +282,17 @@ class CloudMemory:
                        user_id: str = "default") -> dict:
         """Make a shared memory personal again."""
         return self._request("POST", f"/v1/teams/{team_id}/unshare", {"entity": entity_name})
+
+    # ---- API Key Management ----
+
+    def list_keys(self) -> list:
+        """List all API keys for your account."""
+        return self._request("GET", "/v1/keys")["keys"]
+
+    def create_key(self, name: str = "default") -> dict:
+        """Create a new API key. Returns raw key (save it!)."""
+        return self._request("POST", "/v1/keys", {"name": name})
+
+    def revoke_key(self, key_id: int) -> dict:
+        """Revoke a specific API key by ID."""
+        return self._request("DELETE", f"/v1/keys/{key_id}")

@@ -359,6 +359,52 @@ Be strict — only include entities that directly answer or relate to the query.
 
         return {"message": "If this email is registered, a new API key has been sent."}
 
+    # ---- API Key Management ----
+
+    @app.get("/v1/keys", tags=["System"])
+    async def list_keys(user_id: str = Depends(auth)):
+        """List all API keys for your account."""
+        keys = store.list_api_keys(user_id)
+        return {"keys": keys, "total": len(keys)}
+
+    @app.post("/v1/keys", tags=["System"])
+    async def create_key(req: dict, user_id: str = Depends(auth)):
+        """Create a new API key with a name."""
+        name = req.get("name", "default")
+        if len(name) > 50:
+            raise HTTPException(status_code=400, detail="Name too long (max 50 chars)")
+        raw_key = store.create_api_key(user_id, name=name)
+        return {
+            "key": raw_key,
+            "name": name,
+            "message": "Save this key — it won't be shown again."
+        }
+
+    @app.delete("/v1/keys/{key_id}", tags=["System"])
+    async def revoke_key(key_id: int, user_id: str = Depends(auth)):
+        """Revoke a specific API key."""
+        # Don't allow revoking the key being used for this request
+        keys = store.list_api_keys(user_id)
+        active_count = sum(1 for k in keys if k["active"])
+        if active_count <= 1:
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot revoke your last active key. Create a new one first."
+            )
+        if store.revoke_api_key(user_id, key_id):
+            return {"status": "revoked", "key_id": key_id}
+        raise HTTPException(status_code=404, detail="Key not found or already revoked")
+
+    @app.patch("/v1/keys/{key_id}", tags=["System"])
+    async def rename_key(key_id: int, req: dict, user_id: str = Depends(auth)):
+        """Rename an API key."""
+        name = req.get("name", "")
+        if not name or len(name) > 50:
+            raise HTTPException(status_code=400, detail="Name required (max 50 chars)")
+        if store.rename_api_key(user_id, key_id, name):
+            return {"status": "renamed", "key_id": key_id, "name": name}
+        raise HTTPException(status_code=404, detail="Key not found")
+
     # ---- OAuth (for ChatGPT Custom GPTs) ----
 
     @app.get("/oauth/authorize")

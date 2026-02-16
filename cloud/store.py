@@ -310,8 +310,15 @@ class CloudStore:
         return raw_key
 
     def verify_api_key(self, raw_key: str) -> Optional[str]:
-        """Verify API key, return user_id or None."""
+        """Verify API key, return user_id or None. Cached 60s."""
         key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+
+        # Check cache first
+        cache_key = f"auth:{key_hash[:16]}"
+        cached = self.cache.get(cache_key)
+        if cached is not None:
+            return cached
+
         with self._cursor() as cur:
             cur.execute(
                 """SELECT user_id FROM api_keys 
@@ -320,12 +327,64 @@ class CloudStore:
             )
             row = cur.fetchone()
             if row:
-                cur.execute(
-                    "UPDATE api_keys SET last_used_at = NOW() WHERE key_hash = %s",
-                    (key_hash,)
-                )
-                return str(row[0])
+                user_id = str(row[0])
+                # Cache the result for 60s
+                self.cache.set(cache_key, user_id, ttl=60)
+                # Update last_used (non-blocking, skip if fails)
+                try:
+                    cur.execute(
+                        "UPDATE api_keys SET last_used_at = NOW() WHERE key_hash = %s",
+                        (key_hash,)
+                    )
+                except Exception:
+                    pass
+                return user_id
+            # Cache negative result too (prevents brute force DB hits)
+            self.cache.set(cache_key, False, ttl=30)
             return None
+
+    def list_api_keys(self, user_id: str) -> list:
+        """List all API keys for a user (without hashes)."""
+        with self._cursor(dict_cursor=True) as cur:
+            cur.execute(
+                """SELECT id, name, key_prefix, is_active, created_at, last_used_at
+                   FROM api_keys WHERE user_id = %s
+                   ORDER BY created_at DESC""",
+                (user_id,)
+            )
+            return [{
+                "id": r["id"],
+                "name": r["name"],
+                "prefix": r["key_prefix"],
+                "active": r["is_active"],
+                "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+                "last_used": r["last_used_at"].isoformat() if r["last_used_at"] else None,
+            } for r in cur.fetchall()]
+
+    def revoke_api_key(self, user_id: str, key_id: int) -> bool:
+        """Revoke a specific API key by ID."""
+        with self._cursor() as cur:
+            cur.execute(
+                """UPDATE api_keys SET is_active = FALSE
+                   WHERE id = %s AND user_id = %s AND is_active = TRUE
+                   RETURNING key_hash""",
+                (key_id, user_id)
+            )
+            row = cur.fetchone()
+            if row:
+                # Invalidate cache for this key
+                self.cache.invalidate(f"auth:{row[0][:16]}")
+                return True
+            return False
+
+    def rename_api_key(self, user_id: str, key_id: int, new_name: str) -> bool:
+        """Rename an API key."""
+        with self._cursor() as cur:
+            cur.execute(
+                "UPDATE api_keys SET name = %s WHERE id = %s AND user_id = %s",
+                (new_name, key_id, user_id)
+            )
+            return cur.rowcount > 0
 
     def reset_api_key(self, user_id: str) -> str:
         """Deactivate all old keys and create a new one."""
@@ -334,6 +393,8 @@ class CloudStore:
                 "UPDATE api_keys SET is_active = FALSE WHERE user_id = %s",
                 (user_id,)
             )
+        # Invalidate all auth cache
+        self.cache.invalidate("auth:")
         return self.create_api_key(user_id)
 
     # ---- OAuth ----

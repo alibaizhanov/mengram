@@ -347,9 +347,13 @@
                 </div>
             </div>
             <div class="set-section">
-                <h3>API Key</h3>
-                <div class="set-row"><label>Current key</label><span class="val" id="key-display">om-****</span></div>
-                <div class="set-row"><label>Reset key</label><button class="btn-s btn-d" onclick="resetKey()">Reset Key</button></div>
+                <h3>🔑 API Keys</h3>
+                <p style="color:var(--text-2);font-size:13px;margin-bottom:12px;">Create multiple keys for different apps. Revoke any key without affecting others.</p>
+                <div style="display:flex;gap:8px;margin-bottom:12px;">
+                    <input id="new-key-name" placeholder="Key name (e.g. Claude Desktop)" style="flex:1;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;">
+                    <button onclick="createNewKey()" style="padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;white-space:nowrap;">+ New Key</button>
+                </div>
+                <div id="keys-list" style="margin-top:8px;"></div>
             </div>
             <div class="set-section">
                 <h3>Data</h3>
@@ -408,7 +412,7 @@ function switchTab(t) {
     if(t==='entities') loadEntities();
     if(t==='insights') loadInsights();
     if(t==='agents') loadAgentHistory();
-    if(t==='settings') { loadWebhooks(); loadTeams(); }
+    if(t==='settings') { loadWebhooks(); loadTeams(); loadKeys(); }
 }
 
 async function loadAll() { loadStats(); loadFeed(); }
@@ -980,10 +984,67 @@ async function leaveTeam(id) {
 }
 
 async function resetKey() {
-    if(!confirm('Reset API key? Current key stops working.')) return;
+    if(!confirm('Reset API key? All current keys stop working.')) return;
     try {
         const d = await (await fetch(`${API}/v1/reset-key`,{method:'POST',headers:H()})).json();
-        if(d.api_key) { KEY=d.api_key; localStorage.setItem('mengram_key',d.api_key); document.getElementById('key-display').textContent=d.api_key.substring(0,8)+'****'; alert('New key: '+d.api_key+'\n\nSave it!'); }
+        if(d.api_key) { KEY=d.api_key; localStorage.setItem('mengram_key',d.api_key); alert('New key: '+d.api_key+'\n\nSave it!'); }
+    } catch(e) { alert('Failed.'); }
+}
+
+async function loadKeys() {
+    const box = document.getElementById('keys-list');
+    try {
+        const d = await (await fetch(`${API}/v1/keys`, {headers:H()})).json();
+        if (!d.keys?.length) {
+            box.innerHTML = '<p style="color:var(--text-2);font-size:13px;">No API keys.</p>';
+            return;
+        }
+        box.innerHTML = d.keys.map(k => {
+            const status = k.active
+                ? '<span style="color:var(--green);">● active</span>'
+                : '<span style="color:var(--text-3);">○ revoked</span>';
+            const lastUsed = k.last_used ? 'Used ' + new Date(k.last_used).toLocaleDateString() : 'Never used';
+            const actions = k.active
+                ? `<button onclick="if(confirm('Revoke key ${esc(k.prefix)}...?'))revokeKey(${k.id})" style="padding:3px 10px;background:none;border:1px solid var(--border);border-radius:6px;color:var(--red);cursor:pointer;font-size:11px;">Revoke</button>`
+                : '';
+            return `<div style="background:var(--bg-card);border-radius:10px;padding:10px 14px;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;">
+                <div>
+                    <strong style="font-size:13px;">${esc(k.name)}</strong>
+                    <span style="font-size:12px;color:var(--text-3);margin-left:8px;">${esc(k.prefix)}...</span>
+                    <span style="font-size:11px;margin-left:8px;">${status}</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <span style="font-size:11px;color:var(--text-3);">${lastUsed}</span>
+                    ${actions}
+                </div>
+            </div>`;
+        }).join('');
+    } catch(e) { box.innerHTML = '<p style="color:var(--red);">Failed to load keys.</p>'; }
+}
+
+async function createNewKey() {
+    const name = document.getElementById('new-key-name').value.trim() || 'default';
+    try {
+        const d = await (await fetch(`${API}/v1/keys`, {
+            method: 'POST', headers: H(),
+            body: JSON.stringify({name})
+        })).json();
+        if (d.key) {
+            alert('New API key created!\\n\\n' + d.key + '\\n\\nSave this — it won\\'t be shown again.');
+            document.getElementById('new-key-name').value = '';
+            loadKeys();
+        } else {
+            alert(d.detail || 'Failed to create key');
+        }
+    } catch(e) { alert('Failed to create key.'); }
+}
+
+async function revokeKey(keyId) {
+    try {
+        const r = await fetch(`${API}/v1/keys/${keyId}`, {method:'DELETE', headers:H()});
+        const d = await r.json();
+        if (r.ok) { loadKeys(); }
+        else { alert(d.detail || 'Failed to revoke'); }
     } catch(e) { alert('Failed.'); }
 }
 async function exportData() {
