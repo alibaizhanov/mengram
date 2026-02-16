@@ -312,9 +312,20 @@
         <div class="tab-content" id="tab-settings">
             <div class="page-header"><h2>Settings</h2></div>
             <div class="set-section">
-                <h3>Chrome Extension</h3>
-                <p>Inject your memory into ChatGPT, Claude, and other AI chats automatically.</p>
-                <a href="/extension/download" class="btn-s">↓ Download Extension</a>
+                <h3>🔔 Webhooks</h3>
+                <p>Get notified when memories are added, updated, or deleted.</p>
+                <div id="webhooks-list" style="margin:12px 0;"></div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;">
+                    <div style="flex:1;min-width:200px;">
+                        <label style="font-size:11px;color:var(--text-2);display:block;margin-bottom:4px;">Webhook URL</label>
+                        <input id="wh-url" placeholder="https://webhook.site/..." style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text-1);font-size:13px;">
+                    </div>
+                    <div style="min-width:120px;">
+                        <label style="font-size:11px;color:var(--text-2);display:block;margin-bottom:4px;">Name (optional)</label>
+                        <input id="wh-name" placeholder="My Hook" style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text-1);font-size:13px;">
+                    </div>
+                    <button onclick="createWebhook()" style="padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;">+ Add</button>
+                </div>
             </div>
             <div class="set-section">
                 <h3>API Key</h3>
@@ -378,6 +389,7 @@ function switchTab(t) {
     if(t==='entities') loadEntities();
     if(t==='insights') loadInsights();
     if(t==='agents') loadAgentHistory();
+    if(t==='settings') loadWebhooks();
 }
 
 async function loadAll() { loadStats(); loadFeed(); }
@@ -614,7 +626,7 @@ async function loadFeed() {
     try {
         const d = await (await fetch(`${API}/v1/feed?limit=100`,{headers:H()})).json();
         if(!d.feed||!d.feed.length) {
-            box.innerHTML = `<div class="empty"><div class="eicon">🧠</div><h3>Your memory is empty</h3><p>Install the <a href="/extension/download">Chrome Extension</a> or use <a href="/">Claude Desktop MCP</a> to start building your AI memory.</p></div>`;
+            box.innerHTML = `<div class="empty"><div class="eicon">🧠</div><h3>Your memory is empty</h3><p>Use <a href="/">Claude Desktop MCP</a> or the <a href="https://pypi.org/project/mengram-ai/">Python API</a> to start building your AI memory.</p></div>`;
             return;
         }
         let h='<div class="feed-list">',last='';
@@ -782,6 +794,76 @@ async function doSearch(q) {
 document.addEventListener('click',e=>{if(!e.target.closest('.search-bar'))document.getElementById('search-dd')?.classList.remove('show');});
 
 // ---- Settings ----
+async function loadWebhooks() {
+    const box = document.getElementById('webhooks-list');
+    try {
+        const d = await (await fetch(`${API}/v1/webhooks`, {headers:H()})).json();
+        if (!d.webhooks?.length) {
+            box.innerHTML = '<p style="color:var(--text-2);font-size:13px;">No webhooks configured. Add one above.</p>';
+            return;
+        }
+        let html = '';
+        d.webhooks.forEach(w => {
+            const events = (w.event_types||[]).map(e => `<span style="background:var(--accent-dim);color:var(--accent);padding:2px 6px;border-radius:4px;font-size:11px;">${e}</span>`).join(' ');
+            const status = w.active ? '<span style="color:var(--green);">●</span>' : '<span style="color:var(--text-2);">○</span>';
+            const lastTriggered = w.last_triggered ? new Date(w.last_triggered).toLocaleString() : 'never';
+            const error = w.last_error ? `<div style="color:var(--red);font-size:11px;margin-top:4px;">Last error: ${esc(w.last_error).substring(0,80)}</div>` : '';
+            html += `<div style="background:var(--card);border-radius:10px;padding:12px;margin-bottom:8px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <div>
+                        ${status} <strong style="font-size:13px;">${esc(w.name) || 'Unnamed'}</strong>
+                        <span style="font-size:11px;color:var(--text-2);margin-left:8px;">${esc(w.url).substring(0,50)}${w.url.length>50?'...':''}</span>
+                    </div>
+                    <div style="display:flex;gap:6px;">
+                        <button onclick="toggleWebhook(${w.id},${!w.active})" style="padding:4px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text-2);cursor:pointer;font-size:11px;">${w.active?'Disable':'Enable'}</button>
+                        <button onclick="if(confirm('Delete this webhook?'))deleteWebhook(${w.id})" style="padding:4px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--red);cursor:pointer;font-size:11px;">Delete</button>
+                    </div>
+                </div>
+                <div style="margin-top:6px;">${events}</div>
+                <div style="font-size:11px;color:var(--text-2);margin-top:4px;">Triggered ${w.trigger_count}x · Last: ${lastTriggered}</div>
+                ${error}
+            </div>`;
+        });
+        box.innerHTML = html;
+    } catch(e) {
+        box.innerHTML = '<p style="color:var(--red);font-size:13px;">Failed to load webhooks.</p>';
+    }
+}
+
+async function createWebhook() {
+    const url = document.getElementById('wh-url').value.trim();
+    const name = document.getElementById('wh-name').value.trim();
+    if (!url) { alert('URL is required'); return; }
+    try {
+        const r = await fetch(`${API}/v1/webhooks`, {
+            method:'POST', headers:H(),
+            body: JSON.stringify({url, name, event_types:["memory_add","memory_update","memory_delete"]})
+        });
+        const d = await r.json();
+        if (r.ok) {
+            document.getElementById('wh-url').value = '';
+            document.getElementById('wh-name').value = '';
+            loadWebhooks();
+        } else {
+            alert(d.detail || 'Failed to create webhook');
+        }
+    } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function toggleWebhook(id, active) {
+    try {
+        await fetch(`${API}/v1/webhooks/${id}`, {method:'PUT', headers:H(), body: JSON.stringify({active})});
+        loadWebhooks();
+    } catch(e) { alert('Failed'); }
+}
+
+async function deleteWebhook(id) {
+    try {
+        await fetch(`${API}/v1/webhooks/${id}`, {method:'DELETE', headers:H()});
+        loadWebhooks();
+    } catch(e) { alert('Failed'); }
+}
+
 async function resetKey() {
     if(!confirm('Reset API key? Current key stops working.')) return;
     try {

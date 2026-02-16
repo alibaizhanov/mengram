@@ -67,7 +67,7 @@ def create_cloud_api() -> FastAPI:
     app = FastAPI(
         title="Mengram Cloud API",
         description="Memory layer for AI apps — hosted",
-        version="2.0.0",
+        version="2.1.0",
     )
 
     app.add_middleware(
@@ -487,7 +487,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
     @app.get("/v1/health")
     async def health():
-        return {"status": "ok", "version": "2.0.0"}
+        return {"status": "ok", "version": "2.1.0"}
 
     # ---- Protected endpoints ----
 
@@ -554,6 +554,12 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                             archived = store.archive_contradicted_facts(
                                 existing_id, entity.facts, extractor.llm
                             )
+                            if archived:
+                                store.fire_webhooks(user_id, "memory_update", {
+                                    "entity": name,
+                                    "archived_facts": archived,
+                                    "new_facts": entity.facts
+                                })
                         except Exception as e:
                             print(f"⚠️ Conflict check failed: {e}", file=sys.stderr)
 
@@ -743,6 +749,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             cur.execute("DELETE FROM facts WHERE entity_id = %s", (entity_id,))
             cur.execute("DELETE FROM relations WHERE source_id = %s OR target_id = %s", (entity_id, entity_id))
             cur.execute("DELETE FROM entities WHERE id = %s", (entity_id,))
+        store.fire_webhooks(user_id, "memory_delete", {"entity": name})
         return {"deleted": name}
 
     @app.post("/v1/merge_user")
@@ -900,6 +907,57 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             "due": due,
             "last_runs": history
         }
+
+    # =====================================================
+    # WEBHOOKS
+    # =====================================================
+
+    @app.post("/v1/webhooks")
+    async def create_webhook(req: dict, user_id: str = Depends(auth)):
+        """Create a webhook.
+        Body: {"url": "https://...", "name": "My Hook", "event_types": ["memory_add"], "secret": "optional"}
+        """
+        url = req.get("url")
+        if not url:
+            raise HTTPException(status_code=400, detail="url is required")
+        try:
+            hook = store.create_webhook(
+                user_id=user_id,
+                url=url,
+                name=req.get("name", ""),
+                event_types=req.get("event_types"),
+                secret=req.get("secret", "")
+            )
+            return {"status": "created", "webhook": hook}
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    @app.get("/v1/webhooks")
+    async def list_webhooks(user_id: str = Depends(auth)):
+        """List all webhooks."""
+        hooks = store.get_webhooks(user_id)
+        return {"webhooks": hooks, "total": len(hooks)}
+
+    @app.put("/v1/webhooks/{webhook_id}")
+    async def update_webhook(webhook_id: int, req: dict, user_id: str = Depends(auth)):
+        """Update a webhook. Body: any of {url, name, event_types, active}"""
+        result = store.update_webhook(
+            user_id=user_id,
+            webhook_id=webhook_id,
+            url=req.get("url"),
+            name=req.get("name"),
+            event_types=req.get("event_types"),
+            active=req.get("active")
+        )
+        return result
+
+    @app.delete("/v1/webhooks/{webhook_id}")
+    async def delete_webhook(webhook_id: int, user_id: str = Depends(auth)):
+        """Delete a webhook."""
+        deleted = store.delete_webhook(user_id, webhook_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Webhook not found")
+        return {"status": "deleted", "id": webhook_id}
 
     @app.post("/v1/archive_fact")
     async def archive_fact(
