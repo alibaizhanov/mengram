@@ -254,15 +254,17 @@ class CloudStore:
     # ---- Entities ----
 
     def _find_primary_person(self, user_id: str) -> Optional[tuple]:
-        """Find the primary person entity for this user (most facts, not 'User')."""
+        """Find the primary person entity for this user.
+        Prefers: full name (has space) > most facts > most recent."""
         with self.conn.cursor() as cur:
             cur.execute(
-                """SELECT e.id, e.name, COUNT(f.id) as fact_count
+                """SELECT e.id, e.name, COUNT(f.id) as fact_count,
+                          CASE WHEN e.name LIKE '%% %%' THEN 1 ELSE 0 END as has_full_name
                    FROM entities e
                    LEFT JOIN facts f ON f.entity_id = e.id AND f.archived = FALSE
                    WHERE e.user_id = %s AND e.type = 'person' AND LOWER(e.name) != 'user'
                    GROUP BY e.id, e.name
-                   ORDER BY fact_count DESC, e.updated_at DESC
+                   ORDER BY has_full_name DESC, fact_count DESC, e.updated_at DESC
                    LIMIT 1""",
                 (user_id,)
             )
@@ -463,7 +465,8 @@ class CloudStore:
         # Long-term preferences — medium-high
         if any(p in f for p in [
             'prefers ', 'always ', 'never ', 'favorite', 'hates',
-            'allergic', 'dietary', 'philosophy'
+            'allergic', 'dietary', 'philosophy', 'likes ', 'loves ',
+            'enjoys ', 'dislikes ', 'avoids '
         ]):
             return 0.7
 

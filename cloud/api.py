@@ -67,7 +67,7 @@ def create_cloud_api() -> FastAPI:
     app = FastAPI(
         title="Mengram Cloud API",
         description="Memory layer for AI apps — hosted",
-        version="1.6.2",
+        version="1.6.3",
     )
 
     app.add_middleware(
@@ -487,7 +487,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
     @app.get("/v1/health")
     async def health():
-        return {"status": "ok", "version": "1.6.2"}
+        return {"status": "ok", "version": "1.6.3"}
 
     # ---- Protected endpoints ----
 
@@ -732,6 +732,20 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
         store.merge_entities(user_id, user_entity_id, target_id, target_name)
         return {"status": "merged", "from": "User", "into": target_name, "target_id": target_id}
+
+    @app.post("/v1/merge")
+    async def merge_entities_endpoint(source: str, target: str, user_id: str = Depends(auth)):
+        """Merge source entity into target. Source gets deleted, all data moves to target."""
+        source_id = store.get_entity_id(user_id, source)
+        if not source_id:
+            raise HTTPException(status_code=404, detail=f"Source entity '{source}' not found")
+        target_id = store.get_entity_id(user_id, target)
+        if not target_id:
+            raise HTTPException(status_code=404, detail=f"Target entity '{target}' not found")
+        if source_id == target_id:
+            return {"status": "skip", "message": "Same entity"}
+        store.merge_entities(user_id, source_id, target_id, target)
+        return {"status": "merged", "from": source, "into": target}
 
     @app.patch("/v1/entity/{name}/type")
     async def fix_entity_type(name: str, new_type: str, user_id: str = Depends(auth)):
