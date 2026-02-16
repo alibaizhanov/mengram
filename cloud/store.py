@@ -253,6 +253,24 @@ class CloudStore:
 
     # ---- Entities ----
 
+    def _find_primary_person(self, user_id: str) -> Optional[tuple]:
+        """Find the primary person entity for this user (most facts, not 'User')."""
+        with self.conn.cursor() as cur:
+            cur.execute(
+                """SELECT e.id, e.name, COUNT(f.id) as fact_count
+                   FROM entities e
+                   LEFT JOIN facts f ON f.entity_id = e.id AND f.archived = FALSE
+                   WHERE e.user_id = %s AND e.type = 'person' AND LOWER(e.name) != 'user'
+                   GROUP BY e.id, e.name
+                   ORDER BY fact_count DESC, e.updated_at DESC
+                   LIMIT 1""",
+                (user_id,)
+            )
+            row = cur.fetchone()
+            if row:
+                return (str(row[0]), row[1])
+            return None
+
     def find_duplicate(self, user_id: str, name: str) -> Optional[tuple]:
         """Find existing entity that matches this name.
         Only matches if: same type context AND one name is a complete word prefix/suffix of the other.
@@ -349,6 +367,17 @@ class CloudStore:
         # Normalize: if name is ALL CAPS and >3 chars, title-case it
         if name == name.upper() and len(name) > 3 and ' ' not in name:
             name = name.capitalize()
+
+        # ---- "User" resolution: merge into primary person entity ----
+        if name.lower() == "user" and type == "person":
+            primary = self._find_primary_person(user_id)
+            if primary:
+                entity_id, canonical_name = primary
+                print(f"🔀 User → '{canonical_name}' (id: {entity_id})", file=sys.stderr)
+                with self.conn.cursor() as cur:
+                    cur.execute("UPDATE entities SET updated_at = NOW() WHERE id = %s", (entity_id,))
+                self._add_facts_knowledge_relations(entity_id, user_id, canonical_name, facts, relations, knowledge)
+                return entity_id
 
         # Check for case-insensitive exact match first
         with self.conn.cursor() as cur:

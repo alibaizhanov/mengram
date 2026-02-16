@@ -67,7 +67,7 @@ def create_cloud_api() -> FastAPI:
     app = FastAPI(
         title="Mengram Cloud API",
         description="Memory layer for AI apps — hosted",
-        version="1.6.0",
+        version="1.6.2",
     )
 
     app.add_middleware(
@@ -487,7 +487,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
     @app.get("/v1/health")
     async def health():
-        return {"status": "ok", "version": "1.6.0"}
+        return {"status": "ok", "version": "1.6.2"}
 
     # ---- Protected endpoints ----
 
@@ -714,6 +714,37 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             cur.execute("DELETE FROM relations WHERE source_id = %s OR target_id = %s", (entity_id, entity_id))
             cur.execute("DELETE FROM entities WHERE id = %s", (entity_id,))
         return {"deleted": name}
+
+    @app.post("/v1/merge_user")
+    async def merge_user_entity(user_id: str = Depends(auth)):
+        """Merge 'User' entity into the primary person entity (e.g. 'Ali Baizhanov')."""
+        user_entity_id = store.get_entity_id(user_id, "User")
+        if not user_entity_id:
+            return {"status": "skip", "message": "No 'User' entity found"}
+
+        primary = store._find_primary_person(user_id)
+        if not primary:
+            return {"status": "skip", "message": "No primary person entity to merge into"}
+
+        target_id, target_name = primary
+        if user_entity_id == target_id:
+            return {"status": "skip", "message": "User IS the primary entity"}
+
+        store.merge_entities(user_id, user_entity_id, target_id, target_name)
+        return {"status": "merged", "from": "User", "into": target_name, "target_id": target_id}
+
+    @app.patch("/v1/entity/{name}/type")
+    async def fix_entity_type(name: str, new_type: str, user_id: str = Depends(auth)):
+        """Fix entity type (e.g. 'company' → 'technology')."""
+        valid_types = {"person", "project", "technology", "company", "concept", "unknown"}
+        if new_type not in valid_types:
+            raise HTTPException(status_code=400, detail=f"Invalid type. Must be one of: {valid_types}")
+        entity_id = store.get_entity_id(user_id, name)
+        if not entity_id:
+            raise HTTPException(status_code=404, detail=f"Entity '{name}' not found")
+        with store.conn.cursor() as cur:
+            cur.execute("UPDATE entities SET type = %s WHERE id = %s", (new_type, entity_id))
+        return {"entity": name, "new_type": new_type}
 
     @app.post("/v1/archive_fact")
     async def archive_fact(
