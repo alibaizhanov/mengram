@@ -67,7 +67,7 @@ def create_cloud_api() -> FastAPI:
     app = FastAPI(
         title="Mengram Cloud API",
         description="Memory layer for AI apps — hosted",
-        version="1.6.5",
+        version="1.7.0",
     )
 
     app.add_middleware(
@@ -487,7 +487,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
     @app.get("/v1/health")
     async def health():
-        return {"status": "ok", "version": "1.6.5"}
+        return {"status": "ok", "version": "1.7.0"}
 
     # ---- Protected endpoints ----
 
@@ -585,6 +585,15 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
                 store.log_usage(user_id, "add")
                 print(f"✅ Background add complete for {user_id}", file=sys.stderr)
+
+                # Auto-trigger reflection if needed
+                try:
+                    if store.should_reflect(user_id):
+                        print(f"🧠 Auto-reflection triggered for {user_id}", file=sys.stderr)
+                        extractor2 = get_llm()
+                        store.generate_reflections(user_id, extractor2.llm)
+                except Exception as e:
+                    print(f"⚠️ Auto-reflection failed: {e}", file=sys.stderr)
             except Exception as e:
                 print(f"❌ Background add failed: {e}", file=sys.stderr)
 
@@ -620,6 +629,27 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
         # Limit to requested count
         results = results[:req.limit]
+
+        # Prepend matching reflections for richer context
+        reflections = store.get_reflections(user_id)
+        if reflections:
+            query_lower = req.query.lower()
+            matching = [r for r in reflections if 
+                       query_lower in r["content"].lower() or
+                       query_lower in r["title"].lower() or
+                       any(w in r["content"].lower() for w in query_lower.split() if len(w) > 3)]
+            if matching:
+                # Add as a special "reflection" result at the top
+                top_reflection = matching[0]
+                results.insert(0, {
+                    "entity": f"🧠 Insight: {top_reflection['title']}",
+                    "type": "reflection",
+                    "scope": top_reflection["scope"],
+                    "score": top_reflection["confidence"],
+                    "facts": [top_reflection["content"]],
+                    "relations": [],
+                    "knowledge": [],
+                })
 
         store.log_usage(user_id, "search")
 
@@ -786,6 +816,39 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 total_archived += len(r["archived"])
                 results.append({"entity": e["name"], "archived": len(r["archived"])})
         return {"total_archived": total_archived, "entities": results}
+
+    # ---- Reflection ----
+
+    @app.post("/v1/reflect")
+    async def trigger_reflection(user_id: str = Depends(auth)):
+        """Manually trigger memory reflection. Generates AI insights from facts."""
+        extractor = get_llm()
+        stats = store.get_reflection_stats(user_id)
+        result = store.generate_reflections(user_id, extractor.llm)
+
+        entity_count = len(result.get("entity_reflections", []))
+        cross_count = len(result.get("cross_entity", []))
+        temporal_count = len(result.get("temporal", []))
+
+        return {
+            "status": "reflected",
+            "generated": {
+                "entity_reflections": entity_count,
+                "cross_entity": cross_count,
+                "temporal": temporal_count,
+            },
+            "stats_before": stats,
+        }
+
+    @app.get("/v1/reflections")
+    async def get_reflections(scope: str = None, user_id: str = Depends(auth)):
+        """Get all reflections. Optional ?scope=entity|cross|temporal"""
+        return {"reflections": store.get_reflections(user_id, scope=scope)}
+
+    @app.get("/v1/insights")
+    async def get_insights(user_id: str = Depends(auth)):
+        """Get formatted AI insights for dashboard."""
+        return store.get_insights(user_id)
 
     @app.post("/v1/archive_fact")
     async def archive_fact(

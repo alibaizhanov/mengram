@@ -171,11 +171,33 @@
         .btn-d { background: var(--red-dim); color: var(--red); border-color: rgba(248,113,113,0.2); }
         .loading { text-align: center; padding: 40px; color: var(--text-3); }
 
+        /* Insights */
+        .insight-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .insight-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 20px; }
+        .insight-card.full { grid-column: 1 / -1; }
+        .insight-card .ic-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+        .insight-card .ic-icon { font-size: 24px; }
+        .insight-card .ic-title { font-size: 15px; font-weight: 600; }
+        .insight-card .ic-scope { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 8px; border-radius: 4px; background: var(--accent-dim); color: var(--accent); }
+        .insight-card .ic-body { font-size: 14px; color: var(--text-2); line-height: 1.65; }
+        .insight-card .ic-meta { margin-top: 12px; font-size: 12px; color: var(--text-3); display: flex; gap: 12px; }
+        .insight-card .ic-conf { display: inline-flex; align-items: center; gap: 4px; }
+        .insight-card .conf-bar { width: 50px; height: 4px; background: var(--bg-elevated); border-radius: 2px; overflow: hidden; }
+        .insight-card .conf-fill { height: 100%; background: var(--green); border-radius: 2px; }
+        .insight-empty { text-align: center; padding: 60px 40px; }
+        .insight-empty .ie-icon { font-size: 48px; margin-bottom: 16px; }
+        .insight-empty h3 { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+        .insight-empty p { font-size: 14px; color: var(--text-2); max-width: 400px; margin: 0 auto 20px; line-height: 1.5; }
+        .insight-empty button { background: var(--accent); color: #fff; border: none; padding: 10px 24px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; font-family: 'Sora', sans-serif; }
+        .reflecting-spinner { display: inline-block; animation: spin 1s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
         @media (max-width: 768px) {
             .sidebar { display: none; }
             .main { margin-left: 0; }
             .stats-strip { grid-template-columns: repeat(2, 1fr); }
             .entities-grid { grid-template-columns: 1fr; }
+            .insight-grid { grid-template-columns: 1fr; }
             .search-bar { width: 100%; }
         }
     </style>
@@ -198,6 +220,7 @@
         <div class="sidebar-logo">🧠 Mengram</div>
         <div class="sidebar-nav">
             <div class="nav-item active" onclick="switchTab('feed')"><span class="icon">📋</span> Memory Feed</div>
+            <div class="nav-item" onclick="switchTab('insights')"><span class="icon">🧠</span> AI Insights</div>
             <div class="nav-item" onclick="switchTab('graph')"><span class="icon">🕸️</span> Knowledge Graph</div>
             <div class="nav-item" onclick="switchTab('entities')"><span class="icon">📦</span> Entities</div>
             <div class="nav-item" onclick="switchTab('settings')"><span class="icon">⚙️</span> Settings</div>
@@ -219,6 +242,14 @@
                 <div class="search-bar"><span>🔍</span><input id="search-input" placeholder="Semantic search..." onkeydown="if(event.key==='Enter')doSearch()"><div class="search-dropdown" id="search-dd"></div></div>
             </div>
             <div id="feed-box" class="loading">Loading memories...</div>
+        </div>
+
+        <div class="tab-content" id="tab-insights">
+            <div class="page-header">
+                <h2>🧠 AI Insights</h2>
+                <button onclick="triggerReflection()" style="background:var(--accent);color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;">🔄 Reflect Now</button>
+            </div>
+            <div id="insights-box" class="loading">Analyzing your memories...</div>
         </div>
 
         <div class="tab-content" id="tab-graph">
@@ -306,9 +337,100 @@ function switchTab(t) {
     event.currentTarget.classList.add('active');
     if(t==='graph') loadGraph();
     if(t==='entities') loadEntities();
+    if(t==='insights') loadInsights();
 }
 
 async function loadAll() { loadStats(); loadFeed(); }
+
+// ---- Insights ----
+async function loadInsights() {
+    const box = document.getElementById('insights-box');
+    try {
+        const d = await (await fetch(`${API}/v1/insights`,{headers:H()})).json();
+        if(!d.has_insights) {
+            box.innerHTML = `<div class="insight-empty">
+                <div class="ie-icon">🧠</div>
+                <h3>No insights yet</h3>
+                <p>Mengram needs enough memories to generate insights. Keep chatting with AI assistants, or click below to generate your first reflection.</p>
+                <button onclick="triggerReflection()">✨ Generate Insights</button>
+            </div>`;
+            return;
+        }
+        let h = '<div class="insight-grid">';
+        
+        // Profile card
+        if(d.profile) {
+            h += insightCard('📊', 'Profile', d.profile, 'full');
+        }
+        
+        // Weekly card
+        if(d.weekly) {
+            h += insightCard('🔄', 'Recent Activity', d.weekly);
+        }
+        
+        // Network card
+        if(d.network) {
+            h += insightCard('👥', 'Network', d.network);
+        }
+        
+        // Patterns card
+        if(d.patterns) {
+            h += insightCard('💡', 'Patterns', d.patterns);
+        }
+
+        // All other reflections
+        const shown = [d.profile, d.weekly, d.network, d.patterns].filter(Boolean).map(r=>r.title);
+        const others = (d.all_reflections||[]).filter(r => !shown.includes(r.title));
+        for(const r of others) {
+            const icon = r.scope === 'entity' ? '📦' : r.scope === 'cross' ? '🔗' : '⏱️';
+            h += insightCard(icon, r.title, r);
+        }
+        
+        h += '</div>';
+        box.innerHTML = h;
+    } catch(e) {
+        box.innerHTML = `<div class="insight-empty"><div class="ie-icon">⚠️</div><h3>Error loading insights</h3><p>${e.message}</p></div>`;
+    }
+}
+
+function insightCard(icon, label, r, cls) {
+    const conf = Math.round((r.confidence||0.8)*100);
+    const confColor = conf >= 80 ? 'var(--green)' : conf >= 60 ? 'var(--orange)' : 'var(--red)';
+    const time = r.refreshed_at ? new Date(r.refreshed_at).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+    const scopeLabel = r.scope === 'entity' ? 'Entity' : r.scope === 'cross' ? 'Cross-entity' : r.scope === 'temporal' ? 'Temporal' : r.scope;
+    return `<div class="insight-card ${cls||''}">
+        <div class="ic-head">
+            <span class="ic-icon">${icon}</span>
+            <span class="ic-title">${label}</span>
+            <span class="ic-scope">${scopeLabel}</span>
+        </div>
+        <div class="ic-body">${r.content}</div>
+        <div class="ic-meta">
+            <span class="ic-conf">
+                Confidence: ${conf}%
+                <span class="conf-bar"><span class="conf-fill" style="width:${conf}%;background:${confColor}"></span></span>
+            </span>
+            ${r.entity && r.entity !== '_reflections' ? `<span>📦 ${r.entity}</span>` : ''}
+            ${time ? `<span>🕐 ${time}</span>` : ''}
+        </div>
+    </div>`;
+}
+
+async function triggerReflection() {
+    const box = document.getElementById('insights-box');
+    box.innerHTML = '<div class="insight-empty"><div class="ie-icon"><span class="reflecting-spinner">🧠</span></div><h3>Reflecting...</h3><p>Analyzing your memories and generating insights. This may take 10-20 seconds.</p></div>';
+    try {
+        const d = await (await fetch(`${API}/v1/reflect`,{method:'POST',headers:H()})).json();
+        const total = (d.generated.entity_reflections||0) + (d.generated.cross_entity||0) + (d.generated.temporal||0);
+        if(total > 0) {
+            await loadInsights();
+        } else {
+            box.innerHTML = '<div class="insight-empty"><div class="ie-icon">🤔</div><h3>Not enough data</h3><p>Add more memories through conversations first.</p></div>';
+        }
+    } catch(e) {
+        box.innerHTML = `<div class="insight-empty"><div class="ie-icon">⚠️</div><h3>Reflection failed</h3><p>${e.message}</p></div>`;
+    }
+}
 
 async function loadStats() {
     try {

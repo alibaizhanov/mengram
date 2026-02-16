@@ -122,6 +122,39 @@ class CloudStore:
             """)
         print("✅ Migration complete (v1.6: importance scoring)", file=sys.stderr)
 
+        # --- v1.7 Reflection system ---
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                ALTER TABLE knowledge ADD COLUMN IF NOT EXISTS scope 
+                VARCHAR(20) DEFAULT 'insight'
+            """)
+            cur.execute("""
+                ALTER TABLE knowledge ADD COLUMN IF NOT EXISTS confidence 
+                FLOAT DEFAULT 1.0
+            """)
+            cur.execute("""
+                ALTER TABLE knowledge ADD COLUMN IF NOT EXISTS based_on_facts 
+                TEXT[] DEFAULT '{}'
+            """)
+            cur.execute("""
+                ALTER TABLE knowledge ADD COLUMN IF NOT EXISTS refreshed_at 
+                TIMESTAMPTZ DEFAULT NOW()
+            """)
+            cur.execute("""
+                ALTER TABLE knowledge ADD COLUMN IF NOT EXISTS user_id 
+                VARCHAR(255) DEFAULT NULL
+            """)
+            # Index for efficient reflection queries
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_knowledge_scope 
+                ON knowledge (scope) WHERE scope IN ('entity', 'cross', 'temporal')
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_knowledge_user 
+                ON knowledge (user_id) WHERE user_id IS NOT NULL
+            """)
+        print("✅ Migration complete (v1.7: reflection system)", file=sys.stderr)
+
     def close(self):
         if self.conn:
             self.conn.close()
@@ -608,11 +641,11 @@ class CloudStore:
             )
 
     def get_all_entities(self, user_id: str) -> list[dict]:
-        """List all entities with counts."""
+        """List all entities with counts (excludes internal entities)."""
         with self.conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
             cur.execute(
                 """SELECT name, type, facts_count, knowledge_count, relations_count
-                   FROM entity_overview WHERE user_id = %s
+                   FROM entity_overview WHERE user_id = %s AND name NOT LIKE '\\_%%'
                    ORDER BY updated_at DESC""",
                 (user_id,)
             )
@@ -745,8 +778,8 @@ class CloudStore:
             for e in entities:
                 eid = str(e["id"])
                 name = e["name"]
-                # Skip "User" entity from context — we want LLM to use real name
-                if name.lower() == "user":
+                # Skip "User" and "_reflections" from context
+                if name.lower() in ("user", "_reflections"):
                     continue
                 facts = facts_by_entity.get(eid, [])
                 if facts:
@@ -754,6 +787,16 @@ class CloudStore:
                     lines.append(f"- {name} ({e['type']}): {fact_strs}")
                 else:
                     lines.append(f"- {name} ({e['type']})")
+
+            # Add top reflections for richer context
+            reflections = self.get_reflections(user_id)
+            if reflections:
+                top_refs = [r for r in reflections if r["confidence"] >= 0.7][:3]
+                if top_refs:
+                    lines.append("\nAI-generated insights (use for context, don't re-extract):")
+                    for r in top_refs:
+                        lines.append(f"  [{r['scope']}] {r['content'][:200]}")
+
             return "\n".join(lines)
 
     def delete_entity(self, user_id: str, name: str) -> bool:
@@ -1234,6 +1277,283 @@ Return ONLY this JSON (no markdown):
         kept = result.get("keep", [])
         print(f"🧹 Dedup '{entity_name}': {len(facts)} → {len(facts)-len(archived)} facts ({len(archived)} archived)", file=sys.stderr)
         return {"kept": kept, "archived": archived}
+
+    # ---- Reflection Engine ----
+
+    REFLECTION_PROMPT = """You are a cognitive memory system that synthesizes insights from raw facts.
+
+ENTITIES AND FACTS:
+{facts_text}
+
+EXISTING REFLECTIONS (update if stale):
+{prev_reflections}
+
+Generate reflections in 3 categories:
+
+1. ENTITY REFLECTIONS — for entities with 3+ facts, write a 2-3 sentence summary.
+   Focus: what/who it is, relation to the user, current status.
+
+2. CROSS-ENTITY PATTERNS — patterns across multiple entities.
+   Focus: career direction, tech preferences, behavioral patterns, relationships.
+
+3. TEMPORAL — what changed recently based on fact timestamps.
+   Focus: new interests, shifting priorities, recent activity.
+
+Rate confidence 0.0-1.0 based on how well-supported by facts.
+
+Return ONLY JSON (no markdown):
+{{
+  "entity_reflections": [
+    {{"entity": "EntityName", "title": "short title", "reflection": "2-3 sentences", "confidence": 0.9, "key_facts": ["fact1", "fact2"]}}
+  ],
+  "cross_entity": [
+    {{"entities": ["E1", "E2"], "title": "short title", "reflection": "2-3 sentences", "confidence": 0.85}}
+  ],
+  "temporal": [
+    {{"period": "recent", "title": "short title", "reflection": "2-3 sentences", "confidence": 0.8}}
+  ]
+}}"""
+
+    def get_reflection_stats(self, user_id: str) -> dict:
+        """Get stats to decide if reflection is needed."""
+        with self.conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            # Count new facts since last reflection
+            cur.execute(
+                """SELECT MAX(refreshed_at) as last_reflection
+                   FROM knowledge 
+                   WHERE user_id = %s AND scope IN ('entity', 'cross', 'temporal')""",
+                (user_id,)
+            )
+            row = cur.fetchone()
+            last_reflection = row["last_reflection"] if row and row["last_reflection"] else None
+
+            if last_reflection:
+                cur.execute(
+                    """SELECT COUNT(*) as cnt FROM facts f
+                       JOIN entities e ON e.id = f.entity_id
+                       WHERE e.user_id = %s AND f.archived = FALSE 
+                       AND f.created_at > %s""",
+                    (user_id, last_reflection)
+                )
+                new_facts = cur.fetchone()["cnt"]
+                hours_since = (datetime.datetime.now(datetime.timezone.utc) - 
+                              last_reflection.replace(tzinfo=datetime.timezone.utc)).total_seconds() / 3600
+            else:
+                # Never reflected — count all facts
+                cur.execute(
+                    """SELECT COUNT(*) as cnt FROM facts f
+                       JOIN entities e ON e.id = f.entity_id
+                       WHERE e.user_id = %s AND f.archived = FALSE""",
+                    (user_id,)
+                )
+                new_facts = cur.fetchone()["cnt"]
+                hours_since = 999
+
+            return {
+                "new_facts_since_last": new_facts,
+                "hours_since_last": round(hours_since, 1),
+                "last_reflection": last_reflection.isoformat() if last_reflection else None,
+            }
+
+    def should_reflect(self, user_id: str) -> bool:
+        """Check if reflection is needed based on triggers."""
+        stats = self.get_reflection_stats(user_id)
+        # Trigger 1: 10+ new facts since last reflection
+        if stats["new_facts_since_last"] >= 10:
+            return True
+        # Trigger 2: 24h+ since last reflection AND has new facts
+        if stats["hours_since_last"] >= 24 and stats["new_facts_since_last"] >= 3:
+            return True
+        return False
+
+    def generate_reflections(self, user_id: str, llm_client) -> dict:
+        """Generate all 3 types of reflections using LLM."""
+        # Gather facts grouped by entity
+        entities = self.get_all_entities_full(user_id)
+        if not entities:
+            return {"entity_reflections": [], "cross_entity": [], "temporal": []}
+
+        # Build facts text
+        facts_lines = []
+        for e in entities:
+            if not e["facts"]:
+                continue
+            facts_str = ", ".join(e["facts"][:15])  # cap at 15 per entity
+            facts_lines.append(f"- {e['entity']} ({e['type']}): {facts_str}")
+        facts_text = "\n".join(facts_lines)
+
+        # Get previous reflections
+        prev = self.get_reflections(user_id)
+        prev_text = ""
+        if prev:
+            prev_lines = []
+            for r in prev[:10]:
+                prev_lines.append(f"- [{r['scope']}] {r['title']}: {r['content'][:200]}")
+            prev_text = "\n".join(prev_lines)
+        if not prev_text:
+            prev_text = "(none yet)"
+
+        prompt = self.REFLECTION_PROMPT.format(
+            facts_text=facts_text,
+            prev_reflections=prev_text
+        )
+
+        try:
+            response = llm_client.complete(prompt)
+            clean = response.strip()
+            if clean.startswith("```"):
+                lines = clean.split("\n")
+                clean = "\n".join(lines[1:-1])
+            result = json.loads(clean)
+        except (json.JSONDecodeError, Exception) as e:
+            print(f"⚠️ Reflection generation failed: {e}", file=sys.stderr)
+            return {"entity_reflections": [], "cross_entity": [], "temporal": []}
+
+        # Save reflections
+        saved = {"entity_reflections": 0, "cross_entity": 0, "temporal": 0}
+
+        for r in result.get("entity_reflections", []):
+            entity_name = r.get("entity", "")
+            entity_id = self.get_entity_id(user_id, entity_name) if entity_name else None
+            self._save_reflection(
+                user_id=user_id,
+                entity_id=entity_id,
+                scope="entity",
+                title=r.get("title", f"{entity_name} profile"),
+                content=r.get("reflection", ""),
+                confidence=r.get("confidence", 0.8),
+                based_on=r.get("key_facts", [])
+            )
+            saved["entity_reflections"] += 1
+
+        for r in result.get("cross_entity", []):
+            self._save_reflection(
+                user_id=user_id,
+                entity_id=None,
+                scope="cross",
+                title=r.get("title", "Cross-entity pattern"),
+                content=r.get("reflection", ""),
+                confidence=r.get("confidence", 0.8),
+                based_on=[]
+            )
+            saved["cross_entity"] += 1
+
+        for r in result.get("temporal", []):
+            self._save_reflection(
+                user_id=user_id,
+                entity_id=None,
+                scope="temporal",
+                title=r.get("title", "Recent changes"),
+                content=r.get("reflection", ""),
+                confidence=r.get("confidence", 0.8),
+                based_on=[]
+            )
+            saved["temporal"] += 1
+
+        print(f"🧠 Reflections generated for {user_id}: {saved}", file=sys.stderr)
+        return result
+
+    def _save_reflection(self, user_id: str, entity_id: Optional[str],
+                         scope: str, title: str, content: str,
+                         confidence: float = 0.8, based_on: list = None):
+        """Save or update a reflection."""
+        with self.conn.cursor() as cur:
+            if entity_id:
+                # Entity reflection — upsert by entity + scope
+                cur.execute(
+                    """INSERT INTO knowledge (entity_id, user_id, type, title, content, scope, confidence, based_on_facts, refreshed_at)
+                       VALUES (%s, %s, 'reflection', %s, %s, %s, %s, %s, NOW())
+                       ON CONFLICT (entity_id, title) 
+                       DO UPDATE SET content = EXCLUDED.content, 
+                                     confidence = EXCLUDED.confidence,
+                                     based_on_facts = EXCLUDED.based_on_facts,
+                                     refreshed_at = NOW()""",
+                    (entity_id, user_id, title, content, scope, confidence, based_on or [])
+                )
+            else:
+                # Cross/temporal reflection — need a "global" entity
+                global_id = self._get_or_create_global_entity(user_id)
+                cur.execute(
+                    """INSERT INTO knowledge (entity_id, user_id, type, title, content, scope, confidence, based_on_facts, refreshed_at)
+                       VALUES (%s, %s, 'reflection', %s, %s, %s, %s, %s, NOW())
+                       ON CONFLICT (entity_id, title)
+                       DO UPDATE SET content = EXCLUDED.content,
+                                     confidence = EXCLUDED.confidence,
+                                     based_on_facts = EXCLUDED.based_on_facts,
+                                     refreshed_at = NOW()""",
+                    (global_id, user_id, title, content, scope, confidence, based_on or [])
+                )
+
+    def _get_or_create_global_entity(self, user_id: str) -> str:
+        """Get or create a special _reflections entity for cross/temporal reflections."""
+        with self.conn.cursor() as cur:
+            cur.execute(
+                """INSERT INTO entities (user_id, name, type)
+                   VALUES (%s, '_reflections', 'concept')
+                   ON CONFLICT (user_id, name) DO UPDATE SET updated_at = NOW()
+                   RETURNING id""",
+                (user_id,)
+            )
+            return str(cur.fetchone()[0])
+
+    def get_reflections(self, user_id: str, scope: str = None) -> list[dict]:
+        """Get all reflections for a user, optionally filtered by scope."""
+        with self.conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            if scope:
+                cur.execute(
+                    """SELECT k.title, k.content, k.scope, k.confidence, k.refreshed_at,
+                              e.name as entity_name
+                       FROM knowledge k
+                       JOIN entities e ON e.id = k.entity_id
+                       WHERE k.user_id = %s AND k.scope = %s AND k.type = 'reflection'
+                       ORDER BY k.confidence DESC, k.refreshed_at DESC""",
+                    (user_id, scope)
+                )
+            else:
+                cur.execute(
+                    """SELECT k.title, k.content, k.scope, k.confidence, k.refreshed_at,
+                              e.name as entity_name
+                       FROM knowledge k
+                       JOIN entities e ON e.id = k.entity_id
+                       WHERE k.user_id = %s AND k.type = 'reflection'
+                       ORDER BY k.scope, k.confidence DESC, k.refreshed_at DESC""",
+                    (user_id,)
+                )
+            return [{
+                "title": r["title"],
+                "content": r["content"],
+                "scope": r["scope"],
+                "confidence": float(r["confidence"] or 0.8),
+                "entity": r["entity_name"],
+                "refreshed_at": r["refreshed_at"].isoformat() if r["refreshed_at"] else None,
+            } for r in cur.fetchall()]
+
+    def get_insights(self, user_id: str) -> dict:
+        """Get formatted insights for dashboard — profile, weekly, network, patterns."""
+        reflections = self.get_reflections(user_id)
+        if not reflections:
+            return {"has_insights": False, "profile": None, "weekly": None, "network": None, "patterns": None}
+
+        profile = next((r for r in reflections if r["scope"] == "entity" and "profile" in r["title"].lower()), None)
+        # Fallback: first entity reflection for primary person
+        if not profile:
+            primary = self._find_primary_person(user_id)
+            if primary:
+                profile = next((r for r in reflections if r["scope"] == "entity" and r["entity"] == primary[1]), None)
+
+        weekly = next((r for r in reflections if r["scope"] == "temporal"), None)
+        network = next((r for r in reflections if r["scope"] == "cross" and 
+                        any(w in r["title"].lower() for w in ["network", "colleague", "team"])), None)
+        patterns = next((r for r in reflections if r["scope"] == "cross" and r != network), None)
+
+        return {
+            "has_insights": True,
+            "profile": profile,
+            "weekly": weekly,
+            "network": network,
+            "patterns": patterns,
+            "all_reflections": reflections,
+        }
 
     # ---- Embeddings ----
 
