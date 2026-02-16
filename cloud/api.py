@@ -865,19 +865,18 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         ?auto_fix=true — auto-archive low quality and stale facts (curator only)
         """
         llm = get_llm()
-        extractor = Extractor(llm_client=llm, embedder=get_embedder())
 
         if agent == "all":
-            result = store.run_all_agents(user_id, extractor.llm, auto_fix=auto_fix)
+            result = store.run_all_agents(user_id, llm.llm, auto_fix=auto_fix)
             return {"status": "completed", "agents": result}
         elif agent == "curator":
-            result = store.run_curator_agent(user_id, extractor.llm, auto_fix=auto_fix)
+            result = store.run_curator_agent(user_id, llm.llm, auto_fix=auto_fix)
             return {"status": "completed", "agent": "curator", "result": result}
         elif agent == "connector":
-            result = store.run_connector_agent(user_id, extractor.llm)
+            result = store.run_connector_agent(user_id, llm.llm)
             return {"status": "completed", "agent": "connector", "result": result}
         elif agent == "digest":
-            result = store.run_digest_agent(user_id, extractor.llm)
+            result = store.run_digest_agent(user_id, llm.llm)
             return {"status": "completed", "agent": "digest", "result": result}
         else:
             raise HTTPException(status_code=400, detail=f"Unknown agent: {agent}. Use: curator, connector, digest, all")
