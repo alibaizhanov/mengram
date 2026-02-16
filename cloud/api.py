@@ -100,7 +100,7 @@ m.add([{"role": "user", "content": "I use Python and Railway"}])
 results = m.search("deployment")
 ```
         """,
-        version="2.2.0",
+        version="2.3.0",
         docs_url="/docs",
         redoc_url="/redoc",
         openapi_tags=[
@@ -606,7 +606,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         pool_info = {"type": "pool", "max": 10} if store._pool else {"type": "single"}
         return {
             "status": "ok",
-            "version": "2.2.0",
+            "version": "2.3.0",
             "cache": cache_stats,
             "connection": pool_info,
         }
