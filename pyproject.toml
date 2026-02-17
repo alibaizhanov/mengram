@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mengram-ai"
-version = "2.5.4"
+version = "2.5.5"
 description = "Human-like memory for AI — semantic, episodic & procedural. Cognitive Profile, unified search, memory agents. Free open-source Mem0 alternative."
 readme = "README.md"
 license = {text = "Apache-2.0"}
@@ -44,6 +44,7 @@ embeddings = ["sentence-transformers>=2.2"]
 mcp = ["mcp>=1.0"]
 api = ["fastapi>=0.100", "uvicorn>=0.20", "resend>=2.0"]
 langchain = ["langchain-core>=0.2"]
+crewai = ["crewai>=0.80"]
 all = [
     "anthropic>=0.40",
     "openai>=1.0",
@@ -52,6 +53,7 @@ all = [
     "fastapi>=0.100",
     "uvicorn>=0.20",
     "langchain-core>=0.2",
+    "crewai>=0.80",
 ]
 dev = ["pytest>=7.0", "pytest-asyncio>=0.21"]
 

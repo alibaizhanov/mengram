@@ -627,6 +627,7 @@
                 <span>🌊 Windsurf</span>
                 <span>💬 ChatGPT</span>
                 <span>🦜 LangChain</span>
+                <span>🚀 CrewAI</span>
                 <span>🔍 Perplexity</span>
             </div>
         </div>
@@ -663,6 +664,7 @@
                 <button class="install-tab" onclick="showInstall('api')">🐍 Python</button>
                 <button class="install-tab" onclick="showInstall('js')">⚡ JavaScript</button>
                 <button class="install-tab" onclick="showInstall('langchain')">🦜 LangChain</button>
+                <button class="install-tab" onclick="showInstall('crewai')">🚀 CrewAI</button>
             </div>
 
             <!-- Claude Desktop -->
@@ -870,8 +872,49 @@ chain_with_memory = RunnableWithMessageHistory(
                     </div>
                 </div>
             </div>
+            <!-- CrewAI -->
+            <div class="install-panel" id="panel-crewai">
+                <div class="steps">
+                    <div class="step">
+                        <div class="step-num">1</div>
+                        <div>
+                            <h4>Install</h4>
+                            <div class="code-box">
+                                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                                <code>pip install mengram-ai[crewai]</code>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="step">
+                        <div class="step-num">2</div>
+                        <div>
+                            <h4>Give agents persistent memory</h4>
+                            <p>5 tools: search, remember, profile, save_workflow, workflow_feedback. Agents learn optimal workflows over time.</p>
+                            <div class="code-box">
+                                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+<pre><span class="c-kw">from</span> <span class="c-fn">crewai</span> <span class="c-kw">import</span> Agent, Crew
+<span class="c-kw">from</span> <span class="c-fn">mengram.integrations.crewai</span> <span class="c-kw">import</span> create_mengram_tools
+
+tools = create_mengram_tools(
+    api_key=<span class="c-str">"your-api-key"</span>,
+    user_id=<span class="c-str">"ali"</span>,
+)
+
+agent = Agent(
+    role=<span class="c-str">"Support Engineer"</span>,
+    goal=<span class="c-str">"Help users with technical issues"</span>,
+    tools=tools,
+)
+
+<span class="c-cmt"># Agent completes workflow → Mengram saves as procedure</span>
+<span class="c-cmt"># Next time → agent finds optimal path with success tracking</span>
+crew = Crew(agents=[agent], tasks=[...])</pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </section>
-        <section class="features-section" id="features">
             <h2>What makes Mengram different</h2>
             <p>Others store facts. Mengram remembers like a human brain.</p>
             <div class="features-grid">
@@ -922,8 +965,8 @@ chain_with_memory = RunnableWithMessageHistory(
                 </div>
                 <div class="feat-card">
                     <div class="feat-icon">🦜</div>
-                    <h3>LangChain Integration</h3>
-                    <p>Drop-in replacement for ConversationBufferMemory. Persistent memory with semantic search across all 3 types. One line to add.</p>
+                    <h3>LangChain & CrewAI</h3>
+                    <p>Drop-in integrations. LangChain persistent memory, CrewAI tools with procedural learning. One line to add.</p>
                 </div>
             </div>
         </section>
@@ -1010,8 +1053,14 @@ chain_with_memory = RunnableWithMessageHistory(
                             <td style="text-align:center;padding:10px;">❌</td>
                         </tr>
                         <tr style="border-bottom: 1px solid var(--border);">
-                            <td style="padding:10px 16px;">LangChain Integration</td>
+                            <td style="padding:10px 16px;">LangChain & CrewAI</td>
                             <td style="text-align:center;padding:10px;">✅</td>
+                            <td style="text-align:center;padding:10px;">✅</td>
+                            <td style="text-align:center;padding:10px;">❌</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--border); background: rgba(168,85,247,0.05);">
+                            <td style="padding:10px 16px;"><strong>Procedural Learning</strong></td>
+                            <td style="text-align:center;padding:10px;"><strong>✅</strong></td>
                             <td style="text-align:center;padding:10px;">❌</td>
                             <td style="text-align:center;padding:10px;">❌</td>
                         </tr>
@@ -1055,7 +1104,7 @@ chain_with_memory = RunnableWithMessageHistory(
         <!-- Footer -->
         <footer>
             <p>
-                Mengram — human-like memory for AI · v2.5.4
+                Mengram — human-like memory for AI · v2.5.5
                 &nbsp;·&nbsp;
                 <a href="https://github.com/alibaizhanov/mengram">GitHub</a>
                 &nbsp;·&nbsp;

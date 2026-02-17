@@ -234,6 +234,44 @@ chain.predict(input="How did my last deployment go?")
 | Cross-session | ❌ | ✅ |
 | Personalization | ❌ | ✅ Cognitive Profile |
 
+## CrewAI Integration
+
+Give your CrewAI agents persistent memory with 3 types + procedural learning.
+
+```bash
+pip install mengram-ai[crewai]
+```
+
+```python
+from crewai import Agent, Crew
+from mengram.integrations.crewai import create_mengram_tools
+
+tools = create_mengram_tools(api_key="om-...", user_id="ali")
+
+agent = Agent(
+    role="Support Engineer",
+    goal="Help users with technical issues",
+    tools=tools,  # mengram_search, mengram_remember, mengram_profile,
+                   # mengram_save_workflow, mengram_workflow_feedback
+)
+
+crew = Crew(agents=[agent], tasks=[...])
+```
+
+**Killer Feature — Procedural Learning:**
+
+Agent completes a multi-step workflow → Mengram saves it as a procedure with steps → Next time a similar task comes up → agent finds the optimal path in memory with success/failure tracking. No other memory system does this.
+
+**vs CrewAI Default Memory:**
+| | CrewAI Default | Mem0 + CrewAI | Mengram + CrewAI |
+|---|---|---|---|
+| Storage | Local files | Cloud | Cloud |
+| Memory types | 3 (basic) | 1 (semantic) | 3 (semantic+episodic+procedural) |
+| Cross-session | Partial | ✅ | ✅ |
+| Workflow learning | ❌ | ❌ | ✅ Procedural memory |
+| User profile | ❌ | ❌ | ✅ Cognitive Profile |
+| Success tracking | ❌ | ❌ | ✅ per procedure |
+
 ## Memory Categories
 
 Separate memory by user, agent, session, and application:

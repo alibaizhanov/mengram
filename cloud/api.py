@@ -103,6 +103,7 @@ The only AI memory API with 3 memory types. Your AI remembers facts, events, and
 - **Memory Agents** — autonomous cleanup, pattern detection, weekly digests
 - **Team Sharing** — shared memory across team members
 - **LangChain** — drop-in replacement for ConversationBufferMemory
+- **CrewAI** — 5 tools with procedural learning (agents learn optimal workflows)
 
 ### Authentication
 All endpoints require `Authorization: Bearer YOUR_API_KEY` header.
@@ -116,7 +117,7 @@ results = m.search_all("deployment")  # semantic + episodic + procedural
 profile = m.get_profile("ali")        # instant system prompt
 ```
         """,
-        version="2.5.4",
+        version="2.5.5",
         docs_url="/docs",
         redoc_url="/redoc",
         openapi_tags=[
@@ -624,7 +625,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         pool_info = {"type": "pool", "max": 10} if store._pool else {"type": "single"}
         return {
             "status": "ok",
-            "version": "2.5.4",
+            "version": "2.5.5",
             "cache": cache_stats,
             "connection": pool_info,
         }
