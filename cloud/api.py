@@ -116,7 +116,7 @@ results = m.search_all("deployment")  # semantic + episodic + procedural
 profile = m.get_profile("ali")        # instant system prompt
 ```
         """,
-        version="2.5.3",
+        version="2.5.4",
         docs_url="/docs",
         redoc_url="/redoc",
         openapi_tags=[
@@ -624,7 +624,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         pool_info = {"type": "pool", "max": 10} if store._pool else {"type": "single"}
         return {
             "status": "ok",
-            "version": "2.5.3",
+            "version": "2.5.4",
             "cache": cache_stats,
             "connection": pool_info,
         }

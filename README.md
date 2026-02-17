@@ -4,7 +4,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/mengram-ai)](https://pypi.org/project/mengram-ai/)
 [![npm](https://img.shields.io/npm/v/mengram-ai)](https://www.npmjs.com/package/mengram-ai)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 
 **[Website](https://mengram.io)** · **[Dashboard](https://mengram.io/dashboard)** · **[API Docs](https://mengram.io/docs)** · **[PyPI](https://pypi.org/project/mengram-ai/)** · **[npm](https://www.npmjs.com/package/mengram-ai)**
@@ -306,7 +306,7 @@ Full docs: **https://mengram.io/docs**
 
 ## License
 
-MIT
+Apache 2.0
 
 ---
 
