@@ -207,6 +207,91 @@ class CloudMemory:
             params["force"] = "true"
         return self._request("GET", f"/v1/profile/{user_id}", params=params)
 
+    # ---- Episodic Memory ----
+
+    def episodes(self, query: str = None, limit: int = 20,
+                 after: str = None, before: str = None,
+                 user_id: str = "default") -> list[dict]:
+        """
+        Get or search episodic memories (events, interactions, experiences).
+        
+        Args:
+            query: Search query (if None, returns recent episodes)
+            limit: Max results
+            after: ISO datetime filter (start)
+            before: ISO datetime filter (end)
+            
+        Returns:
+            List of episodes with summary, context, outcome, participants
+        """
+        if query:
+            params = {"query": query, "limit": limit}
+            if after:
+                params["after"] = after
+            if before:
+                params["before"] = before
+            resp = self._request("GET", "/v1/episodes/search", params=params)
+            return resp.get("results", [])
+        else:
+            params = {"limit": limit}
+            if after:
+                params["after"] = after
+            if before:
+                params["before"] = before
+            resp = self._request("GET", "/v1/episodes", params=params)
+            return resp.get("episodes", [])
+
+    # ---- Procedural Memory ----
+
+    def procedures(self, query: str = None, limit: int = 20,
+                   user_id: str = "default") -> list[dict]:
+        """
+        Get or search procedural memories (learned workflows, skills).
+        
+        Args:
+            query: Search query (if None, returns all procedures)
+            limit: Max results
+            
+        Returns:
+            List of procedures with name, trigger, steps, success/fail counts
+        """
+        if query:
+            params = {"query": query, "limit": limit}
+            resp = self._request("GET", "/v1/procedures/search", params=params)
+            return resp.get("results", [])
+        else:
+            params = {"limit": limit}
+            resp = self._request("GET", "/v1/procedures", params=params)
+            return resp.get("procedures", [])
+
+    def procedure_feedback(self, procedure_id: str, success: bool = True,
+                           user_id: str = "default") -> dict:
+        """
+        Record success/failure feedback for a procedure.
+        
+        Args:
+            procedure_id: UUID of the procedure
+            success: True if the procedure worked, False if it failed
+            
+        Returns:
+            Updated procedure with success_count/fail_count
+        """
+        return self._request("PATCH", f"/v1/procedures/{procedure_id}/feedback",
+                            params={"success": "true" if success else "false"})
+
+    # ---- Unified Search ----
+
+    def search_all(self, query: str, limit: int = 5,
+                   user_id: str = "default") -> dict:
+        """
+        Search across all 3 memory types: semantic, episodic, procedural.
+        
+        Returns:
+            {"semantic": [...], "episodic": [...], "procedural": [...]}
+        """
+        return self._request("POST", "/v1/search/all",
+                            json={"query": query, "limit": limit})
+
     # ---- Agents ----
 
     def run_agents(self, agent: str = "all", auto_fix: bool = False,

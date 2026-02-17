@@ -78,6 +78,40 @@ export interface CognitiveProfile {
   error?: string;
 }
 
+export interface Episode {
+  id: string;
+  summary: string;
+  context: string | null;
+  outcome: string | null;
+  participants: string[];
+  emotional_valence: 'positive' | 'negative' | 'neutral' | 'mixed';
+  importance: number;
+  score?: number;
+  created_at: string | null;
+  memory_type?: 'episodic';
+}
+
+export interface Procedure {
+  id: string;
+  name: string;
+  trigger_condition: string | null;
+  steps: Array<{ step: number; action: string; detail: string }>;
+  entity_names: string[];
+  success_count: number;
+  fail_count: number;
+  score?: number;
+  last_used: string | null;
+  created_at?: string | null;
+  updated_at: string | null;
+  memory_type?: 'procedural';
+}
+
+export interface UnifiedSearchResult {
+  semantic: SearchResult[];
+  episodic: Episode[];
+  procedural: Procedure[];
+}
+
 export interface Webhook {
   id: number;
   url: string;
@@ -109,6 +143,16 @@ export declare class MengramClient {
   graph(): Promise<{ nodes: any[]; edges: any[] }>;
   getProfile(userId?: string, options?: { force?: boolean }): Promise<CognitiveProfile>;
   timeline(options?: { after?: string; before?: string; limit?: number }): Promise<any[]>;
+
+  // Episodic Memory
+  episodes(options?: { query?: string; limit?: number; after?: string; before?: string }): Promise<Episode[]>;
+
+  // Procedural Memory
+  procedures(options?: { query?: string; limit?: number }): Promise<Procedure[]>;
+  procedureFeedback(procedureId: string, options?: { success?: boolean }): Promise<any>;
+
+  // Unified Search
+  searchAll(query: string, options?: { limit?: number }): Promise<UnifiedSearchResult>;
 
   // Agents
   runAgents(options?: { agent?: string; autoFix?: boolean }): Promise<any>;

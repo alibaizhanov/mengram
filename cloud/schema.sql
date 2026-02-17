@@ -123,7 +123,84 @@ CREATE INDEX idx_embeddings_hnsw ON embeddings
 CREATE INDEX idx_embeddings_tsv ON embeddings USING gin(tsv);
 
 -- ============================================
--- 7. Usage tracking (for dashboard / billing)
+-- 7. Episodic Memory (v2.5 — event/interaction memory)
+-- ============================================
+
+CREATE TABLE episodes (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    context TEXT,
+    outcome TEXT,
+    participants TEXT[] DEFAULT '{}',
+    emotional_valence VARCHAR(20) DEFAULT 'neutral',
+    importance FLOAT DEFAULT 0.5,
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    expires_at TIMESTAMPTZ
+);
+
+CREATE INDEX idx_episodes_user ON episodes(user_id, created_at DESC);
+CREATE INDEX idx_episodes_participants ON episodes USING gin(participants);
+CREATE INDEX idx_episodes_expires ON episodes(expires_at) WHERE expires_at IS NOT NULL;
+
+CREATE TABLE episode_embeddings (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    episode_id UUID REFERENCES episodes(id) ON DELETE CASCADE,
+    chunk_text TEXT NOT NULL,
+    embedding vector(1536),
+    tsv tsvector,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_ep_emb_episode ON episode_embeddings(episode_id);
+CREATE INDEX idx_ep_emb_hnsw ON episode_embeddings
+    USING hnsw (embedding vector_cosine_ops)
+    WITH (m = 16, ef_construction = 64);
+CREATE INDEX idx_ep_emb_tsv ON episode_embeddings USING gin(tsv);
+
+-- ============================================
+-- 8. Procedural Memory (v2.5 — workflow/skill memory)
+-- ============================================
+
+CREATE TABLE procedures (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id TEXT NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    trigger_condition TEXT,
+    steps JSONB NOT NULL DEFAULT '[]',
+    source_episode_ids UUID[] DEFAULT '{}',
+    entity_names TEXT[] DEFAULT '{}',
+    success_count INT DEFAULT 0,
+    fail_count INT DEFAULT 0,
+    last_used TIMESTAMPTZ,
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    expires_at TIMESTAMPTZ,
+    UNIQUE(user_id, name)
+);
+
+CREATE INDEX idx_procedures_user ON procedures(user_id, updated_at DESC);
+CREATE INDEX idx_procedures_entities ON procedures USING gin(entity_names);
+
+CREATE TABLE procedure_embeddings (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    procedure_id UUID REFERENCES procedures(id) ON DELETE CASCADE,
+    chunk_text TEXT NOT NULL,
+    embedding vector(1536),
+    tsv tsvector,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_proc_emb_procedure ON procedure_embeddings(procedure_id);
+CREATE INDEX idx_proc_emb_hnsw ON procedure_embeddings
+    USING hnsw (embedding vector_cosine_ops)
+    WITH (m = 16, ef_construction = 64);
+CREATE INDEX idx_proc_emb_tsv ON procedure_embeddings USING gin(tsv);
+
+-- ============================================
+-- 9. Usage tracking (for dashboard / billing)
 -- ============================================
 
 CREATE TABLE usage_log (

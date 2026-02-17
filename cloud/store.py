@@ -297,6 +297,113 @@ class CloudStore:
             """)
         logger.info("✅ Migration complete (v2.3: TTL expiry)")
 
+        # --- v2.5 Episodic + Procedural memory ---
+        with self._cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS episodes (
+                    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                    user_id TEXT NOT NULL,
+                    summary TEXT NOT NULL,
+                    context TEXT,
+                    outcome TEXT,
+                    participants TEXT[] DEFAULT '{}',
+                    emotional_valence VARCHAR(20) DEFAULT 'neutral',
+                    importance FLOAT DEFAULT 0.5,
+                    metadata JSONB DEFAULT '{}',
+                    created_at TIMESTAMPTZ DEFAULT NOW(),
+                    expires_at TIMESTAMPTZ
+                )
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_episodes_user
+                ON episodes (user_id, created_at DESC)
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_episodes_participants
+                ON episodes USING gin(participants)
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_episodes_expires
+                ON episodes (expires_at) WHERE expires_at IS NOT NULL
+            """)
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS episode_embeddings (
+                    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                    episode_id UUID REFERENCES episodes(id) ON DELETE CASCADE,
+                    chunk_text TEXT NOT NULL,
+                    embedding vector(1536),
+                    tsv tsvector,
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_ep_emb_episode
+                ON episode_embeddings (episode_id)
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_ep_emb_hnsw
+                ON episode_embeddings USING hnsw (embedding vector_cosine_ops)
+                WITH (m = 16, ef_construction = 64)
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_ep_emb_tsv
+                ON episode_embeddings USING gin(tsv)
+            """)
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS procedures (
+                    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                    user_id TEXT NOT NULL,
+                    name VARCHAR(255) NOT NULL,
+                    trigger_condition TEXT,
+                    steps JSONB NOT NULL DEFAULT '[]',
+                    source_episode_ids UUID[] DEFAULT '{}',
+                    entity_names TEXT[] DEFAULT '{}',
+                    success_count INT DEFAULT 0,
+                    fail_count INT DEFAULT 0,
+                    last_used TIMESTAMPTZ,
+                    metadata JSONB DEFAULT '{}',
+                    created_at TIMESTAMPTZ DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ DEFAULT NOW(),
+                    expires_at TIMESTAMPTZ,
+                    UNIQUE(user_id, name)
+                )
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_procedures_user
+                ON procedures (user_id, updated_at DESC)
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_procedures_entities
+                ON procedures USING gin(entity_names)
+            """)
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS procedure_embeddings (
+                    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                    procedure_id UUID REFERENCES procedures(id) ON DELETE CASCADE,
+                    chunk_text TEXT NOT NULL,
+                    embedding vector(1536),
+                    tsv tsvector,
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_proc_emb_procedure
+                ON procedure_embeddings (procedure_id)
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_proc_emb_hnsw
+                ON procedure_embeddings USING hnsw (embedding vector_cosine_ops)
+                WITH (m = 16, ef_construction = 64)
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_proc_emb_tsv
+                ON procedure_embeddings USING gin(tsv)
+            """)
+        logger.info("✅ Migration complete (v2.5: episodic + procedural memory)")
+
     # ---- Job tracking (async mode) ----
 
     def create_job(self, user_id: str, job_type: str = "add") -> str:
@@ -1940,6 +2047,32 @@ Return ONLY JSON (no markdown):
 
         memory_dump = "\n\n".join(sections[:50])  # Cap at 50 entities
 
+        # 2b. Gather episodic memories (recent events)
+        recent_episodes = self.get_episodes(user_id, limit=10)
+        episodes_text = ""
+        if recent_episodes:
+            ep_lines = []
+            for ep in recent_episodes[:10]:
+                line = f"  - {ep['summary']}"
+                if ep.get("outcome"):
+                    line += f" → {ep['outcome']}"
+                ep_lines.append(line)
+            episodes_text = "\n\nRecent events:\n" + "\n".join(ep_lines)
+
+        # 2c. Gather procedural memories (known workflows)
+        procedures = self.get_procedures(user_id, limit=10)
+        procedures_text = ""
+        if procedures:
+            pr_lines = []
+            for pr in procedures[:10]:
+                steps_count = len(pr.get("steps", []))
+                success = pr.get("success_count", 0)
+                line = f"  - {pr['name']} ({steps_count} steps, used {success}x)"
+                if pr.get("trigger_condition"):
+                    line += f" — trigger: {pr['trigger_condition']}"
+                pr_lines.append(line)
+            procedures_text = "\n\nKnown workflows:\n" + "\n".join(pr_lines)
+
         # 3. Generate system prompt via LLM
         import os
         openai_key = os.environ.get("OPENAI_API_KEY", "")
@@ -1959,15 +2092,19 @@ The system prompt should include:
 - What they're currently working on or interested in
 - Communication preferences (language, tone, level of detail)
 - Key relationships and context
+- Recent events and current focus (from episodic memory)
+- Known workflows and habits (from procedural memory)
 - What to emphasize and what to avoid
 - Any patterns in behavior or preferences
 
 Write ONLY the system prompt text. No preamble, no explanation. 
-Make it 100-200 words, natural and useful.
+Make it 150-250 words, natural and useful.
 If user data is in a non-English language, write the profile in that language.
 
-User memory:
-{memory_dump}"""
+SEMANTIC MEMORY (facts about the user):
+{memory_dump}
+{episodes_text}
+{procedures_text}"""
 
             resp = client.chat.completions.create(
                 model="gpt-4o-mini",
@@ -2112,6 +2249,340 @@ User memory:
                     "created_at": row["created_at"].isoformat() if row["created_at"] else None,
                 })
             return {"feed": items, "total": len(items)}
+
+    # =====================================================
+    # EPISODIC MEMORY v2.5
+    # =====================================================
+
+    def save_episode(self, user_id: str, summary: str, context: str = None,
+                     outcome: str = None, participants: list[str] = None,
+                     emotional_valence: str = "neutral", importance: float = 0.5,
+                     metadata: dict = None, expires_at: str = None) -> str:
+        """Save an episodic memory — a specific event or interaction."""
+        meta_json = json.dumps(metadata) if metadata else '{}'
+        parts = participants or []
+        with self._cursor() as cur:
+            cur.execute(
+                """INSERT INTO episodes 
+                   (user_id, summary, context, outcome, participants, 
+                    emotional_valence, importance, metadata, expires_at)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s)
+                   RETURNING id""",
+                (user_id, summary, context, outcome, parts,
+                 emotional_valence, importance, meta_json,
+                 expires_at)
+            )
+            episode_id = str(cur.fetchone()[0])
+        logger.info(f"📝 Episode saved: {summary[:60]}...")
+        return episode_id
+
+    def save_episode_embedding(self, episode_id: str, chunk_text: str, embedding: list[float]):
+        """Save embedding for an episode."""
+        with self._cursor() as cur:
+            cur.execute(
+                """INSERT INTO episode_embeddings (episode_id, chunk_text, embedding, tsv)
+                   VALUES (%s, %s, %s::vector, to_tsvector('english', %s))""",
+                (episode_id, chunk_text, embedding, chunk_text)
+            )
+
+    def delete_episode_embeddings(self, episode_id: str):
+        """Delete all embeddings for an episode."""
+        with self._cursor() as cur:
+            cur.execute("DELETE FROM episode_embeddings WHERE episode_id = %s", (episode_id,))
+
+    def get_episodes(self, user_id: str, limit: int = 20, after: str = None,
+                     before: str = None) -> list[dict]:
+        """Get episodes by time range."""
+        query = """SELECT id, summary, context, outcome, participants,
+                          emotional_valence, importance, metadata, created_at
+                   FROM episodes
+                   WHERE user_id = %s
+                     AND (expires_at IS NULL OR expires_at > NOW())"""
+        params = [user_id]
+        if after:
+            query += " AND created_at >= %s"
+            params.append(after)
+        if before:
+            query += " AND created_at <= %s"
+            params.append(before)
+        query += " ORDER BY created_at DESC LIMIT %s"
+        params.append(limit)
+
+        with self._cursor(dict_cursor=True) as cur:
+            cur.execute(query, params)
+            results = []
+            for row in cur.fetchall():
+                results.append({
+                    "id": str(row["id"]),
+                    "summary": row["summary"],
+                    "context": row["context"],
+                    "outcome": row["outcome"],
+                    "participants": row["participants"] or [],
+                    "emotional_valence": row["emotional_valence"],
+                    "importance": round(float(row["importance"] or 0.5), 2),
+                    "metadata": row["metadata"] or {},
+                    "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                })
+            return results
+
+    def search_episodes_vector(self, user_id: str, embedding: list[float],
+                               top_k: int = 5, after: str = None,
+                               before: str = None) -> list[dict]:
+        """Semantic search over episodic memory."""
+        query = """
+            SELECT ep.id, ep.summary, ep.context, ep.outcome, ep.participants,
+                   ep.emotional_valence, ep.importance, ep.created_at,
+                   1 - (ee.embedding <=> %s::vector) AS score
+            FROM episode_embeddings ee
+            JOIN episodes ep ON ep.id = ee.episode_id
+            WHERE ep.user_id = %s
+              AND (ep.expires_at IS NULL OR ep.expires_at > NOW())
+        """
+        params = [embedding, user_id]
+        if after:
+            query += " AND ep.created_at >= %s"
+            params.append(after)
+        if before:
+            query += " AND ep.created_at <= %s"
+            params.append(before)
+        query += " ORDER BY ee.embedding <=> %s::vector LIMIT %s"
+        params.extend([embedding, top_k])
+
+        with self._cursor(dict_cursor=True) as cur:
+            cur.execute(query, params)
+            results = []
+            seen = set()
+            for row in cur.fetchall():
+                eid = str(row["id"])
+                if eid in seen:
+                    continue
+                seen.add(eid)
+                results.append({
+                    "id": eid,
+                    "summary": row["summary"],
+                    "context": row["context"],
+                    "outcome": row["outcome"],
+                    "participants": row["participants"] or [],
+                    "emotional_valence": row["emotional_valence"],
+                    "importance": round(float(row["importance"] or 0.5), 2),
+                    "score": round(float(row["score"]), 4),
+                    "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                    "memory_type": "episodic",
+                })
+            return results
+
+    def search_episodes_text(self, user_id: str, query: str,
+                             top_k: int = 5) -> list[dict]:
+        """BM25 text search over episodic memory."""
+        sql = """
+            SELECT ep.id, ep.summary, ep.context, ep.outcome, ep.participants,
+                   ep.emotional_valence, ep.importance, ep.created_at,
+                   ts_rank(ee.tsv, plainto_tsquery('english', %s)) AS score
+            FROM episode_embeddings ee
+            JOIN episodes ep ON ep.id = ee.episode_id
+            WHERE ep.user_id = %s
+              AND (ep.expires_at IS NULL OR ep.expires_at > NOW())
+              AND ee.tsv @@ plainto_tsquery('english', %s)
+            ORDER BY score DESC
+            LIMIT %s
+        """
+        with self._cursor(dict_cursor=True) as cur:
+            cur.execute(sql, (query, user_id, query, top_k))
+            results = []
+            seen = set()
+            for row in cur.fetchall():
+                eid = str(row["id"])
+                if eid in seen:
+                    continue
+                seen.add(eid)
+                results.append({
+                    "id": eid,
+                    "summary": row["summary"],
+                    "context": row["context"],
+                    "outcome": row["outcome"],
+                    "participants": row["participants"] or [],
+                    "emotional_valence": row["emotional_valence"],
+                    "importance": round(float(row["importance"] or 0.5), 2),
+                    "score": round(float(row["score"]), 4),
+                    "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                    "memory_type": "episodic",
+                })
+            return results
+
+    # =====================================================
+    # PROCEDURAL MEMORY v2.5
+    # =====================================================
+
+    def save_procedure(self, user_id: str, name: str, trigger_condition: str = None,
+                       steps: list[dict] = None, entity_names: list[str] = None,
+                       source_episode_ids: list[str] = None,
+                       metadata: dict = None, expires_at: str = None) -> str:
+        """Save or update a procedural memory — learned workflow/skill."""
+        meta_json = json.dumps(metadata) if metadata else '{}'
+        steps_json = json.dumps(steps or [])
+        entities = entity_names or []
+        ep_ids = source_episode_ids or []
+
+        with self._cursor() as cur:
+            cur.execute(
+                """INSERT INTO procedures 
+                   (user_id, name, trigger_condition, steps, entity_names,
+                    source_episode_ids, metadata, expires_at)
+                   VALUES (%s, %s, %s, %s::jsonb, %s, %s::uuid[], %s::jsonb, %s)
+                   ON CONFLICT (user_id, name)
+                   DO UPDATE SET
+                       trigger_condition = COALESCE(EXCLUDED.trigger_condition, procedures.trigger_condition),
+                       steps = EXCLUDED.steps,
+                       entity_names = EXCLUDED.entity_names,
+                       updated_at = NOW()
+                   RETURNING id""",
+                (user_id, name, trigger_condition, steps_json, entities,
+                 ep_ids if ep_ids else None, meta_json, expires_at)
+            )
+            proc_id = str(cur.fetchone()[0])
+        logger.info(f"⚙️ Procedure saved: {name}")
+        return proc_id
+
+    def save_procedure_embedding(self, procedure_id: str, chunk_text: str, embedding: list[float]):
+        """Save embedding for a procedure."""
+        with self._cursor() as cur:
+            cur.execute(
+                """INSERT INTO procedure_embeddings (procedure_id, chunk_text, embedding, tsv)
+                   VALUES (%s, %s, %s::vector, to_tsvector('english', %s))""",
+                (procedure_id, chunk_text, embedding, chunk_text)
+            )
+
+    def delete_procedure_embeddings(self, procedure_id: str):
+        """Delete all embeddings for a procedure."""
+        with self._cursor() as cur:
+            cur.execute("DELETE FROM procedure_embeddings WHERE procedure_id = %s", (procedure_id,))
+
+    def get_procedures(self, user_id: str, limit: int = 20) -> list[dict]:
+        """Get all procedures for a user."""
+        with self._cursor(dict_cursor=True) as cur:
+            cur.execute(
+                """SELECT id, name, trigger_condition, steps, entity_names,
+                          success_count, fail_count, last_used, created_at, updated_at
+                   FROM procedures
+                   WHERE user_id = %s
+                     AND (expires_at IS NULL OR expires_at > NOW())
+                   ORDER BY updated_at DESC
+                   LIMIT %s""",
+                (user_id, limit)
+            )
+            results = []
+            for row in cur.fetchall():
+                results.append({
+                    "id": str(row["id"]),
+                    "name": row["name"],
+                    "trigger_condition": row["trigger_condition"],
+                    "steps": row["steps"] or [],
+                    "entity_names": row["entity_names"] or [],
+                    "success_count": row["success_count"] or 0,
+                    "fail_count": row["fail_count"] or 0,
+                    "last_used": row["last_used"].isoformat() if row["last_used"] else None,
+                    "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                    "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
+                    "memory_type": "procedural",
+                })
+            return results
+
+    def search_procedures_vector(self, user_id: str, embedding: list[float],
+                                 top_k: int = 5) -> list[dict]:
+        """Semantic search over procedural memory."""
+        query = """
+            SELECT p.id, p.name, p.trigger_condition, p.steps, p.entity_names,
+                   p.success_count, p.fail_count, p.last_used, p.updated_at,
+                   1 - (pe.embedding <=> %s::vector) AS score
+            FROM procedure_embeddings pe
+            JOIN procedures p ON p.id = pe.procedure_id
+            WHERE p.user_id = %s
+              AND (p.expires_at IS NULL OR p.expires_at > NOW())
+            ORDER BY pe.embedding <=> %s::vector
+            LIMIT %s
+        """
+        with self._cursor(dict_cursor=True) as cur:
+            cur.execute(query, (embedding, user_id, embedding, top_k))
+            results = []
+            seen = set()
+            for row in cur.fetchall():
+                pid = str(row["id"])
+                if pid in seen:
+                    continue
+                seen.add(pid)
+                results.append({
+                    "id": pid,
+                    "name": row["name"],
+                    "trigger_condition": row["trigger_condition"],
+                    "steps": row["steps"] or [],
+                    "entity_names": row["entity_names"] or [],
+                    "success_count": row["success_count"] or 0,
+                    "fail_count": row["fail_count"] or 0,
+                    "score": round(float(row["score"]), 4),
+                    "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
+                    "memory_type": "procedural",
+                })
+            return results
+
+    def search_procedures_text(self, user_id: str, query: str,
+                               top_k: int = 5) -> list[dict]:
+        """BM25 text search over procedural memory."""
+        sql = """
+            SELECT p.id, p.name, p.trigger_condition, p.steps, p.entity_names,
+                   p.success_count, p.fail_count, p.updated_at,
+                   ts_rank(pe.tsv, plainto_tsquery('english', %s)) AS score
+            FROM procedure_embeddings pe
+            JOIN procedures p ON p.id = pe.procedure_id
+            WHERE p.user_id = %s
+              AND (p.expires_at IS NULL OR p.expires_at > NOW())
+              AND pe.tsv @@ plainto_tsquery('english', %s)
+            ORDER BY score DESC
+            LIMIT %s
+        """
+        with self._cursor(dict_cursor=True) as cur:
+            cur.execute(sql, (query, user_id, query, top_k))
+            results = []
+            seen = set()
+            for row in cur.fetchall():
+                pid = str(row["id"])
+                if pid in seen:
+                    continue
+                seen.add(pid)
+                results.append({
+                    "id": pid,
+                    "name": row["name"],
+                    "trigger_condition": row["trigger_condition"],
+                    "steps": row["steps"] or [],
+                    "entity_names": row["entity_names"] or [],
+                    "success_count": row["success_count"] or 0,
+                    "fail_count": row["fail_count"] or 0,
+                    "score": round(float(row["score"]), 4),
+                    "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
+                    "memory_type": "procedural",
+                })
+            return results
+
+    def procedure_feedback(self, user_id: str, procedure_id: str, success: bool) -> dict:
+        """Record success/failure feedback for a procedure."""
+        col = "success_count" if success else "fail_count"
+        with self._cursor(dict_cursor=True) as cur:
+            cur.execute(
+                f"""UPDATE procedures 
+                    SET {col} = {col} + 1, last_used = NOW(), updated_at = NOW()
+                    WHERE id = %s AND user_id = %s
+                    RETURNING id, name, success_count, fail_count""",
+                (procedure_id, user_id)
+            )
+            row = cur.fetchone()
+            if not row:
+                return {"error": "procedure not found"}
+            return {
+                "id": str(row["id"]),
+                "name": row["name"],
+                "success_count": row["success_count"],
+                "fail_count": row["fail_count"],
+                "feedback": "success" if success else "failure",
+            }
 
     # =====================================================
     # MEMORY AGENTS v2.0

@@ -64,6 +64,21 @@ FACT DEDUP — check existing facts above. Do NOT re-extract facts that already 
 If user says "I use Python" and existing context already has "uses Python" → skip it.
 If user says "I switched from React to Svelte" and existing has "uses React" → extract "switched to Svelte" (this is NEW info).
 
+EPISODIC MEMORY — extract noteworthy events/interactions:
+- An episode = something that HAPPENED: a discussion, decision, debugging session, milestone, problem solved
+- Only extract if the event is meaningful and worth remembering (not trivial chat)
+- Include: what happened (summary), details (context), result (outcome), who/what was involved (participants)
+- emotional_valence: positive (success, achievement), negative (failure, frustration), neutral, mixed
+- importance: 0.3 (minor event) to 0.9 (major decision/milestone)
+- Do NOT create episodes for routine exchanges with no meaningful outcome
+
+PROCEDURAL MEMORY — extract learned workflows/processes:
+- A procedure = a repeatable sequence of steps the user performs or described
+- Only extract if there are 2+ concrete steps forming a workflow
+- Include: name (what the procedure does), trigger (when to use it), steps (ordered actions)
+- Link to entities involved
+- Do NOT create procedures from hypothetical/planned workflows — only from confirmed actions
+
 Response format (strict JSON, no ```):
 {{
   "entities": [
@@ -89,6 +104,27 @@ Response format (strict JSON, no ```):
       "content": "Detailed explanation",
       "artifact": "code/config/formula/command (optional, null if none)"
     }}
+  ],
+  "episodes": [
+    {{
+      "summary": "Brief description of what happened (under 15 words)",
+      "context": "Detailed description of the event and discussion",
+      "outcome": "What was decided, resolved, or resulted",
+      "participants": ["Entity1", "Entity2"],
+      "emotional_valence": "positive|negative|neutral|mixed",
+      "importance": 0.5
+    }}
+  ],
+  "procedures": [
+    {{
+      "name": "Short procedure name",
+      "trigger": "When/why to use this procedure",
+      "steps": [
+        {{"step": 1, "action": "What to do", "detail": "Specific command or instruction"}},
+        {{"step": 2, "action": "Next step", "detail": "Specifics"}}
+      ],
+      "entities": ["Entity1"]
+    }}
   ]
 }}
 
@@ -96,7 +132,7 @@ EXAMPLE:
 Input conversation:
   User: "Я вчера задеплоил mengram на Railway, всё работает. Пришлось повозиться с pgvector"
   Assistant: "Отлично! Какая версия PostgreSQL?"
-  User: "15-я, на Supabase хостится"
+  User: "15-я, на Supabase хостится. Процесс такой: сначала build, потом twine upload, потом npm publish"
 
 Output:
 {{
@@ -108,7 +144,29 @@ Output:
     {{"from": "Mengram", "to": "Railway", "type": "depends_on", "description": "deployed on"}},
     {{"from": "Mengram", "to": "Supabase", "type": "depends_on", "description": "database hosting"}}
   ],
-  "knowledge": []
+  "knowledge": [],
+  "episodes": [
+    {{
+      "summary": "Successfully deployed Mengram on Railway",
+      "context": "Deployed Mengram to Railway. Had issues with pgvector extension that required debugging. Uses Supabase with PostgreSQL 15 as the database.",
+      "outcome": "Deployment successful, everything working",
+      "participants": ["Mengram", "Railway", "Supabase"],
+      "emotional_valence": "positive",
+      "importance": 0.7
+    }}
+  ],
+  "procedures": [
+    {{
+      "name": "Release Mengram package",
+      "trigger": "When publishing a new version of Mengram",
+      "steps": [
+        {{"step": 1, "action": "Build Python package", "detail": "python -m build"}},
+        {{"step": 2, "action": "Upload to PyPI", "detail": "twine upload dist/*"}},
+        {{"step": 3, "action": "Publish npm package", "detail": "npm publish"}}
+      ],
+      "entities": ["Mengram"]
+    }}
+  ]
 }}
 
 CONVERSATION:
@@ -161,18 +219,48 @@ class ExtractedKnowledge:
 
 
 @dataclass
+class ExtractedEpisode:
+    """Извлечённый эпизод — конкретное событие, взаимодействие."""
+    summary: str                  # краткое описание (до 15 слов)
+    context: str = ""             # подробное описание
+    outcome: str = ""             # результат/решение
+    participants: list[str] = field(default_factory=list)  # участвующие entities
+    emotional_valence: str = "neutral"  # positive/negative/neutral/mixed
+    importance: float = 0.5       # 0.0-1.0
+
+    def __repr__(self):
+        return f"Episode({self.summary[:50]}... [{self.emotional_valence}])"
+
+
+@dataclass
+class ExtractedProcedure:
+    """Извлечённая процедура — повторяемый workflow/навык."""
+    name: str                     # название процедуры
+    trigger: str = ""             # когда применять
+    steps: list[dict] = field(default_factory=list)  # [{step, action, detail}]
+    entities: list[str] = field(default_factory=list)  # связанные entities
+
+    def __repr__(self):
+        return f"Procedure({self.name}, steps={len(self.steps)})"
+
+
+@dataclass
 class ExtractionResult:
     """Результат извлечения знаний из разговора"""
     entities: list[ExtractedEntity] = field(default_factory=list)
     relations: list[ExtractedRelation] = field(default_factory=list)
     knowledge: list[ExtractedKnowledge] = field(default_factory=list)
+    episodes: list[ExtractedEpisode] = field(default_factory=list)
+    procedures: list[ExtractedProcedure] = field(default_factory=list)
     raw_response: str = ""
 
     def __repr__(self):
         return (
             f"ExtractionResult(entities={len(self.entities)}, "
             f"relations={len(self.relations)}, "
-            f"knowledge={len(self.knowledge)})"
+            f"knowledge={len(self.knowledge)}, "
+            f"episodes={len(self.episodes)}, "
+            f"procedures={len(self.procedures)})"
         )
 
 
@@ -260,6 +348,26 @@ class ConversationExtractor:
                 artifact=k.get("artifact"),
             ))
 
+        # Episodes (v2.5)
+        for ep in data.get("episodes", []):
+            result.episodes.append(ExtractedEpisode(
+                summary=ep.get("summary", ""),
+                context=ep.get("context", ""),
+                outcome=ep.get("outcome", ""),
+                participants=ep.get("participants", []),
+                emotional_valence=ep.get("emotional_valence", "neutral"),
+                importance=float(ep.get("importance", 0.5)),
+            ))
+
+        # Procedures (v2.5)
+        for pr in data.get("procedures", []):
+            result.procedures.append(ExtractedProcedure(
+                name=pr.get("name", ""),
+                trigger=pr.get("trigger", ""),
+                steps=pr.get("steps", []),
+                entities=pr.get("entities", []),
+            ))
+
         return result
 
 
@@ -322,6 +430,28 @@ class MockLLMClient(LLMClient):
                     "title": "Check active connections",
                     "content": "Мониторинг активных соединений PostgreSQL",
                     "artifact": "SELECT count(*), state FROM pg_stat_activity GROUP BY state;"
+                }
+            ],
+            "episodes": [
+                {
+                    "summary": "Debugged PostgreSQL connection pool exhaustion",
+                    "context": "200+ WebSocket connections caused OOM. Each WS held a separate DB connection. Investigated HikariCP settings.",
+                    "outcome": "Fixed by adding Redis cache for UserService and BlockedAccountService, reduced pool size to 20",
+                    "participants": ["PostgreSQL", "Проект Alpha"],
+                    "emotional_valence": "positive",
+                    "importance": 0.7
+                }
+            ],
+            "procedures": [
+                {
+                    "name": "Debug PostgreSQL connection issues",
+                    "trigger": "When database connections are exhausted or OOM occurs",
+                    "steps": [
+                        {"step": 1, "action": "Check active connections", "detail": "SELECT count(*), state FROM pg_stat_activity GROUP BY state;"},
+                        {"step": 2, "action": "Review HikariCP pool settings", "detail": "Check maximum-pool-size, idle-timeout, connection-timeout"},
+                        {"step": 3, "action": "Add caching layer", "detail": "Use Redis to cache frequently accessed services"}
+                    ],
+                    "entities": ["PostgreSQL", "Проект Alpha"]
                 }
             ]
         }, ensure_ascii=False)

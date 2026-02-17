@@ -223,6 +223,84 @@ class MengramClient {
     return this._request('GET', `/v1/profile/${userId}`, null, params);
   }
 
+  // ---- Episodic Memory ----
+
+  /**
+   * Get or search episodic memories (events, interactions, experiences).
+   * @param {object} [options]
+   * @param {string} [options.query] - Search query (if omitted, returns recent episodes)
+   * @param {number} [options.limit] - Max results (default 20)
+   * @param {string} [options.after] - ISO datetime filter start
+   * @param {string} [options.before] - ISO datetime filter end
+   * @returns {Promise<Array>}
+   */
+  async episodes(options = {}) {
+    if (options.query) {
+      const params = { query: options.query, limit: options.limit || 5 };
+      if (options.after) params.after = options.after;
+      if (options.before) params.before = options.before;
+      const data = await this._request('GET', '/v1/episodes/search', null, params);
+      return data.results || [];
+    } else {
+      const params = { limit: options.limit || 20 };
+      if (options.after) params.after = options.after;
+      if (options.before) params.before = options.before;
+      const data = await this._request('GET', '/v1/episodes', null, params);
+      return data.episodes || [];
+    }
+  }
+
+  // ---- Procedural Memory ----
+
+  /**
+   * Get or search procedural memories (learned workflows, skills).
+   * @param {object} [options]
+   * @param {string} [options.query] - Search query (if omitted, returns all procedures)
+   * @param {number} [options.limit] - Max results (default 20)
+   * @returns {Promise<Array>}
+   */
+  async procedures(options = {}) {
+    if (options.query) {
+      const params = { query: options.query, limit: options.limit || 5 };
+      const data = await this._request('GET', '/v1/procedures/search', null, params);
+      return data.results || [];
+    } else {
+      const params = { limit: options.limit || 20 };
+      const data = await this._request('GET', '/v1/procedures', null, params);
+      return data.procedures || [];
+    }
+  }
+
+  /**
+   * Record success/failure feedback for a procedure.
+   * @param {string} procedureId - UUID of the procedure
+   * @param {object} [options]
+   * @param {boolean} [options.success] - true if worked, false if failed (default true)
+   * @returns {Promise<object>}
+   */
+  async procedureFeedback(procedureId, options = {}) {
+    const success = options.success !== false;
+    return this._request('PATCH', `/v1/procedures/${procedureId}/feedback`, null, {
+      success: success ? 'true' : 'false',
+    });
+  }
+
+  // ---- Unified Search ----
+
+  /**
+   * Search across all 3 memory types: semantic, episodic, procedural.
+   * @param {string} query - Search query
+   * @param {object} [options]
+   * @param {number} [options.limit] - Max results per type (default 5)
+   * @returns {Promise<{semantic: Array, episodic: Array, procedural: Array}>}
+   */
+  async searchAll(query, options = {}) {
+    return this._request('POST', '/v1/search/all', {
+      query,
+      limit: options.limit || 5,
+    });
+  }
+
   /**
    * Timeline search.
    * @param {object} [options]

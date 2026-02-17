@@ -102,7 +102,7 @@ m.add([{"role": "user", "content": "I use Python and Railway"}])
 results = m.search("deployment")
 ```
         """,
-        version="2.4.0",
+        version="2.5.0",
         docs_url="/docs",
         redoc_url="/redoc",
         openapi_tags=[
@@ -608,7 +608,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         pool_info = {"type": "pool", "max": 10} if store._pool else {"type": "single"}
         return {
             "status": "ok",
-            "version": "2.4.0",
+            "version": "2.5.0",
             "cache": cache_stats,
             "connection": pool_info,
         }
@@ -728,8 +728,72 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                             store.save_embedding(entity_id, chunk, emb)
 
                 store.log_usage(user_id, "add")
-                logger.info(f"✅ Background add complete for {user_id}")
-                store.complete_job(job_id, {"created": created, "count": len(created)})
+
+                # ---- Episodic Memory: save episodes ----
+                episodes_created = 0
+                embedder = get_embedder()
+                for ep in extraction.episodes:
+                    if not ep.summary:
+                        continue
+                    try:
+                        episode_id = store.save_episode(
+                            user_id=user_id,
+                            summary=ep.summary,
+                            context=ep.context,
+                            outcome=ep.outcome,
+                            participants=ep.participants,
+                            emotional_valence=ep.emotional_valence,
+                            importance=ep.importance,
+                            metadata=metadata if metadata else None,
+                            expires_at=req.expiration_date,
+                        )
+                        # Embed episode
+                        if embedder:
+                            ep_text = f"{ep.summary}. {ep.context or ''} {ep.outcome or ''}"
+                            ep_embs = embedder.embed_batch([ep_text])
+                            if ep_embs:
+                                store.save_episode_embedding(episode_id, ep_text, ep_embs[0])
+                        episodes_created += 1
+                    except Exception as e:
+                        logger.error(f"⚠️ Episode save failed: {e}")
+
+                # ---- Procedural Memory: save procedures ----
+                procedures_created = 0
+                for pr in extraction.procedures:
+                    if not pr.name or not pr.steps:
+                        continue
+                    try:
+                        proc_id = store.save_procedure(
+                            user_id=user_id,
+                            name=pr.name,
+                            trigger_condition=pr.trigger,
+                            steps=pr.steps,
+                            entity_names=pr.entities,
+                            metadata=metadata if metadata else None,
+                            expires_at=req.expiration_date,
+                        )
+                        # Embed procedure
+                        if embedder:
+                            steps_summary = "; ".join(
+                                s.get("action", "") for s in pr.steps[:10]
+                            )
+                            pr_text = f"{pr.name}. {pr.trigger or ''}. Steps: {steps_summary}"
+                            pr_embs = embedder.embed_batch([pr_text])
+                            if pr_embs:
+                                store.delete_procedure_embeddings(proc_id)
+                                store.save_procedure_embedding(proc_id, pr_text, pr_embs[0])
+                        procedures_created += 1
+                    except Exception as e:
+                        logger.error(f"⚠️ Procedure save failed: {e}")
+
+                logger.info(f"✅ Background add complete for {user_id} "
+                           f"(entities={len(created)}, episodes={episodes_created}, procedures={procedures_created})")
+                store.complete_job(job_id, {
+                    "created": created,
+                    "count": len(created),
+                    "episodes": episodes_created,
+                    "procedures": procedures_created,
+                })
 
                 # Auto-trigger reflection if needed
                 try:
@@ -1273,6 +1337,115 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     async def get_own_profile(force: bool = False, user_id: str = Depends(auth)):
         """Cognitive Profile for the authenticated user."""
         return store.get_profile(user_id, force=force)
+
+    # ---- Episodic Memory ----
+
+    @app.get("/v1/episodes", tags=["Episodic Memory"])
+    async def list_episodes(
+        limit: int = 20, after: str = None, before: str = None,
+        user_id: str = Depends(auth)
+    ):
+        """List episodic memories (events, interactions, experiences)."""
+        episodes = store.get_episodes(user_id, limit=min(limit, 100),
+                                       after=after, before=before)
+        return {"episodes": episodes, "count": len(episodes)}
+
+    @app.get("/v1/episodes/search", tags=["Episodic Memory"])
+    async def search_episodes(
+        query: str, limit: int = 5,
+        after: str = None, before: str = None,
+        user_id: str = Depends(auth)
+    ):
+        """Semantic search over episodic memories."""
+        embedder = get_embedder()
+        if embedder:
+            emb = embedder.embed(query)
+            results = store.search_episodes_vector(
+                user_id, emb, top_k=limit, after=after, before=before)
+        else:
+            results = store.search_episodes_text(user_id, query, top_k=limit)
+        return {"results": results}
+
+    # ---- Procedural Memory ----
+
+    @app.get("/v1/procedures", tags=["Procedural Memory"])
+    async def list_procedures(
+        limit: int = 20,
+        user_id: str = Depends(auth)
+    ):
+        """List procedural memories (learned workflows, skills)."""
+        procedures = store.get_procedures(user_id, limit=min(limit, 100))
+        return {"procedures": procedures, "count": len(procedures)}
+
+    @app.get("/v1/procedures/search", tags=["Procedural Memory"])
+    async def search_procedures(
+        query: str, limit: int = 5,
+        user_id: str = Depends(auth)
+    ):
+        """Semantic search over procedural memories."""
+        embedder = get_embedder()
+        if embedder:
+            emb = embedder.embed(query)
+            results = store.search_procedures_vector(user_id, emb, top_k=limit)
+        else:
+            results = store.search_procedures_text(user_id, query, top_k=limit)
+        return {"results": results}
+
+    @app.patch("/v1/procedures/{procedure_id}/feedback", tags=["Procedural Memory"])
+    async def procedure_feedback(
+        procedure_id: str, success: bool = True,
+        user_id: str = Depends(auth)
+    ):
+        """Record success/failure feedback for a procedure. Helps the system learn what works."""
+        result = store.procedure_feedback(user_id, procedure_id, success)
+        if "error" in result:
+            raise HTTPException(status_code=404, detail=result["error"])
+        return result
+
+    # ---- Unified Search (all 3 memory types) ----
+
+    @app.post("/v1/search/all", tags=["Search"])
+    async def search_all(req: SearchRequest, user_id: str = Depends(auth)):
+        """Search across all memory types: semantic, episodic, and procedural.
+        Returns categorized results from each memory system."""
+        embedder = get_embedder()
+        ep_limit = max(req.limit // 2, 3)
+        proc_limit = max(req.limit // 2, 3)
+
+        # Semantic (existing search)
+        search_limit = max(req.limit * 2, 10)
+        if embedder:
+            emb = embedder.embed(req.query)
+            semantic = store.search_vector_with_teams(
+                user_id, emb, top_k=search_limit, query_text=req.query)
+            if not semantic:
+                semantic = store.search_vector_with_teams(
+                    user_id, emb, top_k=search_limit, min_score=0.15,
+                    query_text=req.query)
+            # Episodic
+            episodic = store.search_episodes_vector(
+                user_id, emb, top_k=ep_limit)
+            # Procedural
+            procedural = store.search_procedures_vector(
+                user_id, emb, top_k=proc_limit)
+        else:
+            semantic = store.search_text(user_id, req.query, top_k=search_limit)
+            episodic = store.search_episodes_text(
+                user_id, req.query, top_k=ep_limit)
+            procedural = store.search_procedures_text(
+                user_id, req.query, top_k=proc_limit)
+
+        # Re-rank semantic
+        if semantic and len(semantic) > 1:
+            semantic = rerank_results(req.query, semantic)
+        semantic = semantic[:req.limit]
+
+        store.log_usage(user_id, "search_all")
+        return {
+            "semantic": semantic,
+            "episodic": episodic,
+            "procedural": procedural,
+        }
 
     return app
 
