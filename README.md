@@ -184,6 +184,55 @@ Communicate in Russian/English, direct style, focus on practical next steps.
 
 Insert into any LLM's system prompt for instant personalization. Replace your RAG pipeline.
 
+## LangChain Integration
+
+Drop-in replacement for LangChain's memory. Instead of returning raw message history, Mengram returns relevant knowledge from all 3 memory types.
+
+```bash
+pip install mengram-ai[langchain]
+```
+
+**LCEL (recommended):**
+```python
+from mengram.integrations.langchain import MengramChatMessageHistory
+from langchain_core.runnables.history import RunnableWithMessageHistory
+
+chain_with_memory = RunnableWithMessageHistory(
+    chain,
+    lambda session_id: MengramChatMessageHistory(
+        api_key="om-...", session_id=session_id, user_id="ali"
+    ),
+    input_messages_key="input",
+    history_messages_key="history",
+)
+```
+
+**ConversationChain (legacy):**
+```python
+from mengram.integrations.langchain import MengramMemory
+
+# Basic — search-based context
+memory = MengramMemory(api_key="om-...", user_id="ali")
+
+# With Cognitive Profile — full user personalization
+memory = MengramMemory(api_key="om-...", user_id="ali", use_profile=True)
+
+chain = ConversationChain(llm=llm, memory=memory)
+chain.predict(input="I deployed my app on Railway")
+# Next call — Mengram searches all 3 memory types for relevant context
+chain.predict(input="How did my last deployment go?")
+# → Memory provides: facts about Railway, the deployment event, deploy workflow
+```
+
+**vs ConversationBufferMemory:**
+| | ConversationBufferMemory | MengramMemory |
+|---|---|---|
+| Storage | RAM (lost on restart) | Persistent (PostgreSQL) |
+| Context | Last N messages (raw) | Relevant knowledge (semantic search) |
+| Memory types | 1 (messages) | 3 (semantic + episodic + procedural) |
+| Cross-session | ❌ | ✅ |
+| Personalization | ❌ | ✅ Cognitive Profile |
+
 ## Memory Categories
 
 Separate memory by user, agent, session, and application:

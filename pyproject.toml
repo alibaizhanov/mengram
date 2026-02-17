@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mengram-ai"
-version = "2.5.1"
+version = "2.5.2"
 description = "Human-like memory for AI — semantic, episodic & procedural. Cognitive Profile, unified search, memory agents. Free open-source Mem0 alternative."
 readme = "README.md"
 license = {text = "MIT"}
@@ -41,6 +41,7 @@ openai = ["openai>=1.0"]
 embeddings = ["sentence-transformers>=2.2"]
 mcp = ["mcp>=1.0"]
 api = ["fastapi>=0.100", "uvicorn>=0.20", "resend>=2.0"]
+langchain = ["langchain-core>=0.2"]
 all = [
     "anthropic>=0.40",
     "openai>=1.0",
@@ -48,6 +49,7 @@ all = [
     "mcp>=1.0",
     "fastapi>=0.100",
     "uvicorn>=0.20",
+    "langchain-core>=0.2",
 ]
 dev = ["pytest>=7.0", "pytest-asyncio>=0.21"]
 
@@ -61,7 +63,7 @@ Documentation = "https://mengram.io"
 mengram = "cli:main"
 
 [tool.setuptools.packages.find]
-include = ["engine*", "api*", "cloud*"]
+include = ["engine*", "api*", "cloud*", "integrations*"]
 
 [tool.setuptools]
 py-modules = ["mengram", "mengram_middleware", "cli"]
