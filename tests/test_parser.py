@@ -1,4 +1,4 @@
-"""Тесты для Markdown Parser"""
+"""Tests for Markdown Parser"""
 
 import pytest
 from engine.parser.markdown_parser import (
@@ -93,7 +93,7 @@ class TestParseVault:
         notes = parse_vault("test_vault")
         assert len(notes) == 7
 
-        # Проверяем что все имена файлов стали title
+        # Verify all filenames became titles
         titles = {n.title for n in notes}
         assert "Проект Alpha" in titles
         assert "PostgreSQL" in titles

@@ -1,10 +1,10 @@
 """
-Hybrid Retrieval Engine — объединяет Vector Search + Graph Traversal.
+Hybrid Retrieval Engine — combines Vector Search + Graph Traversal.
 
-Это главная фича, которая отличает нас от Mem0:
-1. Vector search → находит семантически похожие чанки
-2. Graph expansion → расширяет через связи на N уровней
-3. Context assembly → собирает всё в структурированный ответ для AI
+This is the key feature that differentiates from Mem0:
+1. Vector search → finds semantically similar chunks
+2. Graph expansion → expands through relations to N levels
+3. Context assembly → assembles into structured response for AI
 """
 
 from dataclasses import dataclass, field
@@ -15,13 +15,13 @@ from engine.vector.vector_store import VectorStore, SearchResult, index_vault
 
 @dataclass
 class RetrievalResult:
-    """Полный результат гибридного поиска"""
+    """Full hybrid search result"""
     query: str
-    # Прямые совпадения из vector search
+    # Direct matches from vector search
     direct_matches: list[SearchResult] = field(default_factory=list)
-    # Связанные entities из graph expansion
+    # Related entities from graph expansion
     graph_context: list[dict] = field(default_factory=list)
-    # Собранный контекст для AI-агента
+    # Assembled context for AI agent
     assembled_context: str = ""
 
     def __repr__(self):
@@ -37,13 +37,13 @@ class RetrievalResult:
 
 class HybridRetrieval:
     """
-    Гибридный поиск: Vector + Graph.
+    Hybrid search: Vector + Graph.
 
     Workflow:
-    1. Vector search по запросу → top-K чанков
-    2. Извлекаем entity_id из найденных чанков
-    3. Graph traversal от этих entities на depth уровней
-    4. Собираем контекст: прямые совпадения + граф связей
+    1. Vector search on query → top-K chunks
+    2. Extract entity_id from found chunks
+    3. Graph traversal from these entities to depth levels
+    4. Assemble context: direct matches + graph relations
     """
 
     def __init__(self, graph: KnowledgeGraph, vector_store: VectorStore):
@@ -53,13 +53,13 @@ class HybridRetrieval:
     def query(self, text: str, top_k: int = 5, graph_depth: int = 1,
               min_score: float = 0.15) -> RetrievalResult:
         """
-        Главный метод — гибридный поиск.
+        Main method — hybrid search.
 
         Args:
-            text: поисковый запрос
-            top_k: сколько чанков из vector search
-            graph_depth: глубина обхода графа
-            min_score: минимальный score для vector search
+            text: search query
+            top_k: how many chunks from vector search
+            graph_depth: graph traversal depth
+            min_score: minimum score for vector search
         """
         result = RetrievalResult(query=text)
 
@@ -68,7 +68,7 @@ class HybridRetrieval:
             query=text, top_k=top_k, min_score=min_score
         )
 
-        # Step 2: Graph expansion от найденных entities
+        # Step 2: Graph expansion from found entities
         seen_entities = set()
         for match in result.direct_matches:
             entity_id = match.entity_id
@@ -76,7 +76,7 @@ class HybridRetrieval:
                 continue
             seen_entities.add(entity_id)
 
-            # Получаем entity из графа
+            # Get entity from graph
             entity = self.graph.get_entity(entity_id)
             if not entity:
                 continue
@@ -89,24 +89,24 @@ class HybridRetrieval:
                     result.graph_context.append(neighbor)
                     seen_entities.add(n_id)
 
-        # Step 3: Собираем контекст для AI
+        # Step 3: Assemble context for AI
         result.assembled_context = self._assemble_context(result)
 
         return result
 
     def get_entity_context(self, entity_name: str, graph_depth: int = 2) -> RetrievalResult:
         """
-        Получить полный контекст по конкретной entity.
-        Для запросов типа "расскажи всё о Проект Alpha".
+        Get full context for a specific entity.
+        For queries like "tell me everything about Project Alpha".
         """
         result = RetrievalResult(query=f"context:{entity_name}")
 
         entity = self.graph.find_entity(entity_name)
         if not entity:
-            result.assembled_context = f"Entity '{entity_name}' не найдена в vault."
+            result.assembled_context = f"Entity '{entity_name}' not found in vault."
             return result
 
-        # Все чанки этой entity
+        # All chunks for this entity
         chunks_data = self.vector_store.search_by_entity(entity.id)
         for chunk in chunks_data:
             result.direct_matches.append(SearchResult(
@@ -128,14 +128,14 @@ class HybridRetrieval:
 
     def _assemble_context(self, result: RetrievalResult) -> str:
         """
-        Собирает человекочитаемый контекст из результатов поиска.
-        Этот текст пойдёт в промпт AI-агента.
+        Assembles human-readable context from search results.
+        This text goes into the AI agent prompt.
         """
         parts = []
 
-        # Прямые совпадения
+        # Direct matches
         if result.direct_matches:
-            parts.append("## Релевантные фрагменты из заметок\n")
+            parts.append("## Relevant fragments from notes\n")
             seen_content = set()
             for match in result.direct_matches:
                 if match.content in seen_content:
@@ -147,16 +147,16 @@ class HybridRetrieval:
                     f"{match.content}\n"
                 )
 
-        # Граф связей
+        # Graph relations
         if result.graph_context:
-            parts.append("\n## Связанные сущности (из графа знаний)\n")
+            parts.append("\n## Related entities (from knowledge graph)\n")
 
-            # Группируем по типу связи
+            # Group by relation type
             by_type: dict[str, list] = {}
             for ctx in result.graph_context:
                 rel = ctx["relation_type"]
                 entity = ctx["entity"]
-                # Пропускаем теги для чистоты контекста
+                # Skip tags for cleaner context
                 if entity.entity_type == "tag":
                     continue
                 by_type.setdefault(rel, []).append(entity)
@@ -170,8 +170,8 @@ class HybridRetrieval:
 
 def build_retrieval_engine(vault_path: str) -> HybridRetrieval:
     """
-    Создаёт полный retrieval engine из vault.
-    Строит граф + индексирует вектора.
+    Creates full retrieval engine from vault.
+    Builds graph + indexes vectors.
     """
     print("=" * 50)
     print("🏗️  Building Mengram Retrieval Engine")
@@ -201,11 +201,11 @@ if __name__ == "__main__":
     vault_path = sys.argv[1] if len(sys.argv) > 1 else "./test_vault"
     engine = build_retrieval_engine(vault_path)
 
-    # Тестовые запросы
+    # Test queries
     queries = [
-        "проблема с производительностью базы данных",
-        "кто работает над backend проектами",
-        "какие технологии использует Ali",
+        "database performance issue",
+        "who works on backend projects",
+        "what technologies does Ali use",
     ]
 
     for q in queries:
@@ -217,10 +217,10 @@ if __name__ == "__main__":
         print(result)
         print(f"\n📋 Assembled context:\n{result.assembled_context}")
 
-    # Тест: контекст по entity
+    # Test: context for entity
     print(f"\n{'='*60}")
-    print(f"🎯 Entity context: 'Проект Alpha'")
+    print(f"🎯 Entity context: 'Project Alpha'")
     print(f"{'='*60}")
-    result = engine.get_entity_context("Проект Alpha")
+    result = engine.get_entity_context("Project Alpha")
     print(result)
     print(f"\n📋 Context:\n{result.assembled_context}")

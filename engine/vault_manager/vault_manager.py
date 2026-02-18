@@ -1,11 +1,11 @@
 import sys
 """
-Vault Manager v2 — создаёт/обновляет .md файлы с Rich Knowledge.
+Vault Manager v2 — creates/updates .md files with Rich Knowledge.
 
-Секции в .md файле:
-  ## Facts — короткие факты
-  ## Relations — связи с другими entities
-  ## Knowledge — решения, формулы, рецепты, конфиги (с артефактами)
+Sections in .md file:
+  ## Facts — short facts
+  ## Relations — connections to other entities
+  ## Knowledge — solutions, formulas, recipes, configs (with artifacts)
 """
 
 import re
@@ -24,7 +24,7 @@ from engine.extractor.conversation_extractor import (
 
 
 class VaultManager:
-    """Управляет Obsidian vault"""
+    """Manages Obsidian vault"""
 
     def __init__(self, vault_path: str):
         self.vault_path = Path(vault_path)
@@ -33,12 +33,12 @@ class VaultManager:
 
     def process_extraction(self, extraction: ExtractionResult) -> dict:
         """
-        Главный метод — обрабатывает извлечённые знания.
-        Создаёт/обновляет файлы.
+        Main method — processes extracted knowledge.
+        Creates/updates files.
         """
         stats = {"created": [], "updated": []}
 
-        # 1. Обрабатываем entities
+        # 1. Process entities
         for entity in extraction.entities:
             file_path = self._entity_file_path(entity.name)
 
@@ -59,7 +59,7 @@ class VaultManager:
                 self._create_note(file_path, entity, entity_relations, entity_knowledge)
                 stats["created"].append(entity.name)
 
-        # 2. Knowledge для entities которые ещё не обработаны
+        # 2. Knowledge for entities not yet processed
         all_entity_names = {e.name for e in extraction.entities}
         for k in extraction.knowledge:
             if k.entity and k.entity not in all_entity_names:
@@ -90,7 +90,7 @@ class VaultManager:
     def _create_note(self, file_path: Path, entity: ExtractedEntity,
                      relations: list[ExtractedRelation],
                      knowledge: list[ExtractedKnowledge] = None):
-        """Создаёт новый .md файл"""
+        """Creates new .md file"""
         now = datetime.now().strftime("%Y-%m-%d %H:%M")
 
         frontmatter = {
@@ -134,7 +134,7 @@ class VaultManager:
     def _update_note(self, file_path: Path, entity: ExtractedEntity,
                      relations: list[ExtractedRelation],
                      knowledge: list[ExtractedKnowledge] = None):
-        """Обновляет существующий .md файл"""
+        """Updates existing .md file"""
         content = file_path.read_text(encoding="utf-8")
         now = datetime.now().strftime("%Y-%m-%d %H:%M")
 
@@ -201,7 +201,7 @@ class VaultManager:
             file_path.write_text(content, encoding="utf-8")
 
     def _append_knowledge(self, file_path: Path, knowledge: list[ExtractedKnowledge]):
-        """Добавляет knowledge к существующему файлу"""
+        """Adds knowledge to existing file"""
         content = file_path.read_text(encoding="utf-8")
         now = datetime.now().strftime("%Y-%m-%d %H:%M")
         frontmatter, body = self._parse_frontmatter(content)
@@ -210,7 +210,7 @@ class VaultManager:
 
     def _write_with_knowledge(self, file_path: Path, frontmatter: dict,
                               body: str, knowledge: list[ExtractedKnowledge]):
-        """Записывает файл с новыми knowledge entries"""
+        """Writes file with new knowledge entries"""
         existing_titles = set(re.findall(r"\*\*\[[\w]+\]\s+(.+?)\*\*", body))
 
         new_knowledge = [k for k in knowledge if k.title not in existing_titles]
@@ -232,7 +232,7 @@ class VaultManager:
         file_path.write_text(content, encoding="utf-8")
 
     def _format_knowledge_entry(self, k: ExtractedKnowledge) -> str:
-        """Форматирует одну knowledge entry"""
+        """Formats one knowledge entry"""
         now = datetime.now().strftime("%Y-%m-%d")
         entity_name = k.entity
 
@@ -256,7 +256,7 @@ class VaultManager:
         return "\n".join(lines)
 
     def _detect_artifact_lang(self, artifact: str, knowledge_type: str) -> str:
-        """Определяет язык для code block"""
+        """Determines language for code block"""
         # By content
         if artifact.strip().startswith("SELECT") or artifact.strip().startswith("select"):
             return "sql"
@@ -283,7 +283,7 @@ class VaultManager:
         return type_map.get(knowledge_type, "")
 
     def _find_next_section(self, body: str, start: int) -> Optional[int]:
-        """Находит начало следующей ## секции"""
+        """Finds start of next ## section"""
         match = re.search(r"\n## ", body[start:])
         if match:
             return start + match.start()

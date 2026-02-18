@@ -1,30 +1,30 @@
 """
-Mengram SDK — Mem0-совместимый API с Knowledge Graph.
+Mengram SDK — Mem0-compatible API with Knowledge Graph.
 
-Использование:
+Usage:
     from mengram import Memory
 
     m = Memory(vault_path="./vault", llm_provider="anthropic", api_key="sk-ant-...")
 
-    # Запомнить
-    m.add("Я работаю в Uzum Bank, backend на Spring Boot", user_id="ali")
+    # Remember
+    m.add("I work at Uzum Bank, backend on Spring Boot", user_id="ali")
 
-    # Найти
-    results = m.search("где работает ali?", user_id="ali")
+    # Search
+    results = m.search("where does ali work?", user_id="ali")
 
-    # Всё что знаем
+    # Everything we know
     all_memories = m.get_all(user_id="ali")
 
-    # Удалить
+    # Delete
     m.delete("PostgreSQL")
 
-    # Статистика
+    # Stats
     m.stats()
 
-Отличие от Mem0:
-    - Данные в .md файлах (можно открыть в Obsidian)
-    - Knowledge Graph с типизированными связями
-    - Полностью локальный
+Differences from Mem0:
+    - Data in .md files (can open in Obsidian)
+    - Knowledge Graph with typed relations
+    - Fully local
 """
 
 import os
@@ -50,7 +50,7 @@ from engine.vault_manager.vault_manager import VaultManager
 
 @dataclass
 class MemoryItem:
-    """Один элемент памяти (entity + facts)"""
+    """Single memory item (entity + facts)"""
     id: str
     name: str
     entity_type: str
@@ -65,7 +65,7 @@ class MemoryItem:
 
 @dataclass
 class SearchResult:
-    """Результат поиска"""
+    """Search result"""
     memory: MemoryItem
     score: float = 1.0
     context: str = ""
@@ -76,10 +76,10 @@ class SearchResult:
 
 class Memory:
     """
-    Mengram — Mem0-совместимый API с Knowledge Graph.
+    Mengram — Mem0-compatible API with Knowledge Graph.
 
-    Каждый user_id получает свой vault (подпапку).
-    Внутри vault — .md файлы с entities, facts, [[links]].
+    Each user_id gets its own vault (subfolder).
+    Inside vault — .md files with entities, facts, [[links]].
     """
 
     def __init__(
@@ -97,14 +97,14 @@ class Memory:
         self.llm = self._create_llm(llm_provider, api_key, model, ollama_url)
         self.extractor = ConversationExtractor(self.llm)
 
-        # Кеш brain-ов по user_id
+        # Brain cache by user_id
         self._brains: dict[str, MengramBrain] = {}
 
     def _create_llm(
         self, provider: str, api_key: Optional[str],
         model: Optional[str], ollama_url: str
     ) -> LLMClient:
-        """Создаёт LLM клиент"""
+        """Creates LLM client"""
         if provider == "anthropic":
             key = api_key or os.getenv("ANTHROPIC_API_KEY", "")
             return AnthropicClient(api_key=key, model=model or "claude-sonnet-4-20250514")
@@ -119,7 +119,7 @@ class Memory:
             raise ValueError(f"Unknown provider: {provider}")
 
     def _get_brain(self, user_id: str = "default") -> MengramBrain:
-        """Получает brain для конкретного user_id"""
+        """Gets brain for specific user_id"""
         if user_id not in self._brains:
             user_vault = str(self.base_vault_path / user_id)
             self._brains[user_id] = MengramBrain(
@@ -129,7 +129,7 @@ class Memory:
         return self._brains[user_id]
 
     # ==========================================
-    # Основные методы (Mem0-совместимые)
+    # Core methods (Mem0-compatible)
     # ==========================================
 
     def add(
@@ -138,20 +138,20 @@ class Memory:
         user_id: str = "default",
     ) -> dict:
         """
-        Добавить память из текста или разговора.
+        Add memory from text or conversation.
 
         Args:
-            messages: Текст или [{"role": "user", "content": "..."}]
-            user_id: ID пользователя
+            messages: Text or [{"role": "user", "content": "..."}]
+            user_id: User ID
 
         Returns:
             {"entities_created": [...], "entities_updated": [...]}
 
-        Примеры:
-            m.add("Я работаю в Uzum Bank", user_id="ali")
+        Examples:
+            m.add("I work at Uzum Bank", user_id="ali")
             m.add([
-                {"role": "user", "content": "Используем PostgreSQL 15"},
-                {"role": "assistant", "content": "Хороший выбор!"},
+                {"role": "user", "content": "We use PostgreSQL 15"},
+                {"role": "assistant", "content": "Good choice!"},
             ], user_id="ali")
         """
         brain = self._get_brain(user_id)
@@ -168,25 +168,25 @@ class Memory:
         top_k: int = 5,
     ) -> list[SearchResult]:
         """
-        Семантический поиск по памяти (vector + graph).
+        Semantic search across memory (vector + graph).
 
         Args:
-            query: Запрос (ищет по смыслу, не только по словам)
-            user_id: ID пользователя
-            top_k: Максимум результатов
+            query: Query (searches by meaning, not just keywords)
+            user_id: User ID
+            top_k: Maximum results
 
         Returns:
             [SearchResult(memory=..., score=..., context=...)]
 
-        Примеры:
-            results = m.search("проблемы с базой данных", user_id="ali")
+        Examples:
+            results = m.search("database issues", user_id="ali")
             for r in results:
                 print(f"{r.memory.name} (score={r.score:.2f})")
                 print(r.memory.facts)
         """
         brain = self._get_brain(user_id)
 
-        # Используем semantic search из brain
+        # Use semantic search from brain
         raw_results = brain.search(query, top_k=top_k)
         context = brain.recall(query, top_k=top_k)
 
@@ -214,7 +214,7 @@ class Memory:
 
     def get_all(self, user_id: str = "default") -> list[MemoryItem]:
         """
-        Получить все memories пользователя.
+        Get all memories for a user.
 
         Returns:
             [MemoryItem(...), ...]
@@ -254,9 +254,9 @@ class Memory:
 
     def get(self, entity_name: str, user_id: str = "default") -> Optional[MemoryItem]:
         """
-        Получить конкретную entity по имени.
+        Get a specific entity by name.
 
-        Примеры:
+        Examples:
             pg = m.get("PostgreSQL", user_id="ali")
             print(pg.facts, pg.relations)
         """
@@ -289,10 +289,10 @@ class Memory:
 
     def delete(self, entity_name: str, user_id: str = "default") -> bool:
         """
-        Удалить entity из vault (удаляет .md файл).
+        Delete entity from vault (removes .md file).
 
         Returns:
-            True если удалено, False если не найдено
+            True if deleted, False if not found
         """
         brain = self._get_brain(user_id)
         vault = brain.vault_manager
@@ -300,18 +300,18 @@ class Memory:
 
         if file_path.exists():
             file_path.unlink()
-            brain._graph = None  # Инвалидируем кеш
+            brain._graph = None  # Invalidate cache
             return True
         return False
 
     def stats(self, user_id: str = "default") -> dict:
-        """Статистика vault"""
+        """Vault statistics"""
         brain = self._get_brain(user_id)
         return brain.get_stats()
 
     def graph(self, entity_name: str, user_id: str = "default", depth: int = 2) -> dict:
         """
-        Получить подграф вокруг entity.
+        Get subgraph around entity.
 
         Returns:
             {"center": Entity, "nodes": [...], "edges": [...]}
@@ -323,7 +323,7 @@ class Memory:
         return brain.graph.get_subgraph(entity.id, depth=depth)
 
     def _extract_facts_from_file(self, file_path: Optional[str]) -> list[str]:
-        """Извлекает факты из .md файла"""
+        """Extract facts from .md file"""
         if not file_path:
             return []
         path = Path(file_path)
@@ -336,24 +336,24 @@ class Memory:
 
         for line in content.split("\n"):
             line = line.strip()
-            if line.startswith("## Факты") or line.startswith("## Обновления"):
+            if line.startswith("## Facts") or line.startswith("## Updates"):
                 in_facts_section = True
                 continue
             if line.startswith("## ") and in_facts_section:
                 in_facts_section = False
                 continue
             if in_facts_section and line.startswith("- "):
-                # Убираем [[links]] для чистоты
+                # Remove [[links]] for cleanliness
                 import re
                 clean = re.sub(r"\[\[([^\]]+)\]\]", r"\1", line[2:])
-                if clean and not clean.startswith("*"):  # Пропускаем даты
+                if clean and not clean.startswith("*"):  # Skip dates
                     facts.append(clean)
 
         return facts
 
 
 # ==========================================
-# Удобная функция инициализации
+# Convenience initialization function
 # ==========================================
 
 def init(
@@ -363,12 +363,12 @@ def init(
     model: Optional[str] = None,
 ) -> Memory:
     """
-    Быстрая инициализация.
+    Quick initialization.
 
-    Примеры:
+    Examples:
         import mengram
         m = mengram.init(provider="anthropic", api_key="sk-ant-...")
-        m.add("Я люблю Python", user_id="ali")
+        m.add("I love Python", user_id="ali")
     """
     return Memory(
         vault_path=vault_path,
@@ -383,14 +383,14 @@ if __name__ == "__main__":
     print("🧠 Mengram SDK — Demo")
     print("=" * 60)
 
-    # Mock LLM для теста
+    # Mock LLM for testing
     m = Memory(vault_path="./demo_sdk_vault", llm_provider="mock")
 
     # 1. Add
-    print("\n📝 m.add('Я работаю в Uzum Bank...')")
+    print("\n📝 m.add('I work at Uzum Bank...')")
     result = m.add(
-        "Я работаю в Uzum Bank, backend разработчик на Spring Boot. "
-        "Проблема с PostgreSQL connection pool в Проект Alpha.",
+        "I work at Uzum Bank, backend developer on Spring Boot. "
+        "Problem with PostgreSQL connection pool in Project Alpha.",
         user_id="ali",
     )
     print(f"   Created: {result['entities_created']}")
@@ -413,8 +413,8 @@ if __name__ == "__main__":
         print(f"   Relations: {pg.relations}")
 
     # 4. Search
-    print(f"\n🔍 m.search('база данных'):")
-    results = m.search("база данных", user_id="ali")
+    print(f"\n🔍 m.search('database'):")
+    results = m.search("database", user_id="ali")
     for r in results:
         print(f"   {r}")
 
@@ -428,23 +428,23 @@ if __name__ == "__main__":
     print(f"   Nodes: {len(g.get('nodes', []))}")
     print(f"   Edges: {len(g.get('edges', []))}")
 
-    # Сравнение с Mem0
+    # Comparison with Mem0
     print(f"\n{'='*60}")
-    print("📊 Сравнение API:")
+    print("📊 API Comparison:")
     print(f"{'='*60}")
     print("""
     # Mem0:
     from mem0 import Memory
     m = Memory()
-    m.add("Я работаю в Uzum Bank", user_id="ali")
-    m.search("где работает ali?")
+    m.add("I work at Uzum Bank", user_id="ali")
+    m.search("where does ali work?")
     
-    # Mengram (наш):
+    # Mengram (ours):
     from mengram import Memory
     m = Memory(vault_path="./vault", llm_provider="anthropic", api_key="...")
-    m.add("Я работаю в Uzum Bank", user_id="ali")
-    m.search("где работает ali?")
+    m.add("I work at Uzum Bank", user_id="ali")
+    m.search("where does ali work?")
     
-    # Разница: m.get("PostgreSQL") → типизированная entity с facts + relations + graph
-    # У Mem0 такого нет
+    # Difference: m.get("PostgreSQL") → typed entity with facts + relations + graph
+    # Mem0 doesn't have this
     """)

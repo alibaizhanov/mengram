@@ -1,24 +1,24 @@
 """
-Conversation Extractor v2 — извлекает RICH знания из разговоров.
+Conversation Extractor v2 — extracts RICH knowledge from conversations.
 
-Извлекает:
+Extracts:
 1. Entities (person, project, technology, company, concept)
-2. Facts — короткие утверждения
-3. Relations — связи между entities
-4. Knowledge — решения, формулы, рецепты, конфиги, команды (с артефактами)
+2. Facts — short assertions
+3. Relations — connections between entities
+4. Knowledge — solutions, formulas, recipes, configs, commands (with artifacts)
 
-Knowledge — это killer feature. LLM сам определяет тип знания:
-  [solution] — решение проблемы (код, конфиг)
-  [formula] — формула, уравнение
-  [treatment] — лечение, назначение
-  [experiment] — результат эксперимента
-  [recipe] — рецепт (кулинария, процесс)
-  [decision] — принятое решение
-  [command] — полезная команда / инструкция
-  [reference] — ссылка, источник
-  [insight] — наблюдение, инсайт
-  [example] — пример, кейс
-  ... любой другой тип который подходит по смыслу
+Knowledge is the killer feature. LLM determines the knowledge type:
+  [solution] — problem solution (code, config)
+  [formula] — formula, equation
+  [treatment] — treatment, prescription
+  [experiment] — experiment result
+  [recipe] — recipe (cooking, process)
+  [decision] — decision made
+  [command] — useful command / instruction
+  [reference] — link, source
+  [insight] — observation, insight
+  [example] — example, case
+  ... any other type that fits the context
 """
 
 import sys
@@ -130,9 +130,9 @@ Response format (strict JSON, no ```):
 
 EXAMPLE:
 Input conversation:
-  User: "Я вчера задеплоил mengram на Railway, всё работает. Пришлось повозиться с pgvector"
-  Assistant: "Отлично! Какая версия PostgreSQL?"
-  User: "15-я, на Supabase хостится. Процесс такой: сначала build, потом twine upload, потом npm publish"
+  User: "I deployed mengram on Railway yesterday, everything works. Had to struggle with pgvector"
+  Assistant: "Great! Which PostgreSQL version?"
+  User: "15, hosted on Supabase. The process is: first build, then twine upload, then npm publish"
 
 Output:
 {{
@@ -183,7 +183,7 @@ EXISTING ENTITIES FOR THIS USER (use same names, avoid duplicate facts):
 
 @dataclass
 class ExtractedEntity:
-    """Извлечённая сущность"""
+    """Extracted entity"""
     name: str
     entity_type: str  # person, project, technology, company, concept
     facts: list[str] = field(default_factory=list)
@@ -194,7 +194,7 @@ class ExtractedEntity:
 
 @dataclass
 class ExtractedRelation:
-    """Извлечённая связь"""
+    """Extracted relation"""
     from_entity: str
     to_entity: str
     relation_type: str
@@ -206,12 +206,12 @@ class ExtractedRelation:
 
 @dataclass
 class ExtractedKnowledge:
-    """Извлечённое знание — solution, formula, command, etc."""
-    entity: str           # к какой entity относится
+    """Extracted knowledge — solution, formula, command, etc."""
+    entity: str           # which entity this belongs to
     knowledge_type: str   # solution, formula, treatment, command, insight, ...
-    title: str            # краткий заголовок
-    content: str          # подробное описание
-    artifact: Optional[str] = None  # код, конфиг, формула, команда
+    title: str            # short title
+    content: str          # detailed description
+    artifact: Optional[str] = None  # code, config, formula, command
 
     def __repr__(self):
         has_artifact = "📎" if self.artifact else ""
@@ -220,11 +220,11 @@ class ExtractedKnowledge:
 
 @dataclass
 class ExtractedEpisode:
-    """Извлечённый эпизод — конкретное событие, взаимодействие."""
-    summary: str                  # краткое описание (до 15 слов)
-    context: str = ""             # подробное описание
-    outcome: str = ""             # результат/решение
-    participants: list[str] = field(default_factory=list)  # участвующие entities
+    """Extracted episode — specific event, interaction."""
+    summary: str                  # short description (up to 15 words)
+    context: str = ""             # detailed description
+    outcome: str = ""             # result/outcome
+    participants: list[str] = field(default_factory=list)  # participating entities
     emotional_valence: str = "neutral"  # positive/negative/neutral/mixed
     importance: float = 0.5       # 0.0-1.0
 
@@ -234,11 +234,11 @@ class ExtractedEpisode:
 
 @dataclass
 class ExtractedProcedure:
-    """Извлечённая процедура — повторяемый workflow/навык."""
-    name: str                     # название процедуры
-    trigger: str = ""             # когда применять
+    """Extracted procedure — repeatable workflow/skill."""
+    name: str                     # procedure name
+    trigger: str = ""             # when to apply
     steps: list[dict] = field(default_factory=list)  # [{step, action, detail}]
-    entities: list[str] = field(default_factory=list)  # связанные entities
+    entities: list[str] = field(default_factory=list)  # related entities
 
     def __repr__(self):
         return f"Procedure({self.name}, steps={len(self.steps)})"
@@ -246,7 +246,7 @@ class ExtractedProcedure:
 
 @dataclass
 class ExtractionResult:
-    """Результат извлечения знаний из разговора"""
+    """Result of knowledge extraction from conversation"""
     entities: list[ExtractedEntity] = field(default_factory=list)
     relations: list[ExtractedRelation] = field(default_factory=list)
     knowledge: list[ExtractedKnowledge] = field(default_factory=list)
@@ -265,7 +265,7 @@ class ExtractionResult:
 
 
 class ConversationExtractor:
-    """Извлекает структурированные знания из разговоров"""
+    """Extracts structured knowledge from conversations"""
 
     def __init__(self, llm_client: LLMClient):
         self.llm = llm_client
@@ -383,52 +383,52 @@ class MockLLMClient(LLMClient):
                     "name": "User",
                     "type": "person",
                     "facts": [
-                        "Работает backend разработчиком",
-                        "Работает в Uzum Bank",
-                        "Основной стек: Java, Spring Boot"
+                        "Works as backend developer",
+                        "Works at Uzum Bank",
+                        "Main stack: Java, Spring Boot"
                     ]
                 },
                 {
                     "name": "Uzum Bank",
                     "type": "company",
-                    "facts": ["Банк в Узбекистане", "Микросервисная архитектура"]
+                    "facts": ["Bank in Uzbekistan", "Microservices architecture"]
                 },
                 {
-                    "name": "Проект Alpha",
+                    "name": "Project Alpha",
                     "type": "project",
-                    "facts": ["Backend сервис для платежей", "Проблема с connection pool"]
+                    "facts": ["Backend service for payments", "Problem with connection pool"]
                 },
                 {
                     "name": "PostgreSQL",
                     "type": "technology",
-                    "facts": ["Основная БД", "Версия 15"]
+                    "facts": ["Main database", "Version 15"]
                 },
                 {
                     "name": "Spring Boot",
                     "type": "technology",
-                    "facts": ["Основной фреймворк для микросервисов"]
+                    "facts": ["Main framework for microservices"]
                 }
             ],
             "relations": [
-                {"from": "User", "to": "Uzum Bank", "type": "works_at", "description": "Backend разработчик"},
-                {"from": "User", "to": "Проект Alpha", "type": "member_of", "description": "Работает над проектом"},
-                {"from": "Проект Alpha", "to": "PostgreSQL", "type": "uses", "description": "Основная БД"},
-                {"from": "Проект Alpha", "to": "Spring Boot", "type": "uses", "description": "Backend фреймворк"},
-                {"from": "Uzum Bank", "to": "Проект Alpha", "type": "related_to", "description": "Проект банка"}
+                {"from": "User", "to": "Uzum Bank", "type": "works_at", "description": "Backend developer"},
+                {"from": "User", "to": "Project Alpha", "type": "member_of", "description": "Works on project"},
+                {"from": "Project Alpha", "to": "PostgreSQL", "type": "uses", "description": "Main database"},
+                {"from": "Project Alpha", "to": "Spring Boot", "type": "uses", "description": "Backend framework"},
+                {"from": "Uzum Bank", "to": "Project Alpha", "type": "related_to", "description": "Bank project"}
             ],
             "knowledge": [
                 {
                     "entity": "PostgreSQL",
                     "type": "solution",
                     "title": "Connection pool exhaustion fix",
-                    "content": "OOM при 200+ WebSocket соединениях. Каждый WS держал отдельный connection. Решение: Redis кеш для UserService и BlockedAccountService.",
+                    "content": "OOM with 200+ WebSocket connections. Each WS held a separate connection. Solution: Redis cache for UserService and BlockedAccountService.",
                     "artifact": "spring.datasource.hikari.maximum-pool-size: 20\nspring.datasource.hikari.idle-timeout: 30000\nspring.datasource.hikari.connection-timeout: 5000"
                 },
                 {
                     "entity": "PostgreSQL",
                     "type": "command",
                     "title": "Check active connections",
-                    "content": "Мониторинг активных соединений PostgreSQL",
+                    "content": "Monitoring active PostgreSQL connections",
                     "artifact": "SELECT count(*), state FROM pg_stat_activity GROUP BY state;"
                 }
             ],
@@ -437,7 +437,7 @@ class MockLLMClient(LLMClient):
                     "summary": "Debugged PostgreSQL connection pool exhaustion",
                     "context": "200+ WebSocket connections caused OOM. Each WS held a separate DB connection. Investigated HikariCP settings.",
                     "outcome": "Fixed by adding Redis cache for UserService and BlockedAccountService, reduced pool size to 20",
-                    "participants": ["PostgreSQL", "Проект Alpha"],
+                    "participants": ["PostgreSQL", "Project Alpha"],
                     "emotional_valence": "positive",
                     "importance": 0.7
                 }
@@ -451,7 +451,7 @@ class MockLLMClient(LLMClient):
                         {"step": 2, "action": "Review HikariCP pool settings", "detail": "Check maximum-pool-size, idle-timeout, connection-timeout"},
                         {"step": 3, "action": "Add caching layer", "detail": "Use Redis to cache frequently accessed services"}
                     ],
-                    "entities": ["PostgreSQL", "Проект Alpha"]
+                    "entities": ["PostgreSQL", "Project Alpha"]
                 }
             ]
         }, ensure_ascii=False)

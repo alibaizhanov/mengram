@@ -1,4 +1,4 @@
--- ObsidianMem Cloud — PostgreSQL Schema
+-- Mengram Cloud — PostgreSQL Schema
 -- Replaces .md files + SQLite vectors with single PostgreSQL + pgvector
 
 -- Enable extensions

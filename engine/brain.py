@@ -1,16 +1,16 @@
 """
-Mengram Brain — главный оркестратор.
+Mengram Brain — main orchestrator.
 
-Объединяет все компоненты:
-1. Conversation Extractor → извлекает знания из разговоров
-2. Vault Manager → записывает знания в .md файлы
-3. Vector Store → семантический поиск (embeddings)
-4. Knowledge Graph → граф связей + graph expansion
-5. Hybrid Retrieval → vector + graph = лучший recall
+Combines all components:
+1. Conversation Extractor → extracts knowledge from conversations
+2. Vault Manager → writes knowledge to .md files
+3. Vector Store → semantic search (embeddings)
+4. Knowledge Graph → entity graph + graph expansion
+5. Hybrid Retrieval → vector + graph = better recall
 
-Два основных действия:
-- remember(conversation) → извлечь, сохранить, индексировать
-- recall(query) → семантический поиск + граф → контекст
+Two main actions:
+- remember(conversation) → extract, save, index
+- recall(query) → semantic search + graph → context
 """
 
 import re
@@ -28,10 +28,10 @@ from engine.parser.markdown_parser import parse_vault
 
 class MengramBrain:
     """
-    Главный класс — "мозг".
+    Main class — the "brain".
 
-    brain.remember(conversation) → извлекает знания → пишет в vault → индексирует
-    brain.recall(query) → семантический поиск + граф → контекст для LLM
+    brain.remember(conversation) → extracts knowledge → writes to vault → indexes
+    brain.recall(query) → semantic search + graph → context for LLM
     """
 
     def __init__(self, vault_path: str, llm_client: Optional[LLMClient] = None,
@@ -42,10 +42,10 @@ class MengramBrain:
         self.extractor = ConversationExtractor(self.llm_client)
         self.use_vectors = use_vectors
 
-        # Graph — ленивая загрузка
+        # Graph — lazy loading
         self._graph: Optional[KnowledgeGraph] = None
 
-        # Vector Store — ленивая загрузка
+        # Vector Store — lazy loading
         self._vector_store = None
         self._vector_db_path = vector_db_path or str(Path(vault_path) / ".vectors.db")
 
@@ -62,12 +62,12 @@ class MengramBrain:
         return self._vector_store
 
     def _init_vector_store(self):
-        """Инициализация vector store с embeddings"""
+        """Initialize vector store with embeddings"""
         try:
             from engine.vector.embedder import Embedder
             from engine.vector.vector_store import VectorStore
 
-            print("🧠 Инициализирую semantic search...", file=sys.stderr)
+            print("🧠 Initializing semantic search...", file=sys.stderr)
             embedder = Embedder()
             self._vector_store = VectorStore(
                 db_path=self._vector_db_path,
@@ -80,7 +80,7 @@ class MengramBrain:
             indexed_entities = stats.get("total_entities", 0)
 
             if vault_notes and stats["total_chunks"] == 0:
-                print("📝 Первичная индексация vault...", file=sys.stderr)
+                print("📝 Initial vault indexing...", file=sys.stderr)
                 self._reindex_vault()
             elif len(vault_notes) > indexed_entities:
                 # Find which entities are missing
@@ -94,44 +94,44 @@ class MengramBrain:
                     pass
                 missing = [f.stem for f in vault_notes if f.stem not in indexed_ids]
                 if missing:
-                    print(f"📝 Индексирую {len(missing)} новых заметок...", file=sys.stderr)
+                    print(f"📝 Indexing {len(missing)} new notes...", file=sys.stderr)
                     self._index_entities(missing)
                     stats = self._vector_store.stats()
-                    print(f"✅ Semantic search готов ({stats['total_chunks']} chunks)", file=sys.stderr)
+                    print(f"✅ Semantic search ready ({stats['total_chunks']} chunks)", file=sys.stderr)
                 else:
-                    print(f"✅ Semantic search готов ({stats['total_chunks']} chunks)", file=sys.stderr)
+                    print(f"✅ Semantic search ready ({stats['total_chunks']} chunks)", file=sys.stderr)
             else:
-                print(f"✅ Semantic search готов ({stats['total_chunks']} chunks)", file=sys.stderr)
+                print(f"✅ Semantic search ready ({stats['total_chunks']} chunks)", file=sys.stderr)
 
         except ImportError as e:
-            print(f"⚠️  sentence-transformers не установлен: {e}", file=sys.stderr)
+            print(f"⚠️  sentence-transformers not installed: {e}", file=sys.stderr)
             print("   pip install sentence-transformers", file=sys.stderr)
             self.use_vectors = False
             self._vector_store = None
 
     def remember(self, conversation: list[dict]) -> dict:
         """
-        Запомнить знания из разговора.
+        Remember knowledge from a conversation.
 
-        1. Извлекает entities/facts/relations через LLM
-        2. Записывает в vault (.md файлы)
-        3. Индексирует новые данные для semantic search
+        1. Extracts entities/facts/relations via LLM
+        2. Writes to vault (.md files)
+        3. Indexes new data for semantic search
         """
-        print("🧠 Извлекаю знания из разговора...", file=sys.stderr)
+        print("🧠 Extracting knowledge from conversation...", file=sys.stderr)
 
-        # 1. Извлекаем через LLM
+        # 1. Extract via LLM
         extraction = self.extractor.extract(conversation)
-        print(f"   📊 Найдено: {len(extraction.entities)} entities, {len(extraction.relations)} relations, {len(extraction.knowledge)} knowledge", file=sys.stderr)
+        print(f"   📊 Found: {len(extraction.entities)} entities, {len(extraction.relations)} relations, {len(extraction.knowledge)} knowledge", file=sys.stderr)
 
-        # 2. Записываем в vault
+        # 2. Write to vault
         stats = self.vault_manager.process_extraction(extraction)
-        print(f"   📝 Создано: {stats['created']}", file=sys.stderr)
-        print(f"   📝 Обновлено: {stats['updated']}", file=sys.stderr)
+        print(f"   📝 Created: {stats['created']}", file=sys.stderr)
+        print(f"   📝 Updated: {stats['updated']}", file=sys.stderr)
 
-        # 3. Инвалидируем граф
+        # 3. Invalidate graph
         self._graph = None
 
-        # 4. Обновляем vector index
+        # 4. Update vector index
         changed = stats["created"] + stats["updated"]
         if changed and self.use_vectors:
             self._index_entities(changed)
@@ -148,11 +148,11 @@ class MengramBrain:
 
     def recall(self, query: str, top_k: int = 5) -> str:
         """
-        Вспомнить контекст по запросу.
+        Recall context for a query.
 
         Hybrid strategy:
-        1. Semantic search → top-K чанков по смыслу
-        2. Graph expansion → связанные entities
+        1. Semantic search → top-K chunks by meaning
+        2. Graph expansion → related entities
         3. Fallback → graph text search → raw text search
         """
         contexts = []
@@ -170,7 +170,7 @@ class MengramBrain:
                                 contexts.append(ctx)
                                 seen.add(r.entity_name)
 
-                    # Graph expansion от top результата
+                    # Graph expansion from top result
                     if results and self._graph is not None:
                         expanded = self._expand_via_graph(results[0].entity_name, seen)
                         contexts.extend(expanded)
@@ -208,7 +208,7 @@ class MengramBrain:
         if contexts:
             return "\n\n---\n\n".join(contexts[:top_k])
 
-        return f"Ничего не найдено по запросу: '{query}'"
+        return f"Nothing found for query: '{query}'"
 
     def recall_all(self) -> str:
         """Full vault overview with knowledge entries."""
@@ -244,7 +244,7 @@ class MengramBrain:
 
     def search(self, query: str, top_k: int = 5) -> list[dict]:
         """
-        Semantic search — структурированные результаты для SDK.
+        Semantic search — structured results for SDK.
         
         Returns:
             [{"entity": "...", "type": "...", "score": 0.85, "facts": [...], "relations": [...]}]
@@ -468,7 +468,7 @@ class MengramBrain:
         return expanded
 
     def _assemble_context(self, query: str, contexts: list[str]) -> str:
-        header = f"# Контекст из памяти (запрос: '{query}')\n"
+        header = f"# Context from memory (query: '{query}')\n"
         return header + "\n\n---\n\n".join(contexts)
 
     def _build_entity_context(self, entity_id: str) -> str:
@@ -479,7 +479,7 @@ class MengramBrain:
         lines = [f"## {entity.name} ({entity.entity_type})"]
         neighbors = self.graph.get_neighbors(entity_id, depth=1)
         if neighbors:
-            lines.append("\nСвязи:")
+            lines.append("\nRelations:")
             for n in neighbors:
                 if n["entity"].entity_type != "tag":
                     lines.append(f"  → {n['relation_type']}: {n['entity'].name}")
@@ -491,13 +491,13 @@ class MengramBrain:
                     parts = content.split("---", 2)
                     if len(parts) >= 3:
                         content = parts[2]
-                lines.append(f"\nЗаметка:\n{content.strip()[:500]}")
+                lines.append(f"\nNote:\n{content.strip()[:500]}")
             except Exception:
                 pass
         return "\n".join(lines)
 
     def _rebuild_graph(self):
-        print("🔄 Обновляю граф знаний...", file=sys.stderr)
+        print("🔄 Rebuilding knowledge graph...", file=sys.stderr)
         self._graph = build_graph_from_vault(self.vault_path)
         stats = self._graph.stats()
         print(f"   ✅ {stats['total_entities']} entities, {stats['total_relations']} relations", file=sys.stderr)
@@ -509,7 +509,7 @@ class MengramBrain:
         if not notes:
             return
 
-        print(f"📝 Индексирую {len(notes)} заметок...", file=sys.stderr)
+        print(f"📝 Indexing {len(notes)} notes...", file=sys.stderr)
         all_chunks = []
         for note in notes:
             entity_id = note.name.lower().replace(" ", "_")

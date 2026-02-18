@@ -3718,8 +3718,8 @@ Be specific and personal, not generic. No markdown, just JSON."""
             ("vegetarian", "meat"), ("vegan", "meat"),
             ("allergic", "enjoys"), ("can't", "can"),
             ("doesn't", "does"), ("never", "always"),
-            ("не любит", "любит"), ("не ест", "ест"),
-            ("аллергия", "любит"),
+            ("dislikes", "likes"), ("does not eat", "eats"),
+            ("allergic to", "likes"),
         ]
 
         for new_fact in new_facts:

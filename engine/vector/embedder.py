@@ -1,11 +1,11 @@
 """
-Embedder — генерация векторных embeddings.
+Embedder — vector embeddings generation.
 
-Использует sentence-transformers с моделью all-MiniLM-L6-v2:
-- 80MB размер модели
-- 384-мерные вектора
-- На Mac M1 использует Metal GPU автоматически
-- Полностью локально, ничего не отправляется в облако
+Uses sentence-transformers with all-MiniLM-L6-v2 model:
+- 80MB model size
+- 384-dimensional vectors
+- On Mac M1 uses Metal GPU automatically
+- Fully local, nothing sent to cloud
 """
 
 import sys
@@ -15,7 +15,7 @@ import numpy as np
 
 
 class Embedder:
-    """Локальный генератор embeddings"""
+    """Local embeddings generator"""
 
     def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
         self.model_name = model_name
@@ -23,11 +23,11 @@ class Embedder:
 
     @property
     def model(self) -> SentenceTransformer:
-        """Lazy loading — модель загружается при первом использовании"""
+        """Lazy loading — model loaded on first use"""
         if self._model is None:
-            print(f"🧠 Загружаю модель {self.model_name}...", file=sys.stderr)
+            print(f"🧠 Loading model {self.model_name}...", file=sys.stderr)
             self._model = SentenceTransformer(self.model_name)
-            print(f"✅ Модель загружена ({self.dimensions}D)", file=sys.stderr)
+            print(f"✅ Model loaded ({self.dimensions}D)", file=sys.stderr)
         return self._model
 
     @property
@@ -35,11 +35,11 @@ class Embedder:
         return self.model.get_sentence_embedding_dimension()
 
     def embed(self, text: str) -> np.ndarray:
-        """Embed одного текста → вектор"""
+        """Embed single text → vector"""
         return self.model.encode(text, normalize_embeddings=True)
 
     def embed_batch(self, texts: list[str], batch_size: int = 32) -> np.ndarray:
-        """Embed нескольких текстов → матрица векторов"""
+        """Embed multiple texts → vector matrix"""
         return self.model.encode(
             texts,
             batch_size=batch_size,
@@ -48,13 +48,13 @@ class Embedder:
         )
 
     def similarity(self, vec_a: np.ndarray, vec_b: np.ndarray) -> float:
-        """Cosine similarity между двумя векторами"""
+        """Cosine similarity between two vectors"""
         return float(np.dot(vec_a, vec_b))
 
     def search(self, query_vec: np.ndarray, corpus_vecs: np.ndarray, top_k: int = 5) -> list[tuple[int, float]]:
         """
-        Поиск top-K ближайших векторов.
-        Возвращает [(index, score), ...]
+        Search for top-K nearest vectors.
+        Returns [(index, score), ...]
         """
         scores = np.dot(corpus_vecs, query_vec)
         top_indices = np.argsort(scores)[::-1][:top_k]
@@ -64,20 +64,20 @@ class Embedder:
 if __name__ == "__main__":
     embedder = Embedder()
 
-    # Тест
+    # Test
     texts = [
         "PostgreSQL connection pool exhaustion",
-        "Проблемы с базой данных при высокой нагрузке",
-        "React компонент для дашборда",
+        "Database issues under high load",
+        "React component for dashboard",
         "Kafka consumer lag issues",
     ]
 
     vectors = embedder.embed_batch(texts)
     print(f"\n📐 Vectors shape: {vectors.shape}", file=sys.stderr)
 
-    query = embedder.embed("проблема с производительностью базы данных")
+    query = embedder.embed("database performance issue")
     results = embedder.search(query, vectors, top_k=3)
 
-    print(f"\n🔍 Query: 'проблема с производительностью базы данных'", file=sys.stderr)
+    print(f"\n🔍 Query: 'database performance issue'", file=sys.stderr)
     for idx, score in results:
         print(f"   {score:.3f}  {texts[idx]}", file=sys.stderr)

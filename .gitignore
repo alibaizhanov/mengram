@@ -19,9 +19,11 @@ env/
 *.swp
 *.swo
 
-# ObsidianMem data (user's vault — don't commit)
+# Mengram data (user's vault — don't commit)
 vault/
 demo_vault/
+demo_sdk_vault/
+demo_auto_vault/
 test_vault/
 *.vectors.db
 *.graph.db

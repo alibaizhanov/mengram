@@ -1,24 +1,24 @@
 """
-Auto-Memory Middleware — автоматическая память для любого LLM.
+Auto-Memory Middleware — automatic memory for any LLM.
 
-Как Mem0 proxy: оборачивает любой вызов LLM.
-- ПЕРЕД ответом: recall → добавляет контекст из vault
-- ПОСЛЕ ответа: remember → извлекает и сохраняет новые знания
+Like Mem0 proxy: wraps any LLM call.
+- BEFORE response: recall → adds context from vault
+- AFTER response: remember → extracts and saves new knowledge
 
-Использование:
+Usage:
     from mengram import Memory
     from mengram_middleware import AutoMemory
 
     m = Memory(vault_path="./vault", llm_provider="anthropic", api_key="...")
     auto = AutoMemory(memory=m, user_id="ali")
 
-    # Просто общайся — память работает автоматически
-    response = auto.chat("У нас проблема с Kafka consumer lag")
-    # → Автоматически: recall контекст → LLM ответ → remember новые знания
+    # Just chat — memory works automatically
+    response = auto.chat("We have a problem with Kafka consumer lag")
+    # → Automatically: recall context → LLM response → remember new knowledge
 
-    # Или используй с OpenAI-совместимым API
+    # Or use with OpenAI-compatible API
     response = auto.chat_with_history([
-        {"role": "user", "content": "Помоги с PostgreSQL"},
+        {"role": "user", "content": "Help with PostgreSQL"},
     ])
 """
 
@@ -30,14 +30,14 @@ from engine.extractor.llm_client import LLMClient
 
 class AutoMemory:
     """
-    Автоматическая память для LLM.
+    Automatic memory for LLM.
 
-    Оборачивает каждый вызов:
-    1. recall → ищет контекст в vault
-    2. Добавляет контекст в system prompt
-    3. Вызывает LLM
-    4. remember → извлекает знания из разговора
-    5. Возвращает ответ
+    Wraps each call:
+    1. recall → searches context in vault
+    2. Adds context to system prompt
+    3. Calls LLM
+    4. remember → extracts knowledge from conversation
+    5. Returns response
     """
 
     def __init__(
@@ -53,43 +53,43 @@ class AutoMemory:
         self.auto_remember = auto_remember
         self.auto_recall = auto_recall
         self.base_system_prompt = system_prompt or (
-            "Ты полезный AI-ассистент. Используй контекст из памяти "
-            "чтобы давать персонализированные ответы."
+            "You are a helpful AI assistant. Use context from memory "
+            "to give personalized answers."
         )
         self.conversation_history: list[dict] = []
 
     def chat(self, message: str) -> str:
         """
-        Отправить сообщение с автоматической памятью.
+        Send a message with automatic memory.
 
         Args:
-            message: Сообщение пользователя
+            message: User message
 
         Returns:
-            Ответ LLM (с учётом контекста из vault)
+            LLM response (with context from vault)
         """
-        # Step 1: Recall — ищем контекст
+        # Step 1: Recall — search for context
         context = ""
         if self.auto_recall:
             brain = self.memory._get_brain(self.user_id)
             context = brain.recall(message)
-            if context and context != f"Ничего не найдено по запросу: '{message}'":
-                print(f"🔍 Recall: найден контекст ({len(context)} chars)")
+            if context and context != f"Nothing found for query: '{message}'":
+                print(f"🔍 Recall: found context ({len(context)} chars)")
             else:
                 context = ""
 
-        # Step 2: Собираем system prompt с контекстом
+        # Step 2: Build system prompt with context
         system = self.base_system_prompt
         if context:
-            system += f"\n\n## Контекст из памяти пользователя:\n{context}"
+            system += f"\n\n## User memory context:\n{context}"
 
-        # Step 3: Вызываем LLM
+        # Step 3: Call LLM
         self.conversation_history.append({"role": "user", "content": message})
 
-        # Форматируем историю в один промпт
+        # Format history into single prompt
         conv_text = "\n".join(
             f"{'User' if m['role'] == 'user' else 'Assistant'}: {m['content']}"
-            for m in self.conversation_history[-10:]  # Последние 10 сообщений
+            for m in self.conversation_history[-10:]  # Last 10 messages
         )
 
         response = self.memory.llm.complete(
@@ -99,10 +99,10 @@ class AutoMemory:
 
         self.conversation_history.append({"role": "assistant", "content": response})
 
-        # Step 4: Remember — извлекаем знания
+        # Step 4: Remember — extract knowledge
         if self.auto_remember:
             try:
-                # Берём последние 2 сообщения (user + assistant)
+                # Take last 2 messages (user + assistant)
                 recent = self.conversation_history[-2:]
                 result = self.memory.add(recent, user_id=self.user_id)
                 created = result.get("entities_created", [])
@@ -116,37 +116,37 @@ class AutoMemory:
 
     def chat_with_history(self, messages: list[dict]) -> str:
         """
-        Вызов с полной историей сообщений (OpenAI-style).
+        Call with full message history (OpenAI-style).
 
         Args:
             messages: [{"role": "user"|"assistant", "content": "..."}]
 
         Returns:
-            Ответ LLM
+            LLM response
         """
         if not messages:
             return ""
 
-        # Берём последнее сообщение как запрос
+        # Take last message as query
         last_message = messages[-1]["content"]
         self.conversation_history = messages[:-1]
 
         return self.chat(last_message)
 
     def reset(self):
-        """Сбросить историю разговора (память в vault остаётся)"""
+        """Reset conversation history (vault memory is preserved)"""
         self.conversation_history = []
 
 
 # ==========================================
-# Обёртка для OpenAI-совместимого API
+# Wrapper for OpenAI-compatible API
 # ==========================================
 
 class MemoryOpenAIWrapper:
     """
-    Drop-in замена для OpenAI client с автоматической памятью.
+    Drop-in replacement for OpenAI client with automatic memory.
 
-    Использование:
+    Usage:
         from openai import OpenAI
         from mengram_middleware import MemoryOpenAIWrapper
 
@@ -156,10 +156,10 @@ class MemoryOpenAIWrapper:
             user_id="ali",
         )
 
-        # Используй как обычный OpenAI client
+        # Use like a normal OpenAI client
         response = client.chat.completions.create(
             model="gpt-4o",
-            messages=[{"role": "user", "content": "Помоги с проектом"}],
+            messages=[{"role": "user", "content": "Help with the project"}],
         )
     """
 
@@ -182,7 +182,7 @@ class MemoryOpenAIWrapper:
 
             # 2. Inject context into system message
             enhanced_messages = list(messages)
-            if context and "Ничего не найдено" not in context:
+            if context and "Nothing found" not in context:
                 system_msg = {
                     "role": "system",
                     "content": f"User memory context:\n{context}",
@@ -213,18 +213,18 @@ if __name__ == "__main__":
     print("🤖 Auto-Memory Middleware — Demo")
     print("=" * 60)
 
-    # Mock для теста
+    # Mock for testing
     m = Memory(vault_path="./demo_auto_vault", llm_provider="mock")
     auto = AutoMemory(memory=m, user_id="ali")
 
     print("\n💬 Chat 1:")
-    resp = auto.chat("Я работаю в Uzum Bank, backend на Spring Boot")
+    resp = auto.chat("I work at Uzum Bank, backend on Spring Boot")
     print(f"   Response: {resp[:100]}...")
 
     print(f"\n📁 Vault: {m.get_all(user_id='ali')}")
 
     print("\n💬 Chat 2:")
-    resp = auto.chat("У нас проблема с PostgreSQL connection pool")
+    resp = auto.chat("We have a PostgreSQL connection pool issue")
     print(f"   Response: {resp[:100]}...")
 
     print(f"\n📁 Vault now: {m.get_all(user_id='ali')}")

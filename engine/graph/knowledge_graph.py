@@ -1,10 +1,10 @@
 """
-Knowledge Graph — SQLite-based хранилище графа знаний.
+Knowledge Graph — SQLite-based knowledge graph storage.
 
-Строит граф из ParsedNote:
-  - Entities (ноды): заметки, люди, проекты, технологии
-  - Relations (рёбра): [[links]], tags, team membership
-  - Позволяет traverse графа на N уровней глубины
+Builds graph from ParsedNote:
+  - Entities (nodes): notes, people, projects, technologies
+  - Relations (edges): [[links]], tags, team membership
+  - Supports graph traversal to N levels of depth
 """
 
 import json
@@ -19,7 +19,7 @@ from engine.parser.markdown_parser import ParsedNote, parse_vault
 
 @dataclass
 class Entity:
-    """Нода в графе знаний"""
+    """Node in knowledge graph"""
     id: str
     name: str
     entity_type: str  # note, person, project, technology, tag
@@ -34,7 +34,7 @@ class Entity:
 
 @dataclass
 class Relation:
-    """Ребро в графе знаний"""
+    """Edge in knowledge graph"""
     source_id: str
     target_id: str
     relation_type: str  # links_to, tagged, uses, member_of, related_to
@@ -49,8 +49,8 @@ class KnowledgeGraph:
     """
     SQLite-backed Knowledge Graph.
 
-    Хранит entities (ноды) и relations (рёбра).
-    Поддерживает multi-hop traversal для graph-aware retrieval.
+    Stores entities (nodes) and relations (edges).
+    Supports multi-hop traversal for graph-aware retrieval.
     """
 
     def __init__(self, db_path: str = ":memory:"):
@@ -95,7 +95,7 @@ class KnowledgeGraph:
     # ── CRUD Operations ──
 
     def add_entity(self, entity: Entity) -> Entity:
-        """Добавить или обновить entity"""
+        """Add or update entity"""
         now = datetime.utcnow().isoformat()
         self.conn.execute(
             """INSERT INTO entities (id, name, entity_type, source_file, metadata, created_at, updated_at)
@@ -115,7 +115,7 @@ class KnowledgeGraph:
         return entity
 
     def add_relation(self, relation: Relation) -> Relation:
-        """Добавить связь (пропускает дубликаты)"""
+        """Add relation (skips duplicates)"""
         now = datetime.utcnow().isoformat()
         try:
             self.conn.execute(
@@ -129,25 +129,25 @@ class KnowledgeGraph:
             )
             self.conn.commit()
         except sqlite3.IntegrityError:
-            pass  # связь уже существует
+            pass  # relation already exists
         return relation
 
     def get_entity(self, entity_id: str) -> Optional[Entity]:
-        """Получить entity по ID"""
+        """Get entity by ID"""
         row = self.conn.execute(
             "SELECT * FROM entities WHERE id = ?", (entity_id,)
         ).fetchone()
         return self._row_to_entity(row) if row else None
 
     def find_entity(self, name: str) -> Optional[Entity]:
-        """Найти entity по имени (case-insensitive)"""
+        """Find entity by name (case-insensitive)"""
         row = self.conn.execute(
             "SELECT * FROM entities WHERE LOWER(name) = LOWER(?)", (name,)
         ).fetchone()
         return self._row_to_entity(row) if row else None
 
     def search_entities(self, query: str, entity_type: str = None) -> list[Entity]:
-        """Поиск entities по подстроке в имени"""
+        """Search entities by substring in name"""
         if entity_type:
             rows = self.conn.execute(
                 "SELECT * FROM entities WHERE name LIKE ? AND entity_type = ?",
@@ -164,10 +164,10 @@ class KnowledgeGraph:
 
     def get_neighbors(self, entity_id: str, depth: int = 1, relation_type: str = None) -> list[dict]:
         """
-        Получить соседей ноды на заданную глубину.
-        Это ключевая функция — graph-aware retrieval.
+        Get node neighbors to given depth.
+        This is the key function — graph-aware retrieval.
 
-        Возвращает список {entity, relation_type, distance}
+        Returns list of {entity, relation_type, distance}
         """
         visited = set()
         results = []
@@ -176,13 +176,13 @@ class KnowledgeGraph:
 
     def _traverse(self, node_id: str, max_depth: int, current_depth: int,
                   visited: set, results: list, relation_type: str = None):
-        """Рекурсивный обход графа"""
+        """Recursive graph traversal"""
         if current_depth >= max_depth or node_id in visited:
             return
 
         visited.add(node_id)
 
-        # Исходящие связи
+        # Outgoing relations
         query = """
             SELECT r.target_id, r.relation_type, r.weight, e.*
             FROM relations r
@@ -205,7 +205,7 @@ class KnowledgeGraph:
             })
             self._traverse(target.id, max_depth, current_depth + 1, visited, results, relation_type)
 
-        # Входящие связи (обратные)
+        # Incoming relations (reverse)
         query = """
             SELECT r.source_id, r.relation_type, r.weight, e.*
             FROM relations r
@@ -231,8 +231,8 @@ class KnowledgeGraph:
 
     def get_subgraph(self, entity_id: str, depth: int = 2) -> dict:
         """
-        Получить подграф вокруг entity.
-        Возвращает {center, nodes, edges} — всё что нужно для контекста.
+        Get subgraph around entity.
+        Returns {center, nodes, edges} — everything needed for context.
         """
         center = self.get_entity(entity_id)
         if not center:
@@ -256,7 +256,7 @@ class KnowledgeGraph:
     # ── Stats ──
 
     def stats(self) -> dict:
-        """Статистика графа"""
+        """Graph statistics"""
         entities = self.conn.execute("SELECT COUNT(*) FROM entities").fetchone()[0]
         relations = self.conn.execute("SELECT COUNT(*) FROM relations").fetchone()[0]
         types = self.conn.execute(
@@ -298,7 +298,7 @@ class KnowledgeGraph:
         )
 
     def _make_entity_id(self, name: str) -> str:
-        """Генерирует ID из имени"""
+        """Generates ID from name"""
         return name.lower().replace(" ", "_").replace("/", "_")
 
     def close(self):
@@ -306,7 +306,7 @@ class KnowledgeGraph:
 
 
 def _infer_entity_type(note: ParsedNote) -> str:
-    """Определяет тип entity по тегам и frontmatter"""
+    """Determines entity type from tags and frontmatter"""
     tags = set(note.tags)
     fm = note.frontmatter
 
@@ -321,18 +321,18 @@ def _infer_entity_type(note: ParsedNote) -> str:
 
 def build_graph_from_vault(vault_path: str, db_path: str = ":memory:") -> KnowledgeGraph:
     """
-    Строит Knowledge Graph из Obsidian vault.
+    Builds Knowledge Graph from Obsidian vault.
 
-    1. Парсит все .md файлы
-    2. Создаёт entities для каждой заметки
-    3. Создаёт relations из [[wikilinks]]
-    4. Создаёт tag relations
-    5. Создаёт relations из frontmatter (team, etc.)
+    1. Parses all .md files
+    2. Creates entities for each note
+    3. Creates relations from [[wikilinks]]
+    4. Creates tag relations
+    5. Creates relations from frontmatter (team, etc.)
     """
     notes = parse_vault(vault_path)
     graph = KnowledgeGraph(db_path)
 
-    # Pass 1: Создаём entities для каждой заметки
+    # Pass 1: Create entities for each note
     for note in notes:
         entity_type = _infer_entity_type(note)
         entity = Entity(
@@ -344,7 +344,7 @@ def build_graph_from_vault(vault_path: str, db_path: str = ":memory:") -> Knowle
         )
         graph.add_entity(entity)
 
-    # Pass 2: Создаём «phantom» entities для ссылок на несуществующие заметки
+    # Pass 2: Create phantom entities for links to non-existent notes
     existing_ids = {e.id for e in graph.all_entities()}
     for note in notes:
         for link in note.wikilinks:
@@ -353,12 +353,12 @@ def build_graph_from_vault(vault_path: str, db_path: str = ":memory:") -> Knowle
                 phantom = Entity(
                     id=link_id,
                     name=link.target,
-                    entity_type="reference",  # нет файла, только ссылка
+                    entity_type="reference",  # no file, just a reference
                 )
                 graph.add_entity(phantom)
                 existing_ids.add(link_id)
 
-    # Pass 3: Relations из [[wikilinks]]
+    # Pass 3: Relations from [[wikilinks]]
     for note in notes:
         source_id = graph._make_entity_id(note.name)
         for link in note.wikilinks:
@@ -370,7 +370,7 @@ def build_graph_from_vault(vault_path: str, db_path: str = ":memory:") -> Knowle
                 metadata={"context": link.context},
             ))
 
-    # Pass 4: Relations из frontmatter (team, etc.)
+    # Pass 4: Relations from frontmatter (team, etc.)
     for note in notes:
         source_id = graph._make_entity_id(note.name)
         fm = note.frontmatter
@@ -431,14 +431,14 @@ if __name__ == "__main__":
     print(f"   Relations: {stats['total_relations']}")
     print(f"   By type: {stats['by_type']}")
 
-    # Тест: соседи Проект Alpha на 2 уровня
-    print(f"\n🔍 Neighbors of 'проект_alpha' (depth=2):")
-    neighbors = graph.get_neighbors("проект_alpha", depth=2)
+    # Test: neighbors of Project Alpha at depth 2
+    print(f"\n🔍 Neighbors of 'project_alpha' (depth=2):")
+    neighbors = graph.get_neighbors("project_alpha", depth=2)
     for n in neighbors:
         indent = "  " * n["distance"]
         print(f"  {indent}→ [{n['relation_type']}] {n['entity'].name} (d={n['distance']})")
 
-    # Тест: подграф Ali
+    # Test: subgraph around Ali
     print(f"\n🕸️  Subgraph around 'ali' (depth=2):")
     sg = graph.get_subgraph("ali", depth=2)
     print(f"   Center: {sg['center']}")

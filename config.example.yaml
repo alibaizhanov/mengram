@@ -1,17 +1,17 @@
-# ObsidianMem конфигурация
-# Скопируй в config.yaml и заполни свои значения
+# Mengram configuration
+# Copy to config.yaml and fill in your values
 
-# Путь к Obsidian vault (будет создан автоматически)
+# Path to Obsidian vault (created automatically)
 vault_path: "./vault"
 
-# LLM для извлечения знаний из разговоров
-# Варианты: anthropic, openai, ollama
+# LLM for knowledge extraction from conversations
+# Options: anthropic, openai, ollama
 llm:
   provider: "anthropic"
 
   # Anthropic (Claude)
   anthropic:
-    api_key: "sk-ant-..."  # твой API ключ
+    api_key: "sk-ant-..."  # your API key
     model: "claude-sonnet-4-20250514"
 
   # OpenAI
@@ -19,11 +19,11 @@ llm:
     api_key: "sk-..."
     model: "gpt-4o-mini"
 
-  # Ollama (полностью локально, бесплатно)
+  # Ollama (fully local, free)
   ollama:
     base_url: "http://localhost:11434"
     model: "llama3.2"
 
-# Embeddings (для семантического поиска)
+# Embeddings (for semantic search)
 embeddings:
-  model: "all-MiniLM-L6-v2"  # локальная модель, 80MB
+  model: "all-MiniLM-L6-v2"  # local model, 80MB

@@ -1,40 +1,40 @@
-# Mengram v2 — Второй мозг из разговоров с AI
+# Mengram — Architecture Overview
 
-## Идея
+## Concept
 
-Ты общаешься с Claude (или любой LLM). Система **автоматически** извлекает
-знания из разговоров и строит Obsidian vault — твой второй мозг.
+You chat with Claude (or any LLM). The system **automatically** extracts
+knowledge from conversations and builds a structured memory — your second brain.
 
-## Как это работает
+## How It Works
 
 ```
                          ┌──────────────────────┐
-                         │   Ты общаешься       │
-                         │   с Claude / GPT /    │
-                         │   любой LLM           │
+                         │   You chat with       │
+                         │   Claude / GPT /      │
+                         │   any LLM             │
                          └──────────┬───────────┘
                                     │
                                     ▼
                     ┌───────────────────────────────┐
                     │   CONVERSATION EXTRACTOR       │
                     │                               │
-                    │ Анализирует разговор:          │
-                    │ • Кто упомянут? (люди)         │
-                    │ • Какие проекты?               │
-                    │ • Какие технологии?            │
-                    │ • Какие факты?                 │
-                    │ • Какие связи между ними?      │
+                    │ Analyzes conversation:         │
+                    │ • Who is mentioned? (people)   │
+                    │ • Which projects?              │
+                    │ • Which technologies?          │
+                    │ • What facts?                  │
+                    │ • What connections between?    │
                     └───────────────┬───────────────┘
                                     │ extracted knowledge
                                     ▼
                     ┌───────────────────────────────┐
                     │     VAULT MANAGER              │
                     │                               │
-                    │ Создаёт/обновляет .md файлы:  │
-                    │ • Ali.md ← новые факты         │
-                    │ • PostgreSQL.md ← обновление   │
-                    │ • Проект Alpha.md ← создание   │
-                    │ • [[links]] между файлами      │
+                    │ Creates/updates .md files:     │
+                    │ • Ali.md ← new facts           │
+                    │ • PostgreSQL.md ← update       │
+                    │ • Project Alpha.md ← create    │
+                    │ • [[links]] between files      │
                     └───────────────┬───────────────┘
                                     │ .md files
                                     ▼
@@ -43,51 +43,50 @@
                     │                               │
                     │  📄 Ali.md                     │
                     │  📄 Uzum Bank.md               │
-                    │  📄 Проект Alpha.md            │
+                    │  📄 Project Alpha.md           │
                     │  📄 PostgreSQL.md              │
                     │  📄 Spring Boot.md             │
                     │                               │
-                    │  Можно открыть в Obsidian!     │
+                    │  Open in Obsidian!             │
                     │  → Graph View                  │
-                    │  → Редактировать               │
-                    │  → Добавлять заметки руками    │
+                    │  → Edit manually               │
+                    │  → Add notes by hand           │
                     └───────────────┬───────────────┘
                                     │
                                     ▼
                     ┌───────────────────────────────┐
                     │     MEMORY RETRIEVAL           │
                     │                               │
-                    │ При следующем разговоре:       │
-                    │ Claude спрашивает "что я знаю  │
-                    │ об этом пользователе?"         │
-                    │ → Ищет в vault                 │
-                    │ → Возвращает контекст          │
-                    │ → Claude отвечает умнее        │
+                    │ On next conversation:          │
+                    │ Claude asks "what do I know    │
+                    │ about this user?"              │
+                    │ → Searches vault               │
+                    │ → Returns context              │
+                    │ → Claude responds smarter      │
                     └───────────────────────────────┘
 ```
 
-## Структура проекта
+## Project Structure
 
 ```
-mengram-v2/
+mengram/
 ├── engine/
 │   ├── extractor/
-│   │   ├── conversation_extractor.py  # Извлечение знаний из разговоров
-│   │   └── llm_client.py             # Клиент для LLM (Claude/OpenAI/Ollama)
+│   │   ├── conversation_extractor.py  # Knowledge extraction from conversations
+│   │   └── llm_client.py             # LLM client (Claude/OpenAI/Ollama)
 │   ├── vault_manager/
-│   │   └── vault_manager.py          # Создание/обновление .md файлов
+│   │   └── vault_manager.py          # Create/update .md files
 │   ├── graph/
-│   │   └── knowledge_graph.py        # Индекс связей (SQLite кеш)
+│   │   └── knowledge_graph.py        # Relation index (SQLite cache)
 │   ├── vector/
-│   │   ├── embedder.py               # Локальные embeddings
-│   │   └── vector_store.py           # Семантический поиск
+│   │   ├── embedder.py               # Local embeddings
+│   │   └── vector_store.py           # Semantic search
 │   └── retrieval/
-│       └── hybrid_search.py          # Поиск контекста для LLM
+│       └── hybrid_search.py          # Context retrieval for LLM
 ├── api/
 │   └── mcp_server.py                 # MCP Server (Claude Desktop / Cursor)
-├── vault/                            # Автоматически создаётся — Obsidian vault
+├── vault/                            # Auto-created — Obsidian vault
 ├── tests/
-├── config.yaml                       # Настройки (LLM provider, vault path, etc.)
-├── setup.sh
+├── config.yaml                       # Settings (LLM provider, vault path, etc.)
 └── README.md
 ```

@@ -1,8 +1,8 @@
 """
-Mengram Cloud MCP Server — Claude Desktop с облачной памятью.
+Mengram Cloud MCP Server — Claude Desktop with cloud-based memory.
 
-Работает через cloud API вместо локального vault.
-Память доступна с любого устройства.
+Works via cloud API instead of local vault.
+Memory accessible from any device.
 
 Claude Desktop config:
 {

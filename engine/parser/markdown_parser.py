@@ -1,12 +1,12 @@
 """
 Obsidian Markdown Parser
 
-Парсит .md файлы из Obsidian vault и извлекает:
+Parses .md files from Obsidian vault and extracts:
 - Frontmatter (YAML metadata)
 - Wikilinks ([[links]])
-- Tags (#tags и из frontmatter)
-- Заголовки (структура документа)
-- Текстовые чанки (для embeddings)
+- Tags (#tags and from frontmatter)
+- Headings (document structure)
+- Text chunks (for embeddings)
 """
 
 import re
@@ -18,10 +18,10 @@ from typing import Optional
 
 @dataclass
 class WikiLink:
-    """Ссылка [[target]] или [[target|alias]]"""
+    """Wikilink [[target]] or [[target|alias]]"""
     target: str
     alias: Optional[str] = None
-    context: str = ""  # предложение, в котором найдена ссылка
+    context: str = ""  # sentence where the link was found
 
     def __repr__(self):
         if self.alias:
@@ -31,7 +31,7 @@ class WikiLink:
 
 @dataclass
 class Section:
-    """Секция документа (заголовок + контент)"""
+    """Document section (heading + content)"""
     title: str
     level: int  # 1 = #, 2 = ##, 3 = ###
     content: str
@@ -42,10 +42,10 @@ class Section:
 
 @dataclass
 class TextChunk:
-    """Чанк текста для vector embedding"""
+    """Text chunk for vector embedding"""
     content: str
-    section: str  # в какой секции находится
-    position: int  # порядковый номер в документе
+    section: str  # which section it belongs to
+    position: int  # position in document
 
     def __repr__(self):
         preview = self.content[:50] + "..." if len(self.content) > 50 else self.content
@@ -54,7 +54,7 @@ class TextChunk:
 
 @dataclass
 class ParsedNote:
-    """Результат парсинга одной .md заметки"""
+    """Result of parsing one .md note"""
     file_path: str
     title: str
     frontmatter: dict = field(default_factory=dict)
@@ -66,7 +66,7 @@ class ParsedNote:
 
     @property
     def name(self) -> str:
-        """Имя файла без расширения = имя сущности"""
+        """Filename without extension = entity name"""
         return Path(self.file_path).stem
 
     def __repr__(self):
@@ -90,8 +90,8 @@ HEADING_RE = re.compile(r"^(#{1,6})\s+(.+)$", re.MULTILINE)
 
 def parse_frontmatter(content: str) -> tuple[dict, str]:
     """
-    Извлекает YAML frontmatter из начала файла.
-    Возвращает (metadata_dict, content_without_frontmatter)
+    Extracts YAML frontmatter from file beginning.
+    Returns (metadata_dict, content_without_frontmatter)
     """
     match = FRONTMATTER_RE.match(content)
     if not match:
@@ -108,15 +108,15 @@ def parse_frontmatter(content: str) -> tuple[dict, str]:
 
 def extract_wikilinks(content: str) -> list[WikiLink]:
     """
-    Извлекает все [[wikilinks]] из текста.
-    Поддерживает [[target]] и [[target|alias]] форматы.
+    Extracts all [[wikilinks]] from text.
+    Supports [[target]] and [[target|alias]] formats.
     """
     links = []
     for match in WIKILINK_RE.finditer(content):
         target = match.group(1).strip()
         alias = match.group(2).strip() if match.group(2) else None
 
-        # Извлекаем контекст — предложение вокруг ссылки
+        # Extract context — sentence around the link
         start = max(0, match.start() - 80)
         end = min(len(content), match.end() + 80)
         context = content[start:end].replace("\n", " ").strip()
@@ -128,23 +128,23 @@ def extract_wikilinks(content: str) -> list[WikiLink]:
 
 def extract_tags(content: str, frontmatter: dict) -> list[str]:
     """
-    Извлекает теги из:
+    Extracts tags from:
     1. Frontmatter (tags: [tag1, tag2])
-    2. Inline #tags в тексте
+    2. Inline #tags in text
     """
     tags = set()
 
-    # Из frontmatter
+    # From frontmatter
     fm_tags = frontmatter.get("tags", [])
     if isinstance(fm_tags, list):
         tags.update(fm_tags)
     elif isinstance(fm_tags, str):
         tags.add(fm_tags)
 
-    # Inline теги
+    # Inline tags
     for match in TAG_RE.finditer(content):
         tag = match.group(1)
-        # Исключаем заголовки (## не тег)
+        # Exclude headings (## is not a tag)
         if not tag.startswith("#"):
             tags.add(tag)
 
@@ -153,29 +153,29 @@ def extract_tags(content: str, frontmatter: dict) -> list[str]:
 
 def extract_sections(content: str) -> list[Section]:
     """
-    Разбивает документ на секции по заголовкам.
+    Splits document into sections by headings.
     """
     sections = []
     headings = list(HEADING_RE.finditer(content))
 
     if not headings:
-        # Нет заголовков — весь контент как одна секция
+        # No headings — entire content as one section
         stripped = content.strip()
         if stripped:
             sections.append(Section(title="(root)", level=0, content=stripped))
         return sections
 
-    # Текст до первого заголовка
+    # Text before first heading
     pre_heading = content[:headings[0].start()].strip()
     if pre_heading:
         sections.append(Section(title="(intro)", level=0, content=pre_heading))
 
-    # Каждый заголовок + контент до следующего
+    # Each heading + content until next
     for i, heading in enumerate(headings):
         level = len(heading.group(1))
         title = heading.group(2).strip()
 
-        # Контент: от конца заголовка до начала следующего (или конца файла)
+        # Content: from end of heading to start of next (or end of file)
         start = heading.end()
         end = headings[i + 1].start() if i + 1 < len(headings) else len(content)
         body = content[start:end].strip()
@@ -187,10 +187,10 @@ def extract_sections(content: str) -> list[Section]:
 
 def create_chunks(sections: list[Section], chunk_size: int = 500) -> list[TextChunk]:
     """
-    Создаёт текстовые чанки для vector embeddings.
-    Разбивает по секциям, длинные секции — по параграфам.
+    Creates text chunks for vector embeddings.
+    Splits by sections, long sections — by paragraphs.
 
-    chunk_size — примерный размер чанка в символах.
+    chunk_size — approximate chunk size in characters.
     """
     chunks = []
     position = 0
@@ -199,7 +199,7 @@ def create_chunks(sections: list[Section], chunk_size: int = 500) -> list[TextCh
         if not section.content:
             continue
 
-        # Если секция маленькая — один чанк
+        # If section is small — one chunk
         if len(section.content) <= chunk_size:
             chunk_text = section.content
             if section.title not in ("(root)", "(intro)"):
@@ -213,7 +213,7 @@ def create_chunks(sections: list[Section], chunk_size: int = 500) -> list[TextCh
             position += 1
             continue
 
-        # Длинная секция — разбиваем по параграфам
+        # Long section — split by paragraphs
         paragraphs = re.split(r"\n\s*\n", section.content)
         current_chunk = ""
 
@@ -246,7 +246,7 @@ def create_chunks(sections: list[Section], chunk_size: int = 500) -> list[TextCh
 
 def parse_note(file_path: str) -> ParsedNote:
     """
-    Главная функция: парсит один .md файл в ParsedNote.
+    Main function: parses one .md file into ParsedNote.
     """
     path = Path(file_path)
     content = path.read_text(encoding="utf-8")
@@ -254,7 +254,7 @@ def parse_note(file_path: str) -> ParsedNote:
     # 1. Frontmatter
     frontmatter, body = parse_frontmatter(content)
 
-    # 2. Title — из H1 или имени файла
+    # 2. Title — from H1 or filename
     h1_match = re.search(r"^#\s+(.+)$", body, re.MULTILINE)
     title = h1_match.group(1).strip() if h1_match else path.stem
 
@@ -284,13 +284,13 @@ def parse_note(file_path: str) -> ParsedNote:
 
 def parse_vault(vault_path: str) -> list[ParsedNote]:
     """
-    Парсит все .md файлы в vault.
+    Parses all .md files in vault.
     """
     vault = Path(vault_path)
     notes = []
 
     for md_file in sorted(vault.rglob("*.md")):
-        # Пропускаем скрытые файлы и .obsidian папку
+        # Skip hidden files and .obsidian folder
         if any(part.startswith(".") for part in md_file.parts):
             continue
 
@@ -298,12 +298,12 @@ def parse_vault(vault_path: str) -> list[ParsedNote]:
             note = parse_note(str(md_file))
             notes.append(note)
         except Exception as e:
-            print(f"⚠️  Ошибка парсинга {md_file}: {e}", file=sys.stderr)
+            print(f"⚠️  Parse error {md_file}: {e}", file=sys.stderr)
 
     return notes
 
 
-# --- Entry point для тестирования ---
+# --- Entry point for testing ---
 if __name__ == "__main__":
     import sys
 

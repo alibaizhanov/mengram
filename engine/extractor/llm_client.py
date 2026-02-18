@@ -1,10 +1,10 @@
 """
-LLM Client — вызов LLM для извлечения знаний.
+LLM Client — LLM calls for knowledge extraction.
 
-Поддерживает:
-- Anthropic (Claude) — через API
-- OpenAI (GPT) — через API
-- Ollama — локально, бесплатно
+Supported providers:
+- Anthropic (Claude) — via API
+- OpenAI (GPT) — via API
+- Ollama — local, free
 """
 
 import json
@@ -13,11 +13,11 @@ from typing import Optional
 
 
 class LLMClient(ABC):
-    """Абстрактный клиент для LLM"""
+    """Abstract LLM client"""
 
     @abstractmethod
     def complete(self, prompt: str, system: str = "") -> str:
-        """Отправить промпт, получить ответ"""
+        """Send prompt, get response"""
         pass
 
     def chat(self, messages: list[dict], system: str = "") -> str:
@@ -31,7 +31,7 @@ class LLMClient(ABC):
 
 
 class AnthropicClient(LLMClient):
-    """Claude через Anthropic API"""
+    """Claude via Anthropic API"""
 
     def __init__(self, api_key: str, model: str = "claude-sonnet-4-20250514"):
         try:
@@ -61,7 +61,7 @@ class AnthropicClient(LLMClient):
 
 
 class OpenAIClient(LLMClient):
-    """GPT через OpenAI API"""
+    """GPT via OpenAI API"""
 
     def __init__(self, api_key: str, model: str = "gpt-4o-mini"):
         try:
@@ -92,7 +92,7 @@ class OpenAIClient(LLMClient):
 
 
 class OllamaClient(LLMClient):
-    """Ollama — полностью локальная LLM (бесплатно)"""
+    """Ollama — fully local LLM (free)"""
 
     def __init__(self, base_url: str = "http://localhost:11434", model: str = "llama3.2"):
         self.base_url = base_url.rstrip("/")
@@ -141,7 +141,7 @@ class OllamaClient(LLMClient):
 
 
 def create_llm_client(config: dict) -> LLMClient:
-    """Создаёт LLM клиент на основе конфига"""
+    """Creates LLM client from config"""
     provider = config.get("provider", "anthropic")
 
     if provider == "anthropic":

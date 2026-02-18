@@ -1,11 +1,11 @@
 """
-Vector Store — хранилище embeddings в SQLite.
+Vector Store — embeddings storage in SQLite.
 
-Хранит текстовые чанки + их вектора.
-Поиск через cosine similarity (numpy, без внешних зависимостей).
+Stores text chunks + their vectors.
+Search via cosine similarity (numpy, no external dependencies).
 
-Для vault до ~10K заметок этого достаточно.
-При масштабе можно заменить на FAISS/pgvector.
+Sufficient for vaults up to ~10K notes.
+At scale, can be replaced with FAISS/pgvector.
 """
 
 import json
@@ -20,7 +20,7 @@ from engine.parser.markdown_parser import ParsedNote, parse_vault
 
 @dataclass
 class SearchResult:
-    """Результат поиска"""
+    """Search result"""
     chunk_id: str
     entity_id: str
     entity_name: str
@@ -43,7 +43,7 @@ class VectorStore:
         self.conn.row_factory = sqlite3.Row
         self._create_tables()
 
-        # In-memory кеш для быстрого поиска
+        # In-memory cache for fast search
         self._vectors: Optional[np.ndarray] = None
         self._chunk_ids: list[str] = []
 
@@ -66,7 +66,7 @@ class VectorStore:
 
     def add_chunk(self, chunk_id: str, entity_id: str, entity_name: str,
                   section: str, content: str, position: int = 0):
-        """Добавить один чанк с автоматической генерацией embedding"""
+        """Add single chunk with automatic embedding generation"""
         vector = self.embedder.embed(content)
         self.conn.execute(
             """INSERT OR REPLACE INTO chunks 
@@ -80,17 +80,17 @@ class VectorStore:
 
     def add_chunks_batch(self, chunks: list[dict]):
         """
-        Батч-добавление чанков (быстрее для массовой индексации).
+        Batch-add chunks (faster for bulk indexing).
         chunks: [{chunk_id, entity_id, entity_name, section, content, position}]
         """
         if not chunks:
             return
 
-        # Генерируем все embeddings одним батчем
+        # Generate all embeddings in one batch
         texts = [c["content"] for c in chunks]
         vectors = self.embedder.embed_batch(texts)
 
-        # Записываем в БД
+        # Write to database
         rows = [
             (c["chunk_id"], c["entity_id"], c["entity_name"],
              c["section"], c["content"], vectors[i].tobytes(), c.get("position", 0))
@@ -108,18 +108,18 @@ class VectorStore:
 
     def search(self, query: str, top_k: int = 5, min_score: float = 0.0) -> list[SearchResult]:
         """
-        Семантический поиск по запросу.
-        Возвращает top_k самых релевантных чанков.
+        Semantic search by query.
+        Returns top_k most relevant chunks.
         """
         self._ensure_cache()
 
         if len(self._chunk_ids) == 0:
             return []
 
-        # Embed запрос
+        # Embed query
         query_vec = self.embedder.embed(query)
 
-        # Cosine similarity (вектора уже нормализованы)
+        # Cosine similarity (vectors already normalized)
         scores = np.dot(self._vectors, query_vec)
 
         # Top-K
@@ -149,7 +149,7 @@ class VectorStore:
         return results
 
     def search_by_entity(self, entity_id: str) -> list[dict]:
-        """Получить все чанки конкретной entity"""
+        """Get all chunks for specific entity"""
         rows = self.conn.execute(
             "SELECT * FROM chunks WHERE entity_id = ? ORDER BY position",
             (entity_id,),
@@ -164,7 +164,7 @@ class VectorStore:
         return {"total_chunks": total, "total_entities": entities}
 
     def _ensure_cache(self):
-        """Загружает все вектора в RAM для быстрого поиска"""
+        """Loads all vectors into RAM for fast search"""
         if self._vectors is not None:
             return
 
@@ -182,7 +182,7 @@ class VectorStore:
         ])
 
     def _invalidate_cache(self):
-        """Сбрасывает кеш при изменении данных"""
+        """Resets cache when data changes"""
         self._vectors = None
         self._chunk_ids = []
 
@@ -192,14 +192,14 @@ class VectorStore:
 
 def index_vault(vault_path: str, db_path: str = ":memory:") -> VectorStore:
     """
-    Индексирует весь Obsidian vault в Vector Store.
+    Indexes entire Obsidian vault into Vector Store.
     """
     notes = parse_vault(vault_path)
     store = VectorStore(db_path)
 
-    print(f"📝 Индексирую {len(notes)} заметок...")
+    print(f"📝 Indexing {len(notes)} notes...")
 
-    # Собираем все чанки
+    # Collect all chunks
     all_chunks = []
     for note in notes:
         entity_id = note.name.lower().replace(" ", "_")
@@ -213,11 +213,11 @@ def index_vault(vault_path: str, db_path: str = ":memory:") -> VectorStore:
                 "position": chunk.position,
             })
 
-    # Батч-индексация
+    # Batch indexing
     store.add_chunks_batch(all_chunks)
 
     stats = store.stats()
-    print(f"✅ Готово: {stats['total_chunks']} чанков из {stats['total_entities']} заметок")
+    print(f"✅ Done: {stats['total_chunks']} chunks from {stats['total_entities']} notes")
 
     return store
 
@@ -228,12 +228,12 @@ if __name__ == "__main__":
     vault_path = sys.argv[1] if len(sys.argv) > 1 else "./test_vault"
     store = index_vault(vault_path)
 
-    # Тестовые запросы
+    # Test queries
     queries = [
-        "проблема с производительностью базы данных",
-        "кто работает над backend",
-        "кэширование и Redis",
-        "микросервисная архитектура",
+        "database performance issue",
+        "who works on backend",
+        "caching and Redis",
+        "microservices architecture",
     ]
 
     for q in queries:
