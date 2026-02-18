@@ -451,3 +451,20 @@ class CloudMemory:
                 return job
             _time.sleep(poll_interval)
         raise TimeoutError(f"Job {job_id} timed out after {max_wait}s")
+
+    # ---- Smart Triggers (v2.6) ----
+
+    def get_triggers(self, user_id: str = "default",
+                     include_fired: bool = False, limit: int = 50) -> list:
+        """Get smart triggers (reminders, contradictions, patterns)."""
+        params = {"include_fired": include_fired, "limit": limit}
+        result = self._request("GET", f"/v1/triggers/{user_id}", params=params)
+        return result.get("triggers", [])
+
+    def process_triggers(self) -> dict:
+        """Manually fire all pending triggers."""
+        return self._request("POST", "/v1/triggers/process")
+
+    def dismiss_trigger(self, trigger_id: int) -> dict:
+        """Dismiss a trigger without sending webhook."""
+        return self._request("DELETE", f"/v1/triggers/{trigger_id}")

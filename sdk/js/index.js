@@ -510,6 +510,42 @@ class MengramClient {
     }
     throw new MengramError('Job timed out', 408);
   }
+
+  // ---- Smart Triggers (v2.6) ----
+
+  /**
+   * Get smart triggers (reminders, contradictions, patterns).
+   * @param {string} [userId] - defaults to 'default'
+   * @param {object} [options]
+   * @param {boolean} [options.includeFired] - include already-fired triggers
+   * @param {number} [options.limit] - max triggers to return
+   * @returns {Promise<Array>}
+   */
+  async getTriggers(userId = 'default', options = {}) {
+    const params = new URLSearchParams();
+    if (options.includeFired) params.set('include_fired', 'true');
+    if (options.limit) params.set('limit', options.limit);
+    const qs = params.toString() ? `?${params}` : '';
+    const result = await this._request('GET', `/v1/triggers/${userId}${qs}`);
+    return result.triggers || [];
+  }
+
+  /**
+   * Manually process all pending triggers.
+   * @returns {Promise<object>}
+   */
+  async processTriggers() {
+    return this._request('POST', '/v1/triggers/process');
+  }
+
+  /**
+   * Dismiss a trigger without sending webhook.
+   * @param {number} triggerId
+   * @returns {Promise<object>}
+   */
+  async dismissTrigger(triggerId) {
+    return this._request('DELETE', `/v1/triggers/${triggerId}`);
+  }
 }
 
 class MengramError extends Error {

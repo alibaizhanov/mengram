@@ -272,7 +272,57 @@ Agent completes a multi-step workflow → Mengram saves it as a procedure with s
 | User profile | ❌ | ❌ | ✅ Cognitive Profile |
 | Success tracking | ❌ | ❌ | ✅ per procedure |
 
+## OpenClaw Skill
+
+Give your OpenClaw agent human-like long-term memory across WhatsApp, Telegram, Discord, Slack — all channels.
+
+```bash
+# Copy skill to OpenClaw
+cp -r integrations/openclaw ~/.openclaw/skills/mengram-memory
+```
+
+Add to `~/.openclaw/openclaw.json`:
+```json
+{
+  "skills": {
+    "entries": {
+      "mengram-memory": {
+        "enabled": true,
+        "env": {
+          "MENGRAM_API_KEY": "om-your-key",
+          "MENGRAM_USER_ID": "your-name"
+        }
+      }
+    }
+  }
+}
+```
+
+**What happens:** Your agent automatically searches memory before answering, saves new facts/events/workflows, and loads your Cognitive Profile at session start. Zero code — just a SKILL.md and bash scripts calling the Mengram API.
+
 ## Memory Categories
+
+### Smart Triggers (v2.6)
+
+Memory that proactively alerts you. Mengram automatically detects:
+
+- **Reminders** — "meeting with Sarah at 3pm tomorrow" → triggers reminder 1h before
+- **Contradictions** — "user is vegetarian" + "order steaks for dinner" → contradiction alert
+- **Patterns** — "deploy on Friday" + 3/5 Friday deploys had bugs → risk warning
+
+```python
+# Get pending triggers
+triggers = m.get_triggers("ali")
+# [{"type": "reminder", "title": "Meeting with Sarah at 3pm", ...}]
+
+# Process all due triggers (fires webhooks)
+m.process_triggers()
+
+# Dismiss a trigger
+m.dismiss_trigger(trigger_id=42)
+```
+
+Triggers fire automatically via background cron (every 5 min) and send through your configured webhooks. Works with OpenClaw, Slack, Discord — any webhook endpoint.
 
 Separate memory by user, agent, session, and application:
 

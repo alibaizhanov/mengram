@@ -628,6 +628,7 @@
                 <span>💬 ChatGPT</span>
                 <span>🦜 LangChain</span>
                 <span>🚀 CrewAI</span>
+                <span>🦞 OpenClaw</span>
                 <span>🔍 Perplexity</span>
             </div>
         </div>
@@ -665,6 +666,7 @@
                 <button class="install-tab" onclick="showInstall('js')">⚡ JavaScript</button>
                 <button class="install-tab" onclick="showInstall('langchain')">🦜 LangChain</button>
                 <button class="install-tab" onclick="showInstall('crewai')">🚀 CrewAI</button>
+                <button class="install-tab" onclick="showInstall('openclaw')">🦞 OpenClaw</button>
             </div>
 
             <!-- Claude Desktop -->
@@ -914,7 +916,48 @@ crew = Crew(agents=[agent], tasks=[...])</pre>
                     </div>
                 </div>
             </div>
+            <!-- OpenClaw -->
+            <div class="install-panel" id="panel-openclaw">
+                <div class="steps">
+                    <div class="step">
+                        <div class="step-num">1</div>
+                        <div>
+                            <h4>Install skill</h4>
+                            <div class="code-box">
+                                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                                <code>cp -r mengram-memory ~/.openclaw/skills/</code>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="step">
+                        <div class="step-num">2</div>
+                        <div>
+                            <h4>Configure in openclaw.json</h4>
+                            <p>Your agent gets 3 memory types across all channels — WhatsApp, Telegram, Discord, Slack. Learns workflows automatically.</p>
+                            <div class="code-box">
+                                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+<pre>{
+  <span class="c-str">"skills"</span>: {
+    <span class="c-str">"entries"</span>: {
+      <span class="c-str">"mengram-memory"</span>: {
+        <span class="c-str">"enabled"</span>: <span class="c-kw">true</span>,
+        <span class="c-str">"env"</span>: {
+          <span class="c-str">"MENGRAM_API_KEY"</span>: <span class="c-str">"om-your-key"</span>,
+          <span class="c-str">"MENGRAM_USER_ID"</span>: <span class="c-str">"your-name"</span>
+        }
+      }
+    }
+  }
+}
+<span class="c-cmt">// Your agent now remembers facts, events, and workflows</span>
+<span class="c-cmt">// across all sessions and channels. Zero code needed.</span></pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </section>
+        <section class="features-section" id="features">
             <h2>What makes Mengram different</h2>
             <p>Others store facts. Mengram remembers like a human brain.</p>
             <div class="features-grid">
@@ -965,8 +1008,13 @@ crew = Crew(agents=[agent], tasks=[...])</pre>
                 </div>
                 <div class="feat-card">
                     <div class="feat-icon">🦜</div>
-                    <h3>LangChain & CrewAI</h3>
-                    <p>Drop-in integrations. LangChain persistent memory, CrewAI tools with procedural learning. One line to add.</p>
+                    <h3>LangChain, CrewAI & OpenClaw</h3>
+                    <p>Drop-in integrations everywhere. LangChain memory, CrewAI tools, OpenClaw skill — one install to add 3 memory types to any framework.</p>
+                </div>
+                <div class="feat-card" style="border-color: var(--accent); box-shadow: 0 0 20px var(--accent-dim);">
+                    <div class="feat-icon">⚡</div>
+                    <h3>Smart Triggers</h3>
+                    <p>Memory that raises its hand. Reminders from conversations, contradiction alerts, workflow pattern detection. Your AI proactively tells you what it remembers.</p>
                 </div>
             </div>
         </section>
@@ -1053,13 +1101,19 @@ crew = Crew(agents=[agent], tasks=[...])</pre>
                             <td style="text-align:center;padding:10px;">❌</td>
                         </tr>
                         <tr style="border-bottom: 1px solid var(--border);">
-                            <td style="padding:10px 16px;">LangChain & CrewAI</td>
+                            <td style="padding:10px 16px;">LangChain, CrewAI & OpenClaw</td>
                             <td style="text-align:center;padding:10px;">✅</td>
                             <td style="text-align:center;padding:10px;">✅</td>
                             <td style="text-align:center;padding:10px;">❌</td>
                         </tr>
                         <tr style="border-bottom: 1px solid var(--border); background: rgba(168,85,247,0.05);">
                             <td style="padding:10px 16px;"><strong>Procedural Learning</strong></td>
+                            <td style="text-align:center;padding:10px;"><strong>✅</strong></td>
+                            <td style="text-align:center;padding:10px;">❌</td>
+                            <td style="text-align:center;padding:10px;">❌</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--border); background: rgba(168,85,247,0.05);">
+                            <td style="padding:10px 16px;"><strong>Smart Triggers</strong></td>
                             <td style="text-align:center;padding:10px;"><strong>✅</strong></td>
                             <td style="text-align:center;padding:10px;">❌</td>
                             <td style="text-align:center;padding:10px;">❌</td>
@@ -1104,7 +1158,7 @@ crew = Crew(agents=[agent], tasks=[...])</pre>
         <!-- Footer -->
         <footer>
             <p>
-                Mengram — human-like memory for AI · v2.5.5
+                Mengram — human-like memory for AI · v2.6.1
                 &nbsp;·&nbsp;
                 <a href="https://github.com/alibaizhanov/mengram">GitHub</a>
                 &nbsp;·&nbsp;

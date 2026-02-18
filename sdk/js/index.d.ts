@@ -181,6 +181,25 @@ export declare class MengramClient {
   // Jobs
   jobStatus(jobId: string): Promise<JobStatus>;
   waitForJob(jobId: string, options?: { pollInterval?: number; maxWait?: number }): Promise<any>;
+
+  // Smart Triggers (v2.6)
+  getTriggers(userId?: string, options?: { includeFired?: boolean; limit?: number }): Promise<SmartTrigger[]>;
+  processTriggers(): Promise<{ processed: number; fired: number; errors: number }>;
+  dismissTrigger(triggerId: number): Promise<{ status: string; id: number }>;
+}
+
+export interface SmartTrigger {
+  id: number;
+  user_id: string;
+  trigger_type: 'reminder' | 'contradiction' | 'pattern';
+  title: string;
+  detail?: string;
+  source_type?: 'episode' | 'fact' | 'procedure';
+  source_id?: string;
+  fire_at?: string;
+  fired: boolean;
+  fired_at?: string;
+  created_at: string;
 }
 
 export default MengramClient;

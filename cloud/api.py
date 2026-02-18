@@ -104,6 +104,7 @@ The only AI memory API with 3 memory types. Your AI remembers facts, events, and
 - **Team Sharing** — shared memory across team members
 - **LangChain** — drop-in replacement for ConversationBufferMemory
 - **CrewAI** — 5 tools with procedural learning (agents learn optimal workflows)
+- **OpenClaw** — skill with 3 memory types across all channels (WhatsApp, Telegram, Discord)
 
 ### Authentication
 All endpoints require `Authorization: Bearer YOUR_API_KEY` header.
@@ -117,7 +118,7 @@ results = m.search_all("deployment")  # semantic + episodic + procedural
 profile = m.get_profile("ali")        # instant system prompt
 ```
         """,
-        version="2.5.5",
+        version="2.6.1",
         docs_url="/docs",
         redoc_url="/redoc",
         openapi_tags=[
@@ -625,7 +626,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         pool_info = {"type": "pool", "max": 10} if store._pool else {"type": "single"}
         return {
             "status": "ok",
-            "version": "2.5.5",
+            "version": "2.6.1",
             "cache": cache_stats,
             "connection": pool_info,
         }
@@ -820,6 +821,21 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                         store.generate_reflections(user_id, extractor2.llm)
                 except Exception as e:
                     logger.error(f"⚠️ Auto-reflection failed: {e}")
+
+                # ---- Smart Triggers: detect reminders, contradictions, patterns ----
+                triggers_created = 0
+                try:
+                    triggers_created += store.detect_reminder_triggers(user_id)
+                    for entity in extraction.entities:
+                        if entity.name and entity.facts:
+                            triggers_created += store.detect_contradiction_triggers(
+                                user_id, entity.facts, entity.name
+                            )
+                    triggers_created += store.detect_pattern_triggers(user_id)
+                    if triggers_created > 0:
+                        logger.info(f"🧠 Smart triggers created: {triggers_created} for {user_id}")
+                except Exception as e:
+                    logger.error(f"⚠️ Smart triggers failed: {e}")
             except Exception as e:
                 logger.error(f"❌ Background add failed: {e}")
                 store.fail_job(job_id, str(e))
@@ -1463,6 +1479,62 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             "episodic": episodic,
             "procedural": procedural,
         }
+
+    # ============================================
+    # Smart Memory Triggers (v2.6)
+    # ============================================
+
+    @app.get("/v1/triggers/{target_user_id}", tags=["Smart Triggers"])
+    async def get_triggers(target_user_id: str, include_fired: bool = False,
+                           limit: int = 50, user_id: str = Depends(auth)):
+        """Get smart triggers for a user. Returns pending reminders, contradictions, and pattern alerts."""
+        triggers = store.get_triggers(target_user_id, include_fired=include_fired, limit=limit)
+        # Serialize datetimes
+        for t in triggers:
+            for key in ("fire_at", "fired_at", "created_at"):
+                if t.get(key) and hasattr(t[key], "isoformat"):
+                    t[key] = t[key].isoformat()
+        return {"triggers": triggers, "count": len(triggers)}
+
+    @app.post("/v1/triggers/process", tags=["Smart Triggers"])
+    async def process_triggers(user_id: str = Depends(auth)):
+        """Manually process all pending triggers (fire those that are due)."""
+        result = store.process_all_triggers()
+        return result
+
+    @app.delete("/v1/triggers/{trigger_id}", tags=["Smart Triggers"])
+    async def dismiss_trigger(trigger_id: int, user_id: str = Depends(auth)):
+        """Dismiss (mark as fired) a specific trigger without sending webhook."""
+        store.ensure_triggers_table()
+        with store._cursor() as cur:
+            cur.execute("""
+                UPDATE memory_triggers SET fired = TRUE, fired_at = NOW()
+                WHERE id = %s
+                RETURNING id
+            """, (trigger_id,))
+            row = cur.fetchone()
+        if row:
+            return {"status": "dismissed", "id": trigger_id}
+        raise HTTPException(status_code=404, detail="Trigger not found")
+
+    # ---- Background trigger processing (cron) ----
+    import threading, time as _time
+
+    def _trigger_cron_loop():
+        """Background thread that processes triggers every 5 minutes."""
+        _time.sleep(30)  # Initial delay to let server start
+        while True:
+            try:
+                result = store.process_all_triggers()
+                if result["fired"] > 0:
+                    logger.info(f"🧠 Trigger cron: fired {result['fired']} triggers")
+            except Exception as e:
+                logger.error(f"⚠️ Trigger cron error: {e}")
+            _time.sleep(300)  # Every 5 minutes
+
+    _cron_thread = threading.Thread(target=_trigger_cron_loop, daemon=True)
+    _cron_thread.start()
+    logger.info("🧠 Smart trigger cron started (every 5 min)")
 
     return app
 

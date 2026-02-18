@@ -214,6 +214,28 @@ CREATE TABLE usage_log (
 CREATE INDEX idx_usage_user_date ON usage_log(user_id, created_at);
 
 -- ============================================
+-- 10. Smart Memory Triggers (v2.6 — proactive memory)
+-- ============================================
+
+CREATE TABLE memory_triggers (
+    id SERIAL PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    trigger_type VARCHAR(30) NOT NULL,  -- 'reminder', 'contradiction', 'pattern'
+    title TEXT NOT NULL,                -- human-readable summary
+    detail TEXT,                        -- full context
+    source_type VARCHAR(30),            -- 'episode', 'fact', 'procedure'
+    source_id UUID,                     -- ID of source memory
+    fire_at TIMESTAMPTZ,               -- when to fire (NULL = fire immediately)
+    fired BOOLEAN DEFAULT FALSE,
+    fired_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_triggers_pending ON memory_triggers(user_id, fired, fire_at)
+    WHERE fired = FALSE;
+CREATE INDEX idx_triggers_user ON memory_triggers(user_id, created_at DESC);
+
+-- ============================================
 -- Helper views
 -- ============================================
 
