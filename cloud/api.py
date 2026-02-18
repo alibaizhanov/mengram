@@ -118,7 +118,7 @@ results = m.search_all("deployment")  # semantic + episodic + procedural
 profile = m.get_profile("ali")        # instant system prompt
 ```
         """,
-        version="2.6.1",
+        version="2.6.2",
         docs_url="/docs",
         redoc_url="/redoc",
         openapi_tags=[
@@ -626,7 +626,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         pool_info = {"type": "pool", "max": 10} if store._pool else {"type": "single"}
         return {
             "status": "ok",
-            "version": "2.6.1",
+            "version": "2.6.2",
             "cache": cache_stats,
             "connection": pool_info,
         }
@@ -1484,12 +1484,22 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     # Smart Memory Triggers (v2.6)
     # ============================================
 
+    @app.get("/v1/triggers", tags=["Smart Triggers"])
+    async def get_own_triggers(include_fired: bool = False,
+                               limit: int = 50, user_id: str = Depends(auth)):
+        """Get smart triggers for the authenticated user."""
+        triggers = store.get_triggers(user_id, include_fired=include_fired, limit=limit)
+        for t in triggers:
+            for key in ("fire_at", "fired_at", "created_at"):
+                if t.get(key) and hasattr(t[key], "isoformat"):
+                    t[key] = t[key].isoformat()
+        return {"triggers": triggers, "count": len(triggers)}
+
     @app.get("/v1/triggers/{target_user_id}", tags=["Smart Triggers"])
     async def get_triggers(target_user_id: str, include_fired: bool = False,
                            limit: int = 50, user_id: str = Depends(auth)):
-        """Get smart triggers for a user. Returns pending reminders, contradictions, and pattern alerts."""
+        """Get smart triggers for a specific user."""
         triggers = store.get_triggers(target_user_id, include_fired=include_fired, limit=limit)
-        # Serialize datetimes
         for t in triggers:
             for key in ("fire_at", "fired_at", "created_at"):
                 if t.get(key) and hasattr(t[key], "isoformat"):
@@ -1516,6 +1526,28 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         if row:
             return {"status": "dismissed", "id": trigger_id}
         raise HTTPException(status_code=404, detail="Trigger not found")
+
+    @app.post("/v1/triggers/detect/{target_user_id}", tags=["Smart Triggers"])
+    async def detect_triggers_debug(target_user_id: str, user_id: str = Depends(auth)):
+        """Manually run trigger detection for a user. Returns detailed results."""
+        results = {"reminders": 0, "contradictions": 0, "patterns": 0, "errors": []}
+        try:
+            results["reminders"] = store.detect_reminder_triggers(target_user_id)
+        except Exception as e:
+            results["errors"].append(f"reminders: {e}")
+        try:
+            results["patterns"] = store.detect_pattern_triggers(target_user_id)
+        except Exception as e:
+            results["errors"].append(f"patterns: {e}")
+        triggers = store.get_triggers(target_user_id)
+        results["total_pending"] = len(triggers)
+        results["triggers"] = triggers
+        # Serialize datetimes
+        for t in results["triggers"]:
+            for key in ("fire_at", "fired_at", "created_at"):
+                if t.get(key) and hasattr(t[key], "isoformat"):
+                    t[key] = t[key].isoformat()
+        return results
 
     # ---- Background trigger processing (cron) ----
     import threading, time as _time

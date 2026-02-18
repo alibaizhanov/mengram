@@ -521,12 +521,13 @@ class MengramClient {
    * @param {number} [options.limit] - max triggers to return
    * @returns {Promise<Array>}
    */
-  async getTriggers(userId = 'default', options = {}) {
+  async getTriggers(userId = null, options = {}) {
     const params = new URLSearchParams();
     if (options.includeFired) params.set('include_fired', 'true');
     if (options.limit) params.set('limit', options.limit);
     const qs = params.toString() ? `?${params}` : '';
-    const result = await this._request('GET', `/v1/triggers/${userId}${qs}`);
+    const path = userId ? `/v1/triggers/${userId}${qs}` : `/v1/triggers${qs}`;
+    const result = await this._request('GET', path);
     return result.triggers || [];
   }
 
