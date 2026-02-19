@@ -831,7 +831,7 @@ profile = m.get_profile(<span class="c-str">"ali"</span>)
                             <p>Drop-in replacement — returns relevant knowledge from all 3 memory types instead of raw messages.</p>
                             <div class="code-box">
                                 <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-<pre><span class="c-kw">from</span> <span class="c-fn">mengram.integrations.langchain</span> <span class="c-kw">import</span> MengramMemory
+<pre><span class="c-kw">from</span> <span class="c-fn">integrations.langchain</span> <span class="c-kw">import</span> MengramMemory
 
 <span class="c-cmt"># Replaces ConversationBufferMemory</span>
 memory = MengramMemory(
@@ -856,7 +856,7 @@ chain.predict(input=<span class="c-str">"How did my deploy go?"</span>)
                             <h4>Or use with LCEL (recommended)</h4>
                             <div class="code-box">
                                 <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-<pre><span class="c-kw">from</span> <span class="c-fn">mengram.integrations.langchain</span> <span class="c-kw">import</span> MengramChatMessageHistory
+<pre><span class="c-kw">from</span> <span class="c-fn">integrations.langchain</span> <span class="c-kw">import</span> MengramChatMessageHistory
 <span class="c-kw">from</span> <span class="c-fn">langchain_core.runnables.history</span> <span class="c-kw">import</span> RunnableWithMessageHistory
 
 chain_with_memory = RunnableWithMessageHistory(
@@ -895,11 +895,10 @@ chain_with_memory = RunnableWithMessageHistory(
                             <div class="code-box">
                                 <button class="copy-btn" onclick="copyCode(this)">Copy</button>
 <pre><span class="c-kw">from</span> <span class="c-fn">crewai</span> <span class="c-kw">import</span> Agent, Crew
-<span class="c-kw">from</span> <span class="c-fn">mengram.integrations.crewai</span> <span class="c-kw">import</span> create_mengram_tools
+<span class="c-kw">from</span> <span class="c-fn">integrations.crewai</span> <span class="c-kw">import</span> create_mengram_tools
 
 tools = create_mengram_tools(
     api_key=<span class="c-str">"your-api-key"</span>,
-    user_id=<span class="c-str">"ali"</span>,
 )
 
 agent = Agent(

@@ -82,6 +82,23 @@ Add to `claude_desktop_config.json`:
 
 Done. Claude now has persistent memory with all 3 types.
 
+## Examples
+
+Ready-to-run agent templates — clone, set API key, run in 5 minutes:
+
+| Template | Stack | What it showcases |
+|---|---|---|
+| **[DevOps Agent](examples/devops-agent/)** | CloudMemory SDK | Experience-driven procedures: learns deployment workflows, evolves them from failures |
+| **[Customer Support Agent](examples/customer-support-agent/)** | CrewAI + Mengram | 5 memory tools, semantic search, cognitive profile, interactive support |
+| **[Personal Assistant](examples/personal-assistant/)** | LangChain + Mengram | Cognitive profile, unified retriever, auto-saving chat history |
+
+```bash
+cd examples/devops-agent
+pip install -r requirements.txt
+export MENGRAM_API_KEY=om-...
+python main.py
+```
+
 ## Authentication
 
 All API calls are authenticated via your API key. The key identifies your account — all memories are automatically tied to it. No need to pass `user_id` separately.
@@ -95,7 +112,7 @@ m.search("query")                   # Searches your memories
 ## Python SDK
 
 ```python
-from mengram.cloud.client import CloudMemory
+from cloud.client import CloudMemory
 
 m = CloudMemory(api_key="om-...")
 
@@ -278,7 +295,7 @@ pip install mengram-ai[langchain]
 
 **LCEL (recommended):**
 ```python
-from mengram.integrations.langchain import MengramChatMessageHistory
+from integrations.langchain import MengramChatMessageHistory
 from langchain_core.runnables.history import RunnableWithMessageHistory
 
 chain_with_memory = RunnableWithMessageHistory(
@@ -293,7 +310,7 @@ chain_with_memory = RunnableWithMessageHistory(
 
 **ConversationChain (legacy):**
 ```python
-from mengram.integrations.langchain import MengramMemory
+from integrations.langchain import MengramMemory
 
 memory = MengramMemory(api_key="om-...")
 # With Cognitive Profile:
@@ -324,7 +341,7 @@ pip install mengram-ai[crewai]
 
 ```python
 from crewai import Agent, Crew
-from mengram.integrations.crewai import create_mengram_tools
+from integrations.crewai import create_mengram_tools
 
 tools = create_mengram_tools(api_key="om-...")
 
