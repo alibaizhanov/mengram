@@ -1,492 +1,209 @@
-# Mengram — Human-Like Memory for AI
+<div align="center">
 
-**The only AI memory API with 3 memory types: semantic, episodic, and procedural.** Your AI remembers facts, events, and learned workflows — just like a human brain.
+# Mengram
+
+### The memory layer for AI agents that learns from experience
+
+Your agents remember facts, events, and workflows — and **procedures improve automatically when they fail.**
 
 [![PyPI](https://img.shields.io/pypi/v/mengram-ai)](https://pypi.org/project/mengram-ai/)
 [![npm](https://img.shields.io/npm/v/mengram-ai)](https://www.npmjs.com/package/mengram-ai)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![PyPI Downloads](https://img.shields.io/pypi/dm/mengram-ai)](https://pypi.org/project/mengram-ai/)
 
-**[Website](https://mengram.io)** · **[Dashboard](https://mengram.io/dashboard)** · **[API Docs](https://mengram.io/docs)** · **[PyPI](https://pypi.org/project/mengram-ai/)** · **[npm](https://www.npmjs.com/package/mengram-ai)**
+**[Website](https://mengram.io)** · **[Get API Key](https://mengram.io/dashboard)** · **[API Docs](https://mengram.io/docs)** · **[Examples](examples/)**
+
+</div>
 
 ---
 
 ## Why Mengram?
 
-|  | Mengram | Mem0 | Supermemory |
-|---|---|---|---|
-| Semantic Memory (facts) | ✅ | ✅ | ✅ |
-| **Episodic Memory (events)** | ✅ | ❌ | ❌ |
-| **Procedural Memory (workflows)** | ✅ | ❌ | ❌ |
-| **Experience-Driven Procedures** | ✅ Self-improving workflows | ❌ | ❌ |
-| **Cognitive Profile** | ✅ | ❌ | ❌ |
-| **Smart Triggers** | ✅ | ❌ | ❌ |
-| **Unified Search (all 3 types)** | ✅ | ❌ | ❌ |
-| Knowledge Graph | ✅ | ✅ | ❌ |
-| Autonomous Agents | ✅ Curator, Connector, Digest | ❌ | ❌ |
-| Team Shared Memory | ✅ | ❌ | ✅ |
-| AI Reflections | ✅ | ❌ | ❌ |
-| Webhooks | ✅ | ✅ | ✅ |
-| MCP Server | ✅ Claude Desktop, Cursor, Windsurf | ✅ | ❌ |
-| **LangChain Integration** | ✅ | ❌ | ❌ |
-| Python & JS SDK | ✅ | ✅ | ✅ |
-| Self-hostable | ✅ | ✅ | ✅ |
-| **Price** | **Free** | $19-249/mo | Enterprise |
+Every AI memory tool stores facts. Mengram stores **3 types** — and procedures **evolve from failures**.
 
-## 3 Memory Types
+|  | Mengram | Mem0 | Letta | Zep |
+|---|---|---|---|---|
+| Semantic Memory (facts) | ✅ | ✅ | ✅ | ✅ |
+| **Episodic Memory (events)** | ✅ | ❌ | Partial | ❌ |
+| **Procedural Memory (workflows)** | ✅ | ❌ | ❌ | ❌ |
+| **Experience-Driven Evolution** | ✅ | ❌ | ❌ | ❌ |
+| **Cognitive Profile** | ✅ | ❌ | ❌ | ❌ |
+| Knowledge Graph | ✅ | ✅ | ✅ | ✅ |
+| LangChain / CrewAI | ✅ | Partial | ❌ | ✅ |
+| MCP Server | ✅ | ✅ | ✅ | ❌ |
+| **Price** | **Free** | $19–249/mo | Free (self-host) | Enterprise |
 
-Mengram automatically extracts all 3 types from a single `add()` call:
+## Quick Start
 
-**🧠 Semantic** — Facts, preferences, skills: *"uses Python"*, *"prefers dark mode"*
-
-**📝 Episodic** — Events, decisions, experiences: *"Debugged Railway deployment for 3 hours, fixed pgvector issue"*
-
-**⚙️ Procedural** — Learned workflows, processes: *"Deploy: build → twine upload → npm publish → git push"*
+```bash
+pip install mengram-ai
+```
 
 ```python
-# One call extracts all 3 types automatically
+from cloud.client import CloudMemory
+
+m = CloudMemory(api_key="om-...")  # Free key → mengram.io/dashboard
+
+# Add a conversation — Mengram auto-extracts facts, events, and workflows
 m.add([
-    {"role": "user", "content": "Fixed the auth bug today. Problem was API key cache TTL. My debug process: check Railway logs, reproduce locally, fix and deploy."},
+    {"role": "user", "content": "Deployed to Railway today. Build passed but forgot migrations — DB crashed. Fixed by adding a pre-deploy check."},
 ])
-# → Semantic: "API key caching caused auth bug"
-# → Episodic: "Debugged auth bug, fixed cache TTL"  
-# → Procedural: "Debug process: logs → reproduce → fix → deploy"
+
+# Search facts
+m.search("deployment setup")
+
+# Search events — what happened?
+m.episodes(query="deployment")
+# → [{summary: "Deployed to Railway, DB crashed due to missing migrations", outcome: "resolved", ...}]
+
+# Search workflows — how to do it?
+m.procedures(query="deploy")
+# → [{name: "Deploy to Railway", steps: ["build", "run migrations", "push", "verify"], ...}]
+
+# Unified search — all 3 types at once
+m.search_all("deployment issues")
+# → {semantic: [...], episodic: [...], procedural: [...]}
 ```
 
-## Quick Start (60 seconds)
-
-### 1. Get API key
-Sign up at [mengram.io](https://mengram.io) — free, no credit card.
-
-### 2. Install
+**JavaScript / TypeScript:**
 ```bash
-pip install mengram-ai    # Python
-npm install mengram-ai    # JavaScript / TypeScript
+npm install mengram-ai
+```
+```javascript
+const { MengramClient } = require('mengram-ai');
+const m = new MengramClient('om-...');
+
+await m.add([{ role: 'user', content: 'Fixed OOM with Redis cache' }]);
+const all = await m.searchAll('database issues');
+// → { semantic: [...], episodic: [...], procedural: [...] }
 ```
 
-### 3. Connect to Claude Desktop
-Add to `claude_desktop_config.json`:
+## Experience-Driven Procedures
+
+**The feature no one else has.** Procedures learn from real outcomes — not static runbooks.
+
+```
+Week 1:  "Deploy" → build → push → deploy
+                                         ↓ FAILURE: forgot migrations, DB crashed
+Week 2:  "Deploy" v2 → build → run migrations → push → deploy
+                                                          ↓ FAILURE: OOM on Railway
+Week 3:  "Deploy" v3 → build → run migrations → check memory → push → deploy ✅
+```
+
+This happens **automatically** when you report failures:
+
+```python
+# Report failure with context → procedure evolves to a new version
+m.procedure_feedback(proc_id, success=False,
+                     context="OOM error on step 3", failed_at_step=3)
+
+# View version history
+history = m.procedure_history(proc_id)
+# → {versions: [v1, v2, v3], evolution_log: [{change: "step_added", reason: "prevent OOM"}]}
+```
+
+Or **fully automatic** — add conversations and Mengram detects failures, links them to procedures, and evolves:
+
+```python
+m.add([{"role": "user", "content": "Deploy to Railway failed again — OOM on the build step"}])
+# → Episode auto-linked to "Deploy" procedure → failure detected → v3 created
+```
+
+## Cognitive Profile
+
+One API call generates a system prompt from all your memories:
+
+```python
+profile = m.get_profile()
+# → "You are talking to Ali, a developer in Almaty building Mengram.
+#    He uses Python, PostgreSQL, and Railway. Recently debugged pgvector deployment.
+#    Workflows: deploys via build→twine→npm→git. Communicate directly, focus on practical next steps."
+```
+
+Insert into any LLM's system prompt for instant personalization.
+
+## Integrations
+
+### MCP Server (Claude Desktop, Cursor, Windsurf)
+
 ```json
 {
   "mcpServers": {
     "mengram": {
       "command": "mengram",
       "args": ["server", "--cloud"],
-      "env": {
-        "MENGRAM_API_KEY": "your-key-here"
-      }
+      "env": { "MENGRAM_API_KEY": "om-..." }
     }
   }
 }
 ```
 
-Done. Claude now has persistent memory with all 3 types.
+### LangChain
 
-## Examples
+```python
+from integrations.langchain import MengramChatMessageHistory, MengramRetriever
 
-Ready-to-run agent templates — clone, set API key, run in 5 minutes:
+# Drop-in message history — auto-saves to Mengram
+history = MengramChatMessageHistory(api_key="om-...", session_id="session-1")
 
-| Template | Stack | What it showcases |
+# RAG retriever — searches all 3 memory types
+retriever = MengramRetriever(api_key="om-...")
+```
+
+### CrewAI
+
+```python
+from integrations.crewai import create_mengram_tools
+
+tools = create_mengram_tools(api_key="om-...")
+# → 5 tools: search, remember, profile, save_workflow, workflow_feedback
+
+agent = Agent(role="Support Engineer", tools=tools)
+```
+
+## Agent Templates
+
+Ready-to-run examples — clone, set API key, run in 5 minutes:
+
+| Template | Stack | What it shows |
 |---|---|---|
-| **[DevOps Agent](examples/devops-agent/)** | CloudMemory SDK | Experience-driven procedures: learns deployment workflows, evolves them from failures |
-| **[Customer Support Agent](examples/customer-support-agent/)** | CrewAI + Mengram | 5 memory tools, semantic search, cognitive profile, interactive support |
-| **[Personal Assistant](examples/personal-assistant/)** | LangChain + Mengram | Cognitive profile, unified retriever, auto-saving chat history |
+| **[DevOps Agent](examples/devops-agent/)** | Python SDK | Procedures that evolve from deployment failures |
+| **[Customer Support](examples/customer-support-agent/)** | CrewAI | Agent with 5 memory tools, remembers returning customers |
+| **[Personal Assistant](examples/personal-assistant/)** | LangChain | Cognitive profile + auto-saving chat history |
 
 ```bash
-cd examples/devops-agent
-pip install -r requirements.txt
+cd examples/devops-agent && pip install -r requirements.txt
 export MENGRAM_API_KEY=om-...
 python main.py
 ```
 
-## Authentication
+## API Reference
 
-All API calls are authenticated via your API key. The key identifies your account — all memories are automatically tied to it. No need to pass `user_id` separately.
-
-```python
-m = CloudMemory(api_key="om-...")  # Your key = your identity
-m.add([...])                        # Memories saved to your account
-m.search("query")                   # Searches your memories
-```
-
-## Python SDK
-
-```python
-from cloud.client import CloudMemory
-
-m = CloudMemory(api_key="om-...")
-
-# Add memories — auto-extracts facts, events, workflows
-m.add([
-    {"role": "user", "content": "I deployed Mengram on Railway with PostgreSQL 15"},
-    {"role": "assistant", "content": "Great, noted the deployment setup."}
-])
-
-# Semantic search (classic)
-results = m.search("deployment setup")
-
-# Episodic search — what happened?
-events = m.episodes(query="deployment")
-# → [{summary: "Deployed on Railway", outcome: "Success", participants: [...]}]
-
-# Procedural search — how to do it?
-procs = m.procedures(query="deploy")
-# → [{name: "Deploy Mengram", steps: [...], success_count: 5}]
-
-# Unified search — all 3 types at once
-all_results = m.search_all("deployment issues")
-# → {semantic: [...], episodic: [...], procedural: [...]}
-
-# Procedure feedback — AI learns what works
-m.procedure_feedback(proc_id, success=True)
-
-# Experience-driven evolution — procedure improves on failure
-m.procedure_feedback(proc_id, success=False,
-                     context="OOM on Railway", failed_at_step=3)
-# → Automatically creates improved version
-
-# View procedure version history
-history = m.procedure_history(proc_id)
-# → {versions: [v1, v2, v3], evolution_log: [...]}
-
-# Cognitive Profile — instant personalization
-profile = m.get_profile()
-# → {system_prompt: "You are talking to Ali, a developer in Almaty..."}
-
-# Smart Triggers — proactive memory alerts
-triggers = m.get_triggers()
-# → [{"type": "reminder", "title": "Meeting with Anya at 3pm", ...}]
-
-# Memory agents
-m.run_agents(agent="all", auto_fix=True)
-
-# Team memory
-team = m.create_team("Backend Team")
-m.share_memory("Redis", team_id=team["id"])
-```
-
-## JavaScript / TypeScript SDK
-
-```javascript
-const { MengramClient } = require('mengram-ai');
-
-const m = new MengramClient('om-...');
-
-// Add memories — extracts all 3 types
-await m.add([
-  { role: 'user', content: 'Fixed OOM with Redis cache' },
-]);
-
-// Episodic — what happened?
-const events = await m.episodes({ query: 'OOM fix' });
-
-// Procedural — how to do it?
-const procs = await m.procedures({ query: 'cache setup' });
-
-// Unified search — all 3 types
-const all = await m.searchAll('database issues');
-// → { semantic: [...], episodic: [...], procedural: [...] }
-
-// Procedure feedback — AI learns
-await m.procedureFeedback(procId, { success: true });
-
-// Experience-driven evolution — procedure improves on failure
-await m.procedureFeedback(procId, {
-  success: false, context: 'OOM on Railway', failedAtStep: 3
-});
-
-// View procedure version history
-const history = await m.procedureHistory(procId);
-
-// Cognitive Profile
-const profile = await m.getProfile();
-
-// Smart Triggers
-const triggers = await m.getTriggers();
-```
-
-Full TypeScript types included with `Episode`, `Procedure`, `SmartTrigger`, and `UnifiedSearchResult` interfaces.
-
-## Cognitive Profile
-
-One API call generates a ready-to-use system prompt from all 3 memory types:
-
-```python
-profile = m.get_profile()
-print(profile["system_prompt"])
-```
-
-Output:
-```
-You are talking to Ali, a 22-year-old developer in Almaty building Mengram.
-He uses Python, PostgreSQL, and Railway. Recently: debugged pgvector deployment,
-researched competitors Mem0 and Supermemory, designed freemium pricing.
-Workflows: deploys via build→twine→npm→git, prefers iterative shipping.
-Communicate in Russian/English, direct style, focus on practical next steps.
-```
-
-Insert into any LLM's system prompt for instant personalization. Replace your RAG pipeline.
-
-## Smart Triggers
-
-Memory that proactively alerts you. Mengram automatically detects:
-
-- **Reminders** — "meeting with Sarah at 3pm tomorrow" → triggers reminder 1h before
-- **Contradictions** — "user is vegetarian" + "order steaks for dinner" → contradiction alert
-- **Patterns** — "deploy on Friday" + 3/5 Friday deploys had bugs → risk warning
-
-```python
-triggers = m.get_triggers()
-# [{"type": "reminder", "title": "Meeting with Sarah at 3pm", ...}]
-
-m.process_triggers()       # Fire all pending triggers
-m.dismiss_trigger(42)      # Dismiss a trigger
-```
-
-Triggers fire automatically via background cron (every 5 min) and send through your configured webhooks. Works with OpenClaw, Slack, Discord — any webhook endpoint.
-
-## Experience-Driven Procedures
-
-**Procedures that learn from experience.** When a procedure fails, Mengram automatically analyzes the failure and evolves it to a new version. When 3+ similar successful episodes appear, a new procedure is auto-created.
-
-**Failure cycle — procedures evolve automatically:**
-```python
-# Week 1: Procedure exists
-# "Deploy": build → push → deploy
-
-# User conversation: "Deploy failed, forgot migrations"
-m.add([{"role": "user", "content": "Deploy to Railway failed — forgot to run migrations, DB crashed"}])
-# → Episode auto-linked to "Deploy" procedure (embedding similarity)
-# → Negative outcome detected → LLM analyzes failure
-# → "Deploy" v2 created: build → run migrations → push → deploy
-
-# Week 2: "Deploy failed again, OOM on Railway"
-# → "Deploy" v3: build → run migrations → check memory limits → push → deploy
-```
-
-**Success cycle — procedures auto-created from patterns:**
-```python
-# 3+ similar successful episodes about CI/CD setup detected
-# → System auto-creates procedure:
-# "Setup CI/CD": create workflows → add tests → configure secrets → verify on branch
-```
-
-**Explicit feedback (SDK / MCP):**
-```python
-# Report failure with context → triggers evolution
-m.procedure_feedback(proc_id, success=False,
-                     context="OOM error on step 3",
-                     failed_at_step=3)
-
-# View version history
-history = m.procedure_history(proc_id)
-# → {versions: [v1, v2, v3], evolution_log: [{change: "step_added", ...}]}
-```
-
-Works automatically across all integrations — SDK, LangChain, CrewAI, OpenClaw, MCP. No extra code needed.
-
-## LangChain Integration
-
-Drop-in replacement for LangChain's memory with all 3 memory types.
-
-```bash
-pip install mengram-ai[langchain]
-```
-
-**LCEL (recommended):**
-```python
-from integrations.langchain import MengramChatMessageHistory
-from langchain_core.runnables.history import RunnableWithMessageHistory
-
-chain_with_memory = RunnableWithMessageHistory(
-    chain,
-    lambda session_id: MengramChatMessageHistory(
-        api_key="om-...", session_id=session_id
-    ),
-    input_messages_key="input",
-    history_messages_key="history",
-)
-```
-
-**ConversationChain (legacy):**
-```python
-from integrations.langchain import MengramMemory
-
-memory = MengramMemory(api_key="om-...")
-# With Cognitive Profile:
-memory = MengramMemory(api_key="om-...", use_profile=True)
-
-chain = ConversationChain(llm=llm, memory=memory)
-chain.predict(input="I deployed my app on Railway")
-chain.predict(input="How did my last deployment go?")
-# → Memory provides: facts about Railway, the deployment event, deploy workflow
-```
-
-**vs ConversationBufferMemory:**
-| | ConversationBufferMemory | MengramMemory |
-|---|---|---|
-| Storage | RAM (lost on restart) | Persistent (PostgreSQL) |
-| Context | Last N messages (raw) | Relevant knowledge (semantic search) |
-| Memory types | 1 (messages) | 3 (semantic + episodic + procedural) |
-| Cross-session | ❌ | ✅ |
-| Personalization | ❌ | ✅ Cognitive Profile |
-
-## CrewAI Integration
-
-Give your CrewAI agents persistent memory with 3 types + procedural learning.
-
-```bash
-pip install mengram-ai[crewai]
-```
-
-```python
-from crewai import Agent, Crew
-from integrations.crewai import create_mengram_tools
-
-tools = create_mengram_tools(api_key="om-...")
-
-agent = Agent(
-    role="Support Engineer",
-    goal="Help users with technical issues",
-    tools=tools,  # mengram_search, mengram_remember, mengram_profile,
-                   # mengram_save_workflow, mengram_workflow_feedback
-)
-
-crew = Crew(agents=[agent], tasks=[...])
-```
-
-**Killer Feature — Procedural Learning:**
-
-Agent completes a multi-step workflow → Mengram saves it as a procedure → Next similar task → agent finds the optimal path with success/failure tracking.
-
-**vs CrewAI Default Memory:**
-| | CrewAI Default | Mem0 + CrewAI | Mengram + CrewAI |
-|---|---|---|---|
-| Storage | Local files | Cloud | Cloud |
-| Memory types | 3 (basic) | 1 (semantic) | 3 (semantic+episodic+procedural) |
-| Cross-session | Partial | ✅ | ✅ |
-| Workflow learning | ❌ | ❌ | ✅ Procedural memory |
-| User profile | ❌ | ❌ | ✅ Cognitive Profile |
-| Success tracking | ❌ | ❌ | ✅ per procedure |
-
-## OpenClaw Skill
-
-Give your OpenClaw agent long-term memory across WhatsApp, Telegram, Discord, Slack.
-
-```bash
-# Install from ClawHub
-clawdhub install mengram-openclaw-skill
-
-# Or copy manually
-cp -r integrations/openclaw ~/.openclaw/skills/mengram-memory
-```
-
-Add to `~/.openclaw/openclaw.json`:
-```json
-{
-  "skills": {
-    "entries": {
-      "mengram-memory": {
-        "enabled": true,
-        "env": {
-          "MENGRAM_API_KEY": "om-your-key"
-        }
-      }
-    }
-  }
-}
-```
-
-Your agent automatically searches memory before answering, saves new facts/events/workflows, and loads your Cognitive Profile at session start.
-
-## Memory Categories
-
-Separate memory by agent, session, and application:
-
-```python
-m.add(messages)                                    # Your memory
-m.add(messages, agent_id="support-bot")            # Agent's memory
-m.add(messages, run_id="session-123")              # Session-scoped
-m.add(messages, app_id="helpdesk")                 # App-scoped
-```
-
-## Memory Agents
-
-**🧹 Curator** — Finds contradictions, stale facts, duplicates. Auto-cleans with `auto_fix=True`.
-
-**🔗 Connector** — Discovers hidden connections, behavioral patterns, skill clusters.
-
-**📰 Digest** — Weekly summary with headlines, trends, and recommendations.
-
-## API Endpoints
-
-All endpoints require `Authorization: Bearer om-...` header. Your API key identifies you — no `user_id` needed.
+All endpoints require `Authorization: Bearer om-...` — your key identifies you, no user_id needed.
 
 | Endpoint | Description |
 |---|---|
 | `POST /v1/add` | Add memories (auto-extracts all 3 types) |
 | `POST /v1/search` | Semantic search |
-| `POST /v1/search/all` | **Unified search (semantic + episodic + procedural)** |
-| `GET /v1/episodes` | List episodic memories |
-| `GET /v1/episodes/search` | Search episodes by meaning |
-| `GET /v1/procedures` | List procedural memories |
-| `GET /v1/procedures/search` | Search procedures by trigger |
-| `PATCH /v1/procedures/{id}/feedback` | Record success/failure (triggers evolution on failure with context) |
-| `GET /v1/procedures/{id}/history` | **Procedure version history + evolution log** |
-| `GET /v1/procedures/{id}/evolution` | **Evolution log (what changed and why)** |
-| `GET /v1/profile` | **Cognitive Profile (system prompt)** |
-| `GET /v1/triggers` | **Smart Triggers (reminders, contradictions, patterns)** |
-| `POST /v1/triggers/process` | Fire all pending triggers |
-| `DELETE /v1/triggers/{id}` | Dismiss a trigger |
-| `POST /v1/agents/run` | Run memory agents |
-| `GET /v1/insights` | AI-generated insights |
-| `GET /v1/graph` | Knowledge graph |
-| `GET /v1/timeline` | Temporal search |
-| `POST /v1/teams` | Create team |
-| `POST /v1/webhooks` | Create webhook |
-| `GET /v1/keys` | List API keys |
-| `GET /v1/stats` | Usage statistics |
+| `POST /v1/search/all` | Unified search (all 3 types) |
+| `GET /v1/episodes/search` | Search episodic memories |
+| `GET /v1/procedures/search` | Search procedural memories |
+| `PATCH /v1/procedures/{id}/feedback` | Report success/failure → triggers evolution |
+| `GET /v1/procedures/{id}/history` | Version history + evolution log |
+| `GET /v1/profile` | Cognitive Profile |
+| `GET /v1/triggers` | Smart Triggers (reminders, contradictions, patterns) |
+| `POST /v1/agents/run` | Run memory agents (Curator, Connector, Digest) |
 
-Full docs: **https://mengram.io/docs**
-
-## Architecture
-
-```
-┌──────────────────────────────────────┐
-│          Your AI Clients             │
-│  Claude Desktop · Cursor · Windsurf  │
-│  LangChain · CrewAI · OpenClaw      │
-└──────────────┬───────────────────────┘
-               │ MCP / REST API / SDK
-┌──────────────▼───────────────────────┐
-│        Mengram Cloud API             │
-│  Extraction · Re-ranking · Search    │
-├──────────────────────────────────────┤
-│       3 Memory Types                 │
-│  🧠 Semantic · 📝 Episodic · ⚙️ Proc │
-├──────────────────────────────────────┤
-│       Evolution Engine (v2.7)        │
-│  🔄 Auto-link episodes↔procedures   │
-│  📈 Failure→evolve · Pattern→create  │
-│  📜 Version history · Evolution log  │
-├──────────────────────────────────────┤
-│       Smart Triggers                 │
-│  🔔 Reminders · ⚠️ Contradictions    │
-│  📊 Patterns · Background Cron       │
-├──────────────────────────────────────┤
-│       Memory Agents Layer            │
-│  🧹 Curator · 🔗 Connector · 📰 Digest│
-├──────────────────────────────────────┤
-│       Storage Layer                  │
-│  PostgreSQL · pgvector · Teams       │
-│  Webhooks · Reflections · Graph      │
-└──────────────────────────────────────┘
-```
+Full interactive docs: **[mengram.io/docs](https://mengram.io/docs)**
 
 ## License
 
-Apache 2.0
+Apache 2.0 — free for commercial use.
 
 ---
 
-Built by **[Ali Baizhanov](https://github.com/alibaizhanov)**
+<div align="center">
+
+**Built by [Ali Baizhanov](https://github.com/alibaizhanov)** · **[mengram.io](https://mengram.io)**
+
+</div>
