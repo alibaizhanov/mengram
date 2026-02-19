@@ -941,8 +941,7 @@ crew = Crew(agents=[agent], tasks=[...])</pre>
       <span class="c-str">"mengram-memory"</span>: {
         <span class="c-str">"enabled"</span>: <span class="c-kw">true</span>,
         <span class="c-str">"env"</span>: {
-          <span class="c-str">"MENGRAM_API_KEY"</span>: <span class="c-str">"om-your-key"</span>,
-          <span class="c-str">"MENGRAM_USER_ID"</span>: <span class="c-str">"your-name"</span>
+          <span class="c-str">"MENGRAM_API_KEY"</span>: <span class="c-str">"om-your-key"</span>
         }
       }
     }
@@ -1020,6 +1019,38 @@ crew = Crew(agents=[agent], tasks=[...])</pre>
                     <h3>Experience-Driven Procedures</h3>
                     <p>Self-improving workflows. Failures auto-evolve procedures to new versions. 3+ similar successes auto-create new workflows. Version history + evolution log.</p>
                 </div>
+            </div>
+        </section>
+
+        <!-- Examples -->
+        <section class="features-section" style="padding-top: 0;" id="examples">
+            <h2>Ready-to-Run Agent Templates</h2>
+            <p>Clone, set API key, run in 5 minutes. See Mengram in action.</p>
+            <div class="features-grid" style="grid-template-columns: repeat(3, 1fr); margin-top: 30px;">
+                <a href="https://github.com/alibaizhanov/mengram/tree/main/examples/devops-agent" target="_blank" style="text-decoration:none;">
+                    <div class="feat-card" style="cursor:pointer; border-color: var(--green); box-shadow: 0 0 20px rgba(52,211,153,0.15);">
+                        <div class="feat-icon">🚀</div>
+                        <h3>DevOps Agent</h3>
+                        <p><strong>CloudMemory SDK</strong> — Learns deployment procedures from conversations. Reports failure → procedure auto-evolves. Version history tracks improvements.</p>
+                        <span style="color:var(--green);font-size:12px;font-weight:600;">No LLM key needed →</span>
+                    </div>
+                </a>
+                <a href="https://github.com/alibaizhanov/mengram/tree/main/examples/customer-support-agent" target="_blank" style="text-decoration:none;">
+                    <div class="feat-card" style="cursor:pointer;">
+                        <div class="feat-icon">💬</div>
+                        <h3>Customer Support</h3>
+                        <p><strong>CrewAI + Mengram</strong> — 5 memory tools. Agent searches history, loads cognitive profile, saves new info. Run twice to see "returning customer" effect.</p>
+                        <span style="color:var(--accent);font-size:12px;font-weight:600;">Interactive demo →</span>
+                    </div>
+                </a>
+                <a href="https://github.com/alibaizhanov/mengram/tree/main/examples/personal-assistant" target="_blank" style="text-decoration:none;">
+                    <div class="feat-card" style="cursor:pointer;">
+                        <div class="feat-icon">🧑‍💼</div>
+                        <h3>Personal Assistant</h3>
+                        <p><strong>LangChain + Mengram</strong> — Cognitive profile as system prompt, retriever for RAG, auto-saving history. Gets smarter with every conversation.</p>
+                        <span style="color:var(--accent);font-size:12px;font-weight:600;">Chat demo →</span>
+                    </div>
+                </a>
             </div>
         </section>
 
