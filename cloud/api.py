@@ -753,6 +753,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
                 # ---- Episodic Memory: save episodes ----
                 episodes_created = 0
+                episodes_linked = 0
                 embedder = get_embedder()
                 for ep in extraction.episodes:
                     if not ep.summary:
@@ -770,11 +771,47 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                             expires_at=req.expiration_date,
                         )
                         # Embed episode (truncate to 2000 chars for embedder safety)
+                        ep_embedding = None
                         if embedder:
                             ep_text = f"{ep.summary}. {ep.context or ''} {ep.outcome or ''}"[:2000]
                             ep_embs = embedder.embed_batch([ep_text])
                             if ep_embs:
-                                store.save_episode_embedding(episode_id, ep_text, ep_embs[0])
+                                ep_embedding = ep_embs[0]
+                                store.save_episode_embedding(episode_id, ep_text, ep_embedding)
+
+                        # ---- Auto-link episode to existing procedure ----
+                        if ep_embedding:
+                            try:
+                                similar_procs = store.search_procedures_vector(
+                                    user_id, ep_embedding, top_k=1)
+                                if similar_procs and similar_procs[0]["score"] >= 0.75:
+                                    matched_proc = similar_procs[0]
+                                    # Link episode to procedure
+                                    store.link_episodes_to_procedure(
+                                        [episode_id], matched_proc["id"])
+
+                                    is_negative = ep.emotional_valence == "negative"
+                                    if is_negative:
+                                        # Failure → trigger evolution
+                                        from cloud.evolution import EvolutionEngine
+                                        evo = EvolutionEngine(store, embedder, extractor.llm)
+                                        evo_result = evo.evolve_on_failure(
+                                            user_id, matched_proc["id"], episode_id,
+                                            ep.context or ep.summary)
+                                        if evo_result:
+                                            logger.info(
+                                                f"🔄 Auto-evolved '{matched_proc['name']}' "
+                                                f"v{evo_result['old_version']}→v{evo_result['new_version']} "
+                                                f"from episode")
+                                    else:
+                                        # Success → increment success count
+                                        store.procedure_feedback(
+                                            user_id, matched_proc["id"], success=True)
+
+                                    episodes_linked += 1
+                            except Exception as e:
+                                logger.error(f"⚠️ Episode auto-link failed: {e}")
+
                         episodes_created += 1
                     except Exception as e:
                         logger.error(f"⚠️ Episode save failed: {e}")
@@ -809,12 +846,14 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                         logger.error(f"⚠️ Procedure save failed: {e}")
 
                 logger.info(f"✅ Background add complete for {user_id} "
-                           f"(entities={len(created)}, episodes={episodes_created}, procedures={procedures_created})")
+                           f"(entities={len(created)}, episodes={episodes_created}, "
+                           f"procedures={procedures_created}, linked={episodes_linked})")
                 store.complete_job(job_id, {
                     "created": created,
                     "count": len(created),
                     "episodes": episodes_created,
                     "procedures": procedures_created,
+                    "episodes_linked": episodes_linked,
                 })
 
                 # Auto-trigger reflection if needed
