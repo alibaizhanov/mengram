@@ -1108,7 +1108,7 @@ async function loadProcedures() {
                 <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
                     <strong style="font-size:15px;">${p.name}</strong> ${vBadge}
                 </div>
-                <div style="color:var(--text-2);font-size:13px;margin-bottom:8px;">${p.trigger || ''}</div>
+                <div style="color:var(--text-2);font-size:13px;margin-bottom:8px;">${p.trigger_condition || p.trigger || ''}</div>
                 <div style="display:flex;gap:16px;font-size:12px;color:var(--text-3);">
                     <span>📋 ${steps} steps</span>
                     <span style="color:var(--green);">✅ ${success} success</span>
@@ -1146,7 +1146,7 @@ async function showProcedureDetail(id) {
         // Current steps
         html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px;">
             <h4 style="margin-bottom:4px;">Trigger</h4>
-            <p style="color:var(--text-2);font-size:13px;margin-bottom:16px;">${current.trigger || 'N/A'}</p>
+            <p style="color:var(--text-2);font-size:13px;margin-bottom:16px;">${current.trigger_condition || current.trigger || 'N/A'}</p>
             <h4 style="margin-bottom:8px;">Steps</h4>
             <ol style="padding-left:20px;color:var(--text-2);font-size:13px;line-height:1.8;">`;
         for (const step of (current.steps || [])) {
@@ -1190,11 +1190,27 @@ async function showProcedureDetail(id) {
             html += `<h4 style="margin-top:20px;margin-bottom:12px;">📋 All Versions</h4>
             <div style="display:flex;flex-direction:column;gap:6px;">`;
             for (const v of versions) {
-                const isCurrent = v.is_current ? ' style="border-color:var(--accent);"' : '';
+                const borderStyle = v.is_current ? 'border-color:var(--accent);' : '';
                 const badge = v.is_current ? '<span style="background:var(--accent-dim);color:var(--accent);padding:1px 6px;border-radius:4px;font-size:10px;margin-left:6px;">current</span>' : '';
-                html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-size:13px;"${isCurrent}>
-                    <strong>v${v.version || 1}</strong>${badge}
-                    <span style="color:var(--text-3);font-size:11px;margin-left:8px;">${(v.steps||[]).length} steps</span>
+                const vid = 'ver-' + (v.version || 1);
+                let stepsHtml = '';
+                for (const s of (v.steps || [])) {
+                    if (typeof s === 'object') {
+                        const detail = s.detail ? ` <span style="color:var(--text-3);">— ${esc(s.detail)}</span>` : '';
+                        stepsHtml += `<li>${esc(s.action || s.description || JSON.stringify(s))}${detail}</li>`;
+                    } else {
+                        stepsHtml += `<li>${esc(s)}</li>`;
+                    }
+                }
+                html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-size:13px;cursor:pointer;${borderStyle}" onclick="const el=document.getElementById('${vid}');el.style.display=el.style.display==='none'?'block':'none';">
+                    <div style="display:flex;align-items:center;justify-content:space-between;">
+                        <div><strong>v${v.version || 1}</strong>${badge}
+                        <span style="color:var(--text-3);font-size:11px;margin-left:8px;">${(v.steps||[]).length} steps</span></div>
+                        <span style="color:var(--text-3);font-size:11px;">▸</span>
+                    </div>
+                    <div id="${vid}" style="display:none;margin-top:10px;border-top:1px solid var(--border);padding-top:10px;" onclick="event.stopPropagation();">
+                        <ol style="padding-left:20px;color:var(--text-2);font-size:12px;line-height:1.8;">${stepsHtml}</ol>
+                    </div>
                 </div>`;
             }
             html += '</div>';
