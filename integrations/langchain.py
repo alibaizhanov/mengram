@@ -47,8 +47,8 @@ def _check_langchain():
 
 
 def _get_client(api_key: str, url: str = "https://mengram.io"):
-    from mengram.cloud.client import CloudMemory
-    return CloudMemory(api_key=api_key, url=url)
+    from cloud.client import CloudMemory
+    return CloudMemory(api_key=api_key, base_url=url)
 
 
 # =====================================================

@@ -43,13 +43,13 @@ logger = logging.getLogger("mengram.crewai")
 
 def _get_client(api_key: str, base_url: str = None):
     try:
-        from mengram.cloud.client import CloudMemory
-        kwargs = {"api_key": api_key}
-        if base_url:
-            kwargs["base_url"] = base_url
-        return CloudMemory(**kwargs)
+        from cloud.client import CloudMemory
     except ImportError:
         raise ImportError("Mengram SDK required. Install: pip install mengram-ai")
+    kwargs = {"api_key": api_key}
+    if base_url:
+        kwargs["base_url"] = base_url
+    return CloudMemory(**kwargs)
 
 
 def _get_base_tool():

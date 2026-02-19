@@ -1,0 +1,2 @@
+mengram-ai>=2.7.0
+python-dotenv
