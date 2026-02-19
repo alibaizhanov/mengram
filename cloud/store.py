@@ -402,7 +402,75 @@ class CloudStore:
                 CREATE INDEX IF NOT EXISTS idx_proc_emb_tsv
                 ON procedure_embeddings USING gin(tsv)
             """)
-        logger.info("✅ Migration complete (v2.5: episodic + procedural memory)")
+            # --- v2.7: Experience-Driven Procedures ---
+            # Episodes: link to procedure + failed step
+            cur.execute("""
+                ALTER TABLE episodes ADD COLUMN IF NOT EXISTS linked_procedure_id
+                UUID REFERENCES procedures(id) ON DELETE SET NULL
+            """)
+            cur.execute("""
+                ALTER TABLE episodes ADD COLUMN IF NOT EXISTS failed_at_step INT
+            """)
+
+            # Procedures: versioning
+            cur.execute("""
+                ALTER TABLE procedures ADD COLUMN IF NOT EXISTS version
+                INT DEFAULT 1
+            """)
+            cur.execute("""
+                ALTER TABLE procedures ADD COLUMN IF NOT EXISTS parent_version_id
+                UUID REFERENCES procedures(id) ON DELETE SET NULL
+            """)
+            cur.execute("""
+                ALTER TABLE procedures ADD COLUMN IF NOT EXISTS evolved_from_episode
+                UUID REFERENCES episodes(id) ON DELETE SET NULL
+            """)
+            cur.execute("""
+                ALTER TABLE procedures ADD COLUMN IF NOT EXISTS is_current
+                BOOLEAN DEFAULT TRUE
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_procedures_current
+                ON procedures(user_id, is_current) WHERE is_current = TRUE
+            """)
+
+            # Procedure evolution log
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS procedure_evolution (
+                    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                    procedure_id UUID NOT NULL REFERENCES procedures(id) ON DELETE CASCADE,
+                    episode_id UUID REFERENCES episodes(id) ON DELETE SET NULL,
+                    change_type VARCHAR(30) NOT NULL,
+                    diff JSONB DEFAULT '{}',
+                    version_before INT,
+                    version_after INT,
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_proc_evolution_proc
+                ON procedure_evolution(procedure_id, created_at DESC)
+            """)
+
+            # Update UNIQUE constraint: allow versioned rows
+            # Drop old constraint if exists, add new one
+            cur.execute("""
+                DO $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM pg_constraint
+                        WHERE conname = 'procedures_user_id_name_key'
+                    ) THEN
+                        ALTER TABLE procedures DROP CONSTRAINT procedures_user_id_name_key;
+                    END IF;
+                END $$
+            """)
+            cur.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_procedures_user_name_version
+                ON procedures(user_id, name, version)
+            """)
+
+        logger.info("✅ Migration complete (v2.7: experience-driven procedures)")
 
     # ---- Job tracking (async mode) ----
 
