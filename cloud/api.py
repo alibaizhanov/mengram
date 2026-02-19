@@ -4,10 +4,10 @@ Mengram Cloud API Server
 Hosted version — PostgreSQL + pgvector backend.
 Developers get API key, integrate in 3 lines:
 
-    from mengram import CloudMemory
-    m = CloudMemory(api_key="mg-...")
-    m.add(messages, user_id="alice")
-    results = m.search("database issues", user_id="alice")
+    from cloud.client import CloudMemory
+    m = CloudMemory(api_key="om-...")
+    m.add(messages)
+    results = m.search("database issues")
 """
 
 import os
@@ -115,14 +115,14 @@ All endpoints require `Authorization: Bearer YOUR_API_KEY` header.
 
 ### Quick Start
 ```python
-from mengram.cloud.client import CloudMemory
+from cloud.client import CloudMemory
 m = CloudMemory(api_key="om-...")
 m.add([{"role": "user", "content": "I use Python and Railway"}])
 results = m.search_all("deployment")  # semantic + episodic + procedural
-profile = m.get_profile("ali")        # instant system prompt
+profile = m.get_profile()             # instant system prompt
 ```
         """,
-        version="2.7.1",
+        version="2.7.2",
         docs_url="/docs",
         redoc_url="/redoc",
         openapi_tags=[

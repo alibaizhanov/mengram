@@ -2,26 +2,26 @@
 Mengram Cloud Client — developer SDK.
 
 Usage:
-    from mengram import CloudMemory
+    from cloud.client import CloudMemory
 
-    m = CloudMemory(api_key="mg-...")
+    m = CloudMemory(api_key="om-...")
 
     # Add memories from conversation
     m.add([
         {"role": "user", "content": "We fixed the OOM with Redis cache. Config: pool-size=20"},
         {"role": "assistant", "content": "Got it, I've noted the HikariCP config change."},
-    ], user_id="ali")
+    ])
 
     # Search
-    results = m.search("database connection issues", user_id="ali")
+    results = m.search("database connection issues")
     for r in results:
         print(f"{r['entity']} (score={r['score']})")
 
     # Get all
-    memories = m.get_all(user_id="ali")
+    memories = m.get_all()
 
     # Get specific
-    entity = m.get("PostgreSQL", user_id="ali")
+    entity = m.get("PostgreSQL")
 
     # Delete
     m.delete("PostgreSQL", user_id="ali")

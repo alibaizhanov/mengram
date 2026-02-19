@@ -744,7 +744,7 @@
                             <h4>Use in your app</h4>
                             <div class="code-box">
                                 <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-<pre><span class="c-kw">from</span> <span class="c-fn">mengram</span> <span class="c-kw">import</span> CloudMemory
+<pre><span class="c-kw">from</span> <span class="c-fn">cloud.client</span> <span class="c-kw">import</span> CloudMemory
 
 m = CloudMemory(api_key=<span class="c-str">"your-api-key"</span>)
 
@@ -759,7 +759,7 @@ results = m.search_all(<span class="c-str">"database issues"</span>)
 <span class="c-cmt"># → {semantic: [...], episodic: [...], procedural: [...]}</span>
 
 <span class="c-cmt"># Cognitive Profile — instant personalization</span>
-profile = m.get_profile(<span class="c-str">"ali"</span>)
+profile = m.get_profile()
 <span class="c-cmt"># → ready system prompt for any LLM</span></pre>
                             </div>
                         </div>
