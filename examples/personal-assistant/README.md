@@ -64,5 +64,6 @@ In session 2, the assistant remembers Alex's job, food allergy, family, and trav
 
 ## Learn More
 
-- [Mengram Documentation](https://mengram.io/docs)
-- [LangChain Integration Guide](https://mengram.io/docs/integrations/langchain)
+- [Mengram Website](https://mengram.io)
+- [API Reference](https://mengram.io/docs)
+- [GitHub](https://github.com/alibaizhanov/mengram)

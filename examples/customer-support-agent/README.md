@@ -59,11 +59,11 @@ On the second run, the agent already knows Jane, her order history, and her frus
 
 ## What to Try Next
 
-- Change `user_id` to simulate different customers
 - Add `mengram_save_workflow` calls to teach the agent support procedures
 - Report procedure outcomes with `mengram_workflow_feedback`
 
 ## Learn More
 
-- [Mengram Documentation](https://mengram.io/docs)
-- [CrewAI Integration Guide](https://mengram.io/docs/integrations/crewai)
+- [Mengram Website](https://mengram.io)
+- [API Reference](https://mengram.io/docs)
+- [GitHub](https://github.com/alibaizhanov/mengram)

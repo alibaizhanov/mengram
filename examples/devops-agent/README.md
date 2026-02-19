@@ -47,6 +47,6 @@ This is the core differentiator: procedures that **get better from experience**,
 
 ## Learn More
 
-- [Mengram Documentation](https://mengram.io/docs)
-- [CloudMemory SDK Reference](https://mengram.io/docs/sdk/python)
-- [Experience-Driven Procedures](https://mengram.io/docs/procedures)
+- [Mengram Website](https://mengram.io)
+- [API Reference](https://mengram.io/docs)
+- [GitHub](https://github.com/alibaizhanov/mengram)
