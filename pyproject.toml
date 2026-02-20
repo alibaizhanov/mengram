@@ -17,7 +17,7 @@ keywords = [
     "second-brain", "rag", "semantic-search", "embeddings",
     "agents", "webhooks", "mem0-alternative", "langchain",
     "episodic-memory", "procedural-memory", "cognitive-profile",
-    "contextual-memory", "langchain-memory", "experience-driven-procedures",
+    "contextual-memory", "langchain-memory", "experience-driven-procedures", "openclaw",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",

@@ -33,7 +33,7 @@ I spent the last year building [Mengram](https://mengram.io), so I've studied th
 | **Agent-controlled memory** | No | Yes (unique) | No | No |
 | **Pricing** | Free tier + $19-249/mo | Free (self-hosted) | Enterprise (cloud-only) | Free cloud API, self-hostable |
 | **SDKs** | Python, JS | Python, TS | Python, TS, Go | Python, JS |
-| **Framework integrations** | Various | Various | Various | LangChain, CrewAI, MCP |
+| **Framework integrations** | Various | Various | Various | LangChain, CrewAI, OpenClaw, MCP |
 | **MCP server** | Yes | Yes | No | Yes (Claude Desktop, Cursor) |
 | **Compliance** | — | — | SOC2, HIPAA | — |
 | **Community** | 25K+ GitHub stars | Large (research community) | Enterprise-focused | Growing (newer project) |
@@ -156,7 +156,7 @@ This third type, procedural memory, is what makes Mengram architecturally differ
 - **Smart Triggers.** Automatic reminders, contradiction detection, and pattern alerts. If a new memory contradicts an existing one, Mengram flags it. If a pattern emerges across episodes, it surfaces that.
 - **Free cloud API.** No credit card required, no paid tiers to worry about. Also fully self-hostable if you need data control.
 - **MCP server.** Native integration with Claude Desktop and Cursor through the Model Context Protocol. If you're building with Claude, this is a natural fit.
-- **LangChain and CrewAI integrations** for framework-based development.
+- **LangChain, CrewAI, and OpenClaw integrations** for framework-based development. The OpenClaw plugin provides automatic memory recall/capture on every turn.
 
 ### Limitations
 
@@ -198,7 +198,7 @@ Mengram is the best choice if you need **agents that learn and improve over time
 - You need agents that learn from experience and improve their workflows
 - You want the most complete memory model (semantic + episodic + procedural)
 - You want a free cloud API or self-hostable solution
-- You're building with Claude Desktop, Cursor, LangChain, or CrewAI
+- You're building with Claude Desktop, Cursor, LangChain, CrewAI, or OpenClaw
 - You care about procedural learning and cognitive profiles
 
 **The honest truth:** if all you need is fact storage, Mem0 is proven and popular. If you need temporal tracking in an enterprise context, Zep is purpose-built. If you want novel agent-driven memory, Letta is unique. But if you want agents that actually *learn* — that develop better workflows over time, that remember not just facts but experiences and processes — Mengram is the only tool offering that complete picture today.

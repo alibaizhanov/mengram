@@ -229,7 +229,7 @@ The procedure grew two steps: an environment variable check before deploy, and a
 
 The argument is simple: AI agents that only store facts are missing two-thirds of what makes human memory useful. Episodic memory provides learning from experience. Procedural memory provides repeatable skills. Both are structurally different from fact retrieval and require different storage and search mechanisms.
 
-If you are building agents with LangChain, CrewAI, or any other framework, consider what happens when your agent needs to answer these three questions:
+If you are building agents with LangChain, CrewAI, OpenClaw, or any other framework, consider what happens when your agent needs to answer these three questions:
 
 1. "What do we know about the payments service?" — **semantic**
 2. "What happened the last time we deployed?" — **episodic**
@@ -241,4 +241,4 @@ The psychology is 50 years old. The implementation does not have to be.
 
 ---
 
-*[Mengram](https://mengram.io) implements all three memory types with automatic extraction and experience-driven procedure evolution. It is free, has Python and JavaScript SDKs, and integrates with LangChain and CrewAI. [GitHub](https://github.com/alibaizhanov/mengram) | [Docs](https://mengram.io/docs)*
+*[Mengram](https://mengram.io) implements all three memory types with automatic extraction and experience-driven procedure evolution. It is free, has Python and JavaScript SDKs, and integrates with LangChain, CrewAI, and [OpenClaw](https://github.com/alibaizhanov/openclaw-mengram). [GitHub](https://github.com/alibaizhanov/mengram) | [Docs](https://mengram.io/docs)*

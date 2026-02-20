@@ -29,7 +29,7 @@ Every AI memory tool stores facts. Mengram stores **3 types** — and procedures
 | **Experience-Driven Evolution** | ✅ | ❌ | ❌ | ❌ |
 | **Cognitive Profile** | ✅ | ❌ | ❌ | ❌ |
 | Knowledge Graph | ✅ | ✅ | ✅ | ✅ |
-| LangChain / CrewAI | ✅ | Partial | ❌ | ✅ |
+| LangChain / CrewAI / OpenClaw | ✅ | Partial | ❌ | ✅ |
 | **Import (ChatGPT, Obsidian)** | ✅ | ❌ | ❌ | ❌ |
 | MCP Server | ✅ | ✅ | ✅ | ❌ |
 | **Price** | **Free** | $19–249/mo | Free (self-host) | Enterprise |
@@ -184,6 +184,28 @@ tools = create_mengram_tools(api_key="om-...")
 
 agent = Agent(role="Support Engineer", tools=tools)
 ```
+
+### OpenClaw
+
+```bash
+openclaw plugins install openclaw-mengram
+```
+
+```json
+{
+  "plugins": {
+    "entries": {
+      "openclaw-mengram": {
+        "enabled": true,
+        "config": { "apiKey": "${MENGRAM_API_KEY}" }
+      }
+    },
+    "slots": { "memory": "openclaw-mengram" }
+  }
+}
+```
+
+Auto-recall before every turn, auto-capture after every turn. 6 tools, slash commands, CLI. [GitHub](https://github.com/alibaizhanov/openclaw-mengram) · [npm](https://www.npmjs.com/package/openclaw-mengram)
 
 ## Agent Templates
 

@@ -995,10 +995,10 @@ crew = Crew(agents=[agent], tasks=[...])</pre>
                     <div class="step">
                         <div class="step-num">1</div>
                         <div>
-                            <h4>Install skill</h4>
+                            <h4>Install plugin</h4>
                             <div class="code-box">
                                 <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-                                <code>cp -r mengram-memory ~/.openclaw/skills/</code>
+                                <code>openclaw plugins install openclaw-mengram</code>
                             </div>
                         </div>
                     </div>
@@ -1006,23 +1006,24 @@ crew = Crew(agents=[agent], tasks=[...])</pre>
                         <div class="step-num">2</div>
                         <div>
                             <h4>Configure in openclaw.json</h4>
-                            <p>Your agent gets 3 memory types across all channels — WhatsApp, Telegram, Discord, Slack. Learns workflows automatically.</p>
+                            <p>Auto-recall before every turn, auto-capture after every turn. 6 tools, slash commands, CLI. Memory works automatically — zero code needed.</p>
                             <div class="code-box">
                                 <button class="copy-btn" onclick="copyCode(this)">Copy</button>
 <pre>{
-  <span class="c-str">"skills"</span>: {
+  <span class="c-str">"plugins"</span>: {
     <span class="c-str">"entries"</span>: {
-      <span class="c-str">"mengram-memory"</span>: {
+      <span class="c-str">"openclaw-mengram"</span>: {
         <span class="c-str">"enabled"</span>: <span class="c-kw">true</span>,
-        <span class="c-str">"env"</span>: {
-          <span class="c-str">"MENGRAM_API_KEY"</span>: <span class="c-str">"om-your-key"</span>
+        <span class="c-str">"config"</span>: {
+          <span class="c-str">"apiKey"</span>: <span class="c-str">"${MENGRAM_API_KEY}"</span>
         }
       }
-    }
+    },
+    <span class="c-str">"slots"</span>: { <span class="c-str">"memory"</span>: <span class="c-str">"openclaw-mengram"</span> }
   }
 }
-<span class="c-cmt">// Your agent now remembers facts, events, and workflows</span>
-<span class="c-cmt">// across all sessions and channels. Zero code needed.</span></pre>
+<span class="c-cmt">// Auto-recall: memories injected before every agent turn</span>
+<span class="c-cmt">// Auto-capture: new info saved after every turn</span></pre>
                             </div>
                         </div>
                     </div>
@@ -1081,7 +1082,7 @@ crew = Crew(agents=[agent], tasks=[...])</pre>
                 <div class="feat-card">
                     <div class="feat-icon">🦜</div>
                     <h3>LangChain, CrewAI & OpenClaw</h3>
-                    <p>Drop-in integrations everywhere. LangChain memory, CrewAI tools, OpenClaw skill — one install to add 3 memory types to any framework.</p>
+                    <p>Drop-in integrations everywhere. LangChain memory, CrewAI tools, OpenClaw plugin with auto-recall/capture hooks — one install to add 3 memory types to any framework.</p>
                 </div>
                 <div class="feat-card" style="border-color: var(--accent); box-shadow: 0 0 20px var(--accent-dim);">
                     <div class="feat-icon">⚡</div>
@@ -1346,7 +1347,7 @@ crew = Crew(agents=[agent], tasks=[...])</pre>
                 date: "2025-02-17",
                 tag: "feature",
                 title: "LangChain, CrewAI & OpenClaw Integrations",
-                body: "Drop-in integrations for all major agent frameworks. LangChain retriever + chat history, 5 CrewAI tools, OpenClaw skill with shell scripts. One install adds 3 memory types.",
+                body: "Drop-in integrations for all major agent frameworks. LangChain retriever + chat history, 5 CrewAI tools, OpenClaw plugin with auto-recall/capture hooks and 6 tools. One install adds 3 memory types.",
             },
             {
                 date: "2025-02-16",

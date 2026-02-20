@@ -1,38 +1,26 @@
-# 🧠 Mengram Memory — OpenClaw Skill
+# Mengram — OpenClaw Integration
 
-**Give your OpenClaw agent human-like long-term memory with 3 types.**
+## Recommended: OpenClaw Plugin
 
-Your agent remembers facts, events, and learned workflows across all sessions and channels. What it learns on WhatsApp is available on Discord.
-
-## Why This Exists
-
-OpenClaw's built-in memory is a flat text buffer. New session = mostly blank slate. Mengram adds structured, persistent memory that makes your agent genuinely personal over time.
-
-| | Without Mengram | With Mengram |
-|---|---|---|
-| "Book the usual restaurant" | "Which restaurant? What time? How many?" | "Booking Kaganat at 7pm for 2. Vegan menu for Anya. Confirm?" |
-| New session | Starts fresh | Knows your preferences, history, workflows |
-| After 100 conversations | Same as day 1 | Deep understanding of who you are |
-
-## Memory Types
-
-- **Semantic** — facts: "Ali is a developer", "prefers oat milk lattes", "allergic to peanuts"
-- **Episodic** — events: "deployed v2.6 on Feb 18, had 2 bugs", "meeting with Sarah went well"
-- **Procedural** — workflows: "deploy process: test → build → push → update DNS" (with success/failure tracking)
-
-## Install
+The recommended way to use Mengram with OpenClaw is the **plugin** (not this skill):
 
 ```bash
-# Copy skill folder to OpenClaw skills directory
-cp -r mengram-memory ~/.openclaw/skills/
+openclaw plugins install openclaw-mengram
 ```
 
-Or if published to ClawHub:
-```bash
-npx clawdhub@latest install mengram-memory
-```
+The plugin provides:
+- **Auto-recall** — memories injected before every agent turn (via `before_agent_start` hook)
+- **Auto-capture** — new info saved after every turn (via `agent_end` hook)
+- 6 tools: `memory_search`, `memory_store`, `memory_forget`, `memory_profile`, `memory_procedures`, `memory_feedback`
+- Slash commands: `/remember`, `/recall`, `/forget`
+- CLI: `openclaw mengram search/stats/profile/procedures`
+- All limits configurable via plugin config
+- Graph RAG with 2-hop knowledge graph traversal
 
-## Setup
+**Plugin repo:** [github.com/alibaizhanov/openclaw-mengram](https://github.com/alibaizhanov/openclaw-mengram)
+**npm:** [openclaw-mengram](https://www.npmjs.com/package/openclaw-mengram)
+
+### Setup
 
 1. Get a free API key at [mengram.io](https://mengram.io)
 
@@ -40,67 +28,44 @@ npx clawdhub@latest install mengram-memory
 
 ```json
 {
-  "skills": {
+  "plugins": {
     "entries": {
-      "mengram-memory": {
+      "openclaw-mengram": {
         "enabled": true,
-        "env": {
-          "MENGRAM_API_KEY": "om-your-api-key-here"
+        "config": {
+          "apiKey": "${MENGRAM_API_KEY}"
         }
       }
+    },
+    "slots": {
+      "memory": "openclaw-mengram"
     }
   }
 }
 ```
 
-3. Start a new OpenClaw session. The skill loads automatically.
+3. Set your API key: `export MENGRAM_API_KEY="om-your-key"`
 
-4. Verify: ask your agent to run the setup check, or type `/mengram-memory` to invoke the skill.
+4. Restart OpenClaw. Memory works automatically.
 
-## How It Works
+---
 
-The agent automatically:
-1. **Searches memory** before answering personal questions
-2. **Saves to memory** when you share new info
-3. **Loads your profile** at the start of sessions
-4. **Saves workflows** after completing multi-step tasks
+## Legacy: OpenClaw Skill
 
-You don't need to do anything special. Just talk naturally.
+The files in this directory (`scripts/`, `SKILL.md`) are the legacy **skill** approach using bash scripts. Skills are passive — they require the agent to manually call tools. The plugin above is recommended because it has lifecycle hooks for fully automatic memory.
 
-## Scripts
+The skill is still functional if you prefer the simpler approach:
 
-| Script | Purpose |
-|---|---|
-| `mengram-search.sh` | Search all 3 memory types |
-| `mengram-add.sh` | Save text to memory (auto-extracts facts/events/procedures) |
-| `mengram-profile.sh` | Get full Cognitive Profile |
-| `mengram-workflow.sh` | Save completed workflow as reusable procedure |
-| `mengram-setup.sh` | Verify connection and API key |
-
-## Killer Feature: Procedural Learning
-
-Your agent completes a task → Mengram saves the steps as a procedure → Next time a similar task comes up → agent finds the proven workflow with success/failure stats.
-
+```bash
+cp -r mengram-memory ~/.openclaw/skills/
 ```
-Day 1: You ask to deploy. Agent figures it out step by step.
-Day 2: You ask to deploy. Agent already knows: test → build → push → update DNS (3 successes, 0 failures)
-```
-
-No other memory system does this.
-
-## Security
-
-- Only calls `mengram.io` API (open-source backend)
-- Uses `curl` — no pip packages, no npm, no extra dependencies
-- API key stays in env vars, never logged or exposed
-- All scripts have security manifests
-- Mengram is open-source: [github.com/alibaizhanov/mengram](https://github.com/alibaizhanov/mengram)
 
 ## Links
 
-- **Mengram**: [mengram.io](https://mengram.io)
-- **GitHub**: [github.com/alibaizhanov/mengram](https://github.com/alibaizhanov/mengram)
-- **API Docs**: [mengram.io/docs](https://mengram.io/docs)
+- [mengram.io](https://mengram.io) — Get API key
+- [GitHub](https://github.com/alibaizhanov/mengram) — Source code
+- [API Docs](https://mengram.io/docs) — Full API reference
+- [OpenClaw Plugin](https://github.com/alibaizhanov/openclaw-mengram) — Plugin repo
 
 ## License
 

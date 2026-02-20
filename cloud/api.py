@@ -110,7 +110,7 @@ The only AI memory API with 3 memory types. Your AI remembers facts, events, and
 - **Team Sharing** — shared memory across team members
 - **LangChain** — drop-in replacement for ConversationBufferMemory
 - **CrewAI** — 5 tools with procedural learning (agents learn optimal workflows)
-- **OpenClaw** — skill with 3 memory types across all channels (WhatsApp, Telegram, Discord)
+- **OpenClaw** — plugin with auto-recall/capture hooks, 6 tools, and Graph RAG across all channels
 
 ### Authentication
 All endpoints require `Authorization: Bearer YOUR_API_KEY` header.

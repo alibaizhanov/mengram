@@ -117,4 +117,5 @@ await m.importChatgpt('export.zip', {
 - [Website](https://mengram.io)
 - [Documentation](https://mengram.io/docs)
 - [Python SDK](https://pypi.org/project/mengram-ai/)
+- [OpenClaw Plugin](https://www.npmjs.com/package/openclaw-mengram)
 - [GitHub](https://github.com/alibaizhanov/mengram)
