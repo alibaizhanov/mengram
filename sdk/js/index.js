@@ -572,6 +572,279 @@ class MengramClient {
   async dismissTrigger(triggerId) {
     return this._request('DELETE', `/v1/triggers/${triggerId}`);
   }
+
+  // ---- Import ----
+
+  /**
+   * Import ChatGPT export ZIP into memory.
+   * Node.js only — reads file from disk.
+   * @param {string} zipPath - Path to ChatGPT export ZIP file
+   * @param {object} [options]
+   * @param {number} [options.chunkSize] - Max messages per chunk (default 20)
+   * @param {function} [options.onProgress] - Callback(current, total, title)
+   * @returns {Promise<{conversations_found: number, chunks_sent: number, entities_created: string[], errors: string[], duration_seconds: number}>}
+   */
+  async importChatgpt(zipPath, options = {}) {
+    const fs = await import('fs');
+    const path = await import('path');
+    const { default: JSZip } = await import('jszip').catch(() => {
+      throw new MengramError(
+        'jszip is required for ChatGPT import: npm install jszip', 0
+      );
+    });
+
+    const start = Date.now();
+    const result = { conversations_found: 0, chunks_sent: 0, entities_created: [], errors: [], duration_seconds: 0 };
+    const chunkSize = options.chunkSize || 20;
+
+    try {
+      const data = fs.readFileSync(zipPath);
+      const zip = await JSZip.loadAsync(data);
+      const convFile = Object.keys(zip.files).find(n => n.endsWith('conversations.json'));
+      if (!convFile) throw new Error('No conversations.json found in ZIP');
+
+      const convData = JSON.parse(await zip.files[convFile].async('string'));
+      if (!Array.isArray(convData)) throw new Error('conversations.json should contain a list');
+
+      // Parse conversations from tree structure
+      const conversations = [];
+      for (const conv of convData) {
+        const mapping = conv.mapping || {};
+        const messages = this._walkChatgptTree(mapping);
+        if (messages.length > 0) conversations.push(messages);
+      }
+
+      result.conversations_found = conversations.length;
+
+      let chunkIdx = 0;
+      const totalChunks = conversations.reduce((sum, conv) =>
+        sum + Math.ceil(conv.length / chunkSize), 0);
+
+      for (let i = 0; i < conversations.length; i++) {
+        const conv = conversations[i];
+        for (let j = 0; j < conv.length; j += chunkSize) {
+          const chunk = conv.slice(j, j + chunkSize);
+          try {
+            await this.add(chunk);
+            result.chunks_sent++;
+            chunkIdx++;
+            if (options.onProgress) {
+              options.onProgress(chunkIdx, totalChunks, `conversation ${i + 1}/${conversations.length}`);
+            }
+          } catch (e) {
+            result.errors.push(`Conversation ${i + 1}: ${e.message}`);
+          }
+        }
+      }
+    } catch (e) {
+      if (!result.errors.length) result.errors.push(e.message);
+    }
+
+    result.duration_seconds = (Date.now() - start) / 1000;
+    return result;
+  }
+
+  /**
+   * Import Obsidian vault into memory.
+   * Node.js only — reads files from disk.
+   * @param {string} vaultPath - Path to Obsidian vault directory
+   * @param {object} [options]
+   * @param {number} [options.chunkChars] - Max characters per chunk (default 4000)
+   * @param {function} [options.onProgress] - Callback(current, total, title)
+   * @returns {Promise<{conversations_found: number, chunks_sent: number, entities_created: string[], errors: string[], duration_seconds: number}>}
+   */
+  async importObsidian(vaultPath, options = {}) {
+    const fs = await import('fs');
+    const path = await import('path');
+
+    const start = Date.now();
+    const result = { conversations_found: 0, chunks_sent: 0, entities_created: [], errors: [], duration_seconds: 0 };
+    const chunkChars = options.chunkChars || 4000;
+
+    const mdFiles = this._findMdFiles(fs, path, vaultPath);
+    result.conversations_found = mdFiles.length;
+
+    const fileChunks = mdFiles.map(f => {
+      try {
+        const content = fs.readFileSync(f, 'utf-8');
+        return { file: f, chunks: this._chunkText(content, chunkChars) };
+      } catch {
+        return { file: f, chunks: [] };
+      }
+    });
+
+    const totalChunks = fileChunks.reduce((sum, fc) => sum + Math.max(fc.chunks.length, 1), 0);
+    let chunkIdx = 0;
+
+    for (const { file, chunks } of fileChunks) {
+      const title = path.basename(file, '.md');
+      if (!chunks.length) { chunkIdx++; continue; }
+
+      for (const chunk of chunks) {
+        try {
+          await this.add([{ role: 'user', content: `Note: ${title}\n\n${chunk}` }]);
+          result.chunks_sent++;
+          chunkIdx++;
+          if (options.onProgress) options.onProgress(chunkIdx, totalChunks, title);
+        } catch (e) {
+          result.errors.push(`${title}: ${e.message}`);
+          chunkIdx++;
+        }
+      }
+    }
+
+    result.duration_seconds = (Date.now() - start) / 1000;
+    return result;
+  }
+
+  /**
+   * Import text/markdown files into memory.
+   * Node.js only — reads files from disk.
+   * @param {string[]} paths - File paths
+   * @param {object} [options]
+   * @param {number} [options.chunkChars] - Max characters per chunk (default 4000)
+   * @param {function} [options.onProgress] - Callback(current, total, title)
+   * @returns {Promise<{conversations_found: number, chunks_sent: number, entities_created: string[], errors: string[], duration_seconds: number}>}
+   */
+  async importFiles(paths, options = {}) {
+    const fs = await import('fs');
+    const path = await import('path');
+
+    const start = Date.now();
+    const result = { conversations_found: 0, chunks_sent: 0, entities_created: [], errors: [], duration_seconds: 0 };
+    const chunkChars = options.chunkChars || 4000;
+
+    // Resolve paths — expand directories
+    const resolved = [];
+    for (const p of paths) {
+      try {
+        const stat = fs.statSync(p);
+        if (stat.isFile()) {
+          resolved.push(p);
+        } else if (stat.isDirectory()) {
+          const files = this._findMdFiles(fs, path, p);
+          // Also include .txt files
+          const txtFiles = fs.readdirSync(p, { recursive: true })
+            .filter(f => f.endsWith('.txt'))
+            .map(f => path.join(p, f));
+          resolved.push(...files, ...txtFiles);
+        }
+      } catch { /* skip missing */ }
+    }
+
+    result.conversations_found = resolved.length;
+
+    const fileChunks = resolved.map(f => {
+      try {
+        const content = fs.readFileSync(f, 'utf-8');
+        return { file: f, chunks: this._chunkText(content, chunkChars) };
+      } catch {
+        return { file: f, chunks: [] };
+      }
+    });
+
+    const totalChunks = fileChunks.reduce((sum, fc) => sum + Math.max(fc.chunks.length, 1), 0);
+    let chunkIdx = 0;
+
+    for (const { file, chunks } of fileChunks) {
+      const title = path.basename(file, path.extname(file));
+      if (!chunks.length) { chunkIdx++; continue; }
+
+      for (const chunk of chunks) {
+        try {
+          await this.add([{ role: 'user', content: `Note: ${title}\n\n${chunk}` }]);
+          result.chunks_sent++;
+          chunkIdx++;
+          if (options.onProgress) options.onProgress(chunkIdx, totalChunks, title);
+        } catch (e) {
+          result.errors.push(`${title}: ${e.message}`);
+          chunkIdx++;
+        }
+      }
+    }
+
+    result.duration_seconds = (Date.now() - start) / 1000;
+    return result;
+  }
+
+  // ---- Internal helpers for import ----
+
+  /** Walk ChatGPT's tree-structured mapping to extract ordered messages. */
+  _walkChatgptTree(mapping) {
+    if (!mapping || !Object.keys(mapping).length) return [];
+    let rootId = null;
+    for (const [id, node] of Object.entries(mapping)) {
+      if (!node.parent) { rootId = id; break; }
+    }
+    if (!rootId) return [];
+
+    const messages = [];
+    let currentId = rootId;
+    while (currentId) {
+      const node = mapping[currentId];
+      if (!node) break;
+      const msg = node.message;
+      if (msg && msg.content) {
+        const role = (msg.author || {}).role || '';
+        const contentData = msg.content;
+        let text = '';
+        if (typeof contentData === 'string') {
+          text = contentData;
+        } else if (contentData.parts) {
+          text = contentData.parts
+            .map(p => typeof p === 'string' ? p : (p && p.text) || '')
+            .join('');
+        }
+        text = text.trim();
+        if (text && (role === 'user' || role === 'assistant')) {
+          messages.push({ role, content: text });
+        }
+      }
+      const children = node.children || [];
+      currentId = children[0] || null;
+    }
+    return messages;
+  }
+
+  /** Find .md files recursively, skipping dotfiles and .obsidian/. */
+  _findMdFiles(fs, path, dir) {
+    const results = [];
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.name.startsWith('.')) continue;
+      if (entry.name === 'node_modules' || entry.name === '__pycache__') continue;
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        results.push(...this._findMdFiles(fs, path, full));
+      } else if (entry.name.endsWith('.md')) {
+        results.push(full);
+      }
+    }
+    return results.sort();
+  }
+
+  /** Split text into chunks at paragraph boundaries. */
+  _chunkText(text, chunkChars) {
+    text = (text || '').trim();
+    if (!text) return [];
+    if (text.length <= chunkChars) return [text];
+
+    const paragraphs = text.split('\n\n');
+    const chunks = [];
+    let current = '';
+
+    for (const para of paragraphs) {
+      const p = para.trim();
+      if (!p) continue;
+      if (current.length + p.length + 2 > chunkChars && current) {
+        chunks.push(current.trim());
+        current = '';
+      }
+      current += p + '\n\n';
+    }
+    if (current.trim()) chunks.push(current.trim());
+    return chunks;
+  }
 }
 
 class MengramError extends Error {

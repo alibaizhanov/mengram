@@ -30,6 +30,7 @@ Every AI memory tool stores facts. Mengram stores **3 types** — and procedures
 | **Cognitive Profile** | ✅ | ❌ | ❌ | ❌ |
 | Knowledge Graph | ✅ | ✅ | ✅ | ✅ |
 | LangChain / CrewAI | ✅ | Partial | ❌ | ✅ |
+| **Import (ChatGPT, Obsidian)** | ✅ | ❌ | ❌ | ❌ |
 | MCP Server | ✅ | ✅ | ✅ | ❌ |
 | **Price** | **Free** | $19–249/mo | Free (self-host) | Enterprise |
 
@@ -121,6 +122,29 @@ profile = m.get_profile()
 ```
 
 Insert into any LLM's system prompt for instant personalization.
+
+## Import Existing Data
+
+Kill the cold-start problem — import your ChatGPT history, Obsidian vault, or text files:
+
+```bash
+# ChatGPT export (Settings → Data Controls → Export)
+mengram import chatgpt ~/Downloads/chatgpt-export.zip --cloud
+
+# Obsidian vault
+mengram import obsidian ~/Documents/MyVault --cloud
+
+# Any text/markdown files
+mengram import files notes/*.md --cloud
+```
+
+Works with Python SDK too:
+```python
+m = CloudMemory(api_key="om-...")
+m.import_chatgpt("export.zip")
+m.import_obsidian("~/Documents/MyVault")
+m.import_files(["notes.md", "journal.txt"])
+```
 
 ## Integrations
 

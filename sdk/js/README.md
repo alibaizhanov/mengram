@@ -65,6 +65,27 @@ const procs: Procedure[] = await m.procedures({ query: 'release' });
 const all: UnifiedSearchResult = await m.searchAll('issues');
 ```
 
+## Import Existing Data
+
+Kill the cold-start problem — import ChatGPT, Obsidian, or text files (Node.js only, requires `jszip` for ChatGPT):
+
+```javascript
+// ChatGPT export
+npm install jszip  // one-time dependency
+await m.importChatgpt('~/Downloads/chatgpt-export.zip');
+
+// Obsidian vault
+await m.importObsidian('~/Documents/MyVault');
+
+// Text/markdown files
+await m.importFiles(['notes.md', 'journal.txt']);
+
+// With progress callback
+await m.importChatgpt('export.zip', {
+  onProgress: (current, total, title) => console.log(`${current}/${total} ${title}`)
+});
+```
+
 ## API
 
 | Method | Description |
@@ -83,6 +104,9 @@ const all: UnifiedSearchResult = await m.searchAll('issues');
 | `get(name)` | Get specific entity |
 | `delete(name)` | Delete entity |
 | `runAgents(options?)` | Run memory agents |
+| `importChatgpt(zipPath, options?)` | **Import ChatGPT export ZIP** |
+| `importObsidian(vaultPath, options?)` | **Import Obsidian vault** |
+| `importFiles(paths, options?)` | **Import text/markdown files** |
 | `insights()` | AI reflections |
 | `createTeam(name)` | Create shared team |
 | `joinTeam(code)` | Join team |

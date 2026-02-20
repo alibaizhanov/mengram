@@ -1089,6 +1089,11 @@ crew = Crew(agents=[agent], tasks=[...])</pre>
                     <p>Memory that raises its hand. Reminders from conversations, contradiction alerts, workflow pattern detection. Your AI proactively tells you what it remembers.</p>
                 </div>
                 <div class="feat-card" style="border-color: var(--green); box-shadow: 0 0 20px rgba(52,211,153,0.15);">
+                    <div class="feat-icon">📥</div>
+                    <h3>Import Existing Data</h3>
+                    <p>One command to import ChatGPT exports, Obsidian vaults, or text files. No cold start — your memory is useful from day 1. CLI + Python + JS SDK.</p>
+                </div>
+                <div class="feat-card" style="border-color: var(--green); box-shadow: 0 0 20px rgba(52,211,153,0.15);">
                     <div class="feat-icon">🧬</div>
                     <h3>Experience-Driven Procedures</h3>
                     <p>Self-improving workflows. Failures auto-evolve procedures to new versions. 3+ similar successes auto-create new workflows. Version history + evolution log.</p>
@@ -1203,6 +1208,12 @@ crew = Crew(agents=[agent], tasks=[...])</pre>
                             <td style="text-align:center;padding:10px;">✅</td>
                             <td style="text-align:center;padding:10px;">✅</td>
                         </tr>
+                        <tr style="border-bottom: 1px solid var(--border);background:var(--accent-dim);">
+                            <td style="padding:10px 16px;font-weight:600;">Import <span style="color:var(--accent);font-size:11px;">(ChatGPT, Obsidian)</span></td>
+                            <td style="text-align:center;padding:10px;">✅</td>
+                            <td style="text-align:center;padding:10px;">❌</td>
+                            <td style="text-align:center;padding:10px;">❌</td>
+                        </tr>
                         <tr style="border-bottom: 1px solid var(--border);">
                             <td style="padding:10px 16px;">MCP Server</td>
                             <td style="text-align:center;padding:10px;">✅</td>
@@ -1283,7 +1294,7 @@ crew = Crew(agents=[agent], tasks=[...])</pre>
         <!-- Footer -->
         <footer>
             <p>
-                Mengram — human-like memory for AI · v2.8.0
+                Mengram — human-like memory for AI · v2.9.0
                 &nbsp;·&nbsp;
                 <a href="https://github.com/alibaizhanov/mengram">GitHub</a>
                 &nbsp;·&nbsp;
@@ -1301,6 +1312,12 @@ crew = Crew(agents=[agent], tasks=[...])</pre>
         // To add a new entry: just add an object to the top of this array.
         // Tags: "feature", "improvement", "fix"
         const CHANGELOG = [
+            {
+                date: "2025-02-20",
+                tag: "feature",
+                title: "Import from ChatGPT, Obsidian & Text Files",
+                body: "One command to import your entire ChatGPT history, Obsidian vault, or text files into Mengram. Kill the cold-start problem — memory is useful from day 1. CLI: <code>mengram import chatgpt export.zip</code>. Python SDK: <code>m.import_chatgpt('export.zip')</code>.",
+            },
             {
                 date: "2025-02-20",
                 tag: "feature",

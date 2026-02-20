@@ -219,6 +219,19 @@ export declare class MengramClient {
   getTriggers(userId?: string, options?: { includeFired?: boolean; limit?: number }): Promise<SmartTrigger[]>;
   processTriggers(): Promise<{ processed: number; fired: number; errors: number }>;
   dismissTrigger(triggerId: number): Promise<{ status: string; id: number }>;
+
+  // Import (v2.9)
+  importChatgpt(zipPath: string, options?: { chunkSize?: number; onProgress?: (current: number, total: number, title: string) => void }): Promise<ImportResult>;
+  importObsidian(vaultPath: string, options?: { chunkChars?: number; onProgress?: (current: number, total: number, title: string) => void }): Promise<ImportResult>;
+  importFiles(paths: string[], options?: { chunkChars?: number; onProgress?: (current: number, total: number, title: string) => void }): Promise<ImportResult>;
+}
+
+export interface ImportResult {
+  conversations_found: number;
+  chunks_sent: number;
+  entities_created: string[];
+  errors: string[];
+  duration_seconds: number;
 }
 
 export interface SmartTrigger {
