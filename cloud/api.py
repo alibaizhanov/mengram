@@ -193,11 +193,17 @@ profile = m.get_profile()             # instant system prompt
                 import cohere
                 co = cohere.ClientV2(api_key=cohere_key)
 
-                # Build short document texts (less data = faster rerank)
+                # Build document texts for reranking
                 documents = []
                 for r in results:
-                    facts_str = "; ".join(r.get("facts", [])[:3])
-                    doc = f"{r['entity']}: {facts_str}"[:300]
+                    facts_str = "; ".join(r.get("facts", [])[:5])
+                    rels_str = "; ".join(
+                        f"{rel.get('type', '')} {rel.get('target', '')}"
+                        for rel in r.get("relations", [])[:3]
+                    )
+                    doc = f"{r['entity']} ({r['type']}): {facts_str}"
+                    if rels_str:
+                        doc += f" | {rels_str}"
                     documents.append(doc)
 
                 resp = co.rerank(
@@ -205,7 +211,6 @@ profile = m.get_profile()             # instant system prompt
                     query=query,
                     documents=documents,
                     top_n=len(results),
-                    max_chunks_per_doc=1,
                 )
 
                 # Filter by relevance score and reorder
