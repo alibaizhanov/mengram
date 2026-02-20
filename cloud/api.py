@@ -70,6 +70,7 @@ class SearchRequest(BaseModel):
     run_id: str = None
     app_id: str = None
     limit: int = 5
+    graph_depth: int = 2  # 0=no graph, 1=1-hop, 2=2-hop (default)
 
 class FeedbackRequest(BaseModel):
     context: str = None         # What went wrong (triggers evolution on failure)
@@ -1006,7 +1007,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         import hashlib as _hashlib
 
         # ---- Redis cache: same query → instant response ----
-        cache_key = f"search:{user_id}:{_hashlib.md5(f'{req.query}:{req.limit}'.encode()).hexdigest()}"
+        cache_key = f"search:{user_id}:{_hashlib.md5(f'{req.query}:{req.limit}:{req.graph_depth}'.encode()).hexdigest()}"
         cached = store.cache.get(cache_key)
         if cached:
             store.log_usage(user_id, "search")
@@ -1020,11 +1021,12 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         if embedder:
             emb = embedder.embed(req.query)
             results = store.search_vector_with_teams(user_id, emb, top_k=search_limit,
-                                          query_text=req.query)
+                                          query_text=req.query, graph_depth=req.graph_depth)
             # Fallback: if nothing found, retry with lower threshold
             if not results:
                 results = store.search_vector_with_teams(user_id, emb, top_k=search_limit,
-                                              min_score=0.15, query_text=req.query)
+                                              min_score=0.15, query_text=req.query,
+                                              graph_depth=req.graph_depth)
         else:
             results = store.search_text(user_id, req.query, top_k=search_limit)
 
@@ -1658,7 +1660,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         import hashlib as _hashlib
 
         # ---- Redis cache ----
-        cache_key = f"searchall:{user_id}:{_hashlib.md5(f'{req.query}:{req.limit}'.encode()).hexdigest()}"
+        cache_key = f"searchall:{user_id}:{_hashlib.md5(f'{req.query}:{req.limit}:{req.graph_depth}'.encode()).hexdigest()}"
         cached = store.cache.get(cache_key)
         if cached:
             store.log_usage(user_id, "search_all")
@@ -1673,11 +1675,12 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         if embedder:
             emb = embedder.embed(req.query)
             semantic = store.search_vector_with_teams(
-                user_id, emb, top_k=search_limit, query_text=req.query)
+                user_id, emb, top_k=search_limit, query_text=req.query,
+                graph_depth=req.graph_depth)
             if not semantic:
                 semantic = store.search_vector_with_teams(
                     user_id, emb, top_k=search_limit, min_score=0.15,
-                    query_text=req.query)
+                    query_text=req.query, graph_depth=req.graph_depth)
             # Episodic
             episodic = store.search_episodes_vector(
                 user_id, emb, top_k=ep_limit)

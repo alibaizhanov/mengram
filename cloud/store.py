@@ -1354,11 +1354,71 @@ class CloudStore:
             self.cache.invalidate(f"stats:{user_id}")
         return deleted
 
+    # ---- Graph Traversal ----
+
+    def _graph_expand(self, cur, user_id: str, seed_ids: list[str],
+                      max_hops: int = 2, max_rrf: float = 0.01) -> dict:
+        """
+        Multi-hop graph traversal from seed entities via relations.
+        Returns: {entity_id: {"name", "type", "updated_at", "score", "hop", "via_relation"}}
+        """
+        if not seed_ids or max_hops < 1:
+            return {}
+
+        visited = set(seed_ids)
+        graph_entities = {}
+        current_seeds = seed_ids
+
+        for hop in range(1, max_hops + 1):
+            if not current_seeds:
+                break
+
+            hop_score = max_rrf * (0.5 ** hop)
+
+            cur.execute(
+                """SELECT
+                       CASE WHEN r.source_id = ANY(%s::uuid[]) THEN r.target_id ELSE r.source_id END AS related_id,
+                       CASE WHEN r.source_id = ANY(%s::uuid[]) THEN te.name ELSE se.name END AS related_name,
+                       CASE WHEN r.source_id = ANY(%s::uuid[]) THEN te.type ELSE se.type END AS related_type,
+                       CASE WHEN r.source_id = ANY(%s::uuid[]) THEN te.updated_at ELSE se.updated_at END AS related_updated,
+                       r.type AS rel_type
+                   FROM relations r
+                   JOIN entities se ON se.id = r.source_id
+                   JOIN entities te ON te.id = r.target_id
+                   WHERE (r.source_id = ANY(%s::uuid[]) OR r.target_id = ANY(%s::uuid[]))
+                     AND se.user_id = %s""",
+                (current_seeds, current_seeds, current_seeds, current_seeds,
+                 current_seeds, current_seeds, user_id)
+            )
+
+            next_seeds = []
+            for row in cur.fetchall():
+                rid = str(row["related_id"])
+                if rid in visited:
+                    continue
+                visited.add(rid)
+
+                if rid not in graph_entities:
+                    graph_entities[rid] = {
+                        "name": row["related_name"],
+                        "type": row["related_type"],
+                        "updated_at": row["related_updated"],
+                        "score": hop_score,
+                        "hop": hop,
+                        "via_relation": row["rel_type"],
+                    }
+                    next_seeds.append(rid)
+
+            current_seeds = next_seeds[:15]
+
+        return graph_entities
+
     # ---- Search ----
 
     def search_vector(self, user_id: str, embedding: list[float],
                       top_k: int = 5, min_score: float = 0.3,
-                      query_text: str = "") -> list[dict]:
+                      query_text: str = "",
+                      graph_depth: int = 2) -> list[dict]:
         """
         Hybrid search: vector + BM25 text + graph expansion.
         
@@ -1448,42 +1508,16 @@ class CloudStore:
                         entity_info[eid] = (row["name"], row["type"], row.get("updated_at"))
                 rrf_scores[eid] = score
 
-            # ========== STAGE 4: Graph expansion ==========
-            # Take top entities from RRF, then expand via relations
+            # ========== STAGE 4: Graph expansion (multi-hop) ==========
             sorted_rrf = sorted(rrf_scores.items(), key=lambda x: x[1], reverse=True)
             seed_ids = [eid for eid, _ in sorted_rrf[:8]]
-
-            graph_entities = {}
-            if seed_ids:
-                cur.execute(
-                    """SELECT 
-                           CASE WHEN r.source_id = ANY(%s::uuid[]) THEN r.target_id ELSE r.source_id END AS related_id,
-                           CASE WHEN r.source_id = ANY(%s::uuid[]) THEN te.name ELSE se.name END AS related_name,
-                           CASE WHEN r.source_id = ANY(%s::uuid[]) THEN te.type ELSE se.type END AS related_type,
-                           CASE WHEN r.source_id = ANY(%s::uuid[]) THEN te.updated_at ELSE se.updated_at END AS related_updated,
-                           r.type AS rel_type
-                       FROM relations r
-                       JOIN entities se ON se.id = r.source_id
-                       JOIN entities te ON te.id = r.target_id
-                       WHERE (r.source_id = ANY(%s::uuid[]) OR r.target_id = ANY(%s::uuid[]))
-                         AND se.user_id = %s""",
-                    (seed_ids, seed_ids, seed_ids, seed_ids, seed_ids, seed_ids, user_id)
-                )
-                for row in cur.fetchall():
-                    rid = str(row["related_id"])
-                    if rid not in rrf_scores and rid not in graph_entities:
-                        # Graph-expanded entity gets a lower base score
-                        graph_entities[rid] = {
-                            "name": row["related_name"],
-                            "type": row["related_type"],
-                            "updated_at": row["related_updated"],
-                            "via_relation": row["rel_type"],
-                        }
-
-            # Add graph entities with discounted score
             max_rrf = max(rrf_scores.values()) if rrf_scores else 0.01
+
+            graph_entities = self._graph_expand(
+                cur, user_id, seed_ids, max_hops=graph_depth, max_rrf=max_rrf
+            )
             for eid, info in graph_entities.items():
-                rrf_scores[eid] = max_rrf * 0.5  # 50% of best direct match
+                rrf_scores[eid] = info["score"]
                 entity_info[eid] = (info["name"], info["type"], info.get("updated_at"))
 
             # ========== STAGE 5: Recency boost + build results ==========
@@ -3763,16 +3797,18 @@ Be specific and personal, not generic. No markdown, just JSON."""
 
     def search_vector_with_teams(self, user_id: str, embedding: list[float],
                                   top_k: int = 5, min_score: float = 0.3,
-                                  query_text: str = "") -> list[dict]:
+                                  query_text: str = "",
+                                  graph_depth: int = 2) -> list[dict]:
         """
         Same as search_vector but includes shared team memories.
         Results from team entities are marked with team_shared=True.
+        Includes graph expansion and relations in results.
         """
         team_ids = self.get_user_team_ids(user_id)
 
         if not team_ids:
             # No teams — use normal search
-            return self.search_vector(user_id, embedding, top_k, min_score, query_text)
+            return self.search_vector(user_id, embedding, top_k, min_score, query_text, graph_depth)
 
         embedding_str = f"[{','.join(str(x) for x in embedding)}]"
 
@@ -3842,34 +3878,104 @@ Be specific and personal, not generic. No markdown, just JSON."""
                         }
                 rrf_scores[eid] = score
 
-            # Sort and build results
+            # ========== Graph expansion (multi-hop) ==========
+            sorted_rrf = sorted(rrf_scores.items(), key=lambda x: x[1], reverse=True)
+            seed_ids = [eid for eid, _ in sorted_rrf[:8]]
+            max_rrf_val = max(rrf_scores.values()) if rrf_scores else 0.01
+
+            graph_entities = self._graph_expand(
+                cur, user_id, seed_ids, max_hops=graph_depth, max_rrf=max_rrf_val
+            )
+            for eid, info in graph_entities.items():
+                if eid not in rrf_scores:
+                    rrf_scores[eid] = info["score"]
+                    entity_info[eid] = {
+                        "name": info["name"], "type": info["type"],
+                        "updated_at": info.get("updated_at"),
+                        "team_shared": False,
+                    }
+
+            # Sort and limit after expansion
             sorted_results = sorted(rrf_scores.items(), key=lambda x: x[1], reverse=True)[:top_k]
 
+            if not sorted_results:
+                return []
+
+            entity_ids = [eid for eid, _ in sorted_results]
+
+            # Batch fetch facts
+            cur.execute(
+                """SELECT entity_id, content, importance FROM facts
+                   WHERE entity_id = ANY(%s::uuid[]) AND archived = FALSE
+                     AND (expires_at IS NULL OR expires_at > NOW())
+                   ORDER BY importance DESC, created_at DESC""",
+                (entity_ids,)
+            )
+            facts_map = {}
+            for r in cur.fetchall():
+                eid = str(r["entity_id"])
+                if eid not in facts_map:
+                    facts_map[eid] = []
+                if len(facts_map[eid]) < 15:
+                    facts_map[eid].append(r["content"])
+
+            # Batch fetch knowledge
+            cur.execute(
+                """SELECT entity_id, type, title, content, artifact FROM knowledge
+                   WHERE entity_id = ANY(%s::uuid[])""",
+                (entity_ids,)
+            )
+            knowledge_map = {}
+            for r in cur.fetchall():
+                eid = str(r["entity_id"])
+                if eid not in knowledge_map:
+                    knowledge_map[eid] = []
+                if len(knowledge_map[eid]) < 5:
+                    knowledge_map[eid].append({
+                        "type": r["type"], "title": r["title"],
+                        "content": r["content"], "artifact": r["artifact"],
+                    })
+
+            # Batch fetch relations
+            cur.execute(
+                """SELECT r.source_id, r.target_id, r.type, r.description,
+                          se.name AS source_name, te.name AS target_name
+                   FROM relations r
+                   JOIN entities se ON se.id = r.source_id
+                   JOIN entities te ON te.id = r.target_id
+                   WHERE r.source_id = ANY(%s::uuid[]) OR r.target_id = ANY(%s::uuid[])""",
+                (entity_ids, entity_ids)
+            )
+            relations_map = {}
+            for r in cur.fetchall():
+                src = str(r["source_id"])
+                tgt = str(r["target_id"])
+                if src in entity_ids:
+                    if src not in relations_map:
+                        relations_map[src] = []
+                    relations_map[src].append({
+                        "type": r["type"], "direction": "outgoing",
+                        "target": r["target_name"], "detail": r["description"] or "",
+                    })
+                if tgt in entity_ids:
+                    if tgt not in relations_map:
+                        relations_map[tgt] = []
+                    relations_map[tgt].append({
+                        "type": r["type"], "direction": "incoming",
+                        "target": r["source_name"], "detail": r["description"] or "",
+                    })
+
+            # Build results
             results = []
             for eid, score in sorted_results:
                 info = entity_info[eid]
-                # Fetch facts
-                cur.execute(
-                    """SELECT content, importance FROM facts
-                       WHERE entity_id = %s AND archived = FALSE AND (expires_at IS NULL OR expires_at > NOW())
-                       ORDER BY importance DESC, created_at DESC LIMIT 15""",
-                    (eid,)
-                )
-                facts = [r["content"] for r in cur.fetchall()]
-
-                # Fetch knowledge
-                cur.execute(
-                    "SELECT type, title, content, artifact FROM knowledge WHERE entity_id = %s LIMIT 5",
-                    (eid,)
-                )
-                knowledge = [dict(r) for r in cur.fetchall()]
-
                 results.append({
                     "entity": info["name"],
                     "type": info["type"],
                     "score": round(score, 4),
-                    "facts": facts,
-                    "knowledge": knowledge,
+                    "facts": facts_map.get(eid, []),
+                    "relations": relations_map.get(eid, []),
+                    "knowledge": knowledge_map.get(eid, []),
                     "team_shared": info.get("team_shared", False),
                 })
 
