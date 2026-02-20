@@ -178,13 +178,52 @@ profile = m.get_profile()             # instant system prompt
                 _embedder = CloudEmbedder(provider="openai", api_key=openai_key)
         return _embedder
 
-    # ---- LLM Re-ranking ----
+    # ---- Re-ranking (Cohere Rerank → gpt-4o-mini fallback) ----
 
     def rerank_results(query: str, results: list[dict]) -> list[dict]:
-        """Use LLM to filter search results for relevance."""
+        """Re-rank search results using Cohere Rerank (fast cross-encoder).
+        Falls back to gpt-4o-mini if Cohere unavailable."""
         if not results or len(results) <= 1:
             return results
 
+        # Try Cohere Rerank first (~200ms vs ~7s for LLM)
+        cohere_key = os.environ.get("COHERE_API_KEY", "")
+        if cohere_key:
+            try:
+                import cohere
+                co = cohere.Client(api_key=cohere_key)
+
+                # Build document texts for reranking
+                documents = []
+                for r in results:
+                    facts_str = "; ".join(r.get("facts", [])[:5])
+                    rels_str = "; ".join(
+                        f"{rel.get('type', '')} {rel.get('target', '')}"
+                        for rel in r.get("relations", [])[:3]
+                    )
+                    doc = f"{r['entity']} ({r['type']}): {facts_str}"
+                    if rels_str:
+                        doc += f" | {rels_str}"
+                    documents.append(doc)
+
+                resp = co.rerank(
+                    model="rerank-v3.5",
+                    query=query,
+                    documents=documents,
+                    top_n=len(results),
+                )
+
+                # Filter by relevance score and reorder
+                reranked = []
+                for item in resp.results:
+                    if item.relevance_score >= 0.1:
+                        reranked.append(results[item.index])
+                return reranked if reranked else results
+
+            except Exception as e:
+                logger.warning(f"⚠️ Cohere rerank failed, falling back: {e}")
+
+        # Fallback: gpt-4o-mini
         openai_key = os.environ.get("OPENAI_API_KEY", "")
         if not openai_key:
             return results
@@ -193,7 +232,6 @@ profile = m.get_profile()             # instant system prompt
             import openai
             client = openai.OpenAI(api_key=openai_key)
 
-            # Build candidate list for LLM
             candidates = []
             for i, r in enumerate(results):
                 facts_str = "; ".join(r.get("facts", [])[:5])
@@ -225,9 +263,7 @@ Be strict — only include entities that directly answer or relate to the query.
             )
 
             text = resp.choices[0].message.content.strip()
-            # Parse JSON array from response
             import json as json_mod
-            # Handle possible markdown wrapping
             if "```" in text:
                 text = text.split("```")[1].replace("json", "").strip()
             indices = json_mod.loads(text)
@@ -237,7 +273,7 @@ Be strict — only include entities that directly answer or relate to the query.
                 if filtered:
                     return filtered
 
-            return results  # fallback if parsing fails
+            return results
 
         except Exception as e:
             logger.error(f"⚠️ Re-ranking failed, returning raw results: {e}")
