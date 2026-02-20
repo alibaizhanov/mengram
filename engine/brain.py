@@ -146,13 +146,13 @@ class MengramBrain:
         conversation = [{"role": "user", "content": text}]
         return self.remember(conversation)
 
-    def recall(self, query: str, top_k: int = 5) -> str:
+    def recall(self, query: str, top_k: int = 5, graph_depth: int = 2) -> str:
         """
         Recall context for a query.
 
         Hybrid strategy:
         1. Semantic search → top-K chunks by meaning
-        2. Graph expansion → related entities
+        2. Graph expansion → related entities (multi-hop)
         3. Fallback → graph text search → raw text search
         """
         contexts = []
@@ -170,10 +170,15 @@ class MengramBrain:
                                 contexts.append(ctx)
                                 seen.add(r.entity_name)
 
-                    # Graph expansion from top result
+                    # Graph expansion from all top seeds (multi-hop)
                     if results and self._graph is not None:
-                        expanded = self._expand_via_graph(results[0].entity_name, seen)
-                        contexts.extend(expanded)
+                        seed_names = list(dict.fromkeys(
+                            r.entity_name for r in results
+                        ))[:8]
+                        for name in seed_names:
+                            expanded = self._expand_via_graph(
+                                name, seen, depth=graph_depth)
+                            contexts.extend(expanded)
 
                     if contexts:
                         return self._assemble_context(query, contexts)
@@ -242,10 +247,10 @@ class MengramBrain:
             lines.append("")
         return "\n".join(lines)
 
-    def search(self, query: str, top_k: int = 5) -> list[dict]:
+    def search(self, query: str, top_k: int = 5, graph_depth: int = 2) -> list[dict]:
         """
         Semantic search — structured results for SDK.
-        
+
         Returns:
             [{"entity": "...", "type": "...", "score": 0.85, "facts": [...], "relations": [...]}]
         """
@@ -262,6 +267,26 @@ class MengramBrain:
                     data = self._get_entity_data(vr.entity_name)
                     data["score"] = round(vr.score, 3)
                     results.append(data)
+
+                # Graph expansion: add related entities not found by vector search
+                if results and self._graph is not None and graph_depth > 0:
+                    max_score = max(r["score"] for r in results) if results else 0.5
+                    seed_names = [r["entity"] for r in results][:8]
+                    for name in seed_names:
+                        entity = self.graph.find_entity(name)
+                        if not entity:
+                            continue
+                        neighbors = self.graph.get_neighbors(entity.id, depth=graph_depth)
+                        for n in neighbors:
+                            nname = n["entity"].name
+                            if nname in seen or n["entity"].entity_type == "tag":
+                                continue
+                            seen.add(nname)
+                            data = self._get_entity_data(nname)
+                            hop = n.get("distance", 1)
+                            data["score"] = round(max_score * (0.5 ** hop), 4)
+                            data["_graph"] = True
+                            results.append(data)
             except Exception as e:
                 print(f"⚠️  Search error: {e}", file=sys.stderr)
 
@@ -447,21 +472,24 @@ class MengramBrain:
                     lines.append(f"    ```{artifact}```")
         return "\n".join(lines)
 
-    def _expand_via_graph(self, entity_name: str, seen: set) -> list[str]:
+    def _expand_via_graph(self, entity_name: str, seen: set,
+                          depth: int = 2) -> list[str]:
         expanded = []
         try:
             entity = self.graph.find_entity(entity_name)
             if not entity:
                 return []
-            neighbors = self.graph.get_neighbors(entity.id, depth=1)
+            neighbors = self.graph.get_neighbors(entity.id, depth=depth)
             for n in neighbors:
                 name = n["entity"].name
                 if name not in seen and n["entity"].entity_type != "tag":
-                    ctx = self._build_rich_context(name, score=0.0)
+                    hop = n.get("distance", 1)
+                    score = 0.5 ** hop
+                    ctx = self._build_rich_context(name, score=score)
                     if ctx:
                         expanded.append(ctx)
                         seen.add(name)
-                        if len(expanded) >= 3:
+                        if len(expanded) >= 10:
                             break
         except Exception:
             pass
@@ -477,12 +505,14 @@ class MengramBrain:
             return ""
 
         lines = [f"## {entity.name} ({entity.entity_type})"]
-        neighbors = self.graph.get_neighbors(entity_id, depth=1)
+        neighbors = self.graph.get_neighbors(entity_id, depth=2)
         if neighbors:
             lines.append("\nRelations:")
             for n in neighbors:
                 if n["entity"].entity_type != "tag":
-                    lines.append(f"  → {n['relation_type']}: {n['entity'].name}")
+                    hop = n.get("distance", 1)
+                    prefix = "→" if hop == 1 else "→→"
+                    lines.append(f"  {prefix} {n['relation_type']}: {n['entity'].name}")
 
         if entity.source_file:
             try:
