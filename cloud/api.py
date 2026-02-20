@@ -186,24 +186,18 @@ profile = m.get_profile()             # instant system prompt
         if not results or len(results) <= 1:
             return results
 
-        # Try Cohere Rerank first (~200ms vs ~7s for LLM)
+        # Try Cohere Rerank first (cross-encoder, faster than LLM)
         cohere_key = os.environ.get("COHERE_API_KEY", "")
         if cohere_key:
             try:
                 import cohere
-                co = cohere.Client(api_key=cohere_key)
+                co = cohere.ClientV2(api_key=cohere_key)
 
-                # Build document texts for reranking
+                # Build short document texts (less data = faster rerank)
                 documents = []
                 for r in results:
-                    facts_str = "; ".join(r.get("facts", [])[:5])
-                    rels_str = "; ".join(
-                        f"{rel.get('type', '')} {rel.get('target', '')}"
-                        for rel in r.get("relations", [])[:3]
-                    )
-                    doc = f"{r['entity']} ({r['type']}): {facts_str}"
-                    if rels_str:
-                        doc += f" | {rels_str}"
+                    facts_str = "; ".join(r.get("facts", [])[:3])
+                    doc = f"{r['entity']}: {facts_str}"[:300]
                     documents.append(doc)
 
                 resp = co.rerank(
@@ -211,6 +205,7 @@ profile = m.get_profile()             # instant system prompt
                     query=query,
                     documents=documents,
                     top_n=len(results),
+                    max_chunks_per_doc=1,
                 )
 
                 # Filter by relevance score and reorder
