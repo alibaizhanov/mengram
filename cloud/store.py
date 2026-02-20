@@ -39,15 +39,32 @@ except ImportError:
 
 logger = logging.getLogger("mengram")
 
-# ---- Simple TTL Cache ----
+# ---- TTL Cache (Redis or in-memory) ----
 class TTLCache:
-    """Thread-safe in-memory cache with TTL."""
-    def __init__(self, default_ttl: int = 60):
+    """Thread-safe cache with TTL. Uses Redis if available, falls back to in-memory."""
+    def __init__(self, default_ttl: int = 60, redis_url: str = None):
         self._store = {}
         self._lock = threading.Lock()
         self.default_ttl = default_ttl
+        self._redis = None
+
+        if redis_url:
+            try:
+                import redis as _redis
+                self._redis = _redis.from_url(redis_url, decode_responses=True)
+                self._redis.ping()
+                logger.info("Redis cache connected")
+            except Exception as e:
+                logger.warning(f"Redis unavailable, falling back to in-memory cache: {e}")
+                self._redis = None
 
     def get(self, key: str):
+        if self._redis:
+            try:
+                val = self._redis.get(f"mc:{key}")
+                return json.loads(val) if val else None
+            except Exception:
+                pass
         with self._lock:
             item = self._store.get(key)
             if item and item["expires"] > time.time():
@@ -57,13 +74,31 @@ class TTLCache:
             return None
 
     def set(self, key: str, value, ttl: int = None):
+        ttl = ttl or self.default_ttl
+        if self._redis:
+            try:
+                self._redis.setex(f"mc:{key}", ttl, json.dumps(value, default=str))
+                return
+            except Exception:
+                pass
         with self._lock:
             self._store[key] = {
                 "value": value,
-                "expires": time.time() + (ttl or self.default_ttl)
+                "expires": time.time() + ttl
             }
 
     def invalidate(self, prefix: str = ""):
+        if self._redis:
+            try:
+                if not prefix:
+                    keys = self._redis.keys("mc:*")
+                else:
+                    keys = self._redis.keys(f"mc:{prefix}*")
+                if keys:
+                    self._redis.delete(*keys)
+                return
+            except Exception:
+                pass
         with self._lock:
             if not prefix:
                 self._store.clear()
@@ -73,10 +108,20 @@ class TTLCache:
                     del self._store[k]
 
     def stats(self) -> dict:
+        if self._redis:
+            try:
+                info = self._redis.info("keyspace")
+                db_keys = 0
+                for db_info in info.values():
+                    if isinstance(db_info, dict):
+                        db_keys += db_info.get("keys", 0)
+                return {"total_keys": db_keys, "alive": db_keys, "backend": "redis"}
+            except Exception:
+                pass
         with self._lock:
             now = time.time()
             alive = sum(1 for v in self._store.values() if v["expires"] > now)
-            return {"total_keys": len(self._store), "alive": alive}
+            return {"total_keys": len(self._store), "alive": alive, "backend": "memory"}
 
 
 @dataclass
@@ -100,13 +145,13 @@ class CloudStore:
     - Proper logging
     """
 
-    def __init__(self, database_url: str, pool_min: int = 2, pool_max: int = 10):
+    def __init__(self, database_url: str, pool_min: int = 2, pool_max: int = 10,
+                 redis_url: str = None):
         if not PSYCOPG2_AVAILABLE:
             raise ImportError("pip install psycopg2-binary")
         self.database_url = database_url
-        self.cache = TTLCache(default_ttl=30)
-        self._jobs = {}  # job_id -> {status, result, error, created_at}
-        self._jobs_lock = threading.Lock()
+        self.redis_url = redis_url
+        self.cache = TTLCache(default_ttl=30, redis_url=redis_url)
 
         # Connection pool
         try:
@@ -472,59 +517,92 @@ class CloudStore:
 
         logger.info("✅ Migration complete (v2.7: experience-driven procedures)")
 
-    # ---- Job tracking (async mode) ----
+        # --- v2.10 Jobs table (persistent across workers/restarts) ---
+        with self._cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS jobs (
+                    id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    job_type TEXT DEFAULT 'add',
+                    status TEXT DEFAULT 'processing',
+                    result JSONB,
+                    error TEXT,
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_jobs_user
+                ON jobs(user_id, created_at DESC)
+            """)
+        logger.info("✅ Migration complete (v2.10: persistent jobs)")
+
+    # ---- Job tracking (PostgreSQL-backed, survives restarts) ----
 
     def create_job(self, user_id: str, job_type: str = "add") -> str:
-        """Create a background job, return job_id."""
+        """Create a background job in PostgreSQL, return job_id."""
         job_id = f"job-{secrets.token_urlsafe(12)}"
-        with self._jobs_lock:
-            self._jobs[job_id] = {
-                "status": "processing",
-                "user_id": user_id,
-                "type": job_type,
-                "result": None,
-                "error": None,
-                "created_at": time.time(),
-            }
-        # Cleanup old jobs (>1h)
+        with self._cursor() as cur:
+            cur.execute(
+                """INSERT INTO jobs (id, user_id, job_type, status)
+                   VALUES (%s, %s, %s, 'processing')""",
+                (job_id, user_id, job_type)
+            )
+        # Cleanup old jobs (>1h) periodically
         self._cleanup_jobs()
         return job_id
 
     def complete_job(self, job_id: str, result: dict = None):
-        """Mark job as completed."""
-        with self._jobs_lock:
-            if job_id in self._jobs:
-                self._jobs[job_id]["status"] = "completed"
-                self._jobs[job_id]["result"] = result
+        """Mark job as completed in PostgreSQL."""
+        with self._cursor() as cur:
+            cur.execute(
+                """UPDATE jobs SET status = 'completed', result = %s
+                   WHERE id = %s""",
+                (json.dumps(result, default=str) if result else None, job_id)
+            )
 
     def fail_job(self, job_id: str, error: str):
-        """Mark job as failed."""
-        with self._jobs_lock:
-            if job_id in self._jobs:
-                self._jobs[job_id]["status"] = "failed"
-                self._jobs[job_id]["error"] = error
+        """Mark job as failed in PostgreSQL."""
+        with self._cursor() as cur:
+            cur.execute(
+                """UPDATE jobs SET status = 'failed', error = %s
+                   WHERE id = %s""",
+                (error, job_id)
+            )
 
     def get_job(self, job_id: str, user_id: str) -> Optional[dict]:
-        """Get job status (only if owned by user)."""
-        with self._jobs_lock:
-            job = self._jobs.get(job_id)
-            if job and job["user_id"] == user_id:
-                return {
-                    "job_id": job_id,
-                    "status": job["status"],
-                    "type": job["type"],
-                    "result": job["result"],
-                    "error": job["error"],
-                }
-            return None
+        """Get job status from PostgreSQL (only if owned by user)."""
+        with self._cursor(dict_cursor=True) as cur:
+            cur.execute(
+                """SELECT id, status, job_type, result, error
+                   FROM jobs WHERE id = %s AND user_id = %s""",
+                (job_id, user_id)
+            )
+            row = cur.fetchone()
+            if not row:
+                return None
+            result = row["result"]
+            if isinstance(result, str):
+                try:
+                    result = json.loads(result)
+                except Exception:
+                    pass
+            return {
+                "job_id": row["id"],
+                "status": row["status"],
+                "type": row["job_type"],
+                "result": result,
+                "error": row["error"],
+            }
 
     def _cleanup_jobs(self):
         """Remove jobs older than 1 hour."""
-        cutoff = time.time() - 3600
-        with self._jobs_lock:
-            expired = [k for k, v in self._jobs.items() if v["created_at"] < cutoff]
-            for k in expired:
-                del self._jobs[k]
+        try:
+            with self._cursor() as cur:
+                cur.execute(
+                    "DELETE FROM jobs WHERE created_at < NOW() - INTERVAL '1 hour'"
+                )
+        except Exception:
+            pass
 
     def close(self):
         if self._pool:

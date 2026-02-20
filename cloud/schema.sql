@@ -266,6 +266,22 @@ CREATE INDEX idx_triggers_pending ON memory_triggers(user_id, fired, fire_at)
 CREATE INDEX idx_triggers_user ON memory_triggers(user_id, created_at DESC);
 
 -- ============================================
+-- 11. Background Jobs (v2.10 — persistent across workers)
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS jobs (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    job_type TEXT DEFAULT 'add',
+    status TEXT DEFAULT 'processing',
+    result JSONB,
+    error TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_jobs_user ON jobs(user_id, created_at DESC);
+
+-- ============================================
 -- Helper views
 -- ============================================
 

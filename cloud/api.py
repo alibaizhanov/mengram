@@ -39,6 +39,7 @@ DATABASE_URL = os.environ.get(
     "DATABASE_URL",
     "postgresql://localhost:5432/mengram"
 )
+REDIS_URL = os.environ.get("REDIS_URL")
 
 # ---- Models ----
 
@@ -145,7 +146,7 @@ profile = m.get_profile()             # instant system prompt
         allow_headers=["*"],
     )
 
-    store = CloudStore(DATABASE_URL)
+    store = CloudStore(DATABASE_URL, redis_url=REDIS_URL)
 
     # LLM client for extraction (shared)
     _llm_client = None
@@ -242,14 +243,28 @@ Be strict — only include entities that directly answer or relate to the query.
             logger.error(f"⚠️ Re-ranking failed, returning raw results: {e}")
             return results
 
-    # ---- Rate Limiting ----
-    _rate_limits = {}  # user_id -> {"count": N, "window_start": time}
+    # ---- Rate Limiting (Redis-shared or in-memory fallback) ----
+    _rate_limits = {}  # fallback: user_id -> {"count": N, "window_start": time}
     _rate_lock = __import__('threading').Lock()
     RATE_LIMIT = 120  # requests per minute
     RATE_WINDOW = 60   # seconds
 
     def _check_rate_limit(user_id: str) -> bool:
-        """Returns True if allowed, False if rate limited."""
+        """Returns True if allowed, False if rate limited.
+        Uses Redis INCR for cross-worker consistency when available."""
+        # Try Redis first (shared across workers)
+        redis_client = getattr(store.cache, '_redis', None) if store else None
+        if redis_client:
+            try:
+                key = f"rl:{user_id}"
+                count = redis_client.incr(key)
+                if count == 1:
+                    redis_client.expire(key, RATE_WINDOW)
+                return count <= RATE_LIMIT
+            except Exception:
+                pass  # fall through to in-memory
+
+        # In-memory fallback (per-worker)
         import time as _time
         now = _time.time()
         with _rate_lock:
@@ -670,6 +685,37 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
                 extraction = extractor.extract(conversation, existing_context=existing_context)
 
+                # ---- Phase 1: Parallel conflict resolution (LLM calls) ----
+                from concurrent.futures import ThreadPoolExecutor, as_completed
+
+                conflict_tasks = []
+                for entity in extraction.entities:
+                    if not entity.name:
+                        continue
+                    existing_id = store.get_entity_id(user_id, entity.name)
+                    if existing_id and entity.facts:
+                        conflict_tasks.append((entity, existing_id))
+
+                conflict_results = {}  # name -> archived_facts
+                if conflict_tasks:
+                    def _check_conflicts(entity, existing_id):
+                        try:
+                            archived = store.archive_contradicted_facts(
+                                existing_id, entity.facts, extractor.llm)
+                            return entity.name, archived
+                        except Exception as e:
+                            logger.error(f"⚠️ Conflict check failed for {entity.name}: {e}")
+                            return entity.name, []
+
+                    with ThreadPoolExecutor(max_workers=5) as pool:
+                        futures = [pool.submit(_check_conflicts, ent, eid)
+                                   for ent, eid in conflict_tasks]
+                        for future in as_completed(futures):
+                            name, archived = future.result()
+                            conflict_results[name] = archived
+
+                # ---- Phase 2: Save entities + collect embedding chunks ----
+                embedding_queue = []  # [(entity_id, chunks)]
                 for entity in extraction.entities:
                     name = entity.name
                     if not name:
@@ -704,21 +750,14 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                                 "artifact": k.artifact,
                             })
 
-                    # Conflict resolution — archive contradicted facts
-                    existing_id = store.get_entity_id(user_id, name)
-                    if existing_id and entity.facts:
-                        try:
-                            archived = store.archive_contradicted_facts(
-                                existing_id, entity.facts, extractor.llm
-                            )
-                            if archived:
-                                store.fire_webhooks(user_id, "memory_update", {
-                                    "entity": name,
-                                    "archived_facts": archived,
-                                    "new_facts": entity.facts
-                                })
-                        except Exception as e:
-                            logger.error(f"⚠️ Conflict check failed: {e}")
+                    # Use pre-computed conflict results
+                    archived = conflict_results.get(name)
+                    if archived:
+                        store.fire_webhooks(user_id, "memory_update", {
+                            "entity": name,
+                            "archived_facts": archived,
+                            "new_facts": entity.facts
+                        })
 
                     entity_id = store.save_entity(
                         user_id=user_id,
@@ -732,22 +771,32 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                     )
                     created.append(name)
 
-                    # Batch embeddings — one API call instead of N
-                    embedder = get_embedder()
-                    if embedder:
-                        chunks = [name] + entity.facts
-                        for r in entity_relations:
-                            target = r.get("target", "")
-                            rel_type = r.get("type", "")
-                            if target and rel_type:
-                                chunks.append(f"{name} {rel_type} {target}")
-                        for k in entity_knowledge:
-                            chunks.append(f"{k['title']} {k['content']}")
+                    # Collect chunks for batched embedding
+                    chunks = [name] + entity.facts
+                    for r in entity_relations:
+                        target = r.get("target", "")
+                        rel_type = r.get("type", "")
+                        if target and rel_type:
+                            chunks.append(f"{name} {rel_type} {target}")
+                    for k in entity_knowledge:
+                        chunks.append(f"{k['title']} {k['content']}")
+                    embedding_queue.append((entity_id, chunks))
 
+                # ---- Phase 3: Batch embeddings across ALL entities (1 API call) ----
+                embedder = get_embedder()
+                if embedder and embedding_queue:
+                    all_chunks = []
+                    chunk_map = []  # [(entity_id, chunk_index)]
+                    for entity_id, chunks in embedding_queue:
                         store.delete_embeddings(entity_id)
-                        embeddings = embedder.embed_batch(chunks)
-                        for chunk, emb in zip(chunks, embeddings):
-                            store.save_embedding(entity_id, chunk, emb)
+                        for chunk in chunks:
+                            chunk_map.append((entity_id, chunk))
+                            all_chunks.append(chunk)
+
+                    if all_chunks:
+                        all_embeddings = embedder.embed_batch(all_chunks)
+                        for (entity_id, chunk_text), emb in zip(chunk_map, all_embeddings):
+                            store.save_embedding(entity_id, chunk_text, emb)
 
                 store.log_usage(user_id, "add")
 
@@ -1685,11 +1734,15 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     return app
 
 
-# ---- Entry point ----
+# ---- Module-level app for gunicorn ----
+# gunicorn cloud.api:app -w 4 -k uvicorn.workers.UvicornWorker
+app = create_cloud_api()
+
+
+# ---- Entry point (local dev) ----
 
 def main():
     import uvicorn
-    app = create_cloud_api()
     port = int(os.environ.get("PORT", 8420))
 
     logger.info(f"🧠 Mengram Cloud API")
