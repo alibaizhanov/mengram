@@ -741,8 +741,11 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 if conflict_tasks:
                     def _check_conflicts(entity, existing_id):
                         try:
+                            # Convert ExtractedFact objects to strings for conflict check
+                            plain_facts = [f.content if hasattr(f, 'content') else str(f)
+                                           for f in entity.facts]
                             archived = store.archive_contradicted_facts(
-                                existing_id, entity.facts, extractor.llm)
+                                existing_id, plain_facts, extractor.llm)
                             return entity.name, archived
                         except Exception as e:
                             logger.error(f"⚠️ Conflict check failed for {entity.name}: {e}")
@@ -791,30 +794,45 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                                 "artifact": k.artifact,
                             })
 
+                    # Convert ExtractedFact objects to strings for storage/embedding
+                    # and collect event_dates for temporal indexing
+                    fact_strings = []
+                    fact_dates = {}  # fact_content -> event_date
+                    for f in entity.facts:
+                        if hasattr(f, 'content'):
+                            # ExtractedFact object
+                            fact_strings.append(f.content)
+                            if f.event_date:
+                                fact_dates[f.content] = f.event_date
+                        else:
+                            # Plain string (backward compat)
+                            fact_strings.append(str(f))
+
                     # Use pre-computed conflict results
                     archived = conflict_results.get(name)
                     if archived:
                         store.fire_webhooks(user_id, "memory_update", {
                             "entity": name,
                             "archived_facts": archived,
-                            "new_facts": entity.facts
+                            "new_facts": fact_strings
                         })
 
                     entity_id = store.save_entity(
                         user_id=user_id,
                         name=name,
                         type=entity.entity_type,
-                        facts=entity.facts,
+                        facts=fact_strings,
                         relations=entity_relations,
                         knowledge=entity_knowledge,
                         metadata=metadata if metadata else None,
                         expires_at=req.expiration_date,
                         sub_user_id=sub_uid,
+                        fact_dates=fact_dates,
                     )
                     created.append(name)
 
-                    # Collect chunks for batched embedding
-                    chunks = [name] + entity.facts
+                    # Collect chunks for batched embedding (prefix entity name for context)
+                    chunks = [name] + [f"{name}: {fs}" for fs in fact_strings]
                     for r in entity_relations:
                         target = r.get("target", "")
                         rel_type = r.get("type", "")
@@ -842,6 +860,21 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
                 store.log_usage(user_id, "add")
 
+                # ---- Raw Conversation Chunk: save for fallback retrieval ----
+                try:
+                    chunk_text = "\n".join(
+                        f"{m.get('role','user')}: {m.get('content','')}"
+                        for m in conversation
+                    )[:4000]  # cap at 4000 chars
+                    chunk_id = store.save_conversation_chunk(
+                        user_id, chunk_text, sub_user_id=sub_uid)
+                    if embedder:
+                        chunk_embs = embedder.embed_batch([chunk_text[:2000]])
+                        if chunk_embs:
+                            store.save_chunk_embedding(chunk_id, chunk_text[:2000], chunk_embs[0])
+                except Exception as e:
+                    logger.error(f"⚠️ Raw chunk save failed: {e}")
+
                 # ---- Episodic Memory: save episodes ----
                 episodes_created = 0
                 episodes_linked = 0
@@ -861,6 +894,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                             metadata=metadata if metadata else None,
                             expires_at=req.expiration_date,
                             sub_user_id=sub_uid,
+                            happened_at=getattr(ep, 'happened_at', None),
                         )
                         # Embed episode (truncate to 2000 chars for embedder safety)
                         ep_embedding = None
@@ -1013,8 +1047,10 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                     triggers_created += store.detect_reminder_triggers(user_id, sub_user_id=sub_uid)
                     for entity in extraction.entities:
                         if entity.name and entity.facts:
+                            plain_facts = [f.content if hasattr(f, 'content') else str(f)
+                                           for f in entity.facts]
                             triggers_created += store.detect_contradiction_triggers(
-                                user_id, entity.facts, entity.name, sub_user_id=sub_uid
+                                user_id, plain_facts, entity.name, sub_user_id=sub_uid
                             )
                     triggers_created += store.detect_pattern_triggers(user_id, sub_user_id=sub_uid)
                     if triggers_created > 0:
@@ -1791,10 +1827,21 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         for r in semantic:
             r.pop("_graph", None)
 
+        # Raw conversation chunk search (fallback for extraction misses)
+        chunks = []
+        try:
+            if embedder:
+                chunks = store.search_chunks_vector(
+                    user_id, emb, query_text=req.query,
+                    top_k=max(req.limit // 3, 3), sub_user_id=sub_uid)
+        except Exception as e:
+            logger.debug(f"Chunk search: {e}")
+
         result = {
             "semantic": semantic,
             "episodic": episodic,
             "procedural": procedural,
+            "chunks": chunks,
         }
 
         # Cache in Redis (TTL 30s)

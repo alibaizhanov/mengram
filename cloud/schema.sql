@@ -57,12 +57,14 @@ CREATE TABLE facts (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     entity_id UUID NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
     content TEXT NOT NULL,
+    event_date TEXT,                       -- when the event occurred (extracted from conversation)
     created_at TIMESTAMP DEFAULT NOW(),
 
     UNIQUE(entity_id, content)
 );
 
 CREATE INDEX idx_facts_entity ON facts(entity_id);
+CREATE INDEX idx_facts_event_date ON facts(event_date) WHERE event_date IS NOT NULL;
 
 -- ============================================
 -- 4. Relations (replaces ## Relations section)
@@ -140,6 +142,7 @@ CREATE TABLE episodes (
     importance FLOAT DEFAULT 0.5,
     linked_procedure_id UUID,             -- v2.7: link to procedure that was followed/failed
     failed_at_step INT,                   -- v2.7: which step failed (NULL = not a procedure failure)
+    happened_at TEXT,                     -- when the event occurred (extracted from conversation)
     metadata JSONB DEFAULT '{}',
     created_at TIMESTAMPTZ DEFAULT NOW(),
     expires_at TIMESTAMPTZ
@@ -288,6 +291,35 @@ CREATE TABLE IF NOT EXISTS jobs (
 );
 
 CREATE INDEX idx_jobs_user ON jobs(user_id, created_at DESC);
+
+-- ============================================
+-- 12. Conversation Chunks (v2.13 — raw text fallback for search)
+-- ============================================
+
+CREATE TABLE conversation_chunks (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id TEXT NOT NULL,
+    sub_user_id TEXT NOT NULL DEFAULT 'default',
+    content TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_chunks_user ON conversation_chunks(user_id, sub_user_id);
+
+CREATE TABLE chunk_embeddings (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    chunk_id UUID NOT NULL REFERENCES conversation_chunks(id) ON DELETE CASCADE,
+    chunk_text TEXT NOT NULL,
+    embedding vector(1536),
+    tsv tsvector,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_chunk_emb_chunk ON chunk_embeddings(chunk_id);
+CREATE INDEX idx_chunk_emb_hnsw ON chunk_embeddings
+    USING hnsw (embedding vector_cosine_ops)
+    WITH (m = 16, ef_construction = 64);
+CREATE INDEX idx_chunk_emb_tsv ON chunk_embeddings USING gin(tsv);
 
 -- ============================================
 -- Helper views

@@ -651,6 +651,52 @@ class CloudStore:
 
             logger.info("✅ Migration complete (v2.12: sub-user isolation)")
 
+        # --- v2.13 Temporal metadata + raw chunk indexing ---
+        with self._cursor() as cur:
+            cur.execute("""
+                ALTER TABLE facts ADD COLUMN IF NOT EXISTS event_date TEXT
+            """)
+            cur.execute("""
+                ALTER TABLE episodes ADD COLUMN IF NOT EXISTS happened_at TEXT
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_facts_event_date
+                ON facts(event_date) WHERE event_date IS NOT NULL
+            """)
+
+            # Raw conversation chunk storage
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS conversation_chunks (
+                    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                    user_id TEXT NOT NULL,
+                    sub_user_id TEXT NOT NULL DEFAULT 'default',
+                    content TEXT NOT NULL,
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_chunks_user
+                ON conversation_chunks(user_id, sub_user_id)
+            """)
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS chunk_embeddings (
+                    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                    chunk_id UUID NOT NULL REFERENCES conversation_chunks(id) ON DELETE CASCADE,
+                    embedding vector(1536),
+                    tsv tsvector
+                )
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_chunk_emb_hnsw ON chunk_embeddings
+                    USING hnsw (embedding vector_cosine_ops) WITH (m=16, ef_construction=64)
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_chunk_emb_tsv ON chunk_embeddings USING gin(tsv)
+            """)
+
+            logger.info("✅ Migration complete (v2.13: temporal metadata + raw chunk indexing)")
+
             cur.execute("SELECT pg_advisory_unlock(42)")
 
     # ---- Job tracking (PostgreSQL-backed, survives restarts) ----
@@ -1025,7 +1071,8 @@ class CloudStore:
                     knowledge: list[dict] = None,
                     metadata: dict = None,
                     expires_at: str = None,
-                    sub_user_id: str = "default") -> str:
+                    sub_user_id: str = "default",
+                    fact_dates: dict = None) -> str:
         """
         Create or update entity with facts, relations, knowledge.
         Auto-deduplicates: merges if similar entity exists.
@@ -1043,7 +1090,7 @@ class CloudStore:
                 logger.info(f"🔀 User → '{canonical_name}' (id: {entity_id})")
                 with self._cursor() as cur:
                     cur.execute("UPDATE entities SET updated_at = NOW() WHERE id = %s", (entity_id,))
-                self._add_facts_knowledge_relations(entity_id, user_id, canonical_name, facts, relations, knowledge, expires_at=expires_at)
+                self._add_facts_knowledge_relations(entity_id, user_id, canonical_name, facts, relations, knowledge, expires_at=expires_at, fact_dates=fact_dates)
                 return entity_id
 
         # Check for case-insensitive exact match first
@@ -1068,7 +1115,7 @@ class CloudStore:
                     cur.execute("UPDATE entities SET updated_at = NOW() WHERE id = %s", (entity_id,))
 
                 # Add facts, knowledge, relations below
-                self._add_facts_knowledge_relations(entity_id, user_id, name, facts, relations, knowledge, expires_at=expires_at)
+                self._add_facts_knowledge_relations(entity_id, user_id, name, facts, relations, knowledge, expires_at=expires_at, fact_dates=fact_dates)
                 return entity_id
 
         # Check for duplicate entity (word-boundary match)
@@ -1104,7 +1151,7 @@ class CloudStore:
                 )
                 entity_id = str(cur.fetchone()[0])
 
-        self._add_facts_knowledge_relations(entity_id, user_id, name, facts, relations, knowledge, expires_at=expires_at)
+        self._add_facts_knowledge_relations(entity_id, user_id, name, facts, relations, knowledge, expires_at=expires_at, fact_dates=fact_dates)
         return entity_id
 
     @staticmethod
@@ -1158,27 +1205,29 @@ class CloudStore:
                                         facts: list[str] = None,
                                         relations: list[dict] = None,
                                         knowledge: list[dict] = None,
-                                        expires_at: str = None):
+                                        expires_at: str = None,
+                                        fact_dates: dict = None):
         """Add facts, knowledge, and relations to an entity."""
         added_facts = []
         with self._cursor() as cur:
             for fact in (facts or []):
                 importance = self.estimate_importance(fact)
+                event_date = (fact_dates or {}).get(fact)
                 if expires_at:
                     cur.execute(
-                        """INSERT INTO facts (entity_id, content, importance, expires_at)
-                           VALUES (%s, %s, %s, %s)
-                           ON CONFLICT (entity_id, content) DO NOTHING
+                        """INSERT INTO facts (entity_id, content, importance, expires_at, event_date)
+                           VALUES (%s, %s, %s, %s, %s)
+                           ON CONFLICT (entity_id, content) DO UPDATE SET event_date = COALESCE(EXCLUDED.event_date, facts.event_date)
                            RETURNING content""",
-                        (entity_id, fact, importance, expires_at)
+                        (entity_id, fact, importance, expires_at, event_date)
                     )
                 else:
                     cur.execute(
-                        """INSERT INTO facts (entity_id, content, importance)
-                           VALUES (%s, %s, %s)
-                           ON CONFLICT (entity_id, content) DO NOTHING
+                        """INSERT INTO facts (entity_id, content, importance, event_date)
+                           VALUES (%s, %s, %s, %s)
+                           ON CONFLICT (entity_id, content) DO UPDATE SET event_date = COALESCE(EXCLUDED.event_date, facts.event_date)
                            RETURNING content""",
-                        (entity_id, fact, importance)
+                        (entity_id, fact, importance, event_date)
                     )
                 row = cur.fetchone()
                 if row:
@@ -1380,7 +1429,7 @@ class CloudStore:
 
             return [entity_map[str(e["id"])] for e in entities]
 
-    def get_existing_context(self, user_id: str, max_entities: int = 20, max_facts_per: int = 5, sub_user_id: str = "default") -> str:
+    def get_existing_context(self, user_id: str, max_entities: int = 40, max_facts_per: int = 10, sub_user_id: str = "default") -> str:
         """Get compact summary of existing entities for extraction context.
         Resolves 'User' to primary person name.
         Returns a string like:
@@ -1534,7 +1583,7 @@ class CloudStore:
     # ---- Search ----
 
     def search_vector(self, user_id: str, embedding: list[float],
-                      top_k: int = 5, min_score: float = 0.3,
+                      top_k: int = 5, min_score: float = 0.2,
                       query_text: str = "",
                       graph_depth: int = 2,
                       sub_user_id: str = "default") -> list[dict]:
@@ -1568,7 +1617,7 @@ class CloudStore:
             vector_rows = cur.fetchall()
             # Rank by score
             vector_rows.sort(key=lambda r: float(r["score"]), reverse=True)
-            vector_ranked = {str(r["id"]): (i + 1, r) for i, r in enumerate(vector_rows[:20])}
+            vector_ranked = {str(r["id"]): (i + 1, r) for i, r in enumerate(vector_rows[:40])}
 
             # ========== STAGE 2: BM25 text search ==========
             bm25_ranked = {}
@@ -1815,25 +1864,28 @@ class CloudStore:
 
     def search_temporal(self, user_id: str, after: str = None, before: str = None,
                         top_k: int = 20, sub_user_id: str = "default") -> list[dict]:
-        """Search facts by time range. Returns entities with facts created in the window."""
+        """Search facts by time range. Returns entities with facts created in the window.
+        Uses event_date for temporal queries (actual event time, not ingestion time).
+        Falls back to created_at only if no event_date data exists."""
         with self._cursor(dict_cursor=True) as cur:
-            conditions = ["e.user_id = %s", "e.sub_user_id = %s", "f.archived = FALSE AND (f.expires_at IS NULL OR f.expires_at > NOW())"]
+            conditions = ["e.user_id = %s", "e.sub_user_id = %s", "f.archived = FALSE AND (f.expires_at IS NULL OR f.expires_at > NOW())",
+                          "f.event_date IS NOT NULL"]
             params = [user_id, sub_user_id]
 
             if after:
-                conditions.append("f.created_at >= %s")
+                conditions.append("f.event_date >= %s")
                 params.append(after)
             if before:
-                conditions.append("f.created_at <= %s")
+                conditions.append("f.event_date <= %s")
                 params.append(before)
 
             where = " AND ".join(conditions)
             cur.execute(
-                f"""SELECT e.name, e.type, f.content, f.created_at
+                f"""SELECT e.name, e.type, f.content, f.event_date, f.created_at
                     FROM facts f
                     JOIN entities e ON e.id = f.entity_id
                     WHERE {where}
-                    ORDER BY f.created_at DESC
+                    ORDER BY f.event_date DESC
                     LIMIT %s""",
                 (*params, top_k)
             )
@@ -1850,6 +1902,7 @@ class CloudStore:
                     }
                 entity_map[name]["facts"].append({
                     "content": row["content"],
+                    "event_date": row["event_date"],
                     "created_at": row["created_at"].isoformat() if row["created_at"] else None,
                 })
 
@@ -2569,7 +2622,8 @@ SEMANTIC MEMORY (facts about the user):
                      metadata: dict = None, expires_at: str = None,
                      linked_procedure_id: str = None,
                      failed_at_step: int = None,
-                     sub_user_id: str = "default") -> str:
+                     sub_user_id: str = "default",
+                     happened_at: str = None) -> str:
         """Save an episodic memory — a specific event or interaction."""
         meta_json = json.dumps(metadata) if metadata else '{}'
         parts = participants or []
@@ -2578,12 +2632,12 @@ SEMANTIC MEMORY (facts about the user):
                 """INSERT INTO episodes
                    (user_id, sub_user_id, summary, context, outcome, participants,
                     emotional_valence, importance, metadata, expires_at,
-                    linked_procedure_id, failed_at_step)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s)
+                    linked_procedure_id, failed_at_step, happened_at)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s)
                    RETURNING id""",
                 (user_id, sub_user_id, summary, context, outcome, parts,
                  emotional_valence, importance, meta_json,
-                 expires_at, linked_procedure_id, failed_at_step)
+                 expires_at, linked_procedure_id, failed_at_step, happened_at)
             )
             episode_id = str(cur.fetchone()[0])
         logger.info(f"📝 Episode saved: {summary[:60]}...")
@@ -2602,6 +2656,94 @@ SEMANTIC MEMORY (facts about the user):
         """Delete all embeddings for an episode."""
         with self._cursor() as cur:
             cur.execute("DELETE FROM episode_embeddings WHERE episode_id = %s", (episode_id,))
+
+    # ---- Raw conversation chunks ----
+
+    def save_conversation_chunk(self, user_id: str, content: str, sub_user_id: str = "default") -> str:
+        """Save a raw conversation chunk for fallback retrieval."""
+        with self._cursor() as cur:
+            cur.execute(
+                """INSERT INTO conversation_chunks (user_id, sub_user_id, content)
+                   VALUES (%s, %s, %s) RETURNING id""",
+                (user_id, sub_user_id, content)
+            )
+            return str(cur.fetchone()[0])
+
+    def save_chunk_embedding(self, chunk_id: str, chunk_text: str, embedding: list[float]):
+        """Save embedding for a conversation chunk."""
+        with self._cursor() as cur:
+            cur.execute(
+                """INSERT INTO chunk_embeddings (chunk_id, embedding, tsv)
+                   VALUES (%s, %s::vector, to_tsvector('english', %s))""",
+                (chunk_id, f"[{','.join(str(x) for x in embedding)}]", chunk_text)
+            )
+
+    def search_chunks_vector(self, user_id: str, embedding: list[float],
+                             query_text: str = "", top_k: int = 5,
+                             min_score: float = 0.2,
+                             sub_user_id: str = "default") -> list[dict]:
+        """Search raw conversation chunks via hybrid vector+BM25."""
+        embedding_str = f"[{','.join(str(x) for x in embedding)}]"
+        with self._cursor(dict_cursor=True) as cur:
+            # Vector search
+            cur.execute(
+                """SELECT c.id, c.content, c.created_at,
+                          1 - (ce.embedding <=> %s::vector) AS score
+                   FROM chunk_embeddings ce
+                   JOIN conversation_chunks c ON c.id = ce.chunk_id
+                   WHERE c.user_id = %s AND c.sub_user_id = %s
+                     AND 1 - (ce.embedding <=> %s::vector) > %s
+                   ORDER BY score DESC
+                   LIMIT %s""",
+                (embedding_str, user_id, sub_user_id, embedding_str, min_score, top_k * 2)
+            )
+            vector_rows = cur.fetchall()
+
+            # BM25 text search
+            bm25_rows = []
+            if query_text:
+                cur.execute(
+                    """SELECT c.id, c.content, c.created_at,
+                              ts_rank(ce.tsv, plainto_tsquery('english', %s)) AS rank
+                       FROM chunk_embeddings ce
+                       JOIN conversation_chunks c ON c.id = ce.chunk_id
+                       WHERE c.user_id = %s AND c.sub_user_id = %s
+                         AND ce.tsv @@ plainto_tsquery('english', %s)
+                       ORDER BY rank DESC
+                       LIMIT %s""",
+                    (query_text, user_id, sub_user_id, query_text, top_k * 2)
+                )
+                bm25_rows = cur.fetchall()
+
+            # Simple RRF merge
+            k = 60
+            scores = {}
+            for i, row in enumerate(vector_rows):
+                cid = str(row["id"])
+                scores[cid] = scores.get(cid, 0) + 1.0 / (k + i + 1)
+                scores[cid + "_data"] = row
+            for i, row in enumerate(bm25_rows):
+                cid = str(row["id"])
+                scores[cid] = scores.get(cid, 0) + 1.0 / (k + i + 1)
+                if cid + "_data" not in scores:
+                    scores[cid + "_data"] = row
+
+            # Sort by RRF score and return top_k
+            ranked = sorted(
+                [(cid, sc) for cid, sc in scores.items() if not cid.endswith("_data")],
+                key=lambda x: x[1], reverse=True
+            )[:top_k]
+
+            results = []
+            for cid, sc in ranked:
+                data = scores.get(cid + "_data", {})
+                results.append({
+                    "id": cid,
+                    "content": data.get("content", ""),
+                    "score": round(sc, 4),
+                    "created_at": data["created_at"].isoformat() if data.get("created_at") else None,
+                })
+            return results
 
     def get_episodes(self, user_id: str, limit: int = 20, after: str = None,
                      before: str = None, sub_user_id: str = "default") -> list[dict]:

@@ -29,75 +29,78 @@ from typing import Optional
 from engine.extractor.llm_client import LLMClient
 
 
-EXTRACTION_PROMPT = """You are a precision knowledge extraction system. Extract IMPORTANT, LASTING personal knowledge from the USER's messages.
+EXTRACTION_PROMPT = """You are a knowledge extraction system. Extract personal knowledge from ALL speakers in the conversation.
 
-Return ONLY valid JSON without markdown. Be VERY selective — quality over quantity.
+Return ONLY valid JSON without markdown.
 
 WHO TO EXTRACT ABOUT:
-- Extract knowledge revealed by the USER about themselves, their projects, their life
-- DO NOT extract general knowledge the assistant explained (e.g. "nginx config is at /etc/nginx" — unless user confirms they used it)
-- If assistant suggests something and user says "yes, I did that" or "that worked" — extract the user's action/result
-- Focus on: user's identity, skills, preferences, projects, decisions, workflows, relationships
-
-ENTITY RULES:
-- ONLY named, specific entities with 2+ extractable facts
-- If something is mentioned once in passing — make it a fact on the parent entity, NOT a separate entity
-  GOOD: Entity "Mengram" → fact: "uses Redis as cache"
-  BAD: Entity "Redis" → fact: "used as cache" (only 1 fact, make it a fact on the project instead)
-- entity_type: person, project, technology, company, concept
-- If user says "I"/"me"/"my" — resolve to their name if known, otherwise "User"
+- Extract facts about ALL people mentioned — both speakers share equally important information
+- Extract identity, preferences, activities, relationships, plans, events for every person
+- If someone says "I went to a support group" — extract it as a fact about THAT person
+- DO NOT extract: generic knowledge the AI assistant explained (unless a person confirmed they use it)
+- If a person says "I"/"me"/"my" — resolve to their name if known, otherwise "User"
 {existing_context}
+ENTITY RULES:
+- Named entities with 1+ extractable facts (people, places, organizations, activities, projects)
+- entity_type: person, project, technology, company, concept, place, activity
+- Create separate entities for each person by name
+- Single-fact entities are OK if the fact is important (identity, job, location, hobby)
+
 ENTITY NAMING:
 - EXACT casing from context: "Mengram" not "MENGRAM", "PostgreSQL" not "postgresql"
-- FULL official name: "Ali Baizhanov" not "Ali", "Uzum Bank" not "uzum"
+- FULL name when known: "Ali Baizhanov" not "Ali", "Uzum Bank" not "uzum"
 - If entity already exists above — use EXACT SAME NAME (do not create duplicates)
 
 FACT RULES:
-- Normalized format: subject + verb + object, present tense, under 10 words
-  GOOD: "uses Python", "deployed on Railway", "prefers dark mode"
-  BAD: "he has been using Python for a while now", "is currently in the process of deploying"
+- Concise but complete, under 20 words
+- ALWAYS include dates/times when mentioned or inferrable from context
+  GOOD: "attended LGBTQ support group on May 7, 2023"
+  GOOD: "started pottery class in June 2023"
+  GOOD: "works as a software engineer at Google"
+  BAD: "attended support group" (date was available but omitted!)
+- If the conversation includes timestamps like "[1:56 pm on 8 May, 2023]" and someone says "yesterday" — calculate the actual date and include it
 - ONLY facts that DIRECTLY describe the entity they're assigned to
 - Keep project facts on projects, personal facts on the person — don't mix
-- DO NOT extract: temporary actions ("asked about X"), session events ("sent a message"), assistant's explanations
+- DO NOT extract: meta-conversation actions ("asked a question", "sent a message", "said hello")
+- Facts can optionally include a "when" date field (see format below)
 
 FACT DEDUP — check existing facts above. Do NOT re-extract facts that already exist (even if worded slightly differently).
-If user says "I use Python" and existing context already has "uses Python" → skip it.
-If user says "I switched from React to Svelte" and existing has "uses React" → extract "switched to Svelte" (this is NEW info).
+If someone says "I use Python" and existing context already has "uses Python" → skip it.
+If someone says "I switched from React to Svelte" and existing has "uses React" → extract "switched to Svelte" (this is NEW info).
 
-EPISODIC MEMORY — extract noteworthy events/interactions:
-- An episode = something that HAPPENED: a discussion, decision, debugging session, milestone, problem solved
-- Only extract if the event is meaningful and worth remembering (not trivial chat)
-- Include: what happened (summary), details (context), result (outcome), who/what was involved (participants)
-- emotional_valence: positive (success, achievement), negative (failure, frustration), neutral, mixed
-- importance: 0.3 (minor event) to 0.9 (major decision/milestone)
-- Do NOT create episodes for routine exchanges with no meaningful outcome
+EPISODIC MEMORY — extract events and interactions:
+- An episode = something that HAPPENED: an activity, decision, milestone, trip, class, meetup, achievement
+- Extract any event worth remembering — err on the side of inclusion
+- Include: what happened (summary), details (context), result (outcome), who was involved (participants)
+- Include "happened_at" date if known from conversation context (e.g. "2023-05-07")
+- emotional_valence: positive, negative, neutral, mixed
+- importance: 0.3 (minor) to 0.9 (major milestone)
+- Do NOT create episodes for pure greetings or small talk with no content
 
-PROCEDURAL MEMORY — extract learned workflows/processes:
-- A procedure = a repeatable sequence of steps the user performs or described
+PROCEDURAL MEMORY — extract workflows/processes:
+- A procedure = a repeatable sequence of steps someone performs or described
 - Only extract if there are 2+ concrete steps forming a workflow
-- Include: name (what the procedure does), trigger (when to use it), steps (ordered actions)
+- Include: name, trigger (when to use it), steps (ordered actions)
 - Link to entities involved
-- Do NOT create procedures from hypothetical/planned workflows — only from confirmed actions
-- IMPORTANT: Extract procedures from IMPLICIT workflows too:
-  - If user describes a sequence of actions: "I deployed, then ran migrations, then restarted" → extract as procedure
-  - If user describes their typical process: "I usually start by checking logs, then..." → extract
-  - If user describes step-by-step debugging/deployment/review/etc → extract
-  - Even casual descriptions like "first I do X, then Y, then Z" contain extractable procedures
+- Extract from IMPLICIT workflows too ("first I do X, then Y, then Z")
 
 Response format (strict JSON, no ```):
 {{
   "entities": [
     {{
       "name": "Entity Name",
-      "type": "person|project|technology|company|concept",
-      "facts": ["fact 1", "fact 2"]
+      "type": "person|project|technology|company|concept|place|activity",
+      "facts": [
+        "simple fact as string",
+        {{"fact": "fact with date", "when": "2023-05-07"}}
+      ]
     }}
   ],
   "relations": [
     {{
       "from": "Entity 1",
       "to": "Entity 2",
-      "type": "works_at|uses|member_of|related_to|depends_on|created_by",
+      "type": "works_at|uses|member_of|related_to|depends_on|created_by|friend_of|lives_in",
       "description": "short description"
     }}
   ],
@@ -112,12 +115,13 @@ Response format (strict JSON, no ```):
   ],
   "episodes": [
     {{
-      "summary": "Brief description of what happened (under 15 words)",
-      "context": "Detailed description of the event and discussion",
+      "summary": "Brief description of what happened (under 20 words)",
+      "context": "Detailed description of the event",
       "outcome": "What was decided, resolved, or resulted",
       "participants": ["Entity1", "Entity2"],
       "emotional_valence": "positive|negative|neutral|mixed",
-      "importance": 0.5
+      "importance": 0.5,
+      "happened_at": "2023-05-07 or null if unknown"
     }}
   ],
   "procedures": [
@@ -125,7 +129,7 @@ Response format (strict JSON, no ```):
       "name": "Short procedure name",
       "trigger": "When/why to use this procedure",
       "steps": [
-        {{"step": 1, "action": "What to do", "detail": "Specific command or instruction"}},
+        {{"step": 1, "action": "What to do", "detail": "Specific instruction"}},
         {{"step": 2, "action": "Next step", "detail": "Specifics"}}
       ],
       "entities": ["Entity1"]
@@ -135,43 +139,39 @@ Response format (strict JSON, no ```):
 
 EXAMPLE:
 Input conversation:
-  User: "I deployed mengram on Railway yesterday, everything works. Had to struggle with pgvector"
-  Assistant: "Great! Which PostgreSQL version?"
-  User: "15, hosted on Supabase. The process is: first build, then twine upload, then npm publish"
+  User: "[2023-06-15] Ali: I deployed mengram on Railway yesterday, everything works."
+  Assistant: "[2023-06-15] Bot: Great! Which PostgreSQL version?"
+  User: "[2023-06-15] Ali: 15, hosted on Supabase."
 
 Output:
 {{
   "entities": [
-    {{"name": "Mengram", "type": "project", "facts": ["deployed on Railway", "uses pgvector extension"]}},
-    {{"name": "Supabase", "type": "technology", "facts": ["hosts PostgreSQL 15 for Mengram"]}}
+    {{"name": "Ali", "type": "person", "facts": [
+      {{"fact": "deployed Mengram on Railway", "when": "2023-06-14"}},
+      "uses Supabase with PostgreSQL 15"
+    ]}},
+    {{"name": "Mengram", "type": "project", "facts": [
+      {{"fact": "deployed on Railway", "when": "2023-06-14"}},
+      "uses Supabase PostgreSQL 15"
+    ]}}
   ],
   "relations": [
-    {{"from": "Mengram", "to": "Railway", "type": "depends_on", "description": "deployed on"}},
+    {{"from": "Ali", "to": "Mengram", "type": "created_by", "description": "deployed and manages"}},
     {{"from": "Mengram", "to": "Supabase", "type": "depends_on", "description": "database hosting"}}
   ],
   "knowledge": [],
   "episodes": [
     {{
-      "summary": "Successfully deployed Mengram on Railway",
-      "context": "Deployed Mengram to Railway. Had issues with pgvector extension that required debugging. Uses Supabase with PostgreSQL 15 as the database.",
-      "outcome": "Deployment successful, everything working",
-      "participants": ["Mengram", "Railway", "Supabase"],
+      "summary": "Ali deployed Mengram on Railway successfully",
+      "context": "Deployed Mengram to Railway with Supabase PostgreSQL 15.",
+      "outcome": "Deployment successful",
+      "participants": ["Ali", "Mengram", "Railway"],
       "emotional_valence": "positive",
-      "importance": 0.7
+      "importance": 0.7,
+      "happened_at": "2023-06-14"
     }}
   ],
-  "procedures": [
-    {{
-      "name": "Release Mengram package",
-      "trigger": "When publishing a new version of Mengram",
-      "steps": [
-        {{"step": 1, "action": "Build Python package", "detail": "python -m build"}},
-        {{"step": 2, "action": "Upload to PyPI", "detail": "twine upload dist/*"}},
-        {{"step": 3, "action": "Publish npm package", "detail": "npm publish"}}
-      ],
-      "entities": ["Mengram"]
-    }}
-  ]
+  "procedures": []
 }}
 
 CONVERSATION:
@@ -187,11 +187,18 @@ EXISTING ENTITIES FOR THIS USER (use same names, avoid duplicate facts):
 
 
 @dataclass
+class ExtractedFact:
+    """Extracted fact with optional temporal metadata."""
+    content: str
+    event_date: Optional[str] = None  # e.g. "2023-05-07"
+
+
+@dataclass
 class ExtractedEntity:
     """Extracted entity"""
     name: str
-    entity_type: str  # person, project, technology, company, concept
-    facts: list[str] = field(default_factory=list)
+    entity_type: str  # person, project, technology, company, concept, place, activity
+    facts: list[ExtractedFact] = field(default_factory=list)
 
     def __repr__(self):
         return f"Entity({self.entity_type}: {self.name}, facts={len(self.facts)})"
@@ -226,12 +233,13 @@ class ExtractedKnowledge:
 @dataclass
 class ExtractedEpisode:
     """Extracted episode — specific event, interaction."""
-    summary: str                  # short description (up to 15 words)
+    summary: str                  # short description (up to 20 words)
     context: str = ""             # detailed description
     outcome: str = ""             # result/outcome
     participants: list[str] = field(default_factory=list)  # participating entities
     emotional_valence: str = "neutral"  # positive/negative/neutral/mixed
     importance: float = 0.5       # 0.0-1.0
+    happened_at: Optional[str] = None  # date when event occurred, e.g. "2023-05-07"
 
     def __repr__(self):
         return f"Episode({self.summary[:50]}... [{self.emotional_valence}])"
@@ -328,10 +336,20 @@ class ConversationExtractor:
 
         # Entities
         for e in data.get("entities", []):
+            raw_facts = e.get("facts", [])
+            parsed_facts = []
+            for f in raw_facts:
+                if isinstance(f, str):
+                    parsed_facts.append(ExtractedFact(content=f))
+                elif isinstance(f, dict):
+                    parsed_facts.append(ExtractedFact(
+                        content=f.get("fact", f.get("content", "")),
+                        event_date=f.get("when", f.get("event_date")),
+                    ))
             result.entities.append(ExtractedEntity(
                 name=e.get("name", "Unknown"),
                 entity_type=e.get("type", "concept"),
-                facts=e.get("facts", []),
+                facts=parsed_facts,
             ))
 
         # Relations
@@ -355,6 +373,9 @@ class ConversationExtractor:
 
         # Episodes (v2.5)
         for ep in data.get("episodes", []):
+            happened = ep.get("happened_at")
+            if happened and str(happened).lower() in ("null", "none", "unknown", ""):
+                happened = None
             result.episodes.append(ExtractedEpisode(
                 summary=ep.get("summary", ""),
                 context=ep.get("context", ""),
@@ -362,6 +383,7 @@ class ConversationExtractor:
                 participants=ep.get("participants", []),
                 emotional_valence=ep.get("emotional_valence", "neutral"),
                 importance=float(ep.get("importance", 0.5)),
+                happened_at=happened,
             ))
 
         # Procedures (v2.5)
@@ -389,7 +411,7 @@ class MockLLMClient(LLMClient):
                     "type": "person",
                     "facts": [
                         "Works as backend developer",
-                        "Works at Uzum Bank",
+                        {"fact": "Works at Uzum Bank", "when": "2024-01-15"},
                         "Main stack: Java, Spring Boot"
                     ]
                 },
@@ -444,7 +466,8 @@ class MockLLMClient(LLMClient):
                     "outcome": "Fixed by adding Redis cache for UserService and BlockedAccountService, reduced pool size to 20",
                     "participants": ["PostgreSQL", "Project Alpha"],
                     "emotional_valence": "positive",
-                    "importance": 0.7
+                    "importance": 0.7,
+                    "happened_at": "2024-01-15"
                 }
             ],
             "procedures": [
