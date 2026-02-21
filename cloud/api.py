@@ -24,7 +24,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("mengram")
 
-from fastapi import FastAPI, HTTPException, Depends, Header, Form
+from fastapi import FastAPI, HTTPException, Depends, Header, Form, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse, PlainTextResponse
 from pydantic import BaseModel
@@ -700,6 +700,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         """
         import threading
 
+        sub_uid = req.user_id or "default"
         job_id = store.create_job(user_id, "add")
         # Build metadata from categories
         metadata = {}
@@ -719,7 +720,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 # Get existing entities context for smarter extraction
                 existing_context = ""
                 try:
-                    existing_context = store.get_existing_context(user_id)
+                    existing_context = store.get_existing_context(user_id, sub_user_id=sub_uid)
                 except Exception as e:
                     logger.error(f"⚠️ Context fetch failed: {e}")
 
@@ -732,7 +733,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 for entity in extraction.entities:
                     if not entity.name:
                         continue
-                    existing_id = store.get_entity_id(user_id, entity.name)
+                    existing_id = store.get_entity_id(user_id, entity.name, sub_user_id=sub_uid)
                     if existing_id and entity.facts:
                         conflict_tasks.append((entity, existing_id))
 
@@ -808,6 +809,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                         knowledge=entity_knowledge,
                         metadata=metadata if metadata else None,
                         expires_at=req.expiration_date,
+                        sub_user_id=sub_uid,
                     )
                     created.append(name)
 
@@ -858,6 +860,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                             importance=ep.importance,
                             metadata=metadata if metadata else None,
                             expires_at=req.expiration_date,
+                            sub_user_id=sub_uid,
                         )
                         # Embed episode (truncate to 2000 chars for embedder safety)
                         ep_embedding = None
@@ -874,7 +877,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                                 from cloud.evolution import EvolutionEngine
 
                                 similar_procs = store.search_procedures_vector(
-                                    user_id, ep_embedding, top_k=3)
+                                    user_id, ep_embedding, top_k=3, sub_user_id=sub_uid)
 
                                 # Combined scoring: vector + entity + keyword overlap
                                 ep_text = f"{ep.summary}. {ep.context or ''} {ep.outcome or ''}"
@@ -913,7 +916,8 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                                         evo = EvolutionEngine(store, embedder, extractor.llm)
                                         evo_result = evo.evolve_on_failure(
                                             user_id, best_proc["id"], episode_id,
-                                            ep.context or ep.summary)
+                                            ep.context or ep.summary,
+                                            sub_user_id=sub_uid)
                                         if evo_result:
                                             logger.info(
                                                 f"🔄 Auto-evolved '{best_proc['name']}' "
@@ -927,17 +931,19 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                                                 new_version=evo_result["new_version"],
                                                 change_description=evo_result.get("change_description", ""),
                                                 procedure_id=evo_result["new_procedure_id"],
+                                                sub_user_id=sub_uid,
                                             )
                                             # Cross-procedure learning
                                             evo.suggest_cross_procedure_updates(
                                                 user_id,
                                                 evo_result["new_procedure_id"],
                                                 evo_result.get("change_description", ""),
+                                                sub_user_id=sub_uid,
                                             )
                                     else:
                                         # Success → increment success count
                                         store.procedure_feedback(
-                                            user_id, best_proc["id"], success=True)
+                                            user_id, best_proc["id"], success=True, sub_user_id=sub_uid)
 
                                     episodes_linked += 1
                             except Exception as e:
@@ -961,6 +967,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                             entity_names=pr.entities,
                             metadata=metadata if metadata else None,
                             expires_at=req.expiration_date,
+                            sub_user_id=sub_uid,
                         )
                         # Embed procedure
                         if embedder:
@@ -977,8 +984,8 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                         logger.error(f"⚠️ Procedure save failed: {e}")
 
                 # Invalidate search cache — fresh data available
-                store.cache.invalidate(f"search:{user_id}")
-                store.cache.invalidate(f"searchall:{user_id}")
+                store.cache.invalidate(f"search:{user_id}:{sub_uid}")
+                store.cache.invalidate(f"searchall:{user_id}:{sub_uid}")
 
                 logger.info(f"✅ Background add complete for {user_id} "
                            f"(entities={len(created)}, episodes={episodes_created}, "
@@ -993,23 +1000,23 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
                 # Auto-trigger reflection if needed
                 try:
-                    if store.should_reflect(user_id):
+                    if store.should_reflect(user_id, sub_user_id=sub_uid):
                         logger.info(f"✨ Auto-reflection triggered for {user_id}")
                         extractor2 = get_llm()
-                        store.generate_reflections(user_id, extractor2.llm)
+                        store.generate_reflections(user_id, extractor2.llm, sub_user_id=sub_uid)
                 except Exception as e:
                     logger.error(f"⚠️ Auto-reflection failed: {e}")
 
                 # ---- Smart Triggers: detect reminders, contradictions, patterns ----
                 triggers_created = 0
                 try:
-                    triggers_created += store.detect_reminder_triggers(user_id)
+                    triggers_created += store.detect_reminder_triggers(user_id, sub_user_id=sub_uid)
                     for entity in extraction.entities:
                         if entity.name and entity.facts:
                             triggers_created += store.detect_contradiction_triggers(
-                                user_id, entity.facts, entity.name
+                                user_id, entity.facts, entity.name, sub_user_id=sub_uid
                             )
-                    triggers_created += store.detect_pattern_triggers(user_id)
+                    triggers_created += store.detect_pattern_triggers(user_id, sub_user_id=sub_uid)
                     if triggers_created > 0:
                         logger.info(f"🧠 Smart triggers created: {triggers_created} for {user_id}")
                 except Exception as e:
@@ -1020,7 +1027,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                     try:
                         from cloud.evolution import EvolutionEngine
                         evo_engine = EvolutionEngine(store, embedder, extractor.llm)
-                        evo_result = evo_engine.detect_and_create_from_episodes(user_id)
+                        evo_result = evo_engine.detect_and_create_from_episodes(user_id, sub_user_id=sub_uid)
                         if evo_result:
                             logger.info(f"🔄 Auto-created procedure '{evo_result['name']}' "
                                        f"from {evo_result['source_episode_count']} episodes")
@@ -1032,6 +1039,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                                 new_version=1,
                                 change_description=f"Auto-created from {evo_result['source_episode_count']} similar episodes",
                                 procedure_id=evo_result["procedure_id"],
+                                sub_user_id=sub_uid,
                             )
                     except Exception as e:
                         logger.error(f"⚠️ Experience-driven procedure detection failed: {e}")
@@ -1060,8 +1068,9 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         """Semantic search across memories with LLM re-ranking."""
         import hashlib as _hashlib
 
+        sub_uid = req.user_id or "default"
         # ---- Redis cache: same query → instant response ----
-        cache_key = f"search:{user_id}:{_hashlib.md5(f'{req.query}:{req.limit}:{req.graph_depth}'.encode()).hexdigest()}"
+        cache_key = f"search:{user_id}:{sub_uid}:{_hashlib.md5(f'{req.query}:{req.limit}:{req.graph_depth}'.encode()).hexdigest()}"
         cached = store.cache.get(cache_key)
         if cached:
             store.log_usage(user_id, "search")
@@ -1075,14 +1084,16 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         if embedder:
             emb = embedder.embed(req.query)
             results = store.search_vector_with_teams(user_id, emb, top_k=search_limit,
-                                          query_text=req.query, graph_depth=req.graph_depth)
+                                          query_text=req.query, graph_depth=req.graph_depth,
+                                          sub_user_id=sub_uid)
             # Fallback: if nothing found, retry with lower threshold
             if not results:
                 results = store.search_vector_with_teams(user_id, emb, top_k=search_limit,
                                               min_score=0.15, query_text=req.query,
-                                              graph_depth=req.graph_depth)
+                                              graph_depth=req.graph_depth,
+                                              sub_user_id=sub_uid)
         else:
-            results = store.search_text(user_id, req.query, top_k=search_limit)
+            results = store.search_text(user_id, req.query, top_k=search_limit, sub_user_id=sub_uid)
 
         # Split direct matches from graph-expanded entities
         direct = [r for r in results if not r.get("_graph")]
@@ -1103,7 +1114,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             r.pop("_graph", None)
 
         # Prepend matching reflections for richer context
-        reflections = store.get_reflections(user_id)
+        reflections = store.get_reflections(user_id, sub_user_id=sub_uid)
         if reflections:
             query_lower = req.query.lower()
             matching = [r for r in reflections if
@@ -1130,25 +1141,25 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         return {"results": results}
 
     @app.get("/v1/memories", tags=["Memory"])
-    async def get_all(user_id_param: str = "default",
+    async def get_all(sub_user_id: str = Query("default"),
                       user_id: str = Depends(auth)):
         """Get all memories (entities)."""
-        entities = store.get_all_entities(user_id)
+        entities = store.get_all_entities(user_id, sub_user_id=sub_user_id)
         store.log_usage(user_id, "get_all")
         return {"memories": entities}
 
     @app.post("/v1/reindex", tags=["Memory"])
-    async def reindex(user_id: str = Depends(auth)):
+    async def reindex(sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
         """Re-generate all embeddings (includes relations now)."""
         embedder = get_embedder()
         if not embedder:
             raise HTTPException(status_code=500, detail="No embedder configured")
 
-        entities = store.get_all_entities_full(user_id)
+        entities = store.get_all_entities_full(user_id, sub_user_id=sub_user_id)
         count = 0
         for entity in entities:
             name = entity["entity"]
-            entity_id = store.get_entity_id(user_id, name)
+            entity_id = store.get_entity_id(user_id, name, sub_user_id=sub_user_id)
             if not entity_id:
                 continue
 
@@ -1170,9 +1181,9 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         return {"reindexed": count}
 
     @app.post("/v1/dedup", tags=["Memory"])
-    async def dedup(user_id: str = Depends(auth)):
+    async def dedup(sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
         """Find and merge duplicate entities."""
-        entities = store.get_all_entities(user_id)
+        entities = store.get_all_entities(user_id, sub_user_id=sub_user_id)
         names = [(e["name"], e.get("type", "unknown")) for e in entities]
         merged = []
 
@@ -1196,8 +1207,8 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                     # Merge shorter into longer
                     canonical = name_a if len(name_a) >= len(name_b) else name_b
                     shorter = name_b if canonical == name_a else name_a
-                    canon_id = store.get_entity_id(user_id, canonical)
-                    short_id = store.get_entity_id(user_id, shorter)
+                    canon_id = store.get_entity_id(user_id, canonical, sub_user_id=sub_user_id)
+                    short_id = store.get_entity_id(user_id, shorter, sub_user_id=sub_user_id)
                     if canon_id and short_id and canon_id != short_id:
                         store.merge_entities(user_id, short_id, canon_id, canonical)
                         merged.append(f"{shorter} → {canonical}")
@@ -1206,9 +1217,9 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         return {"merged": merged, "count": len(merged)}
 
     @app.delete("/v1/entity/{name}", tags=["Memory"])
-    async def delete_entity(name: str, user_id: str = Depends(auth)):
+    async def delete_entity(name: str, sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
         """Delete an entity and all its facts, relations, knowledge, embeddings."""
-        entity_id = store.get_entity_id(user_id, name)
+        entity_id = store.get_entity_id(user_id, name, sub_user_id=sub_user_id)
         if not entity_id:
             raise HTTPException(status_code=404, detail=f"Entity '{name}' not found")
         with store._cursor() as cur:
@@ -1221,13 +1232,13 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         return {"deleted": name}
 
     @app.post("/v1/merge_user", tags=["Memory"])
-    async def merge_user_entity(user_id: str = Depends(auth)):
+    async def merge_user_entity(sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
         """Merge 'User' entity into the primary person entity (e.g. 'Ali Baizhanov')."""
-        user_entity_id = store.get_entity_id(user_id, "User")
+        user_entity_id = store.get_entity_id(user_id, "User", sub_user_id=sub_user_id)
         if not user_entity_id:
             return {"status": "skip", "message": "No 'User' entity found"}
 
-        primary = store._find_primary_person(user_id)
+        primary = store._find_primary_person(user_id, sub_user_id=sub_user_id)
         if not primary:
             return {"status": "skip", "message": "No primary person entity to merge into"}
 
@@ -1239,12 +1250,12 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         return {"status": "merged", "from": "User", "into": target_name, "target_id": target_id}
 
     @app.post("/v1/merge", tags=["Memory"])
-    async def merge_entities_endpoint(source: str, target: str, user_id: str = Depends(auth)):
+    async def merge_entities_endpoint(source: str, target: str, sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
         """Merge source entity into target. Source gets deleted, all data moves to target."""
-        source_id = store.get_entity_id(user_id, source)
+        source_id = store.get_entity_id(user_id, source, sub_user_id=sub_user_id)
         if not source_id:
             raise HTTPException(status_code=404, detail=f"Source entity '{source}' not found")
-        target_id = store.get_entity_id(user_id, target)
+        target_id = store.get_entity_id(user_id, target, sub_user_id=sub_user_id)
         if not target_id:
             raise HTTPException(status_code=404, detail=f"Target entity '{target}' not found")
         if source_id == target_id:
@@ -1253,12 +1264,12 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         return {"status": "merged", "from": source, "into": target}
 
     @app.patch("/v1/entity/{name}/type")
-    async def fix_entity_type(name: str, new_type: str, user_id: str = Depends(auth)):
+    async def fix_entity_type(name: str, new_type: str, sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
         """Fix entity type (e.g. 'company' → 'technology')."""
         valid_types = {"person", "project", "technology", "company", "concept", "unknown"}
         if new_type not in valid_types:
             raise HTTPException(status_code=400, detail=f"Invalid type. Must be one of: {valid_types}")
-        entity_id = store.get_entity_id(user_id, name)
+        entity_id = store.get_entity_id(user_id, name, sub_user_id=sub_user_id)
         if not entity_id:
             raise HTTPException(status_code=404, detail=f"Entity '{name}' not found")
         with store._cursor() as cur:
@@ -1266,9 +1277,9 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         return {"entity": name, "new_type": new_type}
 
     @app.post("/v1/entity/{name}/dedup", tags=["Memory"])
-    async def dedup_entity(name: str, user_id: str = Depends(auth)):
+    async def dedup_entity(name: str, sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
         """Use LLM to deduplicate facts on an entity. Keeps best version, archives redundant ones."""
-        entity_id = store.get_entity_id(user_id, name)
+        entity_id = store.get_entity_id(user_id, name, sub_user_id=sub_user_id)
         if not entity_id:
             raise HTTPException(status_code=404, detail=f"Entity '{name}' not found")
         extractor = get_llm()
@@ -1276,14 +1287,14 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         return result
 
     @app.post("/v1/dedup_all", tags=["Memory"])
-    async def dedup_all_entities(user_id: str = Depends(auth)):
+    async def dedup_all_entities(sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
         """Deduplicate facts across ALL entities for this user."""
-        entities = store.get_all_entities(user_id)
+        entities = store.get_all_entities(user_id, sub_user_id=sub_user_id)
         extractor = get_llm()
         total_archived = 0
         results = []
         for e in entities:
-            entity_id = store.get_entity_id(user_id, e["name"])
+            entity_id = store.get_entity_id(user_id, e["name"], sub_user_id=sub_user_id)
             if not entity_id:
                 continue
             r = store.dedup_entity_facts(entity_id, e["name"], extractor.llm)
@@ -1295,11 +1306,11 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     # ---- Reflection ----
 
     @app.post("/v1/reflect", tags=["Insights"])
-    async def trigger_reflection(user_id: str = Depends(auth)):
+    async def trigger_reflection(sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
         """Manually trigger memory reflection. Generates AI insights from facts."""
         extractor = get_llm()
-        stats = store.get_reflection_stats(user_id)
-        result = store.generate_reflections(user_id, extractor.llm)
+        stats = store.get_reflection_stats(user_id, sub_user_id=sub_user_id)
+        result = store.generate_reflections(user_id, extractor.llm, sub_user_id=sub_user_id)
 
         entity_count = len(result.get("entity_reflections", []))
         cross_count = len(result.get("cross_entity", []))
@@ -1316,14 +1327,14 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         }
 
     @app.get("/v1/reflections", tags=["Insights"])
-    async def get_reflections(scope: str = None, user_id: str = Depends(auth)):
+    async def get_reflections(scope: str = None, sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
         """Get all reflections. Optional ?scope=entity|cross|temporal"""
-        return {"reflections": store.get_reflections(user_id, scope=scope)}
+        return {"reflections": store.get_reflections(user_id, scope=scope, sub_user_id=sub_user_id)}
 
     @app.get("/v1/insights", tags=["Insights"])
-    async def get_insights(user_id: str = Depends(auth)):
+    async def get_insights(sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
         """Get formatted AI insights for dashboard."""
-        return store.get_insights(user_id)
+        return store.get_insights(user_id, sub_user_id=sub_user_id)
 
     # =====================================================
     # MEMORY AGENTS v2.0
@@ -1333,25 +1344,26 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     async def run_agents(
         agent: str = "all",
         auto_fix: bool = False,
+        sub_user_id: str = Query("default"),
         user_id: str = Depends(auth)
     ):
-        """Run memory agents. 
+        """Run memory agents.
         ?agent=curator|connector|digest|all
         ?auto_fix=true — auto-archive low quality and stale facts (curator only)
         """
         llm = get_llm()
 
         if agent == "all":
-            result = store.run_all_agents(user_id, llm.llm, auto_fix=auto_fix)
+            result = store.run_all_agents(user_id, llm.llm, auto_fix=auto_fix, sub_user_id=sub_user_id)
             return {"status": "completed", "agents": result}
         elif agent == "curator":
-            result = store.run_curator_agent(user_id, llm.llm, auto_fix=auto_fix)
+            result = store.run_curator_agent(user_id, llm.llm, auto_fix=auto_fix, sub_user_id=sub_user_id)
             return {"status": "completed", "agent": "curator", "result": result}
         elif agent == "connector":
-            result = store.run_connector_agent(user_id, llm.llm)
+            result = store.run_connector_agent(user_id, llm.llm, sub_user_id=sub_user_id)
             return {"status": "completed", "agent": "connector", "result": result}
         elif agent == "digest":
-            result = store.run_digest_agent(user_id, llm.llm)
+            result = store.run_digest_agent(user_id, llm.llm, sub_user_id=sub_user_id)
             return {"status": "completed", "agent": "digest", "result": result}
         else:
             raise HTTPException(status_code=400, detail=f"Unknown agent: {agent}. Use: curator, connector, digest, all")
@@ -1367,9 +1379,9 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         return {"runs": runs, "total": len(runs)}
 
     @app.get("/v1/agents/status", tags=["Agents"])
-    async def agent_status(user_id: str = Depends(auth)):
+    async def agent_status(sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
         """Check which agents are due to run."""
-        due = store.should_run_agents(user_id)
+        due = store.should_run_agents(user_id, sub_user_id=sub_user_id)
         history = store.get_agent_history(user_id, limit=3)
         return {
             "due": due,
@@ -1468,23 +1480,23 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             raise HTTPException(status_code=403, detail=str(e))
 
     @app.post("/v1/teams/{team_id}/share", tags=["Teams"])
-    async def share_entity(team_id: int, req: dict, user_id: str = Depends(auth)):
+    async def share_entity(team_id: int, req: dict, sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
         """Share a memory with team. Body: {"entity": "Redis"}"""
         entity_name = req.get("entity")
         if not entity_name:
             raise HTTPException(status_code=400, detail="entity name is required")
         try:
-            return store.share_entity(user_id, entity_name, team_id)
+            return store.share_entity(user_id, entity_name, team_id, sub_user_id=sub_user_id)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
     @app.post("/v1/teams/{team_id}/unshare", tags=["Teams"])
-    async def unshare_entity(team_id: int, req: dict, user_id: str = Depends(auth)):
+    async def unshare_entity(team_id: int, req: dict, sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
         """Make a shared memory personal again. Body: {"entity": "Redis"}"""
         entity_name = req.get("entity")
         if not entity_name:
             raise HTTPException(status_code=400, detail="entity name is required")
-        return store.unshare_entity(user_id, entity_name)
+        return store.unshare_entity(user_id, entity_name, sub_user_id=sub_user_id)
 
     @app.post("/v1/teams/{team_id}/leave", tags=["Teams"])
     async def leave_team(team_id: int, user_id: str = Depends(auth)):
@@ -1505,6 +1517,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     @app.post("/v1/archive_fact", tags=["Memory"])
     async def archive_fact(
         req: dict,
+        sub_user_id: str = Query("default"),
         user_id: str = Depends(auth)
     ):
         """Manually archive a wrong fact."""
@@ -1512,7 +1525,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         fact = req.get("fact_content") or req.get("fact")
         if not entity_name or not fact:
             raise HTTPException(status_code=400, detail="entity_name and fact_content required")
-        entity_id = store.get_entity_id(user_id, entity_name)
+        entity_id = store.get_entity_id(user_id, entity_name, sub_user_id=sub_user_id)
         if not entity_id:
             raise HTTPException(status_code=404, detail=f"Entity '{entity_name}' not found")
         with store._cursor() as cur:
@@ -1529,24 +1542,25 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     async def timeline(
         after: str = None, before: str = None,
         limit: int = 20,
+        sub_user_id: str = Query("default"),
         user_id: str = Depends(auth)
     ):
         """Temporal search — what happened in a time range?
         after/before: ISO datetime strings (e.g. 2025-02-01T00:00:00Z)"""
-        results = store.search_temporal(user_id, after=after, before=before, top_k=limit)
+        results = store.search_temporal(user_id, after=after, before=before, top_k=limit, sub_user_id=sub_user_id)
         return {"results": results}
 
     @app.get("/v1/memories/full", tags=["Memory"])
-    async def get_all_full(user_id: str = Depends(auth)):
+    async def get_all_full(sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
         """Get all memories with full facts, relations, knowledge. Single query."""
-        entities = store.get_all_entities_full(user_id)
+        entities = store.get_all_entities_full(user_id, sub_user_id=sub_user_id)
         store.log_usage(user_id, "get_all")
         return {"memories": entities}
 
     @app.get("/v1/memory/{name}", tags=["Memory"])
-    async def get_memory(name: str, user_id: str = Depends(auth)):
+    async def get_memory(name: str, sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
         """Get specific entity details."""
-        entity = store.get_entity(user_id, name)
+        entity = store.get_entity(user_id, name, sub_user_id=sub_user_id)
         if not entity:
             raise HTTPException(status_code=404, detail=f"Entity '{name}' not found")
         return {
@@ -1558,59 +1572,61 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         }
 
     @app.delete("/v1/memory/{name}", tags=["Memory"])
-    async def delete_memory(name: str, user_id: str = Depends(auth)):
+    async def delete_memory(name: str, sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
         """Delete a memory."""
-        deleted = store.delete_entity(user_id, name)
+        deleted = store.delete_entity(user_id, name, sub_user_id=sub_user_id)
         if not deleted:
             raise HTTPException(status_code=404, detail=f"Entity '{name}' not found")
         return {"status": "deleted", "entity": name}
 
     @app.get("/v1/stats", tags=["System"])
-    async def stats(user_id: str = Depends(auth)):
+    async def stats(sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
         """Usage statistics."""
-        return store.get_stats(user_id)
+        return store.get_stats(user_id, sub_user_id=sub_user_id)
 
     @app.get("/v1/graph", tags=["Memory"])
-    async def graph(user_id: str = Depends(auth)):
+    async def graph(sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
         """Knowledge graph for visualization."""
-        return store.get_graph(user_id)
+        return store.get_graph(user_id, sub_user_id=sub_user_id)
 
     @app.get("/v1/feed", tags=["Memory"])
-    async def feed(limit: int = 50, user_id: str = Depends(auth)):
+    async def feed(limit: int = 50, sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
         """Memory feed — recent facts with timestamps for dashboard."""
-        return store.get_feed(user_id, limit=min(limit, 100))
+        return store.get_feed(user_id, limit=min(limit, 100), sub_user_id=sub_user_id)
 
     @app.get("/v1/profile/{target_user_id}", tags=["Memory"])
-    async def get_profile(target_user_id: str, force: bool = False, user_id: str = Depends(auth)):
+    async def get_profile(target_user_id: str, force: bool = False, sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
         """Cognitive Profile — generates a ready-to-use system prompt from user memory.
 
         Returns a personalization prompt that can be inserted into any LLM.
         Cached for 1 hour. Use force=true to regenerate."""
         if target_user_id != user_id:
             raise HTTPException(status_code=403, detail="Cannot access another user's profile")
-        return store.get_profile(target_user_id, force=force)
+        return store.get_profile(target_user_id, force=force, sub_user_id=sub_user_id)
 
     @app.get("/v1/profile", tags=["Memory"])
-    async def get_own_profile(force: bool = False, user_id: str = Depends(auth)):
+    async def get_own_profile(force: bool = False, sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
         """Cognitive Profile for the authenticated user."""
-        return store.get_profile(user_id, force=force)
+        return store.get_profile(user_id, force=force, sub_user_id=sub_user_id)
 
     # ---- Episodic Memory ----
 
     @app.get("/v1/episodes", tags=["Episodic Memory"])
     async def list_episodes(
         limit: int = 20, after: str = None, before: str = None,
+        sub_user_id: str = Query("default"),
         user_id: str = Depends(auth)
     ):
         """List episodic memories (events, interactions, experiences)."""
         episodes = store.get_episodes(user_id, limit=min(limit, 100),
-                                       after=after, before=before)
+                                       after=after, before=before, sub_user_id=sub_user_id)
         return {"episodes": episodes, "count": len(episodes)}
 
     @app.get("/v1/episodes/search", tags=["Episodic Memory"])
     async def search_episodes(
         query: str, limit: int = 5,
         after: str = None, before: str = None,
+        sub_user_id: str = Query("default"),
         user_id: str = Depends(auth)
     ):
         """Semantic search over episodic memories."""
@@ -1618,9 +1634,9 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         if embedder:
             emb = embedder.embed(query)
             results = store.search_episodes_vector(
-                user_id, emb, top_k=limit, after=after, before=before)
+                user_id, emb, top_k=limit, after=after, before=before, sub_user_id=sub_user_id)
         else:
-            results = store.search_episodes_text(user_id, query, top_k=limit)
+            results = store.search_episodes_text(user_id, query, top_k=limit, sub_user_id=sub_user_id)
         return {"results": results}
 
     # ---- Procedural Memory ----
@@ -1628,30 +1644,33 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     @app.get("/v1/procedures", tags=["Procedural Memory"])
     async def list_procedures(
         limit: int = 20,
+        sub_user_id: str = Query("default"),
         user_id: str = Depends(auth)
     ):
         """List procedural memories (learned workflows, skills)."""
-        procedures = store.get_procedures(user_id, limit=min(limit, 100))
+        procedures = store.get_procedures(user_id, limit=min(limit, 100), sub_user_id=sub_user_id)
         return {"procedures": procedures, "count": len(procedures)}
 
     @app.get("/v1/procedures/search", tags=["Procedural Memory"])
     async def search_procedures(
         query: str, limit: int = 5,
+        sub_user_id: str = Query("default"),
         user_id: str = Depends(auth)
     ):
         """Semantic search over procedural memories."""
         embedder = get_embedder()
         if embedder:
             emb = embedder.embed(query)
-            results = store.search_procedures_vector(user_id, emb, top_k=limit)
+            results = store.search_procedures_vector(user_id, emb, top_k=limit, sub_user_id=sub_user_id)
         else:
-            results = store.search_procedures_text(user_id, query, top_k=limit)
+            results = store.search_procedures_text(user_id, query, top_k=limit, sub_user_id=sub_user_id)
         return {"results": results}
 
     @app.patch("/v1/procedures/{procedure_id}/feedback", tags=["Procedural Memory"])
     async def procedure_feedback(
         procedure_id: str, success: bool = True,
         body: FeedbackRequest = None,
+        sub_user_id: str = Query("default"),
         user_id: str = Depends(auth)
     ):
         """Record success/failure feedback for a procedure.
@@ -1659,7 +1678,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         On failure with context, triggers experience-driven evolution:
         creates a linked failure episode and evolves the procedure to a new version.
         """
-        result = store.procedure_feedback(user_id, procedure_id, success)
+        result = store.procedure_feedback(user_id, procedure_id, success, sub_user_id=sub_user_id)
         if "error" in result:
             raise HTTPException(status_code=404, detail=result["error"])
 
@@ -1680,6 +1699,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                         importance=0.7,
                         linked_procedure_id=procedure_id,
                         failed_at_step=body.failed_at_step,
+                        sub_user_id=sub_user_id,
                     )
                     # Embed the failure episode
                     embedder = get_embedder()
@@ -1693,7 +1713,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                     from cloud.evolution import EvolutionEngine
                     extractor = get_llm()
                     engine = EvolutionEngine(store, embedder, extractor.llm)
-                    engine.evolve_on_failure(user_id, procedure_id, episode_id, body.context)
+                    engine.evolve_on_failure(user_id, procedure_id, episode_id, body.context, sub_user_id=sub_user_id)
                 except Exception as e:
                     logger.error(f"⚠️ Procedure evolution failed: {e}")
 
@@ -1704,18 +1724,18 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         return result
 
     @app.get("/v1/procedures/{procedure_id}/history", tags=["Procedural Memory"])
-    async def procedure_history(procedure_id: str, user_id: str = Depends(auth)):
+    async def procedure_history(procedure_id: str, sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
         """Get version history for a procedure. Shows how it evolved over time."""
-        history = store.get_procedure_history(user_id, procedure_id)
+        history = store.get_procedure_history(user_id, procedure_id, sub_user_id=sub_user_id)
         if not history:
             raise HTTPException(status_code=404, detail="procedure not found")
-        evolution = store.get_procedure_evolution(user_id, procedure_id)
+        evolution = store.get_procedure_evolution(user_id, procedure_id, sub_user_id=sub_user_id)
         return {"versions": history, "evolution_log": evolution}
 
     @app.get("/v1/procedures/{procedure_id}/evolution", tags=["Procedural Memory"])
-    async def procedure_evolution(procedure_id: str, user_id: str = Depends(auth)):
+    async def procedure_evolution(procedure_id: str, sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
         """Get the evolution log for a procedure — what changed and why."""
-        evolution = store.get_procedure_evolution(user_id, procedure_id)
+        evolution = store.get_procedure_evolution(user_id, procedure_id, sub_user_id=sub_user_id)
         return {"evolution": evolution}
 
     # ---- Unified Search (all 3 memory types) ----
@@ -1726,8 +1746,9 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         Returns categorized results from each memory system."""
         import hashlib as _hashlib
 
+        sub_uid = req.user_id or "default"
         # ---- Redis cache ----
-        cache_key = f"searchall:{user_id}:{_hashlib.md5(f'{req.query}:{req.limit}:{req.graph_depth}'.encode()).hexdigest()}"
+        cache_key = f"searchall:{user_id}:{sub_uid}:{_hashlib.md5(f'{req.query}:{req.limit}:{req.graph_depth}'.encode()).hexdigest()}"
         cached = store.cache.get(cache_key)
         if cached:
             store.log_usage(user_id, "search_all")
@@ -1743,23 +1764,23 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             emb = embedder.embed(req.query)
             semantic = store.search_vector_with_teams(
                 user_id, emb, top_k=search_limit, query_text=req.query,
-                graph_depth=req.graph_depth)
+                graph_depth=req.graph_depth, sub_user_id=sub_uid)
             if not semantic:
                 semantic = store.search_vector_with_teams(
                     user_id, emb, top_k=search_limit, min_score=0.15,
-                    query_text=req.query, graph_depth=req.graph_depth)
+                    query_text=req.query, graph_depth=req.graph_depth, sub_user_id=sub_uid)
             # Episodic
             episodic = store.search_episodes_vector(
-                user_id, emb, top_k=ep_limit)
+                user_id, emb, top_k=ep_limit, sub_user_id=sub_uid)
             # Procedural
             procedural = store.search_procedures_vector(
-                user_id, emb, top_k=proc_limit)
+                user_id, emb, top_k=proc_limit, sub_user_id=sub_uid)
         else:
-            semantic = store.search_text(user_id, req.query, top_k=search_limit)
+            semantic = store.search_text(user_id, req.query, top_k=search_limit, sub_user_id=sub_uid)
             episodic = store.search_episodes_text(
-                user_id, req.query, top_k=ep_limit)
+                user_id, req.query, top_k=ep_limit, sub_user_id=sub_uid)
             procedural = store.search_procedures_text(
-                user_id, req.query, top_k=proc_limit)
+                user_id, req.query, top_k=proc_limit, sub_user_id=sub_uid)
 
         # Split direct from graph-expanded, rerank only direct
         direct_sem = [r for r in semantic if not r.get("_graph")]
@@ -1787,9 +1808,10 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
     @app.get("/v1/triggers", tags=["Smart Triggers"])
     async def get_own_triggers(include_fired: bool = False,
-                               limit: int = 50, user_id: str = Depends(auth)):
+                               limit: int = 50, sub_user_id: str = Query("default"),
+                               user_id: str = Depends(auth)):
         """Get smart triggers for the authenticated user."""
-        triggers = store.get_triggers(user_id, include_fired=include_fired, limit=limit)
+        triggers = store.get_triggers(user_id, include_fired=include_fired, limit=limit, sub_user_id=sub_user_id)
         for t in triggers:
             for key in ("fire_at", "fired_at", "created_at"):
                 if t.get(key) and hasattr(t[key], "isoformat"):
@@ -1798,9 +1820,10 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
     @app.get("/v1/triggers/{target_user_id}", tags=["Smart Triggers"])
     async def get_triggers(target_user_id: str, include_fired: bool = False,
-                           limit: int = 50, user_id: str = Depends(auth)):
+                           limit: int = 50, sub_user_id: str = Query("default"),
+                           user_id: str = Depends(auth)):
         """Get smart triggers for a specific user."""
-        triggers = store.get_triggers(target_user_id, include_fired=include_fired, limit=limit)
+        triggers = store.get_triggers(target_user_id, include_fired=include_fired, limit=limit, sub_user_id=sub_user_id)
         for t in triggers:
             for key in ("fire_at", "fired_at", "created_at"):
                 if t.get(key) and hasattr(t[key], "isoformat"):
@@ -1829,18 +1852,18 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         raise HTTPException(status_code=404, detail="Trigger not found")
 
     @app.post("/v1/triggers/detect/{target_user_id}", tags=["Smart Triggers"])
-    async def detect_triggers_debug(target_user_id: str, user_id: str = Depends(auth)):
+    async def detect_triggers_debug(target_user_id: str, sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
         """Manually run trigger detection for a user. Returns detailed results."""
         results = {"reminders": 0, "contradictions": 0, "patterns": 0, "errors": []}
         try:
-            results["reminders"] = store.detect_reminder_triggers(target_user_id)
+            results["reminders"] = store.detect_reminder_triggers(target_user_id, sub_user_id=sub_user_id)
         except Exception as e:
             results["errors"].append(f"reminders: {e}")
         try:
-            results["patterns"] = store.detect_pattern_triggers(target_user_id)
+            results["patterns"] = store.detect_pattern_triggers(target_user_id, sub_user_id=sub_user_id)
         except Exception as e:
             results["errors"].append(f"patterns: {e}")
-        triggers = store.get_triggers(target_user_id)
+        triggers = store.get_triggers(target_user_id, sub_user_id=sub_user_id)
         results["total_pending"] = len(triggers)
         results["triggers"] = triggers
         # Serialize datetimes

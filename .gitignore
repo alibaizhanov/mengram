@@ -31,6 +31,10 @@ test_vault/
 # Config with API keys
 config.yaml
 
+# Benchmarks (third-party data + results)
+benchmarks/data/
+benchmarks/results/
+
 # OS
 .DS_Store
 Thumbs.db

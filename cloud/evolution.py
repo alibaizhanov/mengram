@@ -125,7 +125,8 @@ class EvolutionEngine:
         self.llm_client = llm_client
 
     def evolve_on_failure(self, user_id: str, procedure_id: str,
-                          episode_id: str, failure_context: str = "") -> dict | None:
+                          episode_id: str, failure_context: str = "",
+                          sub_user_id: str = "default") -> dict | None:
         """Analyze a procedure failure and create an improved version.
 
         Args:
@@ -133,19 +134,20 @@ class EvolutionEngine:
             procedure_id: ID of the failed procedure (current version).
             episode_id: ID of the failure episode.
             failure_context: Additional context about what went wrong.
+            sub_user_id: Sub-user for data isolation.
 
         Returns:
             Dict with evolution result, or None if evolution failed.
         """
         # 1. Fetch current procedure
-        proc = self.store.get_procedure_by_id(user_id, procedure_id)
+        proc = self.store.get_procedure_by_id(user_id, procedure_id, sub_user_id=sub_user_id)
         if not proc:
             logger.error(f"Evolution failed: procedure {procedure_id} not found")
             return None
 
         # 2. Fetch the failure episode
         episode = None
-        for ep in self.store.get_episodes(user_id, limit=50):
+        for ep in self.store.get_episodes(user_id, limit=50, sub_user_id=sub_user_id):
             if ep["id"] == episode_id:
                 episode = ep
                 break
@@ -193,6 +195,7 @@ class EvolutionEngine:
                 episode_id=episode_id,
                 change_type=result.get("change_type", "step_modified"),
                 diff=result.get("diff", {}),
+                sub_user_id=sub_user_id,
             )
 
             # 6. Re-embed the new version
@@ -219,7 +222,7 @@ class EvolutionEngine:
             logger.error(f"Evolution procedure creation failed: {e}")
             return None
 
-    def detect_and_create_from_episodes(self, user_id: str) -> dict | None:
+    def detect_and_create_from_episodes(self, user_id: str, sub_user_id: str = "default") -> dict | None:
         """Find clusters of similar episodes and auto-create procedures.
 
         Looks for 2+ actionable episodes (positive, neutral, mixed) that aren't
@@ -235,7 +238,7 @@ class EvolutionEngine:
             Dict with created procedure info, or None if no pattern found.
         """
         # 1. Get unlinked actionable episodes (positive + neutral + mixed)
-        episodes = self.store.get_unlinked_actionable_episodes(user_id, limit=50)
+        episodes = self.store.get_unlinked_actionable_episodes(user_id, limit=50, sub_user_id=sub_user_id)
         if len(episodes) < 2:
             return None
 
@@ -286,6 +289,7 @@ class EvolutionEngine:
                         suggestion_steps=proc_data["steps"],
                         episode_count=len(episode_ids),
                         confidence=confidence,
+                        sub_user_id=sub_user_id,
                     )
                     logger.info(f"💡 Procedure suggestion trigger: {proc_data['name']} "
                                f"(confidence={confidence:.0%}, {len(episode_ids)} episodes)")
@@ -299,6 +303,7 @@ class EvolutionEngine:
                     steps=proc_data["steps"],
                     entity_names=proc_data.get("entities", []),
                     source_episode_ids=episode_ids,
+                    sub_user_id=sub_user_id,
                 )
 
                 # 5. Embed the new procedure
@@ -468,7 +473,8 @@ class EvolutionEngine:
 
     def suggest_cross_procedure_updates(self, user_id: str,
                                           evolved_procedure_id: str,
-                                          change_description: str) -> int:
+                                          change_description: str,
+                                          sub_user_id: str = "default") -> int:
         """After procedure A evolves, suggest updates to related procedures.
 
         Finds procedures sharing >= 20% entity overlap with the evolved procedure
@@ -478,7 +484,7 @@ class EvolutionEngine:
             Number of suggestion triggers created.
         """
         # 1. Get the evolved procedure
-        proc = self.store.get_procedure_by_id(user_id, evolved_procedure_id)
+        proc = self.store.get_procedure_by_id(user_id, evolved_procedure_id, sub_user_id=sub_user_id)
         if not proc or not proc.get("entity_names"):
             return 0
 
@@ -487,7 +493,7 @@ class EvolutionEngine:
             return 0
 
         # 2. Get all current procedures for this user
-        all_procs = self.store.get_procedures(user_id, limit=50)
+        all_procs = self.store.get_procedures(user_id, limit=50, sub_user_id=sub_user_id)
         suggestions = 0
 
         for other in all_procs:
@@ -511,6 +517,7 @@ class EvolutionEngine:
                 suggestion_steps=other.get("steps") or [],
                 episode_count=0,
                 confidence=round(overlap, 2),
+                sub_user_id=sub_user_id,
             )
             logger.info(
                 f"🔗 Cross-procedure suggestion: '{other['name']}' may need update "

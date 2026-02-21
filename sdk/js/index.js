@@ -149,7 +149,7 @@ class MengramClient {
    */
   async getAll(options = {}) {
     const params = {};
-    if (options.userId) params.user_id_param = options.userId;
+    if (options.userId && options.userId !== 'default') params.sub_user_id = options.userId;
     if (options.agentId) params.agent_id = options.agentId;
     if (options.appId) params.app_id = options.appId;
     const data = await this._request('GET', '/v1/memories', null, params);
@@ -160,8 +160,10 @@ class MengramClient {
    * Get all memories with full details.
    * @returns {Promise<Array>}
    */
-  async getAllFull() {
-    const data = await this._request('GET', '/v1/memories/full');
+  async getAllFull(options = {}) {
+    const params = {};
+    if (options.userId && options.userId !== 'default') params.sub_user_id = options.userId;
+    const data = await this._request('GET', '/v1/memories/full', null, params);
     return data.memories || [];
   }
 
@@ -170,9 +172,11 @@ class MengramClient {
    * @param {string} name - Entity name
    * @returns {Promise<object|null>}
    */
-  async get(name) {
+  async get(name, options = {}) {
     try {
-      return await this._request('GET', `/v1/memory/${encodeURIComponent(name)}`);
+      const params = {};
+      if (options.userId && options.userId !== 'default') params.sub_user_id = options.userId;
+      return await this._request('GET', `/v1/memory/${encodeURIComponent(name)}`, null, params);
     } catch {
       return null;
     }
@@ -183,9 +187,11 @@ class MengramClient {
    * @param {string} name
    * @returns {Promise<boolean>}
    */
-  async delete(name) {
+  async delete(name, options = {}) {
     try {
-      await this._request('DELETE', `/v1/entity/${encodeURIComponent(name)}`);
+      const params = {};
+      if (options.userId && options.userId !== 'default') params.sub_user_id = options.userId;
+      await this._request('DELETE', `/v1/entity/${encodeURIComponent(name)}`, null, params);
       return true;
     } catch {
       return false;
@@ -196,16 +202,20 @@ class MengramClient {
    * Get usage statistics.
    * @returns {Promise<object>}
    */
-  async stats() {
-    return this._request('GET', '/v1/stats');
+  async stats(options = {}) {
+    const params = {};
+    if (options.userId && options.userId !== 'default') params.sub_user_id = options.userId;
+    return this._request('GET', '/v1/stats', null, params);
   }
 
   /**
    * Get knowledge graph.
    * @returns {Promise<{nodes: Array, edges: Array}>}
    */
-  async graph() {
-    return this._request('GET', '/v1/graph');
+  async graph(options = {}) {
+    const params = {};
+    if (options.userId && options.userId !== 'default') params.sub_user_id = options.userId;
+    return this._request('GET', '/v1/graph', null, params);
   }
 
   // ---- Cognitive Profile ----
@@ -220,7 +230,8 @@ class MengramClient {
   async getProfile(userId = 'default', options = {}) {
     const params = {};
     if (options.force) params.force = 'true';
-    return this._request('GET', `/v1/profile/${userId}`, null, params);
+    if (userId && userId !== 'default') params.sub_user_id = userId;
+    return this._request('GET', '/v1/profile', null, params);
   }
 
   // ---- Episodic Memory ----
@@ -239,12 +250,14 @@ class MengramClient {
       const params = { query: options.query, limit: options.limit || 5 };
       if (options.after) params.after = options.after;
       if (options.before) params.before = options.before;
+      if (options.userId && options.userId !== 'default') params.sub_user_id = options.userId;
       const data = await this._request('GET', '/v1/episodes/search', null, params);
       return data.results || [];
     } else {
       const params = { limit: options.limit || 20 };
       if (options.after) params.after = options.after;
       if (options.before) params.before = options.before;
+      if (options.userId && options.userId !== 'default') params.sub_user_id = options.userId;
       const data = await this._request('GET', '/v1/episodes', null, params);
       return data.episodes || [];
     }
@@ -262,10 +275,12 @@ class MengramClient {
   async procedures(options = {}) {
     if (options.query) {
       const params = { query: options.query, limit: options.limit || 5 };
+      if (options.userId && options.userId !== 'default') params.sub_user_id = options.userId;
       const data = await this._request('GET', '/v1/procedures/search', null, params);
       return data.results || [];
     } else {
       const params = { limit: options.limit || 20 };
+      if (options.userId && options.userId !== 'default') params.sub_user_id = options.userId;
       const data = await this._request('GET', '/v1/procedures', null, params);
       return data.procedures || [];
     }
@@ -287,9 +302,9 @@ class MengramClient {
       context: options.context,
       ...(options.failedAtStep != null && { failed_at_step: options.failedAtStep }),
     } : null;
-    return this._request('PATCH', `/v1/procedures/${procedureId}/feedback`, body, {
-      success: success ? 'true' : 'false',
-    });
+    const params = { success: success ? 'true' : 'false' };
+    if (options.userId && options.userId !== 'default') params.sub_user_id = options.userId;
+    return this._request('PATCH', `/v1/procedures/${procedureId}/feedback`, body, params);
   }
 
   /**
@@ -297,8 +312,10 @@ class MengramClient {
    * @param {string} procedureId - UUID of any version of the procedure
    * @returns {Promise<{versions: Array, evolution_log: Array}>}
    */
-  async procedureHistory(procedureId) {
-    return this._request('GET', `/v1/procedures/${procedureId}/history`);
+  async procedureHistory(procedureId, options = {}) {
+    const params = {};
+    if (options.userId && options.userId !== 'default') params.sub_user_id = options.userId;
+    return this._request('GET', `/v1/procedures/${procedureId}/history`, null, params);
   }
 
   /**
@@ -306,8 +323,10 @@ class MengramClient {
    * @param {string} procedureId - UUID of any version of the procedure
    * @returns {Promise<{evolution: Array}>}
    */
-  async procedureEvolution(procedureId) {
-    return this._request('GET', `/v1/procedures/${procedureId}/evolution`);
+  async procedureEvolution(procedureId, options = {}) {
+    const params = {};
+    if (options.userId && options.userId !== 'default') params.sub_user_id = options.userId;
+    return this._request('GET', `/v1/procedures/${procedureId}/evolution`, null, params);
   }
 
   // ---- Unified Search ----
@@ -323,6 +342,7 @@ class MengramClient {
     return this._request('POST', '/v1/search/all', {
       query,
       limit: options.limit || 5,
+      user_id: options.userId || 'default',
     });
   }
 
@@ -338,6 +358,7 @@ class MengramClient {
     const params = { limit: options.limit || 20 };
     if (options.after) params.after = options.after;
     if (options.before) params.before = options.before;
+    if (options.userId && options.userId !== 'default') params.sub_user_id = options.userId;
     const data = await this._request('GET', '/v1/timeline', null, params);
     return data.results || [];
   }
@@ -352,10 +373,12 @@ class MengramClient {
    * @returns {Promise<object>}
    */
   async runAgents(options = {}) {
-    return this._request('POST', '/v1/agents/run', null, {
+    const params = {
       agent: options.agent || 'all',
       auto_fix: options.autoFix ? 'true' : 'false',
-    });
+    };
+    if (options.userId && options.userId !== 'default') params.sub_user_id = options.userId;
+    return this._request('POST', '/v1/agents/run', null, params);
   }
 
   /**
@@ -378,16 +401,20 @@ class MengramClient {
    * Get AI insights and reflections.
    * @returns {Promise<object>}
    */
-  async insights() {
-    return this._request('GET', '/v1/insights');
+  async insights(options = {}) {
+    const params = {};
+    if (options.userId && options.userId !== 'default') params.sub_user_id = options.userId;
+    return this._request('GET', '/v1/insights', null, params);
   }
 
   /**
    * Trigger reflection generation.
    * @returns {Promise<object>}
    */
-  async reflect() {
-    return this._request('POST', '/v1/reflect');
+  async reflect(options = {}) {
+    const params = {};
+    if (options.userId && options.userId !== 'default') params.sub_user_id = options.userId;
+    return this._request('POST', '/v1/reflect', null, params);
   }
 
   // ---- Webhooks ----
@@ -469,8 +496,10 @@ class MengramClient {
    * @param {number} teamId
    * @returns {Promise<object>}
    */
-  async shareMemory(entityName, teamId) {
-    return this._request('POST', `/v1/teams/${teamId}/share`, { entity: entityName });
+  async shareMemory(entityName, teamId, options = {}) {
+    const params = {};
+    if (options.userId && options.userId !== 'default') params.sub_user_id = options.userId;
+    return this._request('POST', `/v1/teams/${teamId}/share`, { entity: entityName }, params);
   }
 
   // ---- API Keys ----
@@ -547,12 +576,12 @@ class MengramClient {
    * @returns {Promise<Array>}
    */
   async getTriggers(userId = null, options = {}) {
-    const params = new URLSearchParams();
-    if (options.includeFired) params.set('include_fired', 'true');
-    if (options.limit) params.set('limit', options.limit);
-    const qs = params.toString() ? `?${params}` : '';
-    const path = userId ? `/v1/triggers/${userId}${qs}` : `/v1/triggers${qs}`;
-    const result = await this._request('GET', path);
+    const params = {};
+    if (options.includeFired) params.include_fired = 'true';
+    if (options.limit) params.limit = options.limit;
+    if (options.subUserId && options.subUserId !== 'default') params.sub_user_id = options.subUserId;
+    const path = userId ? `/v1/triggers/${userId}` : '/v1/triggers';
+    const result = await this._request('GET', path, null, params);
     return result.triggers || [];
   }
 

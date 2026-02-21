@@ -35,15 +35,17 @@ CREATE INDEX idx_api_keys_hash ON api_keys(key_hash);
 CREATE TABLE entities (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    sub_user_id TEXT NOT NULL DEFAULT 'default',
     name VARCHAR(255) NOT NULL,
     type VARCHAR(50) NOT NULL DEFAULT 'concept',  -- person, project, technology, company, concept
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW(),
 
-    UNIQUE(user_id, name)
+    UNIQUE(user_id, sub_user_id, name)
 );
 
 CREATE INDEX idx_entities_user ON entities(user_id);
+CREATE INDEX idx_entities_sub_user ON entities(user_id, sub_user_id);
 CREATE INDEX idx_entities_type ON entities(user_id, type);
 CREATE INDEX idx_entities_name ON entities(user_id, name);
 
@@ -129,6 +131,7 @@ CREATE INDEX idx_embeddings_tsv ON embeddings USING gin(tsv);
 CREATE TABLE episodes (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id TEXT NOT NULL,
+    sub_user_id TEXT NOT NULL DEFAULT 'default',
     summary TEXT NOT NULL,
     context TEXT,
     outcome TEXT,
@@ -143,6 +146,7 @@ CREATE TABLE episodes (
 );
 
 CREATE INDEX idx_episodes_user ON episodes(user_id, created_at DESC);
+CREATE INDEX idx_episodes_sub_user ON episodes(user_id, sub_user_id, created_at DESC);
 CREATE INDEX idx_episodes_participants ON episodes USING gin(participants);
 CREATE INDEX idx_episodes_expires ON episodes(expires_at) WHERE expires_at IS NOT NULL;
 
@@ -168,6 +172,7 @@ CREATE INDEX idx_ep_emb_tsv ON episode_embeddings USING gin(tsv);
 CREATE TABLE procedures (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id TEXT NOT NULL,
+    sub_user_id TEXT NOT NULL DEFAULT 'default',
     name VARCHAR(255) NOT NULL,
     trigger_condition TEXT,
     steps JSONB NOT NULL DEFAULT '[]',
@@ -184,10 +189,11 @@ CREATE TABLE procedures (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     expires_at TIMESTAMPTZ,
-    UNIQUE(user_id, name, version)
+    UNIQUE(user_id, sub_user_id, name, version)
 );
 
 CREATE INDEX idx_procedures_user ON procedures(user_id, updated_at DESC);
+CREATE INDEX idx_procedures_sub_user ON procedures(user_id, sub_user_id);
 CREATE INDEX idx_procedures_entities ON procedures USING gin(entity_names);
 
 CREATE TABLE procedure_embeddings (
@@ -250,6 +256,7 @@ CREATE INDEX idx_usage_user_date ON usage_log(user_id, created_at);
 CREATE TABLE memory_triggers (
     id SERIAL PRIMARY KEY,
     user_id TEXT NOT NULL,
+    sub_user_id TEXT NOT NULL DEFAULT 'default',
     trigger_type VARCHAR(30) NOT NULL,  -- 'reminder', 'contradiction', 'pattern'
     title TEXT NOT NULL,                -- human-readable summary
     detail TEXT,                        -- full context
@@ -264,6 +271,7 @@ CREATE TABLE memory_triggers (
 CREATE INDEX idx_triggers_pending ON memory_triggers(user_id, fired, fire_at)
     WHERE fired = FALSE;
 CREATE INDEX idx_triggers_user ON memory_triggers(user_id, created_at DESC);
+CREATE INDEX idx_triggers_sub_user ON memory_triggers(user_id, sub_user_id);
 
 -- ============================================
 -- 11. Background Jobs (v2.10 — persistent across workers)
@@ -290,6 +298,7 @@ CREATE VIEW entity_overview AS
 SELECT
     e.id,
     e.user_id,
+    e.sub_user_id,
     e.name,
     e.type,
     e.created_at,

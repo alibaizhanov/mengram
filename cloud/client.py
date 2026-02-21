@@ -143,32 +143,47 @@ class CloudMemory:
 
     def get_all(self, user_id: str = "default") -> list[dict]:
         """Get all memories for user."""
-        result = self._request("GET", f"/v1/memories?user_id_param={user_id}")
+        params = {}
+        if user_id and user_id != "default":
+            params["sub_user_id"] = user_id
+        result = self._request("GET", "/v1/memories", params=params)
         return result.get("memories", [])
 
     def get_all_full(self, user_id: str = "default") -> list[dict]:
         """Get all memories with full details in one request."""
-        result = self._request("GET", "/v1/memories/full")
+        params = {}
+        if user_id and user_id != "default":
+            params["sub_user_id"] = user_id
+        result = self._request("GET", "/v1/memories/full", params=params)
         return result.get("memories", [])
 
     def get(self, name: str, user_id: str = "default") -> Optional[dict]:
         """Get specific entity details."""
         try:
-            return self._request("GET", f"/v1/memory/{name}")
+            params = {}
+            if user_id and user_id != "default":
+                params["sub_user_id"] = user_id
+            return self._request("GET", f"/v1/memory/{name}", params=params)
         except Exception:
             return None
 
     def delete(self, name: str, user_id: str = "default") -> bool:
         """Delete a memory."""
         try:
-            self._request("DELETE", f"/v1/memory/{name}")
+            params = {}
+            if user_id and user_id != "default":
+                params["sub_user_id"] = user_id
+            self._request("DELETE", f"/v1/memory/{name}", params=params)
             return True
         except Exception:
             return False
 
     def stats(self, user_id: str = "default") -> dict:
         """Get usage statistics."""
-        return self._request("GET", "/v1/stats")
+        params = {}
+        if user_id and user_id != "default":
+            params["sub_user_id"] = user_id
+        return self._request("GET", "/v1/stats", params=params)
 
     def timeline(self, after: str = None, before: str = None,
                  user_id: str = "default", limit: int = 20) -> list[dict]:
@@ -178,12 +193,17 @@ class CloudMemory:
             params["after"] = after
         if before:
             params["before"] = before
+        if user_id and user_id != "default":
+            params["sub_user_id"] = user_id
         resp = self._request("GET", "/v1/timeline", params=params)
         return resp.get("results", [])
 
     def graph(self, user_id: str = "default") -> dict:
         """Get knowledge graph (nodes + edges)."""
-        return self._request("GET", "/v1/graph")
+        params = {}
+        if user_id and user_id != "default":
+            params["sub_user_id"] = user_id
+        return self._request("GET", "/v1/graph", params=params)
 
     # ---- Cognitive Profile ----
 
@@ -206,7 +226,7 @@ class CloudMemory:
         if force:
             params["force"] = "true"
         if user_id and user_id != "default":
-            return self._request("GET", f"/v1/profile/{user_id}", params=params)
+            params["sub_user_id"] = user_id
         return self._request("GET", "/v1/profile", params=params)
 
     # ---- Episodic Memory ----
@@ -232,6 +252,8 @@ class CloudMemory:
                 params["after"] = after
             if before:
                 params["before"] = before
+            if user_id and user_id != "default":
+                params["sub_user_id"] = user_id
             resp = self._request("GET", "/v1/episodes/search", params=params)
             return resp.get("results", [])
         else:
@@ -240,6 +262,8 @@ class CloudMemory:
                 params["after"] = after
             if before:
                 params["before"] = before
+            if user_id and user_id != "default":
+                params["sub_user_id"] = user_id
             resp = self._request("GET", "/v1/episodes", params=params)
             return resp.get("episodes", [])
 
@@ -259,10 +283,14 @@ class CloudMemory:
         """
         if query:
             params = {"query": query, "limit": limit}
+            if user_id and user_id != "default":
+                params["sub_user_id"] = user_id
             resp = self._request("GET", "/v1/procedures/search", params=params)
             return resp.get("results", [])
         else:
             params = {"limit": limit}
+            if user_id and user_id != "default":
+                params["sub_user_id"] = user_id
             resp = self._request("GET", "/v1/procedures", params=params)
             return resp.get("procedures", [])
 
@@ -290,9 +318,11 @@ class CloudMemory:
             data = {"context": context}
             if failed_at_step is not None:
                 data["failed_at_step"] = failed_at_step
+        params = {"success": "true" if success else "false"}
+        if user_id and user_id != "default":
+            params["sub_user_id"] = user_id
         return self._request("PATCH", f"/v1/procedures/{procedure_id}/feedback",
-                            data=data,
-                            params={"success": "true" if success else "false"})
+                            data=data, params=params)
 
     def procedure_history(self, procedure_id: str,
                           user_id: str = "default") -> dict:
@@ -307,7 +337,10 @@ class CloudMemory:
         Returns:
             {"versions": [...], "evolution_log": [...]}
         """
-        return self._request("GET", f"/v1/procedures/{procedure_id}/history")
+        params = {}
+        if user_id and user_id != "default":
+            params["sub_user_id"] = user_id
+        return self._request("GET", f"/v1/procedures/{procedure_id}/history", params=params)
 
     def procedure_evolution(self, procedure_id: str,
                             user_id: str = "default") -> dict:
@@ -322,7 +355,10 @@ class CloudMemory:
         Returns:
             {"evolution": [...]}
         """
-        return self._request("GET", f"/v1/procedures/{procedure_id}/evolution")
+        params = {}
+        if user_id and user_id != "default":
+            params["sub_user_id"] = user_id
+        return self._request("GET", f"/v1/procedures/{procedure_id}/evolution", params=params)
 
     # ---- Unified Search ----
 
@@ -335,7 +371,7 @@ class CloudMemory:
             {"semantic": [...], "episodic": [...], "procedural": [...]}
         """
         return self._request("POST", "/v1/search/all",
-                            data={"query": query, "limit": limit})
+                            data={"query": query, "limit": limit, "user_id": user_id})
 
     # ---- Agents ----
 
@@ -351,8 +387,10 @@ class CloudMemory:
         Returns:
             Agent results with findings, patterns, suggestions
         """
-        return self._request("POST", "/v1/agents/run",
-                             params={"agent": agent, "auto_fix": str(auto_fix).lower()})
+        params = {"agent": agent, "auto_fix": str(auto_fix).lower()}
+        if user_id and user_id != "default":
+            params["sub_user_id"] = user_id
+        return self._request("POST", "/v1/agents/run", params=params)
 
     def agent_history(self, agent: str = None, limit: int = 10,
                       user_id: str = "default") -> list:
@@ -365,23 +403,34 @@ class CloudMemory:
 
     def agent_status(self, user_id: str = "default") -> dict:
         """Check which agents are due to run."""
-        return self._request("GET", "/v1/agents/status")
+        params = {}
+        if user_id and user_id != "default":
+            params["sub_user_id"] = user_id
+        return self._request("GET", "/v1/agents/status", params=params)
 
     # ---- Insights & Reflections ----
 
     def insights(self, user_id: str = "default") -> dict:
         """Get AI insights from memory reflections."""
-        return self._request("GET", "/v1/insights")
+        params = {}
+        if user_id and user_id != "default":
+            params["sub_user_id"] = user_id
+        return self._request("GET", "/v1/insights", params=params)
 
     def reflect(self, user_id: str = "default") -> dict:
         """Trigger memory reflection — generates AI insights from facts."""
-        return self._request("POST", "/v1/reflect")
+        params = {}
+        if user_id and user_id != "default":
+            params["sub_user_id"] = user_id
+        return self._request("POST", "/v1/reflect", params=params)
 
     def reflections(self, scope: str = None, user_id: str = "default") -> list:
         """Get all reflections. Optional scope: entity, cross, temporal."""
         params = {}
         if scope:
             params["scope"] = scope
+        if user_id and user_id != "default":
+            params["sub_user_id"] = user_id
         result = self._request("GET", "/v1/reflections", params=params)
         return result.get("reflections", [])
 
@@ -449,12 +498,20 @@ class CloudMemory:
     def share_memory(self, entity_name: str, team_id: int,
                      user_id: str = "default") -> dict:
         """Share a memory entity with a team."""
-        return self._request("POST", f"/v1/teams/{team_id}/share", {"entity": entity_name})
+        params = {}
+        if user_id and user_id != "default":
+            params["sub_user_id"] = user_id
+        return self._request("POST", f"/v1/teams/{team_id}/share",
+                            {"entity": entity_name}, params=params)
 
     def unshare_memory(self, entity_name: str, team_id: int,
                        user_id: str = "default") -> dict:
         """Make a shared memory personal again."""
-        return self._request("POST", f"/v1/teams/{team_id}/unshare", {"entity": entity_name})
+        params = {}
+        if user_id and user_id != "default":
+            params["sub_user_id"] = user_id
+        return self._request("POST", f"/v1/teams/{team_id}/unshare",
+                            {"entity": entity_name}, params=params)
 
     # ---- API Key Management ----
 
@@ -500,9 +557,12 @@ class CloudMemory:
     # ---- Smart Triggers (v2.6) ----
 
     def get_triggers(self, user_id: str = None,
-                     include_fired: bool = False, limit: int = 50) -> list:
+                     include_fired: bool = False, limit: int = 50,
+                     sub_user_id: str = "default") -> list:
         """Get smart triggers (reminders, contradictions, patterns)."""
         params = {"include_fired": include_fired, "limit": limit}
+        if sub_user_id and sub_user_id != "default":
+            params["sub_user_id"] = sub_user_id
         path = f"/v1/triggers/{user_id}" if user_id else "/v1/triggers"
         result = self._request("GET", path, params=params)
         return result.get("triggers", [])

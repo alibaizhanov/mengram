@@ -210,7 +210,7 @@ class MengramRetriever:
         docs = []
 
         try:
-            results = self.client.search_all(query, limit=self.top_k)
+            results = self.client.search_all(query, limit=self.top_k, user_id=self.user_id)
         except Exception as e:
             logger.warning(f"Mengram search failed: {e}")
             return docs

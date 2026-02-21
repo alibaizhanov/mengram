@@ -528,6 +528,100 @@ class CloudStore:
             """)
         logger.info("✅ Migration complete (v2.10: persistent jobs)")
 
+        # --- v2.12 Sub-user isolation ---
+        with self._cursor() as cur:
+            # entities: add sub_user_id, update UNIQUE constraint
+            cur.execute("""
+                ALTER TABLE entities ADD COLUMN IF NOT EXISTS sub_user_id
+                TEXT NOT NULL DEFAULT 'default'
+            """)
+            cur.execute("""
+                DO $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM pg_constraint
+                        WHERE conname = 'entities_user_id_name_key'
+                    ) THEN
+                        ALTER TABLE entities DROP CONSTRAINT entities_user_id_name_key;
+                    END IF;
+                END $$
+            """)
+            cur.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_entities_user_sub_name
+                ON entities(user_id, sub_user_id, name)
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_entities_sub_user
+                ON entities(user_id, sub_user_id)
+            """)
+
+            # episodes: add sub_user_id
+            cur.execute("""
+                ALTER TABLE episodes ADD COLUMN IF NOT EXISTS sub_user_id
+                TEXT NOT NULL DEFAULT 'default'
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_episodes_sub_user
+                ON episodes(user_id, sub_user_id, created_at DESC)
+            """)
+
+            # procedures: add sub_user_id, update UNIQUE index
+            cur.execute("""
+                ALTER TABLE procedures ADD COLUMN IF NOT EXISTS sub_user_id
+                TEXT NOT NULL DEFAULT 'default'
+            """)
+            # Drop old unique index if exists, create new one with sub_user_id
+            cur.execute("""
+                DROP INDEX IF EXISTS idx_procedures_user_name_version
+            """)
+            cur.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_procedures_user_sub_name_version
+                ON procedures(user_id, sub_user_id, name, version)
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_procedures_sub_user
+                ON procedures(user_id, sub_user_id)
+            """)
+
+            # knowledge: add sub_user_id
+            cur.execute("""
+                ALTER TABLE knowledge ADD COLUMN IF NOT EXISTS sub_user_id
+                TEXT NOT NULL DEFAULT 'default'
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_knowledge_sub_user
+                ON knowledge(user_id, sub_user_id) WHERE user_id IS NOT NULL
+            """)
+
+            # memory_triggers: add sub_user_id
+            cur.execute("""
+                ALTER TABLE memory_triggers ADD COLUMN IF NOT EXISTS sub_user_id
+                TEXT NOT NULL DEFAULT 'default'
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_triggers_sub_user
+                ON memory_triggers(user_id, sub_user_id)
+            """)
+
+            # Recreate entity_overview view to include sub_user_id
+            cur.execute("DROP VIEW IF EXISTS entity_overview")
+            cur.execute("""
+                CREATE VIEW entity_overview AS
+                SELECT e.id, e.user_id, e.sub_user_id, e.name, e.type,
+                       e.created_at, e.updated_at,
+                       COUNT(DISTINCT f.id) AS facts_count,
+                       COUNT(DISTINCT k.id) AS knowledge_count,
+                       COUNT(DISTINCT r1.id) + COUNT(DISTINCT r2.id) AS relations_count
+                FROM entities e
+                LEFT JOIN facts f ON f.entity_id = e.id
+                LEFT JOIN knowledge k ON k.entity_id = e.id
+                LEFT JOIN relations r1 ON r1.source_id = e.id
+                LEFT JOIN relations r2 ON r2.target_id = e.id
+                GROUP BY e.id
+            """)
+
+        logger.info("✅ Migration complete (v2.12: sub-user isolation)")
+
     # ---- Job tracking (PostgreSQL-backed, survives restarts) ----
 
     def create_job(self, user_id: str, job_type: str = "add") -> str:
@@ -790,7 +884,7 @@ class CloudStore:
 
     # ---- Entities ----
 
-    def _find_primary_person(self, user_id: str) -> Optional[tuple]:
+    def _find_primary_person(self, user_id: str, sub_user_id: str = "default") -> Optional[tuple]:
         """Find the primary person entity for this user.
         Prefers: full name (has space) > most facts > most recent."""
         with self._cursor() as cur:
@@ -799,18 +893,18 @@ class CloudStore:
                           CASE WHEN e.name LIKE '%% %%' THEN 1 ELSE 0 END as has_full_name
                    FROM entities e
                    LEFT JOIN facts f ON f.entity_id = e.id AND f.archived = FALSE AND (f.expires_at IS NULL OR f.expires_at > NOW())
-                   WHERE e.user_id = %s AND e.type = 'person' AND LOWER(e.name) != 'user'
+                   WHERE e.user_id = %s AND e.sub_user_id = %s AND e.type = 'person' AND LOWER(e.name) != 'user'
                    GROUP BY e.id, e.name
                    ORDER BY has_full_name DESC, fact_count DESC, e.updated_at DESC
                    LIMIT 1""",
-                (user_id,)
+                (user_id, sub_user_id)
             )
             row = cur.fetchone()
             if row:
                 return (str(row[0]), row[1])
             return None
 
-    def find_duplicate(self, user_id: str, name: str) -> Optional[tuple]:
+    def find_duplicate(self, user_id: str, name: str, sub_user_id: str = "default") -> Optional[tuple]:
         """Find existing entity that matches this name.
         Only matches if: same type context AND one name is a complete word prefix/suffix of the other.
         Returns (entity_id, canonical_name) or None."""
@@ -822,14 +916,14 @@ class CloudStore:
             # Find entities where one name starts with the other + space
             # e.g. "Ali" matches "Ali Baizhanov" but "Rust" does NOT match "Rustem"
             cur.execute(
-                """SELECT id, name, type FROM entities 
-                   WHERE user_id = %s AND name != %s
+                """SELECT id, name, type FROM entities
+                   WHERE user_id = %s AND sub_user_id = %s AND name != %s
                    AND (
                        LOWER(name) LIKE %s || ' %%'
                        OR %s LIKE LOWER(name) || ' %%'
                        OR LOWER(name) = %s
                    )""",
-                (user_id, name, name_lower, name_lower, name_lower)
+                (user_id, sub_user_id, name, name_lower, name_lower, name_lower)
             )
             matches = cur.fetchall()
             if not matches:
@@ -899,7 +993,8 @@ class CloudStore:
                     relations: list[dict] = None,
                     knowledge: list[dict] = None,
                     metadata: dict = None,
-                    expires_at: str = None) -> str:
+                    expires_at: str = None,
+                    sub_user_id: str = "default") -> str:
         """
         Create or update entity with facts, relations, knowledge.
         Auto-deduplicates: merges if similar entity exists.
@@ -911,7 +1006,7 @@ class CloudStore:
 
         # ---- "User" resolution: merge into primary person entity ----
         if name.lower() == "user" and type == "person":
-            primary = self._find_primary_person(user_id)
+            primary = self._find_primary_person(user_id, sub_user_id=sub_user_id)
             if primary:
                 entity_id, canonical_name = primary
                 logger.info(f"🔀 User → '{canonical_name}' (id: {entity_id})")
@@ -923,8 +1018,8 @@ class CloudStore:
         # Check for case-insensitive exact match first
         with self._cursor() as cur:
             cur.execute(
-                "SELECT id, name FROM entities WHERE user_id = %s AND LOWER(name) = LOWER(%s)",
-                (user_id, name)
+                "SELECT id, name FROM entities WHERE user_id = %s AND sub_user_id = %s AND LOWER(name) = LOWER(%s)",
+                (user_id, sub_user_id, name)
             )
             exact = cur.fetchone()
             if exact:
@@ -946,7 +1041,7 @@ class CloudStore:
                 return entity_id
 
         # Check for duplicate entity (word-boundary match)
-        duplicate = self.find_duplicate(user_id, name)
+        duplicate = self.find_duplicate(user_id, name, sub_user_id=sub_user_id)
         if duplicate:
             existing_id, canonical_name = duplicate
             if len(name) > len(canonical_name):
@@ -968,13 +1063,13 @@ class CloudStore:
             meta_json = json.dumps(metadata) if metadata else '{}'
             with self._cursor() as cur:
                 cur.execute(
-                    """INSERT INTO entities (user_id, name, type, metadata)
-                       VALUES (%s, %s, %s, %s::jsonb)
-                       ON CONFLICT (user_id, name) 
+                    """INSERT INTO entities (user_id, sub_user_id, name, type, metadata)
+                       VALUES (%s, %s, %s, %s, %s::jsonb)
+                       ON CONFLICT (user_id, sub_user_id, name)
                        DO UPDATE SET type = EXCLUDED.type, updated_at = NOW(),
                           metadata = entities.metadata || EXCLUDED.metadata
                        RETURNING id""",
-                    (user_id, name, type, meta_json)
+                    (user_id, sub_user_id, name, type, meta_json)
                 )
                 entity_id = str(cur.fetchone()[0])
 
@@ -1116,22 +1211,22 @@ class CloudStore:
         # Invalidate caches after write
         self.cache.invalidate(f"stats:{user_id}")
 
-    def get_entity_id(self, user_id: str, name: str) -> Optional[str]:
+    def get_entity_id(self, user_id: str, name: str, sub_user_id: str = "default") -> Optional[str]:
         """Get entity ID by name."""
         with self._cursor() as cur:
             cur.execute(
-                "SELECT id FROM entities WHERE user_id = %s AND name = %s",
-                (user_id, name)
+                "SELECT id FROM entities WHERE user_id = %s AND sub_user_id = %s AND name = %s",
+                (user_id, sub_user_id, name)
             )
             row = cur.fetchone()
             return str(row[0]) if row else None
 
-    def get_entity(self, user_id: str, name: str) -> Optional[CloudEntity]:
+    def get_entity(self, user_id: str, name: str, sub_user_id: str = "default") -> Optional[CloudEntity]:
         """Get entity with all data."""
         with self._cursor(dict_cursor=True) as cur:
             cur.execute(
-                "SELECT id, name, type FROM entities WHERE user_id = %s AND name = %s",
-                (user_id, name)
+                "SELECT id, name, type FROM entities WHERE user_id = %s AND sub_user_id = %s AND name = %s",
+                (user_id, sub_user_id, name)
             )
             row = cur.fetchone()
             if not row:
@@ -1174,24 +1269,24 @@ class CloudStore:
                 knowledge=knowledge,
             )
 
-    def get_all_entities(self, user_id: str) -> list[dict]:
+    def get_all_entities(self, user_id: str, sub_user_id: str = "default") -> list[dict]:
         """List all entities with counts (excludes internal entities)."""
         with self._cursor(dict_cursor=True) as cur:
             cur.execute(
                 """SELECT name, type, facts_count, knowledge_count, relations_count
-                   FROM entity_overview WHERE user_id = %s AND name NOT LIKE '\\_%%'
+                   FROM entity_overview WHERE user_id = %s AND sub_user_id = %s AND name NOT LIKE '\\_%%'
                    ORDER BY updated_at DESC""",
-                (user_id,)
+                (user_id, sub_user_id)
             )
             return [dict(r) for r in cur.fetchall()]
 
-    def get_all_entities_full(self, user_id: str) -> list[dict]:
+    def get_all_entities_full(self, user_id: str, sub_user_id: str = "default") -> list[dict]:
         """Get ALL entities with full facts, relations, knowledge in 4 queries total."""
         with self._cursor(dict_cursor=True) as cur:
             # 1. Get all entities
             cur.execute(
-                "SELECT id, name, type FROM entities WHERE user_id = %s ORDER BY updated_at DESC",
-                (user_id,)
+                "SELECT id, name, type FROM entities WHERE user_id = %s AND sub_user_id = %s ORDER BY updated_at DESC",
+                (user_id, sub_user_id)
             )
             entities = cur.fetchall()
             if not entities:
@@ -1254,7 +1349,7 @@ class CloudStore:
 
             return [entity_map[str(e["id"])] for e in entities]
 
-    def get_existing_context(self, user_id: str, max_entities: int = 20, max_facts_per: int = 5) -> str:
+    def get_existing_context(self, user_id: str, max_entities: int = 20, max_facts_per: int = 5, sub_user_id: str = "default") -> str:
         """Get compact summary of existing entities for extraction context.
         Resolves 'User' to primary person name.
         Returns a string like:
@@ -1263,18 +1358,18 @@ class CloudStore:
           - Mengram (project): AI memory protocol, built with FastAPI
         """
         # Find primary person name
-        primary = self._find_primary_person(user_id)
+        primary = self._find_primary_person(user_id, sub_user_id=sub_user_id)
         primary_name = primary[1] if primary else None
 
         with self._cursor(dict_cursor=True) as cur:
             # Get top entities by recent activity
             cur.execute(
-                """SELECT e.id, e.name, e.type 
+                """SELECT e.id, e.name, e.type
                    FROM entities e
-                   WHERE e.user_id = %s
+                   WHERE e.user_id = %s AND e.sub_user_id = %s
                    ORDER BY e.updated_at DESC NULLS LAST
                    LIMIT %s""",
-                (user_id, max_entities)
+                (user_id, sub_user_id, max_entities)
             )
             entities = cur.fetchall()
             if not entities:
@@ -1323,7 +1418,7 @@ class CloudStore:
                     lines.append(f"- {name} ({e['type']})")
 
             # Add top reflections for richer context
-            reflections = self.get_reflections(user_id)
+            reflections = self.get_reflections(user_id, sub_user_id=sub_user_id)
             if reflections:
                 top_refs = [r for r in reflections if r["confidence"] >= 0.7][:3]
                 if top_refs:
@@ -1333,12 +1428,12 @@ class CloudStore:
 
             return "\n".join(lines)
 
-    def delete_entity(self, user_id: str, name: str) -> bool:
+    def delete_entity(self, user_id: str, name: str, sub_user_id: str = "default") -> bool:
         """Delete entity and all related data."""
         with self._cursor() as cur:
             cur.execute(
-                "DELETE FROM entities WHERE user_id = %s AND name = %s RETURNING id",
-                (user_id, name)
+                "DELETE FROM entities WHERE user_id = %s AND sub_user_id = %s AND name = %s RETURNING id",
+                (user_id, sub_user_id, name)
             )
             deleted = cur.fetchone() is not None
         if deleted:
@@ -1348,7 +1443,8 @@ class CloudStore:
     # ---- Graph Traversal ----
 
     def _graph_expand(self, cur, user_id: str, seed_ids: list[str],
-                      max_hops: int = 2, max_rrf: float = 0.01) -> dict:
+                      max_hops: int = 2, max_rrf: float = 0.01,
+                      sub_user_id: str = "default") -> dict:
         """
         Multi-hop graph traversal from seed entities via relations.
         Returns: {entity_id: {"name", "type", "updated_at", "score", "hop", "via_relation"}}
@@ -1377,9 +1473,9 @@ class CloudStore:
                    JOIN entities se ON se.id = r.source_id
                    JOIN entities te ON te.id = r.target_id
                    WHERE (r.source_id = ANY(%s::uuid[]) OR r.target_id = ANY(%s::uuid[]))
-                     AND se.user_id = %s""",
+                     AND se.user_id = %s AND se.sub_user_id = %s""",
                 (current_seeds, current_seeds, current_seeds, current_seeds,
-                 current_seeds, current_seeds, user_id)
+                 current_seeds, current_seeds, user_id, sub_user_id)
             )
 
             next_seeds = []
@@ -1409,7 +1505,8 @@ class CloudStore:
     def search_vector(self, user_id: str, embedding: list[float],
                       top_k: int = 5, min_score: float = 0.3,
                       query_text: str = "",
-                      graph_depth: int = 2) -> list[dict]:
+                      graph_depth: int = 2,
+                      sub_user_id: str = "default") -> list[dict]:
         """
         Hybrid search: vector + BM25 text + graph expansion.
         
@@ -1432,10 +1529,10 @@ class CloudStore:
                        e.updated_at
                    FROM embeddings emb
                    JOIN entities e ON e.id = emb.entity_id
-                   WHERE e.user_id = %s
+                   WHERE e.user_id = %s AND e.sub_user_id = %s
                      AND 1 - (emb.embedding <=> %s::vector) > %s
                    ORDER BY e.id, score DESC""",
-                (embedding_str, user_id, embedding_str, min_score)
+                (embedding_str, user_id, sub_user_id, embedding_str, min_score)
             )
             vector_rows = cur.fetchall()
             # Rank by score
@@ -1456,10 +1553,10 @@ class CloudStore:
                                e.updated_at
                            FROM embeddings emb
                            JOIN entities e ON e.id = emb.entity_id
-                           WHERE e.user_id = %s
+                           WHERE e.user_id = %s AND e.sub_user_id = %s
                              AND emb.tsv @@ plainto_tsquery('english', %s)
                            ORDER BY e.id, rank DESC""",
-                        (query_text, user_id, query_text)
+                        (query_text, user_id, sub_user_id, query_text)
                     )
                     bm25_rows = cur.fetchall()
                     bm25_rows.sort(key=lambda r: float(r["rank"]), reverse=True)
@@ -1469,10 +1566,10 @@ class CloudStore:
                     cur.execute(
                         """SELECT id, name, type, updated_at
                            FROM entities
-                           WHERE user_id = %s AND (
+                           WHERE user_id = %s AND sub_user_id = %s AND (
                                name ILIKE %s OR name ILIKE %s
                            )""",
-                        (user_id, f"%{query_text}%", f"%{'%'.join(words)}%")
+                        (user_id, sub_user_id, f"%{query_text}%", f"%{'%'.join(words)}%")
                     )
                     for i, row in enumerate(cur.fetchall()):
                         eid = str(row["id"])
@@ -1505,7 +1602,8 @@ class CloudStore:
             max_rrf = max(rrf_scores.values()) if rrf_scores else 0.01
 
             graph_entities = self._graph_expand(
-                cur, user_id, seed_ids, max_hops=graph_depth, max_rrf=max_rrf
+                cur, user_id, seed_ids, max_hops=graph_depth, max_rrf=max_rrf,
+                sub_user_id=sub_user_id
             )
             graph_expanded_ids = set()
             for eid, info in graph_entities.items():
@@ -1651,7 +1749,8 @@ class CloudStore:
             # Return in score order
             return [entity_map[eid] for eid, _ in top_entities if eid in entity_map]
 
-    def search_text(self, user_id: str, query: str, top_k: int = 5) -> list[dict]:
+    def search_text(self, user_id: str, query: str, top_k: int = 5,
+                    sub_user_id: str = "default") -> list[dict]:
         """Fallback text search (ILIKE)."""
         pattern = f"%{query}%"
         with self._cursor(dict_cursor=True) as cur:
@@ -1660,18 +1759,18 @@ class CloudStore:
                    FROM entities e
                    LEFT JOIN facts f ON f.entity_id = e.id
                    LEFT JOIN knowledge k ON k.entity_id = e.id
-                   WHERE e.user_id = %s AND (
+                   WHERE e.user_id = %s AND e.sub_user_id = %s AND (
                        e.name ILIKE %s
                        OR f.content ILIKE %s
                        OR k.content ILIKE %s
                        OR k.title ILIKE %s
                    )
                    LIMIT %s""",
-                (user_id, pattern, pattern, pattern, pattern, top_k)
+                (user_id, sub_user_id, pattern, pattern, pattern, pattern, top_k)
             )
             results = []
             for row in cur.fetchall():
-                entity = self.get_entity(user_id, row["name"])
+                entity = self.get_entity(user_id, row["name"], sub_user_id=sub_user_id)
                 if entity:
                     results.append({
                         "entity": entity.name,
@@ -1684,11 +1783,11 @@ class CloudStore:
             return results
 
     def search_temporal(self, user_id: str, after: str = None, before: str = None,
-                        top_k: int = 20) -> list[dict]:
+                        top_k: int = 20, sub_user_id: str = "default") -> list[dict]:
         """Search facts by time range. Returns entities with facts created in the window."""
         with self._cursor(dict_cursor=True) as cur:
-            conditions = ["e.user_id = %s", "f.archived = FALSE AND (f.expires_at IS NULL OR f.expires_at > NOW())"]
-            params = [user_id]
+            conditions = ["e.user_id = %s", "e.sub_user_id = %s", "f.archived = FALSE AND (f.expires_at IS NULL OR f.expires_at > NOW())"]
+            params = [user_id, sub_user_id]
 
             if after:
                 conditions.append("f.created_at >= %s")
@@ -1888,15 +1987,16 @@ Return ONLY JSON (no markdown):
   ]
 }}"""
 
-    def get_reflection_stats(self, user_id: str) -> dict:
+    def get_reflection_stats(self, user_id: str, sub_user_id: str = "default") -> dict:
         """Get stats to decide if reflection is needed."""
         with self._cursor(dict_cursor=True) as cur:
             # Count new facts since last reflection
             cur.execute(
                 """SELECT MAX(refreshed_at) as last_reflection
-                   FROM knowledge 
-                   WHERE user_id = %s AND scope IN ('entity', 'cross', 'temporal')""",
-                (user_id,)
+                   FROM knowledge k
+                   JOIN entities e ON e.id = k.entity_id
+                   WHERE e.user_id = %s AND e.sub_user_id = %s AND k.scope IN ('entity', 'cross', 'temporal')""",
+                (user_id, sub_user_id)
             )
             row = cur.fetchone()
             last_reflection = row["last_reflection"] if row and row["last_reflection"] else None
@@ -1905,20 +2005,20 @@ Return ONLY JSON (no markdown):
                 cur.execute(
                     """SELECT COUNT(*) as cnt FROM facts f
                        JOIN entities e ON e.id = f.entity_id
-                       WHERE e.user_id = %s AND f.archived = FALSE AND (f.expires_at IS NULL OR f.expires_at > NOW()) 
+                       WHERE e.user_id = %s AND e.sub_user_id = %s AND f.archived = FALSE AND (f.expires_at IS NULL OR f.expires_at > NOW())
                        AND f.created_at > %s""",
-                    (user_id, last_reflection)
+                    (user_id, sub_user_id, last_reflection)
                 )
                 new_facts = cur.fetchone()["cnt"]
-                hours_since = (datetime.datetime.now(datetime.timezone.utc) - 
+                hours_since = (datetime.datetime.now(datetime.timezone.utc) -
                               last_reflection.replace(tzinfo=datetime.timezone.utc)).total_seconds() / 3600
             else:
                 # Never reflected — count all facts
                 cur.execute(
                     """SELECT COUNT(*) as cnt FROM facts f
                        JOIN entities e ON e.id = f.entity_id
-                       WHERE e.user_id = %s AND f.archived = FALSE AND (f.expires_at IS NULL OR f.expires_at > NOW())""",
-                    (user_id,)
+                       WHERE e.user_id = %s AND e.sub_user_id = %s AND f.archived = FALSE AND (f.expires_at IS NULL OR f.expires_at > NOW())""",
+                    (user_id, sub_user_id)
                 )
                 new_facts = cur.fetchone()["cnt"]
                 hours_since = 999
@@ -1929,9 +2029,9 @@ Return ONLY JSON (no markdown):
                 "last_reflection": last_reflection.isoformat() if last_reflection else None,
             }
 
-    def should_reflect(self, user_id: str) -> bool:
+    def should_reflect(self, user_id: str, sub_user_id: str = "default") -> bool:
         """Check if reflection is needed based on triggers."""
-        stats = self.get_reflection_stats(user_id)
+        stats = self.get_reflection_stats(user_id, sub_user_id=sub_user_id)
         # Trigger 1: 10+ new facts since last reflection
         if stats["new_facts_since_last"] >= 10:
             return True
@@ -1940,10 +2040,10 @@ Return ONLY JSON (no markdown):
             return True
         return False
 
-    def generate_reflections(self, user_id: str, llm_client) -> dict:
+    def generate_reflections(self, user_id: str, llm_client, sub_user_id: str = "default") -> dict:
         """Generate all 3 types of reflections using LLM."""
         # Gather facts grouped by entity
-        entities = self.get_all_entities_full(user_id)
+        entities = self.get_all_entities_full(user_id, sub_user_id=sub_user_id)
         if not entities:
             return {"entity_reflections": [], "cross_entity": [], "temporal": []}
 
@@ -1957,7 +2057,7 @@ Return ONLY JSON (no markdown):
         facts_text = "\n".join(facts_lines)
 
         # Get previous reflections
-        prev = self.get_reflections(user_id)
+        prev = self.get_reflections(user_id, sub_user_id=sub_user_id)
         prev_text = ""
         if prev:
             prev_lines = []
@@ -1988,7 +2088,7 @@ Return ONLY JSON (no markdown):
 
         for r in result.get("entity_reflections", []):
             entity_name = r.get("entity", "")
-            entity_id = self.get_entity_id(user_id, entity_name) if entity_name else None
+            entity_id = self.get_entity_id(user_id, entity_name, sub_user_id=sub_user_id) if entity_name else None
             self._save_reflection(
                 user_id=user_id,
                 entity_id=entity_id,
@@ -1996,7 +2096,8 @@ Return ONLY JSON (no markdown):
                 title=r.get("title", f"{entity_name} profile"),
                 content=r.get("reflection", ""),
                 confidence=r.get("confidence", 0.8),
-                based_on=r.get("key_facts", [])
+                based_on=r.get("key_facts", []),
+                sub_user_id=sub_user_id
             )
             saved["entity_reflections"] += 1
 
@@ -2008,7 +2109,8 @@ Return ONLY JSON (no markdown):
                 title=r.get("title", "Cross-entity pattern"),
                 content=r.get("reflection", ""),
                 confidence=r.get("confidence", 0.8),
-                based_on=[]
+                based_on=[],
+                sub_user_id=sub_user_id
             )
             saved["cross_entity"] += 1
 
@@ -2020,7 +2122,8 @@ Return ONLY JSON (no markdown):
                 title=r.get("title", "Recent changes"),
                 content=r.get("reflection", ""),
                 confidence=r.get("confidence", 0.8),
-                based_on=[]
+                based_on=[],
+                sub_user_id=sub_user_id
             )
             saved["temporal"] += 1
 
@@ -2029,58 +2132,59 @@ Return ONLY JSON (no markdown):
 
     def _save_reflection(self, user_id: str, entity_id: Optional[str],
                          scope: str, title: str, content: str,
-                         confidence: float = 0.8, based_on: list = None):
+                         confidence: float = 0.8, based_on: list = None,
+                         sub_user_id: str = "default"):
         """Save or update a reflection."""
         with self._cursor() as cur:
             if entity_id:
                 # Entity reflection — upsert by entity + scope
                 cur.execute(
-                    """INSERT INTO knowledge (entity_id, user_id, type, title, content, scope, confidence, based_on_facts, refreshed_at)
-                       VALUES (%s, %s, 'reflection', %s, %s, %s, %s, %s, NOW())
-                       ON CONFLICT (entity_id, title) 
-                       DO UPDATE SET content = EXCLUDED.content, 
-                                     confidence = EXCLUDED.confidence,
-                                     based_on_facts = EXCLUDED.based_on_facts,
-                                     refreshed_at = NOW()""",
-                    (entity_id, user_id, title, content, scope, confidence, based_on or [])
-                )
-            else:
-                # Cross/temporal reflection — need a "global" entity
-                global_id = self._get_or_create_global_entity(user_id)
-                cur.execute(
-                    """INSERT INTO knowledge (entity_id, user_id, type, title, content, scope, confidence, based_on_facts, refreshed_at)
-                       VALUES (%s, %s, 'reflection', %s, %s, %s, %s, %s, NOW())
+                    """INSERT INTO knowledge (entity_id, user_id, sub_user_id, type, title, content, scope, confidence, based_on_facts, refreshed_at)
+                       VALUES (%s, %s, %s, 'reflection', %s, %s, %s, %s, %s, NOW())
                        ON CONFLICT (entity_id, title)
                        DO UPDATE SET content = EXCLUDED.content,
                                      confidence = EXCLUDED.confidence,
                                      based_on_facts = EXCLUDED.based_on_facts,
                                      refreshed_at = NOW()""",
-                    (global_id, user_id, title, content, scope, confidence, based_on or [])
+                    (entity_id, user_id, sub_user_id, title, content, scope, confidence, based_on or [])
+                )
+            else:
+                # Cross/temporal reflection — need a "global" entity
+                global_id = self._get_or_create_global_entity(user_id, sub_user_id=sub_user_id)
+                cur.execute(
+                    """INSERT INTO knowledge (entity_id, user_id, sub_user_id, type, title, content, scope, confidence, based_on_facts, refreshed_at)
+                       VALUES (%s, %s, %s, 'reflection', %s, %s, %s, %s, %s, NOW())
+                       ON CONFLICT (entity_id, title)
+                       DO UPDATE SET content = EXCLUDED.content,
+                                     confidence = EXCLUDED.confidence,
+                                     based_on_facts = EXCLUDED.based_on_facts,
+                                     refreshed_at = NOW()""",
+                    (global_id, user_id, sub_user_id, title, content, scope, confidence, based_on or [])
                 )
 
-    def _get_or_create_global_entity(self, user_id: str) -> str:
+    def _get_or_create_global_entity(self, user_id: str, sub_user_id: str = "default") -> str:
         """Get or create a special _reflections entity for cross/temporal reflections."""
         with self._cursor() as cur:
             cur.execute(
-                """INSERT INTO entities (user_id, name, type)
-                   VALUES (%s, '_reflections', 'concept')
-                   ON CONFLICT (user_id, name) DO UPDATE SET updated_at = NOW()
+                """INSERT INTO entities (user_id, sub_user_id, name, type)
+                   VALUES (%s, %s, '_reflections', 'concept')
+                   ON CONFLICT (user_id, sub_user_id, name) DO UPDATE SET updated_at = NOW()
                    RETURNING id""",
-                (user_id,)
+                (user_id, sub_user_id)
             )
             return str(cur.fetchone()[0])
 
-    def get_reflections(self, user_id: str, scope: str = None) -> list[dict]:
+    def get_reflections(self, user_id: str, scope: str = None, sub_user_id: str = "default") -> list[dict]:
         """Get all reflections for a user. Cached 120s."""
-        cache_key = f"reflections:{user_id}:{scope or 'all'}"
+        cache_key = f"reflections:{user_id}:{sub_user_id}:{scope or 'all'}"
         cached = self.cache.get(cache_key)
         if cached is not None:
             return cached
-        result = self._get_reflections_uncached(user_id, scope)
+        result = self._get_reflections_uncached(user_id, scope, sub_user_id=sub_user_id)
         self.cache.set(cache_key, result, ttl=120)
         return result
 
-    def _get_reflections_uncached(self, user_id: str, scope: str = None) -> list[dict]:
+    def _get_reflections_uncached(self, user_id: str, scope: str = None, sub_user_id: str = "default") -> list[dict]:
         """Get all reflections for a user (uncached)."""
         with self._cursor(dict_cursor=True) as cur:
             if scope:
@@ -2089,9 +2193,9 @@ Return ONLY JSON (no markdown):
                               e.name as entity_name
                        FROM knowledge k
                        JOIN entities e ON e.id = k.entity_id
-                       WHERE k.user_id = %s AND k.scope = %s AND k.type = 'reflection'
+                       WHERE k.user_id = %s AND e.sub_user_id = %s AND k.scope = %s AND k.type = 'reflection'
                        ORDER BY k.confidence DESC, k.refreshed_at DESC""",
-                    (user_id, scope)
+                    (user_id, sub_user_id, scope)
                 )
             else:
                 cur.execute(
@@ -2099,9 +2203,9 @@ Return ONLY JSON (no markdown):
                               e.name as entity_name
                        FROM knowledge k
                        JOIN entities e ON e.id = k.entity_id
-                       WHERE k.user_id = %s AND k.type = 'reflection'
+                       WHERE k.user_id = %s AND e.sub_user_id = %s AND k.type = 'reflection'
                        ORDER BY k.scope, k.confidence DESC, k.refreshed_at DESC""",
-                    (user_id,)
+                    (user_id, sub_user_id)
                 )
             return [{
                 "title": r["title"],
@@ -2112,16 +2216,16 @@ Return ONLY JSON (no markdown):
                 "refreshed_at": r["refreshed_at"].isoformat() if r["refreshed_at"] else None,
             } for r in cur.fetchall()]
 
-    def get_insights(self, user_id: str) -> dict:
+    def get_insights(self, user_id: str, sub_user_id: str = "default") -> dict:
         """Get formatted insights for dashboard — profile, weekly, network, patterns."""
-        reflections = self.get_reflections(user_id)
+        reflections = self.get_reflections(user_id, sub_user_id=sub_user_id)
         if not reflections:
             return {"has_insights": False, "profile": None, "weekly": None, "network": None, "patterns": None}
 
         profile = next((r for r in reflections if r["scope"] == "entity" and "profile" in r["title"].lower()), None)
         # Fallback: first entity reflection for primary person
         if not profile:
-            primary = self._find_primary_person(user_id)
+            primary = self._find_primary_person(user_id, sub_user_id=sub_user_id)
             if primary:
                 profile = next((r for r in reflections if r["scope"] == "entity" and r["entity"] == primary[1]), None)
 
@@ -2162,29 +2266,29 @@ Return ONLY JSON (no markdown):
 
     # ---- Stats ----
 
-    def get_stats(self, user_id: str) -> dict:
+    def get_stats(self, user_id: str, sub_user_id: str = "default") -> dict:
         """User's vault statistics. Cached for 30s."""
-        cache_key = f"stats:{user_id}"
+        cache_key = f"stats:{user_id}:{sub_user_id}"
         cached = self.cache.get(cache_key)
         if cached:
             return cached
-        result = self._get_stats_uncached(user_id)
+        result = self._get_stats_uncached(user_id, sub_user_id=sub_user_id)
         self.cache.set(cache_key, result, ttl=30)
         return result
 
     # ---- Cognitive Profile ----
 
-    def get_profile(self, user_id: str, force: bool = False) -> dict:
+    def get_profile(self, user_id: str, force: bool = False, sub_user_id: str = "default") -> dict:
         """Generate a cognitive profile — a ready-to-use system prompt from all user memory.
         Cached for 1 hour unless force=True."""
-        cache_key = f"profile:{user_id}"
+        cache_key = f"profile:{user_id}:{sub_user_id}"
         if not force:
             cached = self.cache.get(cache_key)
             if cached:
                 return cached
 
         # 1. Gather all facts
-        entities = self.get_all_entities_full(user_id)
+        entities = self.get_all_entities_full(user_id, sub_user_id=sub_user_id)
         if not entities:
             return {
                 "user_id": user_id,
@@ -2222,7 +2326,7 @@ Return ONLY JSON (no markdown):
         memory_dump = "\n\n".join(sections[:50])  # Cap at 50 entities
 
         # 2b. Gather episodic memories (recent events)
-        recent_episodes = self.get_episodes(user_id, limit=10)
+        recent_episodes = self.get_episodes(user_id, limit=10, sub_user_id=sub_user_id)
         episodes_text = ""
         if recent_episodes:
             ep_lines = []
@@ -2234,7 +2338,7 @@ Return ONLY JSON (no markdown):
             episodes_text = "\n\nRecent events:\n" + "\n".join(ep_lines)
 
         # 2c. Gather procedural memories (known workflows)
-        procedures = self.get_procedures(user_id, limit=10)
+        procedures = self.get_procedures(user_id, limit=10, sub_user_id=sub_user_id)
         procedures_text = ""
         if procedures:
             pr_lines = []
@@ -2307,49 +2411,49 @@ SEMANTIC MEMORY (facts about the user):
             return {"user_id": user_id, "system_prompt": "", "facts_used": total_facts,
                     "status": "error", "error": str(e)}
 
-    def _get_stats_uncached(self, user_id: str) -> dict:
+    def _get_stats_uncached(self, user_id: str, sub_user_id: str = "default") -> dict:
         """User's vault statistics (uncached)."""
         with self._cursor(dict_cursor=True) as cur:
-            cur.execute("SELECT COUNT(*) FROM entities WHERE user_id = %s", (user_id,))
+            cur.execute("SELECT COUNT(*) FROM entities WHERE user_id = %s AND sub_user_id = %s", (user_id, sub_user_id))
             entities = cur.fetchone()[0]
 
             cur.execute(
                 """SELECT e.type, COUNT(*) as cnt
-                   FROM entities e WHERE e.user_id = %s
+                   FROM entities e WHERE e.user_id = %s AND e.sub_user_id = %s
                    GROUP BY e.type""",
-                (user_id,)
+                (user_id, sub_user_id)
             )
             by_type = {r["type"]: r["cnt"] for r in cur.fetchall()}
 
             cur.execute(
                 """SELECT COUNT(*) FROM facts f
                    JOIN entities e ON e.id = f.entity_id
-                   WHERE e.user_id = %s""",
-                (user_id,)
+                   WHERE e.user_id = %s AND e.sub_user_id = %s""",
+                (user_id, sub_user_id)
             )
             facts = cur.fetchone()[0]
 
             cur.execute(
                 """SELECT COUNT(*) FROM knowledge k
                    JOIN entities e ON e.id = k.entity_id
-                   WHERE e.user_id = %s""",
-                (user_id,)
+                   WHERE e.user_id = %s AND e.sub_user_id = %s""",
+                (user_id, sub_user_id)
             )
             knowledge = cur.fetchone()[0]
 
             cur.execute(
                 """SELECT COUNT(*) FROM relations r
                    JOIN entities e ON e.id = r.source_id
-                   WHERE e.user_id = %s""",
-                (user_id,)
+                   WHERE e.user_id = %s AND e.sub_user_id = %s""",
+                (user_id, sub_user_id)
             )
             relations = cur.fetchone()[0]
 
             cur.execute(
                 """SELECT COUNT(*) FROM embeddings emb
                    JOIN entities e ON e.id = emb.entity_id
-                   WHERE e.user_id = %s""",
-                (user_id,)
+                   WHERE e.user_id = %s AND e.sub_user_id = %s""",
+                (user_id, sub_user_id)
             )
             embeddings = cur.fetchone()[0]
 
@@ -2375,13 +2479,13 @@ SEMANTIC MEMORY (facts about the user):
 
     # ---- Graph ----
 
-    def get_graph(self, user_id: str) -> dict:
+    def get_graph(self, user_id: str, sub_user_id: str = "default") -> dict:
         """Get knowledge graph (nodes + edges) for visualization."""
         with self._cursor(dict_cursor=True) as cur:
             cur.execute(
                 """SELECT name, type, facts_count, knowledge_count
-                   FROM entity_overview WHERE user_id = %s""",
-                (user_id,)
+                   FROM entity_overview WHERE user_id = %s AND sub_user_id = %s""",
+                (user_id, sub_user_id)
             )
             nodes = [dict(r) for r in cur.fetchall()]
 
@@ -2390,14 +2494,14 @@ SEMANTIC MEMORY (facts about the user):
                    FROM relations r
                    JOIN entities es ON es.id = r.source_id
                    JOIN entities et ON et.id = r.target_id
-                   WHERE es.user_id = %s""",
-                (user_id,)
+                   WHERE es.user_id = %s AND es.sub_user_id = %s""",
+                (user_id, sub_user_id)
             )
             edges = [dict(r) for r in cur.fetchall()]
 
             return {"nodes": nodes, "edges": edges}
 
-    def get_feed(self, user_id: str, limit: int = 50) -> dict:
+    def get_feed(self, user_id: str, limit: int = 50, sub_user_id: str = "default") -> dict:
         """Get recent facts with entity info for Memory Feed."""
         with self._cursor(dict_cursor=True) as cur:
             cur.execute(
@@ -2406,10 +2510,10 @@ SEMANTIC MEMORY (facts about the user):
                           e.name as entity_name, e.type as entity_type
                    FROM facts f
                    JOIN entities e ON e.id = f.entity_id
-                   WHERE e.user_id = %s AND f.archived = FALSE AND (f.expires_at IS NULL OR f.expires_at > NOW())
+                   WHERE e.user_id = %s AND e.sub_user_id = %s AND f.archived = FALSE AND (f.expires_at IS NULL OR f.expires_at > NOW())
                    ORDER BY f.created_at DESC
                    LIMIT %s""",
-                (user_id, limit)
+                (user_id, sub_user_id, limit)
             )
             items = []
             for row in cur.fetchall():
@@ -2433,19 +2537,20 @@ SEMANTIC MEMORY (facts about the user):
                      emotional_valence: str = "neutral", importance: float = 0.5,
                      metadata: dict = None, expires_at: str = None,
                      linked_procedure_id: str = None,
-                     failed_at_step: int = None) -> str:
+                     failed_at_step: int = None,
+                     sub_user_id: str = "default") -> str:
         """Save an episodic memory — a specific event or interaction."""
         meta_json = json.dumps(metadata) if metadata else '{}'
         parts = participants or []
         with self._cursor() as cur:
             cur.execute(
                 """INSERT INTO episodes
-                   (user_id, summary, context, outcome, participants,
+                   (user_id, sub_user_id, summary, context, outcome, participants,
                     emotional_valence, importance, metadata, expires_at,
                     linked_procedure_id, failed_at_step)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s)
                    RETURNING id""",
-                (user_id, summary, context, outcome, parts,
+                (user_id, sub_user_id, summary, context, outcome, parts,
                  emotional_valence, importance, meta_json,
                  expires_at, linked_procedure_id, failed_at_step)
             )
@@ -2468,15 +2573,15 @@ SEMANTIC MEMORY (facts about the user):
             cur.execute("DELETE FROM episode_embeddings WHERE episode_id = %s", (episode_id,))
 
     def get_episodes(self, user_id: str, limit: int = 20, after: str = None,
-                     before: str = None) -> list[dict]:
+                     before: str = None, sub_user_id: str = "default") -> list[dict]:
         """Get episodes by time range."""
         query = """SELECT id, summary, context, outcome, participants,
                           emotional_valence, importance, metadata,
                           linked_procedure_id, failed_at_step, created_at
                    FROM episodes
-                   WHERE user_id = %s
+                   WHERE user_id = %s AND sub_user_id = %s
                      AND (expires_at IS NULL OR expires_at > NOW())"""
-        params = [user_id]
+        params = [user_id, sub_user_id]
         if after:
             query += " AND created_at >= %s"
             params.append(after)
@@ -2507,7 +2612,7 @@ SEMANTIC MEMORY (facts about the user):
 
     def search_episodes_vector(self, user_id: str, embedding: list[float],
                                top_k: int = 5, after: str = None,
-                               before: str = None) -> list[dict]:
+                               before: str = None, sub_user_id: str = "default") -> list[dict]:
         """Semantic search over episodic memory."""
         query = """
             SELECT ep.id, ep.summary, ep.context, ep.outcome, ep.participants,
@@ -2515,10 +2620,10 @@ SEMANTIC MEMORY (facts about the user):
                    1 - (ee.embedding <=> %s::vector) AS score
             FROM episode_embeddings ee
             JOIN episodes ep ON ep.id = ee.episode_id
-            WHERE ep.user_id = %s
+            WHERE ep.user_id = %s AND ep.sub_user_id = %s
               AND (ep.expires_at IS NULL OR ep.expires_at > NOW())
         """
-        params = [embedding, user_id]
+        params = [embedding, user_id, sub_user_id]
         if after:
             query += " AND ep.created_at >= %s"
             params.append(after)
@@ -2552,7 +2657,7 @@ SEMANTIC MEMORY (facts about the user):
             return results
 
     def search_episodes_text(self, user_id: str, query: str,
-                             top_k: int = 5) -> list[dict]:
+                             top_k: int = 5, sub_user_id: str = "default") -> list[dict]:
         """BM25 text search over episodic memory."""
         sql = """
             SELECT ep.id, ep.summary, ep.context, ep.outcome, ep.participants,
@@ -2560,14 +2665,14 @@ SEMANTIC MEMORY (facts about the user):
                    ts_rank(ee.tsv, plainto_tsquery('english', %s)) AS score
             FROM episode_embeddings ee
             JOIN episodes ep ON ep.id = ee.episode_id
-            WHERE ep.user_id = %s
+            WHERE ep.user_id = %s AND ep.sub_user_id = %s
               AND (ep.expires_at IS NULL OR ep.expires_at > NOW())
               AND ee.tsv @@ plainto_tsquery('english', %s)
             ORDER BY score DESC
             LIMIT %s
         """
         with self._cursor(dict_cursor=True) as cur:
-            cur.execute(sql, (query, user_id, query, top_k))
+            cur.execute(sql, (query, user_id, sub_user_id, query, top_k))
             results = []
             seen = set()
             for row in cur.fetchall():
@@ -2599,7 +2704,8 @@ SEMANTIC MEMORY (facts about the user):
                        metadata: dict = None, expires_at: str = None,
                        version: int = 1, parent_version_id: str = None,
                        evolved_from_episode: str = None,
-                       is_current: bool = True) -> str:
+                       is_current: bool = True,
+                       sub_user_id: str = "default") -> str:
         """Save or update a procedural memory — learned workflow/skill."""
         meta_json = json.dumps(metadata) if metadata else '{}'
         steps_json = json.dumps(steps or [])
@@ -2609,19 +2715,19 @@ SEMANTIC MEMORY (facts about the user):
         with self._cursor() as cur:
             cur.execute(
                 """INSERT INTO procedures
-                   (user_id, name, trigger_condition, steps, entity_names,
+                   (user_id, sub_user_id, name, trigger_condition, steps, entity_names,
                     source_episode_ids, metadata, expires_at,
                     version, parent_version_id, evolved_from_episode, is_current)
-                   VALUES (%s, %s, %s, %s::jsonb, %s, %s::uuid[], %s::jsonb, %s,
+                   VALUES (%s, %s, %s, %s, %s::jsonb, %s, %s::uuid[], %s::jsonb, %s,
                            %s, %s, %s, %s)
-                   ON CONFLICT (user_id, name, version)
+                   ON CONFLICT (user_id, sub_user_id, name, version)
                    DO UPDATE SET
                        trigger_condition = COALESCE(EXCLUDED.trigger_condition, procedures.trigger_condition),
                        steps = EXCLUDED.steps,
                        entity_names = EXCLUDED.entity_names,
                        updated_at = NOW()
                    RETURNING id""",
-                (user_id, name, trigger_condition, steps_json, entities,
+                (user_id, sub_user_id, name, trigger_condition, steps_json, entities,
                  ep_ids if ep_ids else None, meta_json, expires_at,
                  version, parent_version_id, evolved_from_episode, is_current)
             )
@@ -2643,7 +2749,8 @@ SEMANTIC MEMORY (facts about the user):
         with self._cursor() as cur:
             cur.execute("DELETE FROM procedure_embeddings WHERE procedure_id = %s", (procedure_id,))
 
-    def get_procedures(self, user_id: str, limit: int = 20) -> list[dict]:
+    def get_procedures(self, user_id: str, limit: int = 20,
+                       sub_user_id: str = "default") -> list[dict]:
         """Get all current procedures for a user (latest versions only)."""
         with self._cursor(dict_cursor=True) as cur:
             cur.execute(
@@ -2651,12 +2758,12 @@ SEMANTIC MEMORY (facts about the user):
                           success_count, fail_count, last_used, version,
                           created_at, updated_at
                    FROM procedures
-                   WHERE user_id = %s
+                   WHERE user_id = %s AND sub_user_id = %s
                      AND is_current = TRUE
                      AND (expires_at IS NULL OR expires_at > NOW())
                    ORDER BY updated_at DESC
                    LIMIT %s""",
-                (user_id, limit)
+                (user_id, sub_user_id, limit)
             )
             results = []
             for row in cur.fetchall():
@@ -2677,7 +2784,7 @@ SEMANTIC MEMORY (facts about the user):
             return results
 
     def search_procedures_vector(self, user_id: str, embedding: list[float],
-                                 top_k: int = 5) -> list[dict]:
+                                 top_k: int = 5, sub_user_id: str = "default") -> list[dict]:
         """Semantic search over procedural memory (current versions only)."""
         query = """
             SELECT p.id, p.name, p.trigger_condition, p.steps, p.entity_names,
@@ -2685,14 +2792,14 @@ SEMANTIC MEMORY (facts about the user):
                    1 - (pe.embedding <=> %s::vector) AS score
             FROM procedure_embeddings pe
             JOIN procedures p ON p.id = pe.procedure_id
-            WHERE p.user_id = %s
+            WHERE p.user_id = %s AND p.sub_user_id = %s
               AND p.is_current = TRUE
               AND (p.expires_at IS NULL OR p.expires_at > NOW())
             ORDER BY pe.embedding <=> %s::vector
             LIMIT %s
         """
         with self._cursor(dict_cursor=True) as cur:
-            cur.execute(query, (embedding, user_id, embedding, top_k))
+            cur.execute(query, (embedding, user_id, sub_user_id, embedding, top_k))
             results = []
             seen = set()
             for row in cur.fetchall():
@@ -2716,7 +2823,7 @@ SEMANTIC MEMORY (facts about the user):
             return results
 
     def search_procedures_text(self, user_id: str, query: str,
-                               top_k: int = 5) -> list[dict]:
+                               top_k: int = 5, sub_user_id: str = "default") -> list[dict]:
         """BM25 text search over procedural memory (current versions only)."""
         sql = """
             SELECT p.id, p.name, p.trigger_condition, p.steps, p.entity_names,
@@ -2724,7 +2831,7 @@ SEMANTIC MEMORY (facts about the user):
                    ts_rank(pe.tsv, plainto_tsquery('english', %s)) AS score
             FROM procedure_embeddings pe
             JOIN procedures p ON p.id = pe.procedure_id
-            WHERE p.user_id = %s
+            WHERE p.user_id = %s AND p.sub_user_id = %s
               AND p.is_current = TRUE
               AND (p.expires_at IS NULL OR p.expires_at > NOW())
               AND pe.tsv @@ plainto_tsquery('english', %s)
@@ -2732,7 +2839,7 @@ SEMANTIC MEMORY (facts about the user):
             LIMIT %s
         """
         with self._cursor(dict_cursor=True) as cur:
-            cur.execute(sql, (query, user_id, query, top_k))
+            cur.execute(sql, (query, user_id, sub_user_id, query, top_k))
             results = []
             seen = set()
             for row in cur.fetchall():
@@ -2755,16 +2862,16 @@ SEMANTIC MEMORY (facts about the user):
                 })
             return results
 
-    def procedure_feedback(self, user_id: str, procedure_id: str, success: bool) -> dict:
+    def procedure_feedback(self, user_id: str, procedure_id: str, success: bool, sub_user_id: str = "default") -> dict:
         """Record success/failure feedback for a procedure."""
         col = "success_count" if success else "fail_count"
         with self._cursor(dict_cursor=True) as cur:
             cur.execute(
-                f"""UPDATE procedures 
+                f"""UPDATE procedures
                     SET {col} = {col} + 1, last_used = NOW(), updated_at = NOW()
-                    WHERE id = %s AND user_id = %s
+                    WHERE id = %s AND user_id = %s AND sub_user_id = %s
                     RETURNING id, name, success_count, fail_count""",
-                (procedure_id, user_id)
+                (procedure_id, user_id, sub_user_id)
             )
             row = cur.fetchone()
             if not row:
@@ -2781,7 +2888,7 @@ SEMANTIC MEMORY (facts about the user):
     # EXPERIENCE-DRIVEN PROCEDURES v2.7
     # =====================================================
 
-    def get_procedure_by_id(self, user_id: str, procedure_id: str) -> dict | None:
+    def get_procedure_by_id(self, user_id: str, procedure_id: str, sub_user_id: str = "default") -> dict | None:
         """Get a single procedure by ID."""
         with self._cursor(dict_cursor=True) as cur:
             cur.execute(
@@ -2790,8 +2897,8 @@ SEMANTIC MEMORY (facts about the user):
                           evolved_from_episode, is_current, last_used,
                           created_at, updated_at
                    FROM procedures
-                   WHERE id = %s AND user_id = %s""",
-                (procedure_id, user_id)
+                   WHERE id = %s AND user_id = %s AND sub_user_id = %s""",
+                (procedure_id, user_id, sub_user_id)
             )
             row = cur.fetchone()
             if not row:
@@ -2816,14 +2923,14 @@ SEMANTIC MEMORY (facts about the user):
     def evolve_procedure(self, user_id: str, procedure_id: str,
                          new_steps: list[dict], new_trigger: str = None,
                          episode_id: str = None, change_type: str = "step_modified",
-                         diff: dict = None) -> str:
+                         diff: dict = None, sub_user_id: str = "default") -> str:
         """Create a new version of a procedure (experience-driven evolution).
 
         Marks the old version as not current, creates a new row with version+1,
         and logs the evolution in procedure_evolution table.
         Returns the new procedure ID.
         """
-        old = self.get_procedure_by_id(user_id, procedure_id)
+        old = self.get_procedure_by_id(user_id, procedure_id, sub_user_id=sub_user_id)
         if not old:
             raise ValueError(f"Procedure {procedure_id} not found")
 
@@ -2848,6 +2955,7 @@ SEMANTIC MEMORY (facts about the user):
             parent_version_id=procedure_id,
             evolved_from_episode=episode_id,
             is_current=True,
+            sub_user_id=sub_user_id,
         )
 
         # Log evolution
@@ -2864,13 +2972,13 @@ SEMANTIC MEMORY (facts about the user):
         logger.info(f"🔄 Procedure evolved: {old['name']} v{old_version} → v{new_version}")
         return new_proc_id
 
-    def get_procedure_history(self, user_id: str, procedure_id: str) -> list[dict]:
+    def get_procedure_history(self, user_id: str, procedure_id: str, sub_user_id: str = "default") -> list[dict]:
         """Get all versions of a procedure by tracing the version chain.
 
         Finds the procedure name, then returns all versions ordered by version number.
         """
         # First get the name from the given procedure
-        proc = self.get_procedure_by_id(user_id, procedure_id)
+        proc = self.get_procedure_by_id(user_id, procedure_id, sub_user_id=sub_user_id)
         if not proc:
             return []
 
@@ -2880,9 +2988,9 @@ SEMANTIC MEMORY (facts about the user):
                           success_count, fail_count, version, parent_version_id,
                           evolved_from_episode, is_current, created_at, updated_at
                    FROM procedures
-                   WHERE user_id = %s AND name = %s
+                   WHERE user_id = %s AND sub_user_id = %s AND name = %s
                    ORDER BY version ASC""",
-                (user_id, proc["name"])
+                (user_id, sub_user_id, proc["name"])
             )
             results = []
             for row in cur.fetchall():
@@ -2903,10 +3011,10 @@ SEMANTIC MEMORY (facts about the user):
                 })
             return results
 
-    def get_procedure_evolution(self, user_id: str, procedure_id: str) -> list[dict]:
+    def get_procedure_evolution(self, user_id: str, procedure_id: str, sub_user_id: str = "default") -> list[dict]:
         """Get the evolution log for a procedure (all versions)."""
         # Get all version IDs for this procedure name
-        proc = self.get_procedure_by_id(user_id, procedure_id)
+        proc = self.get_procedure_by_id(user_id, procedure_id, sub_user_id=sub_user_id)
         if not proc:
             return []
 
@@ -2916,9 +3024,9 @@ SEMANTIC MEMORY (facts about the user):
                           pe.diff, pe.version_before, pe.version_after, pe.created_at
                    FROM procedure_evolution pe
                    JOIN procedures p ON p.id = pe.procedure_id
-                   WHERE p.user_id = %s AND p.name = %s
+                   WHERE p.user_id = %s AND p.sub_user_id = %s AND p.name = %s
                    ORDER BY pe.created_at ASC""",
-                (user_id, proc["name"])
+                (user_id, sub_user_id, proc["name"])
             )
             results = []
             for row in cur.fetchall():
@@ -2934,7 +3042,7 @@ SEMANTIC MEMORY (facts about the user):
                 })
             return results
 
-    def get_unlinked_actionable_episodes(self, user_id: str, limit: int = 50) -> list[dict]:
+    def get_unlinked_actionable_episodes(self, user_id: str, limit: int = 50, sub_user_id: str = "default") -> list[dict]:
         """Get recent episodes not linked to any procedure, excluding failures.
 
         Returns positive, neutral, and mixed episodes for pattern detection.
@@ -2945,13 +3053,13 @@ SEMANTIC MEMORY (facts about the user):
                 """SELECT id, summary, context, outcome, participants,
                           emotional_valence, importance, created_at
                    FROM episodes
-                   WHERE user_id = %s
+                   WHERE user_id = %s AND sub_user_id = %s
                      AND linked_procedure_id IS NULL
                      AND emotional_valence IN ('positive', 'neutral', 'mixed')
                      AND (expires_at IS NULL OR expires_at > NOW())
                    ORDER BY created_at DESC
                    LIMIT %s""",
-                (user_id, limit)
+                (user_id, sub_user_id, limit)
             )
             results = []
             for row in cur.fetchall():
@@ -3094,11 +3202,11 @@ Be specific and personal, not generic. No markdown, just JSON."""
                 ON agent_runs(user_id, agent_type, created_at DESC)
             """)
 
-    def run_curator_agent(self, user_id: str, llm_client, auto_fix: bool = False) -> dict:
+    def run_curator_agent(self, user_id: str, llm_client, auto_fix: bool = False, sub_user_id: str = "default") -> dict:
         """Curator Agent — finds contradictions, stale facts, duplicates, low quality."""
         self.ensure_agents_table()
 
-        entities = self.get_all_entities_full(user_id)
+        entities = self.get_all_entities_full(user_id, sub_user_id=sub_user_id)
         if not entities:
             return {"status": "empty", "message": "No memories to curate"}
 
@@ -3142,7 +3250,7 @@ Be specific and personal, not generic. No markdown, just JSON."""
             for item in result.get("low_quality", []):
                 entity_name = item.get("entity", "")
                 fact = item.get("fact", "")
-                entity_id = self.get_entity_id(user_id, entity_name)
+                entity_id = self.get_entity_id(user_id, entity_name, sub_user_id=sub_user_id)
                 if entity_id and fact:
                     with self._cursor() as cur:
                         cur.execute(
@@ -3157,7 +3265,7 @@ Be specific and personal, not generic. No markdown, just JSON."""
                 if item.get("confidence", 0) >= 0.85:
                     entity_name = item.get("entity", "")
                     fact = item.get("fact", "")
-                    entity_id = self.get_entity_id(user_id, entity_name)
+                    entity_id = self.get_entity_id(user_id, entity_name, sub_user_id=sub_user_id)
                     if entity_id and fact:
                         with self._cursor() as cur:
                             cur.execute(
@@ -3185,11 +3293,11 @@ Be specific and personal, not generic. No markdown, just JSON."""
         logger.info(f"🧹 Curator agent: {issues_found} issues, {actions_taken} auto-fixed for {user_id}")
         return result
 
-    def run_connector_agent(self, user_id: str, llm_client) -> dict:
+    def run_connector_agent(self, user_id: str, llm_client, sub_user_id: str = "default") -> dict:
         """Connector Agent — finds hidden connections, patterns, insights."""
         self.ensure_agents_table()
 
-        entities = self.get_all_entities_full(user_id)
+        entities = self.get_all_entities_full(user_id, sub_user_id=sub_user_id)
         if not entities:
             return {"status": "empty", "message": "No memories to analyze"}
 
@@ -3204,7 +3312,7 @@ Be specific and personal, not generic. No markdown, just JSON."""
             facts_text = facts_text[:8000] + "\n... (truncated)"
 
         # Get existing reflections
-        prev = self.get_reflections(user_id)
+        prev = self.get_reflections(user_id, sub_user_id=sub_user_id)
         reflections_text = "(none)"
         if prev:
             r_lines = [f"- [{r['scope']}] {r['title']}: {r['content'][:150]}" for r in prev[:8]]
@@ -3243,7 +3351,7 @@ Be specific and personal, not generic. No markdown, just JSON."""
         logger.info(f"🔗 Connector agent: {issues_found} insights for {user_id}")
         return result
 
-    def run_digest_agent(self, user_id: str, llm_client) -> dict:
+    def run_digest_agent(self, user_id: str, llm_client, sub_user_id: str = "default") -> dict:
         """Digest Agent — generates weekly activity summary."""
         self.ensure_agents_table()
 
@@ -3253,10 +3361,10 @@ Be specific and personal, not generic. No markdown, just JSON."""
                 SELECT f.content, e.name as entity_name, f.created_at
                 FROM facts f
                 JOIN entities e ON e.id = f.entity_id
-                WHERE e.user_id = %s AND f.created_at > NOW() - INTERVAL '7 days'
+                WHERE e.user_id = %s AND e.sub_user_id = %s AND f.created_at > NOW() - INTERVAL '7 days'
                 AND f.archived = FALSE AND (f.expires_at IS NULL OR f.expires_at > NOW())
                 ORDER BY f.created_at DESC LIMIT 50
-            """, (user_id,))
+            """, (user_id, sub_user_id))
             recent = cur.fetchall()
 
         recent_facts = "(no recent activity)"
@@ -3265,7 +3373,7 @@ Be specific and personal, not generic. No markdown, just JSON."""
             recent_facts = "\n".join(lines)
 
         # Stats
-        stats = self.get_stats(user_id)
+        stats = self.get_stats(user_id, sub_user_id=sub_user_id)
 
         # Last curator/connector results
         agent_findings = "(none)"
@@ -3327,20 +3435,20 @@ Be specific and personal, not generic. No markdown, just JSON."""
         logger.info(f"📰 Digest agent completed for {user_id}")
         return result
 
-    def run_all_agents(self, user_id: str, llm_client, auto_fix: bool = False) -> dict:
+    def run_all_agents(self, user_id: str, llm_client, auto_fix: bool = False, sub_user_id: str = "default") -> dict:
         """Run all three agents in sequence."""
         results = {}
 
         logger.info(f"🤖 Running all agents for {user_id}...")
 
         # 1. Curator first (clean up)
-        results["curator"] = self.run_curator_agent(user_id, llm_client, auto_fix=auto_fix)
+        results["curator"] = self.run_curator_agent(user_id, llm_client, auto_fix=auto_fix, sub_user_id=sub_user_id)
 
         # 2. Connector (find patterns in clean data)
-        results["connector"] = self.run_connector_agent(user_id, llm_client)
+        results["connector"] = self.run_connector_agent(user_id, llm_client, sub_user_id=sub_user_id)
 
         # 3. Digest (summarize everything)
-        results["digest"] = self.run_digest_agent(user_id, llm_client)
+        results["digest"] = self.run_digest_agent(user_id, llm_client, sub_user_id=sub_user_id)
 
         logger.info(f"✅ All agents completed for {user_id}")
         return results
@@ -3371,7 +3479,7 @@ Be specific and personal, not generic. No markdown, just JSON."""
                 "created_at": r["created_at"].isoformat() if r["created_at"] else None
             } for r in rows]
 
-    def should_run_agents(self, user_id: str) -> dict:
+    def should_run_agents(self, user_id: str, sub_user_id: str = "default") -> dict:
         """Check if agents should run. Returns which agents are due."""
         self.ensure_agents_table()
         due = {}
@@ -3744,7 +3852,7 @@ Be specific and personal, not generic. No markdown, just JSON."""
             self.cache.invalidate(f"teams:{user_id}")
             return True
 
-    def share_entity(self, user_id: str, entity_name: str, team_id: int) -> dict:
+    def share_entity(self, user_id: str, entity_name: str, team_id: int, sub_user_id: str = "default") -> dict:
         """Share a personal entity with a team."""
         self.ensure_teams_table()
         # Verify membership
@@ -3757,19 +3865,19 @@ Be specific and personal, not generic. No markdown, just JSON."""
                 raise ValueError("Not a member of this team")
 
             cur.execute(
-                "UPDATE entities SET team_id = %s WHERE user_id = %s AND LOWER(name) = LOWER(%s)",
-                (team_id, user_id, entity_name)
+                "UPDATE entities SET team_id = %s WHERE user_id = %s AND sub_user_id = %s AND LOWER(name) = LOWER(%s)",
+                (team_id, user_id, sub_user_id, entity_name)
             )
             if cur.rowcount == 0:
                 raise ValueError(f"Entity '{entity_name}' not found")
             return {"entity": entity_name, "team_id": team_id, "status": "shared"}
 
-    def unshare_entity(self, user_id: str, entity_name: str) -> dict:
+    def unshare_entity(self, user_id: str, entity_name: str, sub_user_id: str = "default") -> dict:
         """Make a shared entity personal again."""
         with self._cursor() as cur:
             cur.execute(
-                "UPDATE entities SET team_id = NULL WHERE user_id = %s AND LOWER(name) = LOWER(%s)",
-                (user_id, entity_name)
+                "UPDATE entities SET team_id = NULL WHERE user_id = %s AND sub_user_id = %s AND LOWER(name) = LOWER(%s)",
+                (user_id, sub_user_id, entity_name)
             )
             return {"entity": entity_name, "status": "personal"}
 
@@ -3791,7 +3899,8 @@ Be specific and personal, not generic. No markdown, just JSON."""
     def search_vector_with_teams(self, user_id: str, embedding: list[float],
                                   top_k: int = 5, min_score: float = 0.3,
                                   query_text: str = "",
-                                  graph_depth: int = 2) -> list[dict]:
+                                  graph_depth: int = 2,
+                                  sub_user_id: str = "default") -> list[dict]:
         """
         Same as search_vector but includes shared team memories.
         Results from team entities are marked with team_shared=True.
@@ -3801,7 +3910,7 @@ Be specific and personal, not generic. No markdown, just JSON."""
 
         if not team_ids:
             # No teams — use normal search
-            return self.search_vector(user_id, embedding, top_k, min_score, query_text, graph_depth)
+            return self.search_vector(user_id, embedding, top_k, min_score, query_text, graph_depth, sub_user_id=sub_user_id)
 
         embedding_str = f"[{','.join(str(x) for x in embedding)}]"
 
@@ -3814,10 +3923,10 @@ Be specific and personal, not generic. No markdown, just JSON."""
                        e.updated_at
                    FROM embeddings emb
                    JOIN entities e ON e.id = emb.entity_id
-                   WHERE (e.user_id = %s OR e.team_id = ANY(%s))
+                   WHERE ((e.user_id = %s AND e.sub_user_id = %s) OR e.team_id = ANY(%s))
                      AND 1 - (emb.embedding <=> %s::vector) > %s
                    ORDER BY e.id, score DESC""",
-                (embedding_str, user_id, team_ids, embedding_str, min_score)
+                (embedding_str, user_id, sub_user_id, team_ids, embedding_str, min_score)
             )
             vector_rows = cur.fetchall()
             vector_rows.sort(key=lambda r: float(r["score"]), reverse=True)
@@ -3835,10 +3944,10 @@ Be specific and personal, not generic. No markdown, just JSON."""
                                e.updated_at
                            FROM embeddings emb
                            JOIN entities e ON e.id = emb.entity_id
-                           WHERE (e.user_id = %s OR e.team_id = ANY(%s))
+                           WHERE ((e.user_id = %s AND e.sub_user_id = %s) OR e.team_id = ANY(%s))
                              AND emb.tsv @@ plainto_tsquery('english', %s)
                            ORDER BY e.id, rank DESC""",
-                        (query_text, user_id, team_ids, query_text)
+                        (query_text, user_id, sub_user_id, team_ids, query_text)
                     )
                     bm25_rows = cur.fetchall()
                     bm25_rows.sort(key=lambda r: float(r["rank"]), reverse=True)
@@ -3877,7 +3986,8 @@ Be specific and personal, not generic. No markdown, just JSON."""
             max_rrf_val = max(rrf_scores.values()) if rrf_scores else 0.01
 
             graph_entities = self._graph_expand(
-                cur, user_id, seed_ids, max_hops=graph_depth, max_rrf=max_rrf_val
+                cur, user_id, seed_ids, max_hops=graph_depth, max_rrf=max_rrf_val,
+                sub_user_id=sub_user_id
             )
             graph_expanded_ids = set()
             for eid, info in graph_entities.items():
@@ -4007,24 +4117,25 @@ Be specific and personal, not generic. No markdown, just JSON."""
 
     def create_trigger(self, user_id: str, trigger_type: str, title: str,
                        detail: str = None, source_type: str = None,
-                       source_id: str = None, fire_at=None) -> int:
+                       source_id: str = None, fire_at=None,
+                       sub_user_id: str = "default") -> int:
         """Create a new smart trigger."""
         self.ensure_triggers_table()
         with self._cursor(dict_cursor=True) as cur:
             # Avoid duplicate triggers with same title for same user
             cur.execute("""
                 SELECT id FROM memory_triggers
-                WHERE user_id = %s AND title = %s AND fired = FALSE
-            """, (user_id, title))
+                WHERE user_id = %s AND sub_user_id = %s AND title = %s AND fired = FALSE
+            """, (user_id, sub_user_id, title))
             if cur.fetchone():
                 return -1  # Already exists
 
             cur.execute("""
                 INSERT INTO memory_triggers
-                    (user_id, trigger_type, title, detail, source_type, source_id, fire_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    (user_id, sub_user_id, trigger_type, title, detail, source_type, source_id, fire_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
-            """, (user_id, trigger_type, title, detail, source_type,
+            """, (user_id, sub_user_id, trigger_type, title, detail, source_type,
                   source_id, fire_at))
             row = cur.fetchone()
             return row["id"] if row else -1
@@ -4075,24 +4186,24 @@ Be specific and personal, not generic. No markdown, just JSON."""
         return dict(trigger)
 
     def get_triggers(self, user_id: str, include_fired: bool = False,
-                     limit: int = 50) -> list:
+                     limit: int = 50, sub_user_id: str = "default") -> list:
         """Get triggers for a user."""
         self.ensure_triggers_table()
         with self._cursor(dict_cursor=True) as cur:
             if include_fired:
                 cur.execute("""
                     SELECT * FROM memory_triggers
-                    WHERE user_id = %s ORDER BY created_at DESC LIMIT %s
-                """, (user_id, limit))
+                    WHERE user_id = %s AND sub_user_id = %s ORDER BY created_at DESC LIMIT %s
+                """, (user_id, sub_user_id, limit))
             else:
                 cur.execute("""
                     SELECT * FROM memory_triggers
-                    WHERE user_id = %s AND fired = FALSE
+                    WHERE user_id = %s AND sub_user_id = %s AND fired = FALSE
                     ORDER BY fire_at ASC NULLS FIRST, created_at DESC LIMIT %s
-                """, (user_id, limit))
+                """, (user_id, sub_user_id, limit))
             return [dict(r) for r in cur.fetchall()]
 
-    def detect_reminder_triggers(self, user_id: str):
+    def detect_reminder_triggers(self, user_id: str, sub_user_id: str = "default"):
         """Scan episodic memory for upcoming events and create reminders."""
         self.ensure_triggers_table()
         import re
@@ -4103,10 +4214,10 @@ Be specific and personal, not generic. No markdown, just JSON."""
             cur.execute("""
                 SELECT id, summary, context, outcome, metadata, created_at
                 FROM episodes
-                WHERE user_id = %s
+                WHERE user_id = %s AND sub_user_id = %s
                 AND created_at > NOW() - INTERVAL '7 days'
                 ORDER BY created_at DESC LIMIT 20
-            """, (user_id,))
+            """, (user_id, sub_user_id))
             episodes = cur.fetchall()
 
         now = datetime.datetime.now(datetime.timezone.utc)
@@ -4154,6 +4265,7 @@ Be specific and personal, not generic. No markdown, just JSON."""
                     source_type="episode",
                     source_id=str(ep["id"]),
                     fire_at=fire_at,
+                    sub_user_id=sub_user_id,
                 )
                 if tid > 0:
                     created += 1
@@ -4161,7 +4273,7 @@ Be specific and personal, not generic. No markdown, just JSON."""
         return created
 
     def detect_contradiction_triggers(self, user_id: str, new_facts: list,
-                                       entity_name: str):
+                                       entity_name: str, sub_user_id: str = "default"):
         """Check if new facts contradict existing ones. Uses simple keyword overlap."""
         if not new_facts:
             return 0
@@ -4170,9 +4282,9 @@ Be specific and personal, not generic. No markdown, just JSON."""
             cur.execute("""
                 SELECT f.content, e.name FROM facts f
                 JOIN entities e ON f.entity_id = e.id
-                WHERE e.user_id = %s AND e.name = %s
+                WHERE e.user_id = %s AND e.sub_user_id = %s AND e.name = %s
                 AND f.archived = FALSE
-            """, (user_id, entity_name))
+            """, (user_id, sub_user_id, entity_name))
             existing = cur.fetchall()
 
         if not existing:
@@ -4205,6 +4317,7 @@ Be specific and personal, not generic. No markdown, just JSON."""
                             title=title,
                             detail=detail,
                             source_type="fact",
+                            sub_user_id=sub_user_id,
                         )
                         if tid > 0:
                             created += 1
@@ -4212,16 +4325,16 @@ Be specific and personal, not generic. No markdown, just JSON."""
 
         return created
 
-    def detect_pattern_triggers(self, user_id: str):
+    def detect_pattern_triggers(self, user_id: str, sub_user_id: str = "default"):
         """Detect patterns in procedural memory (high fail rates, recurring issues)."""
         with self._cursor(dict_cursor=True) as cur:
             # Procedures with more failures than successes
             cur.execute("""
                 SELECT id, name, success_count, fail_count, steps
                 FROM procedures
-                WHERE user_id = %s AND (success_count + fail_count) >= 3
+                WHERE user_id = %s AND sub_user_id = %s AND (success_count + fail_count) >= 3
                 AND fail_count > success_count
-            """, (user_id,))
+            """, (user_id, sub_user_id))
             risky_procs = cur.fetchall()
 
         created = 0
@@ -4240,6 +4353,7 @@ Be specific and personal, not generic. No markdown, just JSON."""
                 detail=detail,
                 source_type="procedure",
                 source_id=str(proc["id"]),
+                sub_user_id=sub_user_id,
             )
             if tid > 0:
                 created += 1
@@ -4254,10 +4368,10 @@ Be specific and personal, not generic. No markdown, just JSON."""
                     LEFT JOIN episodes e ON e.linked_procedure_id = p.id
                         AND e.emotional_valence = 'negative'
                         AND e.created_at > NOW() - INTERVAL '7 days'
-                    WHERE p.user_id = %s AND p.is_current = TRUE
+                    WHERE p.user_id = %s AND p.sub_user_id = %s AND p.is_current = TRUE
                     GROUP BY p.id
                     HAVING COUNT(e.id) >= 3
-                """, (user_id,))
+                """, (user_id, sub_user_id))
                 at_risk = cur.fetchall()
             for proc in at_risk:
                 title = f"At-risk workflow: {proc['name']} ({proc['recent_failures']} failures this week)"
@@ -4272,6 +4386,7 @@ Be specific and personal, not generic. No markdown, just JSON."""
                     detail=detail,
                     source_type="procedure",
                     source_id=str(proc["id"]),
+                    sub_user_id=sub_user_id,
                 )
                 if tid > 0:
                     created += 1
@@ -4285,7 +4400,8 @@ Be specific and personal, not generic. No markdown, just JSON."""
                                           old_version: int,
                                           new_version: int,
                                           change_description: str,
-                                          procedure_id: str) -> int:
+                                          procedure_id: str,
+                                          sub_user_id: str = "default") -> int:
         """Create a trigger notifying the user that a procedure evolved."""
         title = f"Procedure updated: {procedure_name} v{old_version} → v{new_version}"
         detail = (
@@ -4301,6 +4417,7 @@ Be specific and personal, not generic. No markdown, just JSON."""
             detail=detail,
             source_type="procedure",
             source_id=procedure_id,
+            sub_user_id=sub_user_id,
         )
         return 1 if tid > 0 else 0
 
@@ -4308,7 +4425,8 @@ Be specific and personal, not generic. No markdown, just JSON."""
                                              suggestion_name: str,
                                              suggestion_steps: list[dict],
                                              episode_count: int,
-                                             confidence: float) -> int:
+                                             confidence: float,
+                                             sub_user_id: str = "default") -> int:
         """Create a trigger suggesting a procedure the user might want to formalize.
 
         Called when pattern detection finds a cluster with confidence 0.4-0.6
@@ -4328,6 +4446,7 @@ Be specific and personal, not generic. No markdown, just JSON."""
             title=title,
             detail=detail,
             source_type="episode",
+            sub_user_id=sub_user_id,
         )
         return 1 if tid > 0 else 0
 

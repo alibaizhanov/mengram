@@ -222,7 +222,7 @@ def create_mengram_tools(
         def _run(self, procedure_id: str, outcome: str = "success") -> str:
             success = outcome.lower().strip() in ("success", "true", "yes", "1")
             try:
-                client.procedure_feedback(procedure_id, success=success)
+                client.procedure_feedback(procedure_id, success=success, user_id=user_id)
                 status = "successful" if success else "failed"
                 return f"Recorded workflow as {status}. Future searches will reflect this."
             except Exception as e:
