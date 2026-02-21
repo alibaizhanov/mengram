@@ -506,6 +506,14 @@ class CloudStore:
                     END IF;
                 END $$
             """)
+            # Deduplicate procedures before creating unique index
+            cur.execute("""
+                DELETE FROM procedures p1 USING procedures p2
+                WHERE p1.ctid < p2.ctid
+                  AND p1.user_id = p2.user_id
+                  AND p1.name = p2.name
+                  AND p1.version = p2.version
+            """)
             cur.execute("""
                 CREATE UNIQUE INDEX IF NOT EXISTS idx_procedures_user_name_version
                 ON procedures(user_id, name, version)
@@ -550,6 +558,14 @@ class CloudStore:
                     END IF;
                 END $$
             """)
+            # Deduplicate entities before creating unique index
+            cur.execute("""
+                DELETE FROM entities e1 USING entities e2
+                WHERE e1.ctid < e2.ctid
+                  AND e1.user_id = e2.user_id
+                  AND e1.sub_user_id = e2.sub_user_id
+                  AND e1.name = e2.name
+            """)
             cur.execute("""
                 CREATE UNIQUE INDEX IF NOT EXISTS idx_entities_user_sub_name
                 ON entities(user_id, sub_user_id, name)
@@ -577,6 +593,15 @@ class CloudStore:
             # Drop old unique index if exists, create new one with sub_user_id
             cur.execute("""
                 DROP INDEX IF EXISTS idx_procedures_user_name_version
+            """)
+            # Deduplicate procedures before creating unique index
+            cur.execute("""
+                DELETE FROM procedures p1 USING procedures p2
+                WHERE p1.ctid < p2.ctid
+                  AND p1.user_id = p2.user_id
+                  AND p1.sub_user_id = p2.sub_user_id
+                  AND p1.name = p2.name
+                  AND p1.version = p2.version
             """)
             cur.execute("""
                 CREATE UNIQUE INDEX IF NOT EXISTS idx_procedures_user_sub_name_version
