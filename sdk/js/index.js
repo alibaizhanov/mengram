@@ -579,7 +579,7 @@ class MengramClient {
     const params = {};
     if (options.includeFired) params.include_fired = 'true';
     if (options.limit) params.limit = options.limit;
-    if (options.subUserId && options.subUserId !== 'default') params.sub_user_id = options.subUserId;
+    if (options.userId && options.userId !== 'default') params.sub_user_id = options.userId;
     const path = userId ? `/v1/triggers/${userId}` : '/v1/triggers';
     const result = await this._request('GET', path, null, params);
     return result.triggers || [];
@@ -654,7 +654,9 @@ class MengramClient {
         for (let j = 0; j < conv.length; j += chunkSize) {
           const chunk = conv.slice(j, j + chunkSize);
           try {
-            await this.add(chunk);
+            const addOpts = {};
+            if (options.userId) addOpts.userId = options.userId;
+            await this.add(chunk, addOpts);
             result.chunks_sent++;
             chunkIdx++;
             if (options.onProgress) {
@@ -711,7 +713,9 @@ class MengramClient {
 
       for (const chunk of chunks) {
         try {
-          await this.add([{ role: 'user', content: `Note: ${title}\n\n${chunk}` }]);
+          const addOpts = {};
+          if (options.userId) addOpts.userId = options.userId;
+          await this.add([{ role: 'user', content: `Note: ${title}\n\n${chunk}` }], addOpts);
           result.chunks_sent++;
           chunkIdx++;
           if (options.onProgress) options.onProgress(chunkIdx, totalChunks, title);
@@ -781,7 +785,9 @@ class MengramClient {
 
       for (const chunk of chunks) {
         try {
-          await this.add([{ role: 'user', content: `Note: ${title}\n\n${chunk}` }]);
+          const addOpts = {};
+          if (options.userId) addOpts.userId = options.userId;
+          await this.add([{ role: 'user', content: `Note: ${title}\n\n${chunk}` }], addOpts);
           result.chunks_sent++;
           chunkIdx++;
           if (options.onProgress) options.onProgress(chunkIdx, totalChunks, title);

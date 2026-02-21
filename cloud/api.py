@@ -1843,9 +1843,9 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         with store._cursor() as cur:
             cur.execute("""
                 UPDATE memory_triggers SET fired = TRUE, fired_at = NOW()
-                WHERE id = %s
+                WHERE id = %s AND user_id = %s
                 RETURNING id
-            """, (trigger_id,))
+            """, (trigger_id, user_id))
             row = cur.fetchone()
         if row:
             return {"status": "dismissed", "id": trigger_id}

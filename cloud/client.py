@@ -556,14 +556,14 @@ class CloudMemory:
 
     # ---- Smart Triggers (v2.6) ----
 
-    def get_triggers(self, user_id: str = None,
+    def get_triggers(self, target_user_id: str = None,
                      include_fired: bool = False, limit: int = 50,
-                     sub_user_id: str = "default") -> list:
+                     user_id: str = "default") -> list:
         """Get smart triggers (reminders, contradictions, patterns)."""
         params = {"include_fired": include_fired, "limit": limit}
-        if sub_user_id and sub_user_id != "default":
-            params["sub_user_id"] = sub_user_id
-        path = f"/v1/triggers/{user_id}" if user_id else "/v1/triggers"
+        if user_id and user_id != "default":
+            params["sub_user_id"] = user_id
+        path = f"/v1/triggers/{target_user_id}" if target_user_id else "/v1/triggers"
         result = self._request("GET", path, params=params)
         return result.get("triggers", [])
 

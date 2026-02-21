@@ -106,7 +106,7 @@ def create_cloud_mcp_server(mem: CloudMemory, user_id: str = "default") -> "Serv
     def _get_triggers():
         """Get pending triggers formatted as markdown."""
         try:
-            triggers = mem.get_triggers(include_fired=False, limit=20, sub_user_id=user_id)
+            triggers = mem.get_triggers(include_fired=False, limit=20, user_id=user_id)
             if not triggers:
                 return "No pending triggers."
 
