@@ -214,8 +214,12 @@ class CloudStore:
                 cur.close()
 
     def _migrate(self):
-        """Auto-migrate: add new columns if missing."""
+        """Auto-migrate: add new columns if missing.
+        Uses advisory lock to prevent race conditions when multiple
+        gunicorn workers start simultaneously."""
         with self._cursor() as cur:
+            # Serialize migrations across workers (released on unlock or connection close)
+            cur.execute("SELECT pg_advisory_lock(42)")
             # facts.created_at for temporal queries
             cur.execute("""
                 ALTER TABLE facts ADD COLUMN IF NOT EXISTS created_at 
@@ -620,7 +624,9 @@ class CloudStore:
                 GROUP BY e.id
             """)
 
-        logger.info("✅ Migration complete (v2.12: sub-user isolation)")
+            logger.info("✅ Migration complete (v2.12: sub-user isolation)")
+
+            cur.execute("SELECT pg_advisory_unlock(42)")
 
     # ---- Job tracking (PostgreSQL-backed, survives restarts) ----
 
