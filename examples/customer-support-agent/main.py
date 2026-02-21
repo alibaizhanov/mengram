@@ -32,7 +32,9 @@ def main():
         print(f"{RED}Error: OPENAI_API_KEY not set (required by CrewAI).{RESET}")
         sys.exit(1)
 
-    tools = create_mengram_tools(api_key=api_key)
+    # Use customer name as user_id → each customer gets isolated memory
+    customer_id = os.environ.get("CUSTOMER_ID", "default")
+    tools = create_mengram_tools(api_key=api_key, user_id=customer_id)
 
     agent = Agent(
         role="Customer Support Specialist",
@@ -51,9 +53,10 @@ def main():
     print(f"\n{BOLD}{CYAN}{'=' * 60}")
     print(f"  Customer Support Agent — CrewAI + Mengram")
     print(f"{'=' * 60}{RESET}")
-    print(f"\n  {DIM}The agent has 5 Mengram tools: search, remember, profile,")
+    print(f"\n  {DIM}Customer ID: {customer_id} (set CUSTOMER_ID env var to change){RESET}")
+    print(f"  {DIM}The agent has 5 Mengram tools: search, remember, profile,")
     print(f"  save workflow, and workflow feedback.{RESET}")
-    print(f"  {DIM}Watch CrewAI's verbose output to see the agent's reasoning.{RESET}")
+    print(f"  {DIM}Each customer gets isolated memory — try different CUSTOMER_IDs.{RESET}")
     print(f"  {DIM}Type 'quit' to exit.{RESET}\n")
 
     while True:

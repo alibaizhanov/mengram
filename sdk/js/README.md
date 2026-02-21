@@ -18,10 +18,10 @@ const m = new MengramClient('om-your-api-key');
 // Add memories — auto-extracts facts, events, workflows
 await m.add([
   { role: 'user', content: 'Fixed the auth bug. My process: check logs, reproduce locally, fix and deploy.' },
-], { userId: 'ali' });
+]);
 
 // Semantic search (classic)
-const results = await m.search('auth issues', { userId: 'ali' });
+const results = await m.search('auth issues');
 
 // Episodic — what happened?
 const events = await m.episodes({ query: 'auth bug' });
@@ -111,6 +111,27 @@ await m.importChatgpt('export.zip', {
 | `createTeam(name)` | Create shared team |
 | `joinTeam(code)` | Join team |
 | `shareMemory(entity, teamId)` | Share with team |
+
+## Multi-User Isolation
+
+Building a multi-tenant app? Pass `userId` to isolate memories per end-user. One API key, many users — each sees only their own data:
+
+```javascript
+// Each userId gets its own isolated memory space
+await m.add([{ role: 'user', content: 'I prefer dark mode' }], { userId: 'alice' });
+await m.add([{ role: 'user', content: 'I prefer light mode' }], { userId: 'bob' });
+
+const alice = await m.searchAll('preferences', { userId: 'alice' });
+// → Only Alice's memories (dark mode)
+
+const bob = await m.searchAll('preferences', { userId: 'bob' });
+// → Only Bob's memories (light mode)
+
+const profile = await m.getProfile('alice');
+// → Alice's cognitive profile
+```
+
+No `userId`? Everything works as before — defaults to a single shared memory space.
 
 ## Links
 

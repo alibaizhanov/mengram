@@ -120,10 +120,25 @@ mengram/
 └── README.md
 ```
 
+## Multi-User Isolation
+
+API key = account auth (billing, rate limiting). `user_id` = data isolation per end-user.
+
+```
+API Key "om-abc123" (account: Ali)
+  ├── user_id="alice"  → isolated entities, episodes, procedures, triggers, profile
+  ├── user_id="bob"    → isolated entities, episodes, procedures, triggers, profile
+  └── user_id="default"→ default space (backward compatible, no user_id = "default")
+```
+
+Implementation: `sub_user_id TEXT NOT NULL DEFAULT 'default'` column on data tables (entities, episodes, procedures, knowledge, memory_triggers). Account-level tables (api_keys, usage_log, webhooks, teams, jobs) are NOT scoped.
+
 ## Key Data Flow
 
 ```
-POST /v1/add (messages)
+POST /v1/add (messages, user_id?)
+  ├── Auth: API key → account UUID (billing, rate limiting)
+  ├── Data scope: user_id → sub_user_id (data isolation per end-user)
   ├── ConversationExtractor → LLM → entities, facts, relations, knowledge, episodes, procedures
   ├── Save entities + embeddings (pgvector HNSW)
   ├── Save episodes + embeddings

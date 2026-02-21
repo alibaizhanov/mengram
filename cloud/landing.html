@@ -847,7 +847,11 @@ results = m.search_all(<span class="c-str">"database issues"</span>)
 
 <span class="c-cmt"># Cognitive Profile — instant personalization</span>
 profile = m.get_profile()
-<span class="c-cmt"># → ready system prompt for any LLM</span></pre>
+<span class="c-cmt"># → ready system prompt for any LLM</span>
+
+<span class="c-cmt"># Multi-user isolation — one API key, many users</span>
+m.add([...], user_id=<span class="c-str">"alice"</span>)
+m.search_all(<span class="c-str">"prefs"</span>, user_id=<span class="c-str">"alice"</span>)  <span class="c-cmt"># only Alice's data</span></pre>
                             </div>
                         </div>
                     </div>
@@ -887,11 +891,9 @@ profile = m.get_profile()
 <span class="c-kw">const</span> all = <span class="c-kw">await</span> m.searchAll(<span class="c-str">'database issues'</span>);
 <span class="c-cmt">// → {semantic: [...], episodic: [...], procedural: [...]}</span>
 
-<span class="c-cmt">// Episodic — what happened?</span>
-<span class="c-kw">const</span> events = <span class="c-kw">await</span> m.episodes({ <span class="c-str">query</span>: <span class="c-str">'deployment'</span> });
-
-<span class="c-cmt">// Procedural — how to do it?</span>
-<span class="c-kw">const</span> procs = <span class="c-kw">await</span> m.procedures({ <span class="c-str">query</span>: <span class="c-str">'release'</span> });</pre>
+<span class="c-cmt">// Multi-user isolation — one API key, many users</span>
+<span class="c-kw">await</span> m.add([...], { <span class="c-str">userId</span>: <span class="c-str">'alice'</span> });
+<span class="c-kw">await</span> m.searchAll(<span class="c-str">'prefs'</span>, { <span class="c-str">userId</span>: <span class="c-str">'alice'</span> }); <span class="c-cmt">// only Alice's data</span></pre>
                             </div>
                         </div>
                     </div>
@@ -1070,6 +1072,11 @@ crew = Crew(agents=[agent], tasks=[...])</pre>
                     <h3>Procedure Feedback</h3>
                     <p>Your AI learns which workflows succeed. Track success/fail counts per procedure. Proven patterns surface first.</p>
                 </div>
+                <div class="feat-card" style="border-color: var(--green); box-shadow: 0 0 20px rgba(52,211,153,0.15);">
+                    <div class="feat-icon">👥</div>
+                    <h3>Multi-User Isolation</h3>
+                    <p>One API key, many users. Pass <code>user_id</code> to scope memories per end-user. Each user gets their own isolated facts, events, workflows, and cognitive profile.</p>
+                </div>
                 <div class="feat-card">
                     <div class="feat-icon">🤝</div>
                     <h3>Team Memory</h3>
@@ -1188,6 +1195,12 @@ crew = Crew(agents=[agent], tasks=[...])</pre>
                             <td style="padding:10px 16px;font-weight:600;">Unified Search <span style="color:var(--accent);font-size:11px;">(all 3 types)</span></td>
                             <td style="text-align:center;padding:10px;">✅</td>
                             <td style="text-align:center;padding:10px;">❌</td>
+                            <td style="text-align:center;padding:10px;">❌</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--border);background:var(--accent-dim);">
+                            <td style="padding:10px 16px;font-weight:600;">Multi-User Isolation <span style="color:var(--green);font-size:11px;">NEW</span></td>
+                            <td style="text-align:center;padding:10px;">✅</td>
+                            <td style="text-align:center;padding:10px;">✅</td>
                             <td style="text-align:center;padding:10px;">❌</td>
                         </tr>
                         <tr style="border-bottom: 1px solid var(--border);">
@@ -1324,6 +1337,12 @@ crew = Crew(agents=[agent], tasks=[...])</pre>
         // To add a new entry: just add an object to the top of this array.
         // Tags: "feature", "improvement", "fix"
         const CHANGELOG = [
+            {
+                date: "2026-02-22",
+                tag: "feature",
+                title: "Multi-User Isolation",
+                body: "One API key, many users. Pass <code>user_id</code> to isolate memories per end-user — each gets their own facts, events, workflows, and cognitive profile. Build multi-user apps with a single API key. Backward compatible: no <code>user_id</code> = works as before.",
+            },
             {
                 date: "2025-02-20",
                 tag: "feature",

@@ -14,8 +14,11 @@ pip install -r requirements.txt
 cp .env.example .env
 # Edit .env and add your keys
 
-# 3. Run
-python main.py
+# 3. Run as customer "jane"
+CUSTOMER_ID=jane python main.py
+
+# 4. Run as customer "bob" — completely isolated memory
+CUSTOMER_ID=bob python main.py
 ```
 
 ## What You'll See
@@ -49,6 +52,8 @@ Customer: The laptop finally arrived but the screen is cracked.
 
 On the second run, the agent already knows Jane, her order history, and her frustration — and responds accordingly.
 
+**Multi-user isolation:** Each `CUSTOMER_ID` gets its own isolated memory space. Jane's history won't leak into Bob's sessions, and vice versa. This is how real multi-user apps work — one API key, many customers.
+
 ## How It Works
 
 1. Every customer message triggers the agent to **search memory first**
@@ -59,6 +64,7 @@ On the second run, the agent already knows Jane, her order history, and her frus
 
 ## What to Try Next
 
+- Try different `CUSTOMER_ID` values to see isolated memory per customer
 - Add `mengram_save_workflow` calls to teach the agent support procedures
 - Report procedure outcomes with `mengram_workflow_feedback`
 

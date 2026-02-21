@@ -28,6 +28,7 @@ Every AI memory tool stores facts. Mengram stores **3 types** — and procedures
 | **Procedural Memory (workflows)** | ✅ | ❌ | ❌ | ❌ |
 | **Experience-Driven Evolution** | ✅ | ❌ | ❌ | ❌ |
 | **Cognitive Profile** | ✅ | ❌ | ❌ | ❌ |
+| **Multi-User Isolation** | ✅ | ✅ | ❌ | ✅ |
 | Knowledge Graph | ✅ | ✅ | ✅ | ✅ |
 | LangChain / CrewAI / OpenClaw | ✅ | Partial | ❌ | ✅ |
 | **Import (ChatGPT, Obsidian)** | ✅ | ❌ | ❌ | ❌ |
@@ -225,7 +226,7 @@ python main.py
 
 ## API Reference
 
-All endpoints require `Authorization: Bearer om-...` — your key identifies you, no user_id needed.
+All endpoints require `Authorization: Bearer om-...`. Your API key identifies the account. Pass `user_id` to isolate data per end-user (multi-tenant apps).
 
 | Endpoint | Description |
 |---|---|
@@ -239,6 +240,28 @@ All endpoints require `Authorization: Bearer om-...` — your key identifies you
 | `GET /v1/profile` | Cognitive Profile |
 | `GET /v1/triggers` | Smart Triggers (reminders, contradictions, patterns) |
 | `POST /v1/agents/run` | Run memory agents (Curator, Connector, Digest) |
+
+### Multi-User Isolation
+
+Building an app with multiple users? Pass `user_id` to isolate memories per end-user. One API key, many users — each sees only their own data:
+
+```python
+# Each user_id gets its own isolated memory space
+m.add([...], user_id="alice")
+m.add([...], user_id="bob")
+
+m.search_all("preferences", user_id="alice")  # Only Alice's memories
+m.search_all("preferences", user_id="bob")    # Only Bob's memories
+
+m.get_profile(user_id="alice")  # Alice's cognitive profile
+```
+
+```javascript
+await m.add([...], { userId: 'alice' });
+await m.searchAll('preferences', { userId: 'alice' });  // Only Alice's memories
+```
+
+No `user_id`? Everything works as before — defaults to a single shared memory space.
 
 Full interactive docs: **[mengram.io/docs](https://mengram.io/docs)**
 
