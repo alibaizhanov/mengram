@@ -735,6 +735,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             try:
                 extractor = get_llm()
                 conversation = [{"role": m.role, "content": m.content} for m in req.messages]
+                from concurrent.futures import ThreadPoolExecutor, as_completed
 
                 # Get existing entities context for smarter extraction
                 existing_context = ""
@@ -743,129 +744,140 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 except Exception as e:
                     logger.error(f"⚠️ Context fetch failed: {e}")
 
-                extraction = extractor.extract(conversation, existing_context=existing_context)
-
-                # ---- Phase 1: Parallel conflict resolution (LLM calls) ----
-                from concurrent.futures import ThreadPoolExecutor, as_completed
-
-                conflict_tasks = []
-                for entity in extraction.entities:
-                    if not entity.name:
-                        continue
-                    existing_id = store.get_entity_id(user_id, entity.name, sub_user_id=sub_uid)
-                    if existing_id and entity.facts:
-                        conflict_tasks.append((entity, existing_id))
-
-                conflict_results = {}  # name -> archived_facts
-                if conflict_tasks:
-                    def _check_conflicts(entity, existing_id):
-                        try:
-                            # Convert ExtractedFact objects to strings for conflict check
-                            plain_facts = [f.content if hasattr(f, 'content') else str(f)
-                                           for f in entity.facts]
-                            archived = store.archive_contradicted_facts(
-                                existing_id, plain_facts, extractor.llm)
-                            return entity.name, archived
-                        except Exception as e:
-                            logger.error(f"⚠️ Conflict check failed for {entity.name}: {e}")
-                            return entity.name, []
-
-                    with ThreadPoolExecutor(max_workers=5) as pool:
-                        futures = [pool.submit(_check_conflicts, ent, eid)
-                                   for ent, eid in conflict_tasks]
-                        for future in as_completed(futures):
-                            name, archived = future.result()
-                            conflict_results[name] = archived
-
-                # ---- Phase 2: Save entities + collect embedding chunks ----
+                # ---- Windowed extraction: extract per 4-message window ----
+                WINDOW_SIZE = 4  # 2 user+assistant exchanges per window
+                all_episodes = []
+                all_procedures = []
+                all_entities = []  # for smart triggers at end
                 embedding_queue = []  # [(entity_id, chunks)]
-                for entity in extraction.entities:
-                    name = entity.name
-                    if not name:
-                        continue
 
-                    # Build relations
-                    entity_relations = []
-                    for rel in extraction.relations:
-                        if rel.from_entity == name:
-                            entity_relations.append({
-                                "target": rel.to_entity,
-                                "type": rel.relation_type,
-                                "description": rel.description,
-                                "direction": "outgoing",
+                for win_start in range(0, max(len(conversation), 1), WINDOW_SIZE):
+                    window = conversation[win_start:win_start + WINDOW_SIZE]
+                    if not window:
+                        break
+
+                    win_extraction = extractor.extract(window, existing_context=existing_context)
+                    all_episodes.extend(win_extraction.episodes)
+                    all_procedures.extend(win_extraction.procedures)
+                    all_entities.extend(win_extraction.entities)
+
+                    # -- Conflict resolution for this window's entities --
+                    conflict_tasks = []
+                    for entity in win_extraction.entities:
+                        if not entity.name:
+                            continue
+                        existing_id = store.get_entity_id(user_id, entity.name, sub_user_id=sub_uid)
+                        if existing_id and entity.facts:
+                            conflict_tasks.append((entity, existing_id))
+
+                    conflict_results = {}
+                    if conflict_tasks:
+                        def _check_conflicts(entity, existing_id):
+                            try:
+                                plain_facts = [f.content if hasattr(f, 'content') else str(f)
+                                               for f in entity.facts]
+                                archived = store.archive_contradicted_facts(
+                                    existing_id, plain_facts, extractor.llm)
+                                return entity.name, archived
+                            except Exception as e:
+                                logger.error(f"⚠️ Conflict check failed for {entity.name}: {e}")
+                                return entity.name, []
+
+                        with ThreadPoolExecutor(max_workers=5) as pool:
+                            futures = [pool.submit(_check_conflicts, ent, eid)
+                                       for ent, eid in conflict_tasks]
+                            for future in as_completed(futures):
+                                name, archived = future.result()
+                                conflict_results[name] = archived
+
+                    # -- Save this window's entities immediately --
+                    for entity in win_extraction.entities:
+                        name = entity.name
+                        if not name:
+                            continue
+
+                        entity_relations = []
+                        for rel in win_extraction.relations:
+                            if rel.from_entity == name:
+                                entity_relations.append({
+                                    "target": rel.to_entity,
+                                    "type": rel.relation_type,
+                                    "description": rel.description,
+                                    "direction": "outgoing",
+                                })
+                            elif rel.to_entity == name:
+                                entity_relations.append({
+                                    "target": rel.from_entity,
+                                    "type": rel.relation_type,
+                                    "description": rel.description,
+                                    "direction": "incoming",
+                                })
+
+                        entity_knowledge = []
+                        for k in win_extraction.knowledge:
+                            if k.entity == name:
+                                entity_knowledge.append({
+                                    "type": k.knowledge_type,
+                                    "title": k.title,
+                                    "content": k.content,
+                                    "artifact": k.artifact,
+                                })
+
+                        fact_strings = []
+                        fact_dates = {}
+                        for f in entity.facts:
+                            if hasattr(f, 'content'):
+                                fact_strings.append(f.content)
+                                if f.event_date:
+                                    fact_dates[f.content] = f.event_date
+                            else:
+                                fact_strings.append(str(f))
+
+                        archived = conflict_results.get(name)
+                        if archived:
+                            store.fire_webhooks(user_id, "memory_update", {
+                                "entity": name,
+                                "archived_facts": archived,
+                                "new_facts": fact_strings
                             })
-                        elif rel.to_entity == name:
-                            entity_relations.append({
-                                "target": rel.from_entity,
-                                "type": rel.relation_type,
-                                "description": rel.description,
-                                "direction": "incoming",
-                            })
 
-                    # Build knowledge
-                    entity_knowledge = []
-                    for k in extraction.knowledge:
-                        if k.entity == name:
-                            entity_knowledge.append({
-                                "type": k.knowledge_type,
-                                "title": k.title,
-                                "content": k.content,
-                                "artifact": k.artifact,
-                            })
+                        entity_id = store.save_entity(
+                            user_id=user_id,
+                            name=name,
+                            type=entity.entity_type,
+                            facts=fact_strings,
+                            relations=entity_relations,
+                            knowledge=entity_knowledge,
+                            metadata=metadata if metadata else None,
+                            expires_at=req.expiration_date,
+                            sub_user_id=sub_uid,
+                            fact_dates=fact_dates,
+                        )
+                        created.append(name)
 
-                    # Convert ExtractedFact objects to strings for storage/embedding
-                    # and collect event_dates for temporal indexing
-                    fact_strings = []
-                    fact_dates = {}  # fact_content -> event_date
-                    for f in entity.facts:
-                        if hasattr(f, 'content'):
-                            # ExtractedFact object
-                            fact_strings.append(f.content)
-                            if f.event_date:
-                                fact_dates[f.content] = f.event_date
-                        else:
-                            # Plain string (backward compat)
-                            fact_strings.append(str(f))
+                        chunks = [name] + [f"{name}: {fs}" for fs in fact_strings]
+                        for r in entity_relations:
+                            target = r.get("target", "")
+                            rel_type = r.get("type", "")
+                            if target and rel_type:
+                                chunks.append(f"{name} {rel_type} {target}")
+                        for k in entity_knowledge:
+                            chunks.append(f"{k['title']} {k['content']}")
+                        embedding_queue.append((entity_id, chunks))
 
-                    # Use pre-computed conflict results
-                    archived = conflict_results.get(name)
-                    if archived:
-                        store.fire_webhooks(user_id, "memory_update", {
-                            "entity": name,
-                            "archived_facts": archived,
-                            "new_facts": fact_strings
-                        })
+                    # -- Refresh context for next window (includes just-saved entities) --
+                    if win_start + WINDOW_SIZE < len(conversation):
+                        try:
+                            existing_context = store.get_existing_context(
+                                user_id, sub_user_id=sub_uid)
+                        except Exception:
+                            pass
 
-                    entity_id = store.save_entity(
-                        user_id=user_id,
-                        name=name,
-                        type=entity.entity_type,
-                        facts=fact_strings,
-                        relations=entity_relations,
-                        knowledge=entity_knowledge,
-                        metadata=metadata if metadata else None,
-                        expires_at=req.expiration_date,
-                        sub_user_id=sub_uid,
-                        fact_dates=fact_dates,
-                    )
-                    created.append(name)
-
-                    # Collect chunks for batched embedding (prefix entity name for context)
-                    chunks = [name] + [f"{name}: {fs}" for fs in fact_strings]
-                    for r in entity_relations:
-                        target = r.get("target", "")
-                        rel_type = r.get("type", "")
-                        if target and rel_type:
-                            chunks.append(f"{name} {rel_type} {target}")
-                    for k in entity_knowledge:
-                        chunks.append(f"{k['title']} {k['content']}")
-                    embedding_queue.append((entity_id, chunks))
-
-                # ---- Phase 3: Batch embeddings across ALL entities (1 API call) ----
+                # ---- Batch embeddings across ALL windows (1 API call) ----
                 embedder = get_embedder()
                 if embedder and embedding_queue:
                     all_chunks = []
-                    chunk_map = []  # [(entity_id, chunk_index)]
+                    chunk_map = []
                     for entity_id, chunks in embedding_queue:
                         store.delete_embeddings(entity_id)
                         for chunk in chunks:
@@ -898,7 +910,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 episodes_created = 0
                 episodes_linked = 0
                 embedder = get_embedder()
-                for ep in extraction.episodes:
+                for ep in all_episodes:
                     if not ep.summary:
                         continue
                     try:
@@ -1008,7 +1020,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
                 # ---- Procedural Memory: save procedures ----
                 procedures_created = 0
-                for pr in extraction.procedures:
+                for pr in all_procedures:
                     if not pr.name or not pr.steps:
                         continue
                     try:
@@ -1064,7 +1076,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 triggers_created = 0
                 try:
                     triggers_created += store.detect_reminder_triggers(user_id, sub_user_id=sub_uid)
-                    for entity in extraction.entities:
+                    for entity in all_entities:
                         if entity.name and entity.facts:
                             plain_facts = [f.content if hasattr(f, 'content') else str(f)
                                            for f in entity.facts]

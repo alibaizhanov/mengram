@@ -44,7 +44,7 @@ STATE_FILE = os.path.join(STATE_DIR, "locomo_state.json")
 RESULTS_FILE = os.path.join(STATE_DIR, "locomo_results.json")
 
 MAX_CONTEXT_CHARS = 12000  # ~3000 tokens
-CHUNK_SIZE = 20  # messages per /v1/add call
+CHUNK_SIZE = 10  # messages per /v1/add call (smaller = more focused extraction)
 MAX_RETRIES = 3  # retry 502/503 errors
 RETRY_BACKOFF_S = 10  # seconds between retries
 
