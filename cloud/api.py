@@ -24,7 +24,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("mengram")
 
-from fastapi import FastAPI, HTTPException, Depends, Header, Form, Query
+from fastapi import FastAPI, HTTPException, Depends, Header, Form, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse, PlainTextResponse
 from pydantic import BaseModel
@@ -316,7 +316,7 @@ Be strict — only include entities that directly answer or relate to the query.
 
     # ---- Auth middleware ----
 
-    async def auth(authorization: str = Header(...)) -> str:
+    async def auth(request: Request, authorization: str = Header(...)) -> str:
         """Verify API key, return user_id. Rate limited."""
         key = authorization.replace("Bearer ", "")
         user_id = store.verify_api_key(key)
@@ -327,6 +327,8 @@ Be strict — only include entities that directly answer or relate to the query.
                 status_code=429,
                 detail=f"Rate limit exceeded ({RATE_LIMIT} requests/min). Retry in 60 seconds."
             )
+        key_prefix = key[:10] if len(key) > 10 else key[:4]
+        logger.info(f"🔑 {request.method} {request.url.path} | key={key_prefix}... | user={user_id[:8]}")
         return user_id
 
     # ---- Email helper ----
