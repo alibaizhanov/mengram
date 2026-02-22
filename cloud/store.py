@@ -541,6 +541,7 @@ class CloudStore:
         logger.info("✅ Migration complete (v2.10: persistent jobs)")
 
         # --- v2.12 Sub-user isolation ---
+        # Split into separate transactions so each table commits independently
         with self._cursor() as cur:
             # entities: add sub_user_id, update UNIQUE constraint
             cur.execute("""
@@ -574,7 +575,9 @@ class CloudStore:
                 CREATE INDEX IF NOT EXISTS idx_entities_sub_user
                 ON entities(user_id, sub_user_id)
             """)
+        logger.info("✅ Migration v2.12a: entities sub-user isolation")
 
+        with self._cursor() as cur:
             # episodes: add sub_user_id
             cur.execute("""
                 ALTER TABLE episodes ADD COLUMN IF NOT EXISTS sub_user_id
@@ -584,13 +587,26 @@ class CloudStore:
                 CREATE INDEX IF NOT EXISTS idx_episodes_sub_user
                 ON episodes(user_id, sub_user_id, created_at DESC)
             """)
+        logger.info("✅ Migration v2.12b: episodes sub-user isolation")
 
-            # procedures: add sub_user_id, update UNIQUE index
+        with self._cursor() as cur:
+            # procedures: add sub_user_id, update UNIQUE constraint
             cur.execute("""
                 ALTER TABLE procedures ADD COLUMN IF NOT EXISTS sub_user_id
                 TEXT NOT NULL DEFAULT 'default'
             """)
-            # Drop old unique index if exists, create new one with sub_user_id
+            # Drop old unique constraint (user_id, name) if it exists
+            cur.execute("""
+                DO $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM pg_constraint
+                        WHERE conname = 'procedures_user_id_name_key'
+                    ) THEN
+                        ALTER TABLE procedures DROP CONSTRAINT procedures_user_id_name_key;
+                    END IF;
+                END $$
+            """)
             cur.execute("""
                 DROP INDEX IF EXISTS idx_procedures_user_name_version
             """)
@@ -611,7 +627,9 @@ class CloudStore:
                 CREATE INDEX IF NOT EXISTS idx_procedures_sub_user
                 ON procedures(user_id, sub_user_id)
             """)
+        logger.info("✅ Migration v2.12c: procedures sub-user isolation")
 
+        with self._cursor() as cur:
             # knowledge: add sub_user_id
             cur.execute("""
                 ALTER TABLE knowledge ADD COLUMN IF NOT EXISTS sub_user_id
@@ -648,8 +666,7 @@ class CloudStore:
                 LEFT JOIN relations r2 ON r2.target_id = e.id
                 GROUP BY e.id
             """)
-
-            logger.info("✅ Migration complete (v2.12: sub-user isolation)")
+        logger.info("✅ Migration complete (v2.12: sub-user isolation)")
 
         # --- v2.13 Temporal metadata + raw chunk indexing ---
         with self._cursor() as cur:
