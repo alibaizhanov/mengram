@@ -761,6 +761,28 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 """)
                 r3 = cur.fetchone()
                 db_info["chunk_max_sim"] = float(r3[0]) if r3 and r3[0] else None
+                # Test: BM25 search for 'birthday' in chunks
+                cur.execute("""
+                    SELECT COUNT(*)
+                    FROM chunk_embeddings ce
+                    JOIN conversation_chunks c ON c.id = ce.chunk_id
+                    WHERE c.user_id = '760e7bfc-3130-47e8-a9d5-405a1c0fe5d5'
+                      AND c.sub_user_id = 'locomo_0'
+                      AND ce.tsv @@ plainto_tsquery('english', 'birthday')
+                """)
+                db_info["chunk_bm25_birthday"] = cur.fetchone()[0]
+                # Check sample tsv content
+                cur.execute("""
+                    SELECT LEFT(c.content, 100), LEFT(ce.tsv::text, 200)
+                    FROM chunk_embeddings ce
+                    JOIN conversation_chunks c ON c.id = ce.chunk_id
+                    WHERE c.sub_user_id = 'locomo_0'
+                    LIMIT 1
+                """)
+                r4 = cur.fetchone()
+                if r4:
+                    db_info["chunk_sample_content"] = r4[0]
+                    db_info["chunk_sample_tsv"] = r4[1]
 
                 # Check facts with event_date
                 cur.execute("SELECT COUNT(*) FROM facts WHERE event_date IS NOT NULL")

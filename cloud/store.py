@@ -2722,7 +2722,7 @@ SEMANTIC MEMORY (facts about the user):
 
     def search_chunks_vector(self, user_id: str, embedding: list[float],
                              query_text: str = "", top_k: int = 5,
-                             min_score: float = 0.2,
+                             min_score: float = 0.05,
                              sub_user_id: str = "default") -> list[dict]:
         """Search raw conversation chunks via hybrid vector+BM25."""
         embedding_str = f"[{','.join(str(x) for x in embedding)}]"
