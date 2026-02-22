@@ -700,6 +700,28 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 db_info["entities_unique_indexes"] = {r[0]: r[1] for r in cur.fetchall()}
                 cur.execute("SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'entities' AND column_name IN ('user_id', 'sub_user_id', 'name') ORDER BY ordinal_position")
                 db_info["entities_columns"] = {r[0]: r[1] for r in cur.fetchall()}
+
+                # Check chunk tables
+                cur.execute("SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name='conversation_chunks')")
+                db_info["chunks_table_exists"] = cur.fetchone()[0]
+                cur.execute("SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name='chunk_embeddings')")
+                db_info["chunk_emb_table_exists"] = cur.fetchone()[0]
+                if db_info["chunks_table_exists"]:
+                    cur.execute("SELECT COUNT(*) FROM conversation_chunks")
+                    db_info["chunks_total"] = cur.fetchone()[0]
+                    cur.execute("SELECT COUNT(*) FROM conversation_chunks WHERE sub_user_id LIKE 'locomo_%'")
+                    db_info["chunks_locomo"] = cur.fetchone()[0]
+                if db_info["chunk_emb_table_exists"]:
+                    cur.execute("SELECT COUNT(*) FROM chunk_embeddings")
+                    db_info["chunk_emb_total"] = cur.fetchone()[0]
+
+                # Check facts with event_date
+                cur.execute("SELECT COUNT(*) FROM facts WHERE event_date IS NOT NULL")
+                db_info["facts_with_date"] = cur.fetchone()[0]
+                cur.execute("SELECT COUNT(*) FROM facts")
+                db_info["facts_total"] = cur.fetchone()[0]
+                cur.execute("SELECT content, event_date FROM facts WHERE event_date IS NOT NULL LIMIT 5")
+                db_info["sample_dated_facts"] = [{"fact": r[0], "date": r[1]} for r in cur.fetchall()]
         except Exception as e:
             db_info["error"] = str(e)
         return {
