@@ -715,6 +715,10 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                     cur.execute("SELECT COUNT(*) FROM chunk_embeddings")
                     db_info["chunk_emb_total"] = cur.fetchone()[0]
 
+                # Check chunk user_id values to debug search miss
+                cur.execute("SELECT DISTINCT user_id, sub_user_id FROM conversation_chunks WHERE sub_user_id LIKE 'locomo_%' LIMIT 10")
+                db_info["chunk_user_ids"] = [{"user_id": str(r[0]), "sub_user_id": r[1]} for r in cur.fetchall()]
+
                 # Check facts with event_date
                 cur.execute("SELECT COUNT(*) FROM facts WHERE event_date IS NOT NULL")
                 db_info["facts_with_date"] = cur.fetchone()[0]
