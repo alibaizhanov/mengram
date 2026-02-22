@@ -683,11 +683,29 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     async def health():
         cache_stats = store.cache.stats()
         pool_info = {"type": "pool", "max": 10} if store._pool else {"type": "single"}
+        # Check database constraints for debugging
+        db_info = {}
+        try:
+            with store._cursor() as cur:
+                cur.execute("""
+                    SELECT conname FROM pg_constraint
+                    WHERE conrelid = 'entities'::regclass
+                    AND contype = 'u'
+                """)
+                db_info["entities_constraints"] = [r[0] for r in cur.fetchall()]
+                cur.execute("""
+                    SELECT indexname FROM pg_indexes
+                    WHERE tablename = 'entities' AND indexdef LIKE '%UNIQUE%'
+                """)
+                db_info["entities_unique_indexes"] = [r[0] for r in cur.fetchall()]
+        except Exception as e:
+            db_info["error"] = str(e)
         return {
             "status": "ok",
-            "version": "2.11.0",
+            "version": "2.14.0",
             "cache": cache_stats,
             "connection": pool_info,
+            "db": db_info,
         }
 
     # ---- Protected endpoints ----
