@@ -1782,7 +1782,7 @@ class CloudStore:
 
             # Batch facts (exclude archived) — sorted by importance
             cur.execute(
-                """SELECT id, entity_id, content, importance, access_count, last_accessed
+                """SELECT id, entity_id, content, importance, access_count, last_accessed, event_date
                    FROM facts WHERE entity_id = ANY(%s::uuid[]) AND archived = FALSE AND (expires_at IS NULL OR expires_at > NOW())
                    ORDER BY importance DESC""",
                 (entity_ids,)
@@ -1808,17 +1808,22 @@ class CloudStore:
 
                     entity_map[eid]["facts"].append({
                         "content": row["content"],
-                        "importance": round(effective_imp, 3)
+                        "importance": round(effective_imp, 3),
+                        "event_date": row.get("event_date"),
                     })
                     fact_ids_accessed.append(str(row["id"]))
 
-            # Sort facts by effective importance, return as strings
+            # Sort facts by effective importance, return as strings with dates
             for eid in entity_map:
                 sorted_facts = sorted(
                     entity_map[eid]["facts"],
                     key=lambda f: f["importance"], reverse=True
                 )
-                entity_map[eid]["facts"] = [f["content"] for f in sorted_facts]
+                entity_map[eid]["facts"] = [
+                    f"[{f['event_date']}] {f['content']}" if f.get("event_date")
+                    else f["content"]
+                    for f in sorted_facts
+                ]
 
             # Track fact access — update access_count and last_accessed
             if fact_ids_accessed:
@@ -4225,7 +4230,7 @@ Be specific and personal, not generic. No markdown, just JSON."""
 
             # Batch fetch facts
             cur.execute(
-                """SELECT entity_id, content, importance FROM facts
+                """SELECT entity_id, content, importance, event_date FROM facts
                    WHERE entity_id = ANY(%s::uuid[]) AND archived = FALSE
                      AND (expires_at IS NULL OR expires_at > NOW())
                    ORDER BY importance DESC, created_at DESC""",
@@ -4237,7 +4242,8 @@ Be specific and personal, not generic. No markdown, just JSON."""
                 if eid not in facts_map:
                     facts_map[eid] = []
                 if len(facts_map[eid]) < 15:
-                    facts_map[eid].append(r["content"])
+                    fact_str = f"[{r['event_date']}] {r['content']}" if r.get("event_date") else r["content"]
+                    facts_map[eid].append(fact_str)
 
             # Batch fetch knowledge
             cur.execute(
