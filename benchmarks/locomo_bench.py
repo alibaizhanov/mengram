@@ -290,14 +290,15 @@ def retrieve_context(
     if category == 2:
         rate_limiter.wait_if_needed()
         try:
-            timeline = client.timeline(user_id=user_id, limit=20)
+            timeline = client.timeline(user_id=user_id, limit=50)
             for item in timeline:
-                fact = item.get("fact", item.get("content", ""))
-                ts = item.get("event_date", item.get("timestamp",
-                     item.get("created_at", "")))
                 entity = item.get("entity", "")
-                if fact:
-                    context_parts.append(f"[Timeline {ts}] {entity}: {fact}")
+                # Timeline returns grouped by entity with facts array
+                for fact_obj in item.get("facts", []):
+                    fact = fact_obj.get("content", "") if isinstance(fact_obj, dict) else str(fact_obj)
+                    ts = fact_obj.get("event_date", "") if isinstance(fact_obj, dict) else ""
+                    if fact and ts:
+                        context_parts.append(f"[{ts}] {entity}: {fact}")
         except Exception:
             pass
 
