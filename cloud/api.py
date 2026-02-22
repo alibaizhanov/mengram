@@ -683,114 +683,20 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     async def health():
         cache_stats = store.cache.stats()
         pool_info = {"type": "pool", "max": 10} if store._pool else {"type": "single"}
-        # Check database constraints for debugging
+        # Basic DB diagnostics
         db_info = {}
         try:
             with store._cursor() as cur:
-                cur.execute("""
-                    SELECT conname FROM pg_constraint
-                    WHERE conrelid = 'entities'::regclass
-                    AND contype = 'u'
-                """)
-                db_info["entities_constraints"] = [r[0] for r in cur.fetchall()]
-                cur.execute("""
-                    SELECT indexname, indexdef FROM pg_indexes
-                    WHERE tablename = 'entities' AND indexdef LIKE '%UNIQUE%'
-                """)
-                db_info["entities_unique_indexes"] = {r[0]: r[1] for r in cur.fetchall()}
-                cur.execute("SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'entities' AND column_name IN ('user_id', 'sub_user_id', 'name') ORDER BY ordinal_position")
-                db_info["entities_columns"] = {r[0]: r[1] for r in cur.fetchall()}
-
-                # Check chunk tables
-                cur.execute("SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name='conversation_chunks')")
-                db_info["chunks_table_exists"] = cur.fetchone()[0]
-                cur.execute("SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name='chunk_embeddings')")
-                db_info["chunk_emb_table_exists"] = cur.fetchone()[0]
-                if db_info["chunks_table_exists"]:
-                    cur.execute("SELECT COUNT(*) FROM conversation_chunks")
-                    db_info["chunks_total"] = cur.fetchone()[0]
-                    cur.execute("SELECT COUNT(*) FROM conversation_chunks WHERE sub_user_id LIKE 'locomo_%'")
-                    db_info["chunks_locomo"] = cur.fetchone()[0]
-                if db_info["chunk_emb_table_exists"]:
-                    cur.execute("SELECT COUNT(*) FROM chunk_embeddings")
-                    db_info["chunk_emb_total"] = cur.fetchone()[0]
-
-                # Check chunk user_id values to debug search miss
-                cur.execute("SELECT DISTINCT user_id, sub_user_id FROM conversation_chunks WHERE sub_user_id LIKE 'locomo_%' LIMIT 10")
-                db_info["chunk_user_ids"] = [{"user_id": str(r[0]), "sub_user_id": r[1]} for r in cur.fetchall()]
-                # Check embeddings for locomo chunks
-                cur.execute("""
-                    SELECT COUNT(*) as total,
-                           COUNT(ce.embedding) as has_emb,
-                           COUNT(ce.tsv) as has_tsv
-                    FROM chunk_embeddings ce
-                    JOIN conversation_chunks c ON c.id = ce.chunk_id
-                    WHERE c.sub_user_id LIKE 'locomo_%'
-                """)
-                r = cur.fetchone()
-                db_info["locomo_chunk_emb"] = {"total": r[0], "has_emb": r[1], "has_tsv": r[2]}
-                # Check actual embedding dimension
-                cur.execute("""
-                    SELECT vector_dims(ce.embedding)
-                    FROM chunk_embeddings ce
-                    JOIN conversation_chunks c ON c.id = ce.chunk_id
-                    WHERE c.sub_user_id LIKE 'locomo_%' AND ce.embedding IS NOT NULL
-                    LIMIT 1
-                """)
-                r2 = cur.fetchone()
-                db_info["chunk_emb_dims"] = r2[0] if r2 else None
-                # Test: count chunks matching user_id + sub_user_id (no vector filter)
-                cur.execute("""
-                    SELECT COUNT(*)
-                    FROM chunk_embeddings ce
-                    JOIN conversation_chunks c ON c.id = ce.chunk_id
-                    WHERE c.user_id = '760e7bfc-3130-47e8-a9d5-405a1c0fe5d5'
-                      AND c.sub_user_id = 'locomo_0'
-                """)
-                db_info["chunk_match_test"] = cur.fetchone()[0]
-                # Test: get max cosine similarity for a random embedding
-                cur.execute("""
-                    SELECT MAX(1 - (ce.embedding <=> e2.embedding))
-                    FROM chunk_embeddings ce
-                    JOIN conversation_chunks c ON c.id = ce.chunk_id
-                    CROSS JOIN LATERAL (
-                        SELECT embedding FROM embeddings LIMIT 1
-                    ) e2
-                    WHERE c.user_id = '760e7bfc-3130-47e8-a9d5-405a1c0fe5d5'
-                      AND c.sub_user_id = 'locomo_0'
-                """)
-                r3 = cur.fetchone()
-                db_info["chunk_max_sim"] = float(r3[0]) if r3 and r3[0] else None
-                # Test: BM25 search for 'birthday' in chunks
-                cur.execute("""
-                    SELECT COUNT(*)
-                    FROM chunk_embeddings ce
-                    JOIN conversation_chunks c ON c.id = ce.chunk_id
-                    WHERE c.user_id = '760e7bfc-3130-47e8-a9d5-405a1c0fe5d5'
-                      AND c.sub_user_id = 'locomo_0'
-                      AND ce.tsv @@ plainto_tsquery('english', 'birthday')
-                """)
-                db_info["chunk_bm25_birthday"] = cur.fetchone()[0]
-                # Check sample tsv content
-                cur.execute("""
-                    SELECT LEFT(c.content, 100), LEFT(ce.tsv::text, 200)
-                    FROM chunk_embeddings ce
-                    JOIN conversation_chunks c ON c.id = ce.chunk_id
-                    WHERE c.sub_user_id = 'locomo_0'
-                    LIMIT 1
-                """)
-                r4 = cur.fetchone()
-                if r4:
-                    db_info["chunk_sample_content"] = r4[0]
-                    db_info["chunk_sample_tsv"] = r4[1]
-
-                # Check facts with event_date
+                cur.execute("SELECT COUNT(*) FROM entities")
+                db_info["entities"] = cur.fetchone()[0]
+                cur.execute("SELECT COUNT(*) FROM facts")
+                db_info["facts"] = cur.fetchone()[0]
                 cur.execute("SELECT COUNT(*) FROM facts WHERE event_date IS NOT NULL")
                 db_info["facts_with_date"] = cur.fetchone()[0]
-                cur.execute("SELECT COUNT(*) FROM facts")
-                db_info["facts_total"] = cur.fetchone()[0]
-                cur.execute("SELECT content, event_date FROM facts WHERE event_date IS NOT NULL LIMIT 5")
-                db_info["sample_dated_facts"] = [{"fact": r[0], "date": r[1]} for r in cur.fetchall()]
+                cur.execute("SELECT COUNT(*) FROM conversation_chunks")
+                db_info["chunks"] = cur.fetchone()[0]
+                cur.execute("SELECT COUNT(*) FROM chunk_embeddings")
+                db_info["chunk_embeddings"] = cur.fetchone()[0]
         except Exception as e:
             db_info["error"] = str(e)
         return {
@@ -1940,26 +1846,13 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
         # Raw conversation chunk search (fallback for extraction misses)
         chunks = []
-        chunk_debug = {}
         try:
             if embedder:
-                ck_top_k = max(req.limit // 3, 3)
                 chunks = store.search_chunks_vector(
                     user_id, emb, query_text=req.query,
-                    top_k=ck_top_k, sub_user_id=sub_uid)
-                # Debug: also run a raw count to see what's happening
-                with store._cursor() as cur:
-                    cur.execute(
-                        "SELECT COUNT(*) FROM conversation_chunks WHERE user_id = %s AND sub_user_id = %s",
-                        (user_id, sub_uid))
-                    chunk_debug["row_count"] = cur.fetchone()[0]
-                    chunk_debug["user_id"] = user_id
-                    chunk_debug["sub_uid"] = sub_uid
-                    chunk_debug["top_k"] = ck_top_k
-                    chunk_debug["emb_len"] = len(emb) if emb else 0
+                    top_k=max(req.limit // 3, 3), sub_user_id=sub_uid)
         except Exception as e:
-            chunk_debug["error"] = str(e)
-            logger.error(f"Chunk search error: {e}")
+            logger.debug(f"Chunk search: {e}")
 
         result = {
             "semantic": semantic,
@@ -1967,8 +1860,6 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             "procedural": procedural,
             "chunks": chunks,
         }
-        if chunk_debug:
-            result["_chunk_debug"] = chunk_debug
 
         # Cache in Redis (TTL 30s)
         store.cache.set(cache_key, result, ttl=30)
