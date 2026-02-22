@@ -1131,7 +1131,7 @@ class CloudStore:
                 logger.info(f"🔀 User → '{canonical_name}' (id: {entity_id})")
                 with self._cursor() as cur:
                     cur.execute("UPDATE entities SET updated_at = NOW() WHERE id = %s", (entity_id,))
-                self._add_facts_knowledge_relations(entity_id, user_id, canonical_name, facts, relations, knowledge, expires_at=expires_at, fact_dates=fact_dates)
+                self._add_facts_knowledge_relations(entity_id, user_id, canonical_name, facts, relations, knowledge, expires_at=expires_at, fact_dates=fact_dates, sub_user_id=sub_user_id)
                 return entity_id
 
         # Check for case-insensitive exact match first
@@ -1156,7 +1156,7 @@ class CloudStore:
                     cur.execute("UPDATE entities SET updated_at = NOW() WHERE id = %s", (entity_id,))
 
                 # Add facts, knowledge, relations below
-                self._add_facts_knowledge_relations(entity_id, user_id, name, facts, relations, knowledge, expires_at=expires_at, fact_dates=fact_dates)
+                self._add_facts_knowledge_relations(entity_id, user_id, name, facts, relations, knowledge, expires_at=expires_at, fact_dates=fact_dates, sub_user_id=sub_user_id)
                 return entity_id
 
         # Check for duplicate entity (word-boundary match)
@@ -1192,7 +1192,7 @@ class CloudStore:
                 )
                 entity_id = str(cur.fetchone()[0])
 
-        self._add_facts_knowledge_relations(entity_id, user_id, name, facts, relations, knowledge, expires_at=expires_at, fact_dates=fact_dates)
+        self._add_facts_knowledge_relations(entity_id, user_id, name, facts, relations, knowledge, expires_at=expires_at, fact_dates=fact_dates, sub_user_id=sub_user_id)
         return entity_id
 
     @staticmethod
@@ -1247,7 +1247,8 @@ class CloudStore:
                                         relations: list[dict] = None,
                                         knowledge: list[dict] = None,
                                         expires_at: str = None,
-                                        fact_dates: dict = None):
+                                        fact_dates: dict = None,
+                                        sub_user_id: str = "default"):
         """Add facts, knowledge, and relations to an entity."""
         added_facts = []
         with self._cursor() as cur:
@@ -1283,7 +1284,7 @@ class CloudStore:
                 )
 
         for rel in (relations or []):
-            self._save_relation(user_id, entity_id, name, rel)
+            self._save_relation(user_id, entity_id, name, rel, sub_user_id=sub_user_id)
 
         # Fire webhooks for new facts
         if added_facts:
@@ -1296,7 +1297,7 @@ class CloudStore:
         return entity_id
 
     def _save_relation(self, user_id: str, source_entity_id: str,
-                       source_name: str, rel: dict):
+                       source_name: str, rel: dict, sub_user_id: str = "default"):
         """Save relation, creating target entity if needed."""
         target_name = rel.get("target", "")
         if not target_name:
@@ -1305,14 +1306,14 @@ class CloudStore:
         with self._cursor() as cur:
             # Ensure target entity exists
             cur.execute(
-                """INSERT INTO entities (user_id, name, type)
-                   VALUES (%s, %s, 'unknown')
-                   ON CONFLICT (user_id, name) DO NOTHING""",
-                (user_id, target_name)
+                """INSERT INTO entities (user_id, sub_user_id, name, type)
+                   VALUES (%s, %s, %s, 'unknown')
+                   ON CONFLICT ON CONSTRAINT uq_entities_user_sub_name DO NOTHING""",
+                (user_id, sub_user_id, target_name)
             )
             cur.execute(
-                "SELECT id FROM entities WHERE user_id = %s AND name = %s",
-                (user_id, target_name)
+                "SELECT id FROM entities WHERE user_id = %s AND sub_user_id = %s AND name = %s",
+                (user_id, sub_user_id, target_name)
             )
             target_id = str(cur.fetchone()[0])
 
