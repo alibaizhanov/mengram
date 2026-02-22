@@ -694,10 +694,12 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 """)
                 db_info["entities_constraints"] = [r[0] for r in cur.fetchall()]
                 cur.execute("""
-                    SELECT indexname FROM pg_indexes
+                    SELECT indexname, indexdef FROM pg_indexes
                     WHERE tablename = 'entities' AND indexdef LIKE '%UNIQUE%'
                 """)
-                db_info["entities_unique_indexes"] = [r[0] for r in cur.fetchall()]
+                db_info["entities_unique_indexes"] = {r[0]: r[1] for r in cur.fetchall()}
+                cur.execute("SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'entities' AND column_name IN ('user_id', 'sub_user_id', 'name') ORDER BY ordinal_position")
+                db_info["entities_columns"] = {r[0]: r[1] for r in cur.fetchall()}
         except Exception as e:
             db_info["error"] = str(e)
         return {
