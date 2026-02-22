@@ -718,6 +718,27 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 # Check chunk user_id values to debug search miss
                 cur.execute("SELECT DISTINCT user_id, sub_user_id FROM conversation_chunks WHERE sub_user_id LIKE 'locomo_%' LIMIT 10")
                 db_info["chunk_user_ids"] = [{"user_id": str(r[0]), "sub_user_id": r[1]} for r in cur.fetchall()]
+                # Check embeddings for locomo chunks
+                cur.execute("""
+                    SELECT COUNT(*) as total,
+                           COUNT(ce.embedding) as has_emb,
+                           COUNT(ce.tsv) as has_tsv
+                    FROM chunk_embeddings ce
+                    JOIN conversation_chunks c ON c.id = ce.chunk_id
+                    WHERE c.sub_user_id LIKE 'locomo_%'
+                """)
+                r = cur.fetchone()
+                db_info["locomo_chunk_emb"] = {"total": r[0], "has_emb": r[1], "has_tsv": r[2]}
+                # Check actual embedding dimension
+                cur.execute("""
+                    SELECT vector_dims(ce.embedding)
+                    FROM chunk_embeddings ce
+                    JOIN conversation_chunks c ON c.id = ce.chunk_id
+                    WHERE c.sub_user_id LIKE 'locomo_%' AND ce.embedding IS NOT NULL
+                    LIMIT 1
+                """)
+                r2 = cur.fetchone()
+                db_info["chunk_emb_dims"] = r2[0] if r2 else None
 
                 # Check facts with event_date
                 cur.execute("SELECT COUNT(*) FROM facts WHERE event_date IS NOT NULL")
