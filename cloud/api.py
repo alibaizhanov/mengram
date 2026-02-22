@@ -739,6 +739,28 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 """)
                 r2 = cur.fetchone()
                 db_info["chunk_emb_dims"] = r2[0] if r2 else None
+                # Test: count chunks matching user_id + sub_user_id (no vector filter)
+                cur.execute("""
+                    SELECT COUNT(*)
+                    FROM chunk_embeddings ce
+                    JOIN conversation_chunks c ON c.id = ce.chunk_id
+                    WHERE c.user_id = '760e7bfc-3130-47e8-a9d5-405a1c0fe5d5'
+                      AND c.sub_user_id = 'locomo_0'
+                """)
+                db_info["chunk_match_test"] = cur.fetchone()[0]
+                # Test: get max cosine similarity for a random embedding
+                cur.execute("""
+                    SELECT MAX(1 - (ce.embedding <=> e2.embedding))
+                    FROM chunk_embeddings ce
+                    JOIN conversation_chunks c ON c.id = ce.chunk_id
+                    CROSS JOIN LATERAL (
+                        SELECT embedding FROM embeddings LIMIT 1
+                    ) e2
+                    WHERE c.user_id = '760e7bfc-3130-47e8-a9d5-405a1c0fe5d5'
+                      AND c.sub_user_id = 'locomo_0'
+                """)
+                r3 = cur.fetchone()
+                db_info["chunk_max_sim"] = float(r3[0]) if r3 and r3[0] else None
 
                 # Check facts with event_date
                 cur.execute("SELECT COUNT(*) FROM facts WHERE event_date IS NOT NULL")
