@@ -1871,13 +1871,15 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
         # Raw conversation chunk search (fallback for extraction misses)
         chunks = []
+        chunk_error = None
         try:
             if embedder:
                 chunks = store.search_chunks_vector(
                     user_id, emb, query_text=req.query,
                     top_k=max(req.limit // 3, 3), sub_user_id=sub_uid)
         except Exception as e:
-            logger.debug(f"Chunk search: {e}")
+            chunk_error = str(e)
+            logger.error(f"Chunk search error: {e}")
 
         result = {
             "semantic": semantic,
@@ -1885,6 +1887,8 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             "procedural": procedural,
             "chunks": chunks,
         }
+        if chunk_error:
+            result["_chunk_error"] = chunk_error
 
         # Cache in Redis (TTL 30s)
         store.cache.set(cache_key, result, ttl=30)
