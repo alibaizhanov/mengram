@@ -1940,14 +1940,25 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
         # Raw conversation chunk search (fallback for extraction misses)
         chunks = []
-        chunk_error = None
+        chunk_debug = {}
         try:
             if embedder:
+                ck_top_k = max(req.limit // 3, 3)
                 chunks = store.search_chunks_vector(
                     user_id, emb, query_text=req.query,
-                    top_k=max(req.limit // 3, 3), sub_user_id=sub_uid)
+                    top_k=ck_top_k, sub_user_id=sub_uid)
+                # Debug: also run a raw count to see what's happening
+                with store._cursor() as cur:
+                    cur.execute(
+                        "SELECT COUNT(*) FROM conversation_chunks WHERE user_id = %s AND sub_user_id = %s",
+                        (user_id, sub_uid))
+                    chunk_debug["row_count"] = cur.fetchone()[0]
+                    chunk_debug["user_id"] = user_id
+                    chunk_debug["sub_uid"] = sub_uid
+                    chunk_debug["top_k"] = ck_top_k
+                    chunk_debug["emb_len"] = len(emb) if emb else 0
         except Exception as e:
-            chunk_error = str(e)
+            chunk_debug["error"] = str(e)
             logger.error(f"Chunk search error: {e}")
 
         result = {
@@ -1956,8 +1967,8 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             "procedural": procedural,
             "chunks": chunks,
         }
-        if chunk_error:
-            result["_chunk_error"] = chunk_error
+        if chunk_debug:
+            result["_chunk_debug"] = chunk_debug
 
         # Cache in Redis (TTL 30s)
         store.cache.set(cache_key, result, ttl=30)
