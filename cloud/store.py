@@ -561,7 +561,7 @@ class CloudStore:
             """)
             # Also drop the old unique INDEX (constraint drop doesn't remove it)
             cur.execute("DROP INDEX IF EXISTS entities_user_id_name_key")
-            # Deduplicate entities before creating unique index
+            # Deduplicate entities before creating unique constraint
             cur.execute("""
                 DELETE FROM entities e1 USING entities e2
                 WHERE e1.ctid < e2.ctid
@@ -569,9 +569,20 @@ class CloudStore:
                   AND e1.sub_user_id = e2.sub_user_id
                   AND e1.name = e2.name
             """)
+            # Drop old unique index, then add proper CONSTRAINT (required for ON CONFLICT)
+            cur.execute("DROP INDEX IF EXISTS idx_entities_user_sub_name")
             cur.execute("""
-                CREATE UNIQUE INDEX IF NOT EXISTS idx_entities_user_sub_name
-                ON entities(user_id, sub_user_id, name)
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_constraint
+                        WHERE conname = 'uq_entities_user_sub_name'
+                    ) THEN
+                        ALTER TABLE entities
+                            ADD CONSTRAINT uq_entities_user_sub_name
+                            UNIQUE (user_id, sub_user_id, name);
+                    END IF;
+                END $$
             """)
             cur.execute("""
                 CREATE INDEX IF NOT EXISTS idx_entities_sub_user
@@ -621,9 +632,20 @@ class CloudStore:
                   AND p1.name = p2.name
                   AND p1.version = p2.version
             """)
+            cur.execute("DROP INDEX IF EXISTS idx_procedures_user_sub_name_version")
+            cur.execute("DROP INDEX IF EXISTS procedures_user_id_name_key")
             cur.execute("""
-                CREATE UNIQUE INDEX IF NOT EXISTS idx_procedures_user_sub_name_version
-                ON procedures(user_id, sub_user_id, name, version)
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_constraint
+                        WHERE conname = 'uq_procedures_user_sub_name_ver'
+                    ) THEN
+                        ALTER TABLE procedures
+                            ADD CONSTRAINT uq_procedures_user_sub_name_ver
+                            UNIQUE (user_id, sub_user_id, name, version);
+                    END IF;
+                END $$
             """)
             cur.execute("""
                 CREATE INDEX IF NOT EXISTS idx_procedures_sub_user
@@ -1162,7 +1184,7 @@ class CloudStore:
                 cur.execute(
                     """INSERT INTO entities (user_id, sub_user_id, name, type, metadata)
                        VALUES (%s, %s, %s, %s, %s::jsonb)
-                       ON CONFLICT (user_id, sub_user_id, name)
+                       ON CONFLICT ON CONSTRAINT uq_entities_user_sub_name
                        DO UPDATE SET type = EXCLUDED.type, updated_at = NOW(),
                           metadata = entities.metadata || EXCLUDED.metadata
                        RETURNING id""",
@@ -2271,7 +2293,7 @@ Return ONLY JSON (no markdown):
             cur.execute(
                 """INSERT INTO entities (user_id, sub_user_id, name, type)
                    VALUES (%s, %s, '_reflections', 'concept')
-                   ON CONFLICT (user_id, sub_user_id, name) DO UPDATE SET updated_at = NOW()
+                   ON CONFLICT ON CONSTRAINT uq_entities_user_sub_name DO UPDATE SET updated_at = NOW()
                    RETURNING id""",
                 (user_id, sub_user_id)
             )
@@ -2912,7 +2934,7 @@ SEMANTIC MEMORY (facts about the user):
                     version, parent_version_id, evolved_from_episode, is_current)
                    VALUES (%s, %s, %s, %s, %s::jsonb, %s, %s::uuid[], %s::jsonb, %s,
                            %s, %s, %s, %s)
-                   ON CONFLICT (user_id, sub_user_id, name, version)
+                   ON CONFLICT ON CONSTRAINT uq_procedures_user_sub_name_ver
                    DO UPDATE SET
                        trigger_condition = COALESCE(EXCLUDED.trigger_condition, procedures.trigger_condition),
                        steps = EXCLUDED.steps,
