@@ -559,6 +559,8 @@ class CloudStore:
                     END IF;
                 END $$
             """)
+            # Also drop the old unique INDEX (constraint drop doesn't remove it)
+            cur.execute("DROP INDEX IF EXISTS entities_user_id_name_key")
             # Deduplicate entities before creating unique index
             cur.execute("""
                 DELETE FROM entities e1 USING entities e2
