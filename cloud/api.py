@@ -1152,16 +1152,23 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         search_limit = max(req.limit * 2, 10)
 
         if embedder:
-            emb = embedder.embed(req.query)
-            results = store.search_vector_with_teams(user_id, emb, top_k=search_limit,
-                                          query_text=req.query, graph_depth=req.graph_depth,
-                                          sub_user_id=sub_uid)
-            # Fallback: if nothing found, retry with lower threshold
-            if not results:
+            try:
+                emb = embedder.embed(req.query)
+            except Exception as e:
+                logger.error(f"Embedding failed: {e}")
+                # Fall back to text search if embedding API is unavailable
+                results = store.search_text(user_id, req.query, top_k=search_limit, sub_user_id=sub_uid)
+                emb = None
+            if emb is not None:
                 results = store.search_vector_with_teams(user_id, emb, top_k=search_limit,
-                                              min_score=0.15, query_text=req.query,
-                                              graph_depth=req.graph_depth,
+                                              query_text=req.query, graph_depth=req.graph_depth,
                                               sub_user_id=sub_uid)
+                # Fallback: if nothing found, retry with lower threshold
+                if not results:
+                    results = store.search_vector_with_teams(user_id, emb, top_k=search_limit,
+                                                  min_score=0.15, query_text=req.query,
+                                                  graph_depth=req.graph_depth,
+                                                  sub_user_id=sub_uid)
         else:
             results = store.search_text(user_id, req.query, top_k=search_limit, sub_user_id=sub_uid)
 
@@ -1830,8 +1837,14 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
         # Semantic (existing search)
         search_limit = max(req.limit * 2, 10)
+        emb = None
         if embedder:
-            emb = embedder.embed(req.query)
+            try:
+                emb = embedder.embed(req.query)
+            except Exception as e:
+                logger.error(f"Embedding failed in search_all: {e}")
+
+        if emb is not None:
             semantic = store.search_vector_with_teams(
                 user_id, emb, top_k=search_limit, query_text=req.query,
                 graph_depth=req.graph_depth, sub_user_id=sub_uid)
