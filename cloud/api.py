@@ -1892,7 +1892,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                     user_id, emb, query_text=req.query,
                     top_k=max(req.limit // 3, 3), sub_user_id=sub_uid)
         except Exception as e:
-            logger.debug(f"Chunk search: {e}")
+            logger.warning(f"Chunk search failed: {e}")
 
         result = {
             "semantic": semantic,
