@@ -57,8 +57,8 @@ class CloudEmbedder:
         """Generate embedding for a single text."""
         return self.embed_batch([text])[0]
 
-    def embed_batch(self, texts: list[str], max_retries: int = 2) -> list[list[float]]:
-        """Generate embeddings for multiple texts with retry."""
+    def embed_batch(self, texts: list[str], max_retries: int = 5) -> list[list[float]]:
+        """Generate embeddings for multiple texts with retry and backoff for rate limits."""
         payload = {
             "model": self.model,
             "input": texts,
@@ -88,8 +88,13 @@ class CloudEmbedder:
                 return [e["embedding"] for e in embeddings]
 
             except Exception as e:
+                is_rate_limit = "429" in str(e)
                 if attempt < max_retries:
-                    wait = (attempt + 1) * 1.0
+                    # Longer backoff for rate limits (5, 10, 20, 40, 80s)
+                    if is_rate_limit:
+                        wait = 5 * (2 ** attempt)
+                    else:
+                        wait = (attempt + 1) * 2.0
                     logger.warning(f"Embedding attempt {attempt + 1} failed: {e}, retrying in {wait}s")
                     time.sleep(wait)
                 else:
