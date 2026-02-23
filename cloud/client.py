@@ -114,6 +114,19 @@ class CloudMemory:
             body["expiration_date"] = expiration_date
         return self._request("POST", "/v1/add", body)
 
+    def add_text(self, text: str, user_id: str = "default",
+                 agent_id: str = None, run_id: str = None,
+                 app_id: str = None) -> dict:
+        """Add memories from plain text."""
+        body = {"text": text, "user_id": user_id}
+        if agent_id:
+            body["agent_id"] = agent_id
+        if run_id:
+            body["run_id"] = run_id
+        if app_id:
+            body["app_id"] = app_id
+        return self._request("POST", "/v1/add_text", body)
+
     def search(self, query: str, user_id: str = "default",
                limit: int = 5, agent_id: str = None,
                run_id: str = None, app_id: str = None) -> list[dict]:
@@ -204,6 +217,72 @@ class CloudMemory:
         if user_id and user_id != "default":
             params["sub_user_id"] = user_id
         return self._request("GET", "/v1/graph", params=params)
+
+    # ---- Memory Management ----
+
+    def reindex(self, user_id: str = "default") -> dict:
+        """Re-embed all entities."""
+        params = {}
+        if user_id and user_id != "default":
+            params["sub_user_id"] = user_id
+        return self._request("POST", "/v1/reindex", params=params)
+
+    def dedup(self, user_id: str = "default") -> dict:
+        """Find and merge duplicate entities."""
+        params = {}
+        if user_id and user_id != "default":
+            params["sub_user_id"] = user_id
+        return self._request("POST", "/v1/dedup", params=params)
+
+    def dedup_all(self, user_id: str = "default") -> dict:
+        """Deduplicate facts across all entities."""
+        params = {}
+        if user_id and user_id != "default":
+            params["sub_user_id"] = user_id
+        return self._request("POST", "/v1/dedup_all", params=params)
+
+    def dedup_entity(self, name: str, user_id: str = "default") -> dict:
+        """Deduplicate facts on a specific entity."""
+        params = {}
+        if user_id and user_id != "default":
+            params["sub_user_id"] = user_id
+        return self._request("POST", f"/v1/entity/{name}/dedup", params=params)
+
+    def merge(self, source: str, target: str, user_id: str = "default") -> dict:
+        """Merge two entities."""
+        params = {}
+        if user_id and user_id != "default":
+            params["sub_user_id"] = user_id
+        return self._request("POST", "/v1/merge", {"source": source, "target": target}, params=params)
+
+    def merge_user(self, source_user: str, target_user: str) -> dict:
+        """Merge all memories from one user into another."""
+        return self._request("POST", "/v1/merge_user",
+                            {"source_user_id": source_user, "target_user_id": target_user})
+
+    def archive_fact(self, entity: str, fact: str, user_id: str = "default") -> dict:
+        """Archive a specific fact on an entity."""
+        params = {}
+        if user_id and user_id != "default":
+            params["sub_user_id"] = user_id
+        return self._request("POST", "/v1/archive_fact",
+                            {"entity": entity, "fact": fact}, params=params)
+
+    def fix_entity_type(self, name: str, new_type: str, user_id: str = "default") -> dict:
+        """Fix entity type classification."""
+        params = {}
+        if user_id and user_id != "default":
+            params["sub_user_id"] = user_id
+        return self._request("PATCH", f"/v1/entity/{name}/type",
+                            {"type": new_type}, params=params)
+
+    def feed(self, limit: int = 20, user_id: str = "default") -> list:
+        """Get activity feed."""
+        params = {"limit": limit}
+        if user_id and user_id != "default":
+            params["sub_user_id"] = user_id
+        result = self._request("GET", "/v1/feed", params=params)
+        return result.get("feed", [])
 
     # ---- Cognitive Profile ----
 
@@ -513,6 +592,19 @@ class CloudMemory:
         return self._request("POST", f"/v1/teams/{team_id}/unshare",
                             {"entity": entity_name}, params=params)
 
+    def leave_team(self, team_id: int) -> dict:
+        """Leave a team."""
+        return self._request("POST", f"/v1/teams/{team_id}/leave")
+
+    def delete_team(self, team_id: int) -> dict:
+        """Delete a team (owner only)."""
+        return self._request("DELETE", f"/v1/teams/{team_id}")
+
+    def team_members(self, team_id: int) -> list:
+        """Get team members."""
+        result = self._request("GET", f"/v1/teams/{team_id}/members")
+        return result.get("members", [])
+
     # ---- API Key Management ----
 
     def list_keys(self) -> list:
@@ -574,6 +666,14 @@ class CloudMemory:
     def dismiss_trigger(self, trigger_id: int) -> dict:
         """Dismiss a trigger without sending webhook."""
         return self._request("DELETE", f"/v1/triggers/{trigger_id}")
+
+    def detect_triggers(self, target_user_id: str,
+                        user_id: str = "default") -> dict:
+        """Detect smart triggers for a user."""
+        params = {}
+        if user_id and user_id != "default":
+            params["sub_user_id"] = user_id
+        return self._request("POST", f"/v1/triggers/detect/{target_user_id}", params=params)
 
     # ---- Import ----
 

@@ -395,6 +395,18 @@ class MengramClient {
     return data.runs || [];
   }
 
+  /**
+   * Get current agent run status.
+   * @param {object} [options]
+   * @param {string} [options.userId] - Sub-user ID
+   * @returns {Promise<object>}
+   */
+  async agentStatus(options = {}) {
+    const params = {};
+    if (options.userId && options.userId !== 'default') params.sub_user_id = options.userId;
+    return this._request('GET', '/v1/agents/status', null, params);
+  }
+
   // ---- Insights ----
 
   /**
@@ -415,6 +427,21 @@ class MengramClient {
     const params = {};
     if (options.userId && options.userId !== 'default') params.sub_user_id = options.userId;
     return this._request('POST', '/v1/reflect', null, params);
+  }
+
+  /**
+   * Get generated reflections.
+   * @param {object} [options]
+   * @param {string} [options.scope] - Reflection scope filter
+   * @param {string} [options.userId] - Sub-user ID
+   * @returns {Promise<Array>}
+   */
+  async reflections(options = {}) {
+    const params = {};
+    if (options.scope) params.scope = options.scope;
+    if (options.userId && options.userId !== 'default') params.sub_user_id = options.userId;
+    const data = await this._request('GET', '/v1/reflections', null, params);
+    return data.reflections || [];
   }
 
   // ---- Webhooks ----
@@ -460,6 +487,25 @@ class MengramClient {
     }
   }
 
+  /**
+   * Update webhook configuration.
+   * @param {number} webhookId - Webhook ID to update
+   * @param {object} [updates]
+   * @param {string} [updates.url] - New webhook URL
+   * @param {string} [updates.name] - New webhook name
+   * @param {string[]} [updates.eventTypes] - New event types
+   * @param {boolean} [updates.active] - Enable/disable webhook
+   * @returns {Promise<object>}
+   */
+  async updateWebhook(webhookId, updates = {}) {
+    const body = {};
+    if (updates.url !== undefined) body.url = updates.url;
+    if (updates.name !== undefined) body.name = updates.name;
+    if (updates.eventTypes !== undefined) body.event_types = updates.eventTypes;
+    if (updates.active !== undefined) body.active = updates.active;
+    return this._request('PUT', `/v1/webhooks/${webhookId}`, body);
+  }
+
   // ---- Teams ----
 
   /**
@@ -502,6 +548,48 @@ class MengramClient {
     return this._request('POST', `/v1/teams/${teamId}/share`, { entity: entityName }, params);
   }
 
+  /**
+   * Unshare memory from a team.
+   * @param {string} entityName - Entity to unshare
+   * @param {number} teamId - Team ID
+   * @param {object} [options]
+   * @param {string} [options.userId] - Sub-user ID
+   * @returns {Promise<object>}
+   */
+  async unshareMemory(entityName, teamId, options = {}) {
+    const params = {};
+    if (options.userId && options.userId !== 'default') params.sub_user_id = options.userId;
+    return this._request('POST', `/v1/teams/${teamId}/unshare`, { entity: entityName }, params);
+  }
+
+  /**
+   * Get members of a team.
+   * @param {number} teamId - Team ID
+   * @returns {Promise<Array>}
+   */
+  async teamMembers(teamId) {
+    const data = await this._request('GET', `/v1/teams/${teamId}/members`);
+    return data.members || [];
+  }
+
+  /**
+   * Leave a team.
+   * @param {number} teamId - Team ID
+   * @returns {Promise<object>}
+   */
+  async leaveTeam(teamId) {
+    return this._request('POST', `/v1/teams/${teamId}/leave`);
+  }
+
+  /**
+   * Delete a team (owner only).
+   * @param {number} teamId - Team ID
+   * @returns {Promise<object>}
+   */
+  async deleteTeam(teamId) {
+    return this._request('DELETE', `/v1/teams/${teamId}`);
+  }
+
   // ---- API Keys ----
 
   /**
@@ -529,6 +617,86 @@ class MengramClient {
    */
   async revokeKey(keyId) {
     return this._request('DELETE', `/v1/keys/${keyId}`);
+  }
+
+  // ---- Memory Management ----
+
+  /**
+   * Reindex all memories for improved search quality.
+   * @param {object} [options]
+   * @param {string} [options.userId] - Sub-user ID
+   * @returns {Promise<object>}
+   */
+  async reindex(options = {}) {
+    const params = {};
+    if (options.userId && options.userId !== 'default') params.sub_user_id = options.userId;
+    return this._request('POST', '/v1/reindex', null, params);
+  }
+
+  /**
+   * Deduplicate memories within a single entity.
+   * @param {object} [options]
+   * @param {string} [options.userId] - Sub-user ID
+   * @returns {Promise<object>}
+   */
+  async dedup(options = {}) {
+    const params = {};
+    if (options.userId && options.userId !== 'default') params.sub_user_id = options.userId;
+    return this._request('POST', '/v1/dedup', null, params);
+  }
+
+  /**
+   * Deduplicate memories across all entities.
+   * @param {object} [options]
+   * @param {string} [options.userId] - Sub-user ID
+   * @returns {Promise<object>}
+   */
+  async dedupAll(options = {}) {
+    const params = {};
+    if (options.userId && options.userId !== 'default') params.sub_user_id = options.userId;
+    return this._request('POST', '/v1/dedup_all', null, params);
+  }
+
+  /**
+   * Archive a specific fact from an entity.
+   * @param {string} entityName - Name of the entity
+   * @param {string} factContent - The fact content to archive
+   * @param {object} [options]
+   * @param {string} [options.userId] - Sub-user ID
+   * @returns {Promise<object>}
+   */
+  async archiveFact(entityName, factContent, options = {}) {
+    const params = {};
+    if (options.userId && options.userId !== 'default') params.sub_user_id = options.userId;
+    return this._request('POST', '/v1/archive_fact', { entity: entityName, fact: factContent }, params);
+  }
+
+  /**
+   * Merge two entities into one.
+   * @param {string} sourceName - Entity to merge from
+   * @param {string} targetName - Entity to merge into
+   * @param {object} [options]
+   * @param {string} [options.userId] - Sub-user ID
+   * @returns {Promise<object>}
+   */
+  async merge(sourceName, targetName, options = {}) {
+    const params = {};
+    if (options.userId && options.userId !== 'default') params.sub_user_id = options.userId;
+    return this._request('POST', '/v1/merge', { source: sourceName, target: targetName }, params);
+  }
+
+  /**
+   * Get the memory activity feed.
+   * @param {object} [options]
+   * @param {number} [options.limit] - Max items (default 20)
+   * @param {string} [options.userId] - Sub-user ID
+   * @returns {Promise<Array>}
+   */
+  async feed(options = {}) {
+    const params = { limit: options.limit || 20 };
+    if (options.userId && options.userId !== 'default') params.sub_user_id = options.userId;
+    const data = await this._request('GET', '/v1/feed', null, params);
+    return data.feed || [];
   }
 
   // ---- Jobs (Async) ----
@@ -600,6 +768,19 @@ class MengramClient {
    */
   async dismissTrigger(triggerId) {
     return this._request('DELETE', `/v1/triggers/${triggerId}`);
+  }
+
+  /**
+   * Detect triggers for a specific user.
+   * @param {string} userId - User to detect triggers for
+   * @param {object} [options]
+   * @param {string} [options.userId] - Sub-user ID
+   * @returns {Promise<object>}
+   */
+  async detectTriggers(userId, options = {}) {
+    const params = {};
+    if (options.userId && options.userId !== 'default') params.sub_user_id = options.userId;
+    return this._request('POST', `/v1/triggers/detect/${userId}`, null, params);
   }
 
   // ---- Import ----
