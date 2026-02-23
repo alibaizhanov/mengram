@@ -749,6 +749,53 @@ class CloudStore:
 
             logger.info("✅ Migration complete (v2.13: temporal metadata + raw chunk indexing)")
 
+        # --- v2.15 Subscriptions + Usage counters (billing) ---
+        with self._cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS subscriptions (
+                    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    plan VARCHAR(20) NOT NULL DEFAULT 'free',
+                    paddle_customer_id VARCHAR(255),
+                    paddle_subscription_id VARCHAR(255),
+                    status VARCHAR(20) DEFAULT 'active',
+                    current_period_start TIMESTAMPTZ,
+                    current_period_end TIMESTAMPTZ,
+                    canceled_at TIMESTAMPTZ,
+                    created_at TIMESTAMPTZ DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+            cur.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_subscriptions_user
+                ON subscriptions(user_id)
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_subscriptions_paddle
+                ON subscriptions(paddle_customer_id) WHERE paddle_customer_id IS NOT NULL
+            """)
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS usage_counters (
+                    id BIGSERIAL PRIMARY KEY,
+                    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    period_start DATE NOT NULL,
+                    add_count INT DEFAULT 0,
+                    search_count INT DEFAULT 0,
+                    agent_count INT DEFAULT 0,
+                    reflect_count INT DEFAULT 0,
+                    dedup_count INT DEFAULT 0,
+                    reindex_count INT DEFAULT 0,
+                    UNIQUE(user_id, period_start)
+                )
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_usage_counters_user_period
+                ON usage_counters(user_id, period_start)
+            """)
+        logger.info("✅ Migration complete (v2.15: subscriptions + usage counters)")
+
+        with self._cursor() as cur:
             cur.execute("SELECT pg_advisory_unlock(42)")
 
     # ---- Job tracking (PostgreSQL-backed, survives restarts) ----
@@ -2644,6 +2691,155 @@ SEMANTIC MEMORY (facts about the user):
                    VALUES (%s, %s, %s)""",
                 (user_id, action, tokens)
             )
+
+    # ---- Subscriptions ----
+
+    def get_subscription(self, user_id: str) -> dict:
+        """Get user's subscription. Lazy-creates 'free' plan for existing users."""
+        cache_key = f"sub:{user_id}"
+        cached = self.cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        with self._cursor(dict_cursor=True) as cur:
+            cur.execute(
+                "SELECT * FROM subscriptions WHERE user_id = %s",
+                (user_id,)
+            )
+            row = cur.fetchone()
+            if row:
+                result = dict(row)
+                self.cache.set(cache_key, result, ttl=300)  # cache 5 min
+                return result
+
+            # Lazy-create free subscription for existing users
+            cur.execute(
+                """INSERT INTO subscriptions (user_id, plan, status)
+                   VALUES (%s, 'free', 'active')
+                   ON CONFLICT (user_id) DO NOTHING
+                   RETURNING *""",
+                (user_id,)
+            )
+            row = cur.fetchone()
+            if not row:
+                # Race condition: another worker created it
+                cur.execute(
+                    "SELECT * FROM subscriptions WHERE user_id = %s",
+                    (user_id,)
+                )
+                row = cur.fetchone()
+            result = dict(row) if row else {"plan": "free", "status": "active"}
+            self.cache.set(cache_key, result, ttl=300)
+            return result
+
+    def update_subscription(self, user_id: str, **kwargs) -> None:
+        """Update subscription fields. Invalidates cache."""
+        if not kwargs:
+            return
+        allowed = {"plan", "paddle_customer_id", "paddle_subscription_id",
+                   "status", "current_period_start", "current_period_end",
+                   "canceled_at"}
+        fields = {k: v for k, v in kwargs.items() if k in allowed}
+        if not fields:
+            return
+
+        set_parts = [f"{k} = %s" for k in fields]
+        set_parts.append("updated_at = NOW()")
+        values = list(fields.values()) + [user_id]
+
+        with self._cursor() as cur:
+            # Ensure subscription row exists (lazy-create if needed)
+            cur.execute(
+                """INSERT INTO subscriptions (user_id, plan, status)
+                   VALUES (%s, 'free', 'active')
+                   ON CONFLICT (user_id) DO NOTHING""",
+                (user_id,)
+            )
+            cur.execute(
+                f"UPDATE subscriptions SET {', '.join(set_parts)} WHERE user_id = %s",
+                values
+            )
+        self.cache.invalidate(f"sub:{user_id}")
+
+    def get_user_by_paddle_customer(self, paddle_customer_id: str) -> Optional[str]:
+        """Get user_id by Paddle customer ID (for webhook handling)."""
+        with self._cursor() as cur:
+            cur.execute(
+                "SELECT user_id FROM subscriptions WHERE paddle_customer_id = %s",
+                (paddle_customer_id,)
+            )
+            row = cur.fetchone()
+            return str(row[0]) if row else None
+
+    # ---- Usage Counters ----
+
+    def increment_usage(self, user_id: str, action: str, count: int = 1) -> int:
+        """Atomically increment usage counter for current billing period.
+        Returns new count after increment."""
+        column = f"{action}_count"
+        # Validate column name to prevent SQL injection
+        valid_columns = {"add_count", "search_count", "agent_count",
+                        "reflect_count", "dedup_count", "reindex_count"}
+        if column not in valid_columns:
+            raise ValueError(f"Invalid action: {action}")
+
+        period_start = datetime.date.today().replace(day=1)
+        with self._cursor() as cur:
+            cur.execute(
+                f"""INSERT INTO usage_counters (user_id, period_start, {column})
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (user_id, period_start)
+                    DO UPDATE SET {column} = usage_counters.{column} + %s
+                    RETURNING {column}""",
+                (user_id, period_start, count, count)
+            )
+            result = cur.fetchone()[0]
+        # Invalidate cached count
+        self.cache.invalidate(f"usage:{user_id}:")
+        return result
+
+    def get_usage_count(self, user_id: str, action: str) -> int:
+        """Get current month's usage count for an action. Cached 10s."""
+        column = f"{action}_count"
+        valid_columns = {"add_count", "search_count", "agent_count",
+                        "reflect_count", "dedup_count", "reindex_count"}
+        if column not in valid_columns:
+            return 0
+
+        cache_key = f"usage:{user_id}:{action}"
+        cached = self.cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        period_start = datetime.date.today().replace(day=1)
+        with self._cursor() as cur:
+            cur.execute(
+                f"SELECT {column} FROM usage_counters WHERE user_id = %s AND period_start = %s",
+                (user_id, period_start)
+            )
+            row = cur.fetchone()
+            val = row[0] if row else 0
+        self.cache.set(cache_key, val, ttl=10)
+        return val
+
+    def get_all_usage_counts(self, user_id: str) -> dict:
+        """Get all usage counters for current billing period."""
+        period_start = datetime.date.today().replace(day=1)
+        with self._cursor(dict_cursor=True) as cur:
+            cur.execute(
+                """SELECT add_count, search_count, agent_count,
+                          reflect_count, dedup_count, reindex_count
+                   FROM usage_counters
+                   WHERE user_id = %s AND period_start = %s""",
+                (user_id, period_start)
+            )
+            row = cur.fetchone()
+            if row:
+                return dict(row)
+            return {
+                "add_count": 0, "search_count": 0, "agent_count": 0,
+                "reflect_count": 0, "dedup_count": 0, "reindex_count": 0,
+            }
 
     # ---- Graph ----
 

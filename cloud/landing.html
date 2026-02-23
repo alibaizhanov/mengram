@@ -568,6 +568,134 @@
         footer a { color: var(--text-2); text-decoration: none; }
         footer a:hover { color: var(--text); }
 
+        /* ---- Pricing ---- */
+        .pricing-section { padding: 80px 0; }
+        .pricing-section h2 {
+            text-align: center;
+            font-size: 32px;
+            font-weight: 700;
+            letter-spacing: -1px;
+            margin-bottom: 12px;
+        }
+        .pricing-section > p {
+            text-align: center;
+            color: var(--text-2);
+            font-size: 16px;
+            margin-bottom: 48px;
+        }
+        .pricing-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            max-width: 960px;
+            margin: 0 auto;
+        }
+        .price-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 36px 28px;
+            display: flex;
+            flex-direction: column;
+            transition: all 0.3s;
+        }
+        .price-card:hover {
+            border-color: var(--border-hover);
+            transform: translateY(-2px);
+        }
+        .price-card.featured {
+            border-color: var(--accent);
+            box-shadow: 0 0 40px var(--accent-dim);
+            position: relative;
+        }
+        .price-badge {
+            position: absolute;
+            top: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--accent);
+            color: #fff;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 4px 14px;
+            border-radius: 20px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+        .price-card h3 {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        .price-amount {
+            font-size: 40px;
+            font-weight: 700;
+            letter-spacing: -2px;
+            margin-bottom: 4px;
+        }
+        .price-amount span {
+            font-size: 16px;
+            color: var(--text-2);
+            font-weight: 400;
+            letter-spacing: 0;
+        }
+        .price-desc {
+            color: var(--text-2);
+            font-size: 13px;
+            margin-bottom: 24px;
+            line-height: 1.5;
+        }
+        .price-features {
+            list-style: none;
+            flex: 1;
+            margin-bottom: 28px;
+        }
+        .price-features li {
+            font-size: 13px;
+            color: var(--text);
+            padding: 6px 0;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .price-features li::before {
+            content: '\2713';
+            color: var(--green);
+            font-weight: 600;
+            font-size: 12px;
+        }
+        .price-btn {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            text-align: center;
+            cursor: pointer;
+            border: 1px solid var(--border);
+            background: var(--bg-elevated);
+            color: var(--text);
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+        .price-btn:hover {
+            border-color: var(--border-hover);
+            background: var(--bg-card);
+        }
+        .price-btn.primary {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #fff;
+        }
+        .price-btn.primary:hover {
+            opacity: 0.9;
+        }
+        @media (max-width: 768px) {
+            .pricing-grid { grid-template-columns: 1fr; max-width: 400px; }
+        }
+
         /* ---- Changelog ---- */
         .changelog-section { padding: 80px 0; }
         .changelog-section h2 {
@@ -684,6 +812,7 @@
                 <a href="#how">How it works</a>
                 <a href="#install">Install</a>
                 <a href="#features">Features</a>
+                <a href="#pricing">Pricing</a>
                 <a href="#changelog">Changelog</a>
                 <a href="/dashboard">Dashboard</a>
                 <a href="https://github.com/alibaizhanov/mengram">GitHub</a>
@@ -1292,6 +1421,64 @@ crew = Crew(agents=[agent], tasks=[...])</pre>
             </div>
         </section>
 
+        <!-- Pricing -->
+        <section class="pricing-section" id="pricing">
+            <h2>Simple, predictable pricing</h2>
+            <p>Start free. Upgrade when you need more.</p>
+            <div class="pricing-grid">
+                <!-- Free -->
+                <div class="price-card">
+                    <h3>Free</h3>
+                    <div class="price-amount">$0</div>
+                    <div class="price-desc">For personal projects and getting started.</div>
+                    <ul class="price-features">
+                        <li>100 memory adds / month</li>
+                        <li>500 searches / month</li>
+                        <li>5 agent runs</li>
+                        <li>3 sub-users</li>
+                        <li>30 req/min rate limit</li>
+                        <li>Vector search (no reranking)</li>
+                    </ul>
+                    <a href="#signup" class="price-btn">Get started free</a>
+                </div>
+                <!-- Pro -->
+                <div class="price-card featured">
+                    <div class="price-badge">Most Popular</div>
+                    <h3>Pro</h3>
+                    <div class="price-amount">$19 <span>/ month</span></div>
+                    <div class="price-desc">For production apps and power users.</div>
+                    <ul class="price-features">
+                        <li>1,000 memory adds / month</li>
+                        <li>10,000 searches / month</li>
+                        <li>50 agent runs</li>
+                        <li>50 sub-users</li>
+                        <li>120 req/min rate limit</li>
+                        <li>LLM-powered reranking</li>
+                        <li>10 webhooks</li>
+                        <li>5 teams</li>
+                    </ul>
+                    <a href="/dashboard" class="price-btn primary">Upgrade to Pro</a>
+                </div>
+                <!-- Business -->
+                <div class="price-card">
+                    <h3>Business</h3>
+                    <div class="price-amount">$99 <span>/ month</span></div>
+                    <div class="price-desc">For teams and high-volume applications.</div>
+                    <ul class="price-features">
+                        <li>5,000 memory adds / month</li>
+                        <li>30,000 searches / month</li>
+                        <li>Unlimited agent runs</li>
+                        <li>Unlimited sub-users</li>
+                        <li>300 req/min rate limit</li>
+                        <li>Cohere cross-encoder reranking</li>
+                        <li>50 webhooks</li>
+                        <li>Unlimited teams</li>
+                    </ul>
+                    <a href="/dashboard" class="price-btn">Upgrade to Business</a>
+                </div>
+            </div>
+        </section>
+
         <!-- Changelog -->
         <section class="changelog-section" id="changelog">
             <h2>What's New</h2>
@@ -1326,6 +1513,12 @@ crew = Crew(agents=[agent], tasks=[...])</pre>
                 <a href="https://pypi.org/project/mengram-ai/">PyPI</a>
                 &nbsp;·&nbsp;
                 <a href="https://mengram.io/docs">API Docs</a>
+                &nbsp;·&nbsp;
+                <a href="/terms">Terms</a>
+                &nbsp;·&nbsp;
+                <a href="/privacy">Privacy</a>
+                &nbsp;·&nbsp;
+                <a href="/refund">Refund</a>
             </p>
         </footer>
     </div>

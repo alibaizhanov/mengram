@@ -66,6 +66,10 @@ class MengramClient {
             await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
             continue;
           }
+          // Quota exceeded — structured error
+          if (res.status === 402 && data.detail && typeof data.detail === 'object') {
+            throw new QuotaExceededError(data.detail);
+          }
           throw new MengramError(data.detail || `HTTP ${res.status}`, res.status);
         }
         return data;
@@ -864,6 +868,33 @@ class MengramClient {
     return this._request('POST', `/v1/triggers/detect/${userId}`, null, params);
   }
 
+  // ---- Billing ----
+
+  /**
+   * Get current subscription plan, usage, and quotas.
+   * @returns {Promise<{plan: string, status: string, usage: object, quotas: object, rate_limit: number}>}
+   */
+  async getBilling() {
+    return this._request('GET', '/v1/billing');
+  }
+
+  /**
+   * Create Paddle checkout session for plan upgrade.
+   * @param {string} plan - 'pro' or 'business'
+   * @returns {Promise<{url: string}>}
+   */
+  async createCheckout(plan) {
+    return this._request('POST', '/v1/billing/checkout', null, { plan });
+  }
+
+  /**
+   * Create Paddle customer portal session for managing subscription.
+   * @returns {Promise<{url: string}>}
+   */
+  async createPortal() {
+    return this._request('POST', '/v1/billing/portal');
+  }
+
   // ---- Import ----
 
   /**
@@ -1152,6 +1183,24 @@ class MengramError extends Error {
   }
 }
 
+class QuotaExceededError extends MengramError {
+  constructor(detail) {
+    const action = detail.action || 'unknown';
+    const limit = detail.limit || 0;
+    const current = detail.current || 0;
+    const plan = detail.plan || 'free';
+    super(
+      `Quota exceeded for '${action}': ${current}/${limit} (plan: ${plan}). Upgrade at https://mengram.io/dashboard`,
+      402
+    );
+    this.name = 'QuotaExceededError';
+    this.action = action;
+    this.limit = limit;
+    this.current = current;
+    this.plan = plan;
+  }
+}
+
 // Export for both CommonJS and ESM
-module.exports = { MengramClient, MengramError };
+module.exports = { MengramClient, MengramError, QuotaExceededError };
 module.exports.default = MengramClient;

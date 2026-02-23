@@ -408,6 +408,43 @@ ALTER TABLE entities ADD CONSTRAINT fk_entities_team
 CREATE INDEX idx_entities_team ON entities(team_id) WHERE team_id IS NOT NULL;
 
 -- ============================================
+-- 16. Subscriptions & Usage Counters (v2.15 — billing)
+-- ============================================
+
+CREATE TABLE subscriptions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    plan VARCHAR(20) NOT NULL DEFAULT 'free',   -- free, pro, business
+    paddle_customer_id VARCHAR(255),
+    paddle_subscription_id VARCHAR(255),
+    status VARCHAR(20) DEFAULT 'active',        -- active, canceled, past_due
+    current_period_start TIMESTAMPTZ,
+    current_period_end TIMESTAMPTZ,
+    canceled_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX idx_subscriptions_user ON subscriptions(user_id);
+CREATE INDEX idx_subscriptions_paddle ON subscriptions(paddle_customer_id)
+    WHERE paddle_customer_id IS NOT NULL;
+
+CREATE TABLE usage_counters (
+    id BIGSERIAL PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    period_start DATE NOT NULL,                 -- first of month, e.g. 2026-03-01
+    add_count INT DEFAULT 0,
+    search_count INT DEFAULT 0,
+    agent_count INT DEFAULT 0,
+    reflect_count INT DEFAULT 0,
+    dedup_count INT DEFAULT 0,
+    reindex_count INT DEFAULT 0,
+    UNIQUE(user_id, period_start)
+);
+
+CREATE INDEX idx_usage_counters_user_period ON usage_counters(user_id, period_start);
+
+-- ============================================
 -- Helper views
 -- ============================================
 

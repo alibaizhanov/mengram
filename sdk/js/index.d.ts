@@ -155,9 +155,26 @@ export interface Webhook {
   last_error: string | null;
 }
 
+export interface BillingInfo {
+  plan: 'free' | 'pro' | 'business';
+  status: string;
+  current_period_end: string | null;
+  usage: Record<string, number>;
+  quotas: Record<string, number>;
+  rate_limit: number;
+}
+
 export declare class MengramError extends Error {
   statusCode: number;
   constructor(message: string, statusCode: number);
+}
+
+export declare class QuotaExceededError extends MengramError {
+  action: string;
+  limit: number;
+  current: number;
+  plan: string;
+  constructor(detail: { action: string; limit: number; current: number; plan: string });
 }
 
 export declare class MengramClient {
@@ -240,6 +257,11 @@ export declare class MengramClient {
   processTriggers(): Promise<{ processed: number; fired: number; errors: number }>;
   dismissTrigger(triggerId: number): Promise<{ status: string; id: number }>;
   detectTriggers(userId: string, options?: { userId?: string }): Promise<any>;
+
+  // Billing
+  getBilling(): Promise<BillingInfo>;
+  createCheckout(plan: 'pro' | 'business'): Promise<{ url: string }>;
+  createPortal(): Promise<{ url: string }>;
 
   // Import (v2.9)
   importChatgpt(zipPath: string, options?: { chunkSize?: number; onProgress?: (current: number, total: number, title: string) => void }): Promise<ImportResult>;

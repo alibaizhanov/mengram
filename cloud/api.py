@@ -27,9 +27,26 @@ logger = logging.getLogger("mengram")
 from fastapi import FastAPI, HTTPException, Depends, Header, Form, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse, PlainTextResponse
+from dataclasses import dataclass
 from pydantic import BaseModel
 
 from cloud.store import CloudStore
+
+
+# ---- Auth Context ----
+
+@dataclass
+class AuthContext:
+    """Auth result with plan info for quota enforcement."""
+    user_id: str
+    plan: str         # free, pro, business
+    rate_limit: int   # per-minute rate limit
+
+PLAN_QUOTAS = {
+    "free":     {"adds": 100,   "searches": 500,    "agents": 5,   "reflects": 5,   "dedups": 2,   "reindexes": 2,   "rate_limit": 30},
+    "pro":      {"adds": 1_000, "searches": 10_000, "agents": 50,  "reflects": 30,  "dedups": 20,  "reindexes": 10,  "rate_limit": 120},
+    "business": {"adds": 5_000, "searches": 30_000, "agents": -1,  "reflects": -1,  "dedups": -1,  "reindexes": -1,  "rate_limit": 300},
+}
 
 
 # ---- Config ----
@@ -184,14 +201,19 @@ profile = m.get_profile()             # instant system prompt
 
     # ---- Re-ranking (Cohere Rerank → gpt-4o-mini fallback) ----
 
-    def rerank_results(query: str, results: list[dict]) -> list[dict]:
-        """Re-rank search results using Cohere Rerank (fast cross-encoder).
-        Falls back to gpt-4o-mini if Cohere unavailable."""
+    def rerank_results(query: str, results: list[dict], plan: str = "business") -> list[dict]:
+        """Re-rank search results based on subscription plan.
+        Free: no reranking.  Pro: gpt-4o-mini.  Business: Cohere Rerank → gpt-4o-mini fallback."""
         if not results or len(results) <= 1:
             return results
 
+        # Free plan: no reranking — return raw vector results
+        if plan == "free":
+            return results
+
         # Try Cohere Rerank first — fact-level (cross-encoder, more precise)
-        cohere_key = os.environ.get("COHERE_API_KEY", "")
+        # Only for Business plan (Pro skips straight to gpt-4o-mini)
+        cohere_key = os.environ.get("COHERE_API_KEY", "") if plan == "business" else ""
         if cohere_key:
             try:
                 import cohere
@@ -296,10 +318,9 @@ Be strict — only include entities that directly answer or relate to the query.
     # ---- Rate Limiting (Redis-shared or in-memory fallback) ----
     _rate_limits = {}  # fallback: user_id -> {"count": N, "window_start": time}
     _rate_lock = __import__('threading').Lock()
-    RATE_LIMIT = 120  # requests per minute
     RATE_WINDOW = 60   # seconds
 
-    def _check_rate_limit(user_id: str) -> bool:
+    def _check_rate_limit(user_id: str, limit: int = 120) -> bool:
         """Returns True if allowed, False if rate limited.
         Uses Redis INCR for cross-worker consistency when available."""
         # Try Redis first (shared across workers)
@@ -310,7 +331,7 @@ Be strict — only include entities that directly answer or relate to the query.
                 count = redis_client.incr(key)
                 if count == 1:
                     redis_client.expire(key, RATE_WINDOW)
-                return count <= RATE_LIMIT
+                return count <= limit
             except Exception:
                 pass  # fall through to in-memory
 
@@ -322,27 +343,65 @@ Be strict — only include entities that directly answer or relate to the query.
             if not entry or now - entry["window_start"] >= RATE_WINDOW:
                 _rate_limits[user_id] = {"count": 1, "window_start": now}
                 return True
-            if entry["count"] >= RATE_LIMIT:
+            if entry["count"] >= limit:
                 return False
             entry["count"] += 1
             return True
 
+    # ---- Quota checking ----
+
+    def check_quota(ctx: AuthContext, action: str):
+        """Check if user has quota remaining. Raises HTTP 402 if exceeded."""
+        quota_map = {
+            "add": "adds", "search": "searches", "agent": "agents",
+            "reflect": "reflects", "dedup": "dedups", "reindex": "reindexes",
+        }
+        quota_key = quota_map.get(action)
+        if not quota_key:
+            return
+        plan_quotas = PLAN_QUOTAS.get(ctx.plan, PLAN_QUOTAS["free"])
+        max_allowed = plan_quotas.get(quota_key, 0)
+        if max_allowed == -1:
+            return  # unlimited
+        current = store.get_usage_count(ctx.user_id, action)
+        if current >= max_allowed:
+            raise HTTPException(
+                status_code=402,
+                detail={
+                    "error": "quota_exceeded",
+                    "action": action,
+                    "limit": max_allowed,
+                    "used": current,
+                    "plan": ctx.plan,
+                    "upgrade_url": "https://mengram.io/#pricing",
+                    "message": f"Monthly {action} limit reached ({max_allowed}). Upgrade your plan at https://mengram.io/#pricing",
+                }
+            )
+
     # ---- Auth middleware ----
 
-    async def auth(request: Request, authorization: str = Header(...)) -> str:
-        """Verify API key, return user_id. Rate limited."""
+    async def auth(request: Request, authorization: str = Header(...)) -> AuthContext:
+        """Verify API key, return AuthContext with plan info. Rate limited per plan."""
         key = authorization.replace("Bearer ", "")
         user_id = store.verify_api_key(key)
         if not user_id:
             raise HTTPException(status_code=401, detail="Invalid API key")
-        if not _check_rate_limit(user_id):
+
+        # Look up subscription (cached 5 min)
+        sub = store.get_subscription(user_id)
+        plan = sub.get("plan", "free") if sub else "free"
+        if plan not in PLAN_QUOTAS:
+            plan = "free"
+        rate_limit = PLAN_QUOTAS[plan]["rate_limit"]
+
+        if not _check_rate_limit(user_id, rate_limit):
             raise HTTPException(
                 status_code=429,
-                detail=f"Rate limit exceeded ({RATE_LIMIT} requests/min). Retry in 60 seconds."
+                detail=f"Rate limit exceeded ({rate_limit} requests/min). Retry in 60 seconds."
             )
         key_prefix = key[:10] if len(key) > 10 else key[:4]
-        logger.info(f"🔑 {request.method} {request.url.path} | key={key_prefix}... | user={user_id[:8]}")
-        return user_id
+        logger.info(f"🔑 {request.method} {request.url.path} | key={key_prefix}... | user={user_id[:8]} | plan={plan}")
+        return AuthContext(user_id=user_id, plan=plan, rate_limit=rate_limit)
 
     # ---- Email helper ----
 
@@ -406,6 +465,15 @@ Be strict — only include entities that directly answer or relate to the query.
         landing_path = Path(__file__).parent / "landing.html"
         return landing_path.read_text(encoding="utf-8")
 
+    @app.get("/pricing", response_class=HTMLResponse)
+    async def pricing():
+        """Pricing page — renders landing with scroll to pricing section."""
+        landing_path = Path(__file__).parent / "landing.html"
+        html = landing_path.read_text(encoding="utf-8")
+        # Inject auto-scroll to pricing section
+        html = html.replace("</body>", '<script>document.getElementById("pricing")?.scrollIntoView()</script></body>')
+        return html
+
     @app.get("/robots.txt", response_class=PlainTextResponse)
     async def robots():
         return "User-agent: *\nAllow: /\nSitemap: https://mengram.io/sitemap.xml"
@@ -415,6 +483,24 @@ Be strict — only include entities that directly answer or relate to the query.
         """Web dashboard."""
         dashboard_path = Path(__file__).parent / "dashboard.html"
         return dashboard_path.read_text(encoding="utf-8")
+
+    @app.get("/terms", response_class=HTMLResponse)
+    async def terms():
+        """Terms of Service."""
+        p = Path(__file__).parent / "terms.html"
+        return p.read_text(encoding="utf-8")
+
+    @app.get("/privacy", response_class=HTMLResponse)
+    async def privacy():
+        """Privacy Policy."""
+        p = Path(__file__).parent / "privacy.html"
+        return p.read_text(encoding="utf-8")
+
+    @app.get("/refund", response_class=HTMLResponse)
+    async def refund():
+        """Refund Policy."""
+        p = Path(__file__).parent / "refund.html"
+        return p.read_text(encoding="utf-8")
 
     @app.get("/extension/download")
     async def download_extension():
@@ -462,14 +548,16 @@ Be strict — only include entities that directly answer or relate to the query.
     # ---- API Key Management ----
 
     @app.get("/v1/keys", tags=["System"])
-    async def list_keys(user_id: str = Depends(auth)):
+    async def list_keys(ctx: AuthContext = Depends(auth)):
         """List all API keys for your account."""
+        user_id = ctx.user_id
         keys = store.list_api_keys(user_id)
         return {"keys": keys, "total": len(keys)}
 
     @app.post("/v1/keys", tags=["System"])
-    async def create_key(req: dict, user_id: str = Depends(auth)):
+    async def create_key(req: dict, ctx: AuthContext = Depends(auth)):
         """Create a new API key with a name."""
+        user_id = ctx.user_id
         name = req.get("name", "default")
         if len(name) > 50:
             raise HTTPException(status_code=400, detail="Name too long (max 50 chars)")
@@ -481,8 +569,9 @@ Be strict — only include entities that directly answer or relate to the query.
         }
 
     @app.delete("/v1/keys/{key_id}", tags=["System"])
-    async def revoke_key(key_id: str, user_id: str = Depends(auth)):
+    async def revoke_key(key_id: str, ctx: AuthContext = Depends(auth)):
         """Revoke a specific API key."""
+        user_id = ctx.user_id
         # Don't allow revoking the key being used for this request
         keys = store.list_api_keys(user_id)
         active_count = sum(1 for k in keys if k["active"])
@@ -496,8 +585,9 @@ Be strict — only include entities that directly answer or relate to the query.
         raise HTTPException(status_code=404, detail="Key not found or already revoked")
 
     @app.patch("/v1/keys/{key_id}", tags=["System"])
-    async def rename_key(key_id: str, req: dict, user_id: str = Depends(auth)):
+    async def rename_key(key_id: str, req: dict, ctx: AuthContext = Depends(auth)):
         """Rename an API key."""
+        user_id = ctx.user_id
         name = req.get("name", "")
         if not name or len(name) > 50:
             raise HTTPException(status_code=400, detail="Name required (max 50 chars)")
@@ -725,11 +815,13 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     # ---- Protected endpoints ----
 
     @app.post("/v1/add", tags=["Memory"])
-    async def add(req: AddRequest, user_id: str = Depends(auth)):
+    async def add(req: AddRequest, ctx: AuthContext = Depends(auth)):
         """
         Add memories from conversation.
         Returns immediately with job_id, processes in background.
         """
+        user_id = ctx.user_id
+        check_quota(ctx, "add")
         import threading
 
         sub_uid = req.user_id or "default"
@@ -903,6 +995,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                             store.save_embedding(entity_id, chunk_text, emb)
 
                 store.log_usage(user_id, "add")
+                store.increment_usage(user_id, "add")
 
                 # ---- Raw Conversation Chunk: save for fallback retrieval ----
                 try:
@@ -1136,8 +1229,10 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         }
 
     @app.post("/v1/add_text", tags=["Memory"])
-    async def add_text(req: AddTextRequest, user_id: str = Depends(auth)):
+    async def add_text(req: AddTextRequest, ctx: AuthContext = Depends(auth)):
         """Add memories from plain text (wraps into a single user message)."""
+        user_id = ctx.user_id
+        check_quota(ctx, "add")
         add_req = AddRequest(
             messages=[Message(role="user", content=req.text)],
             user_id=req.user_id,
@@ -1145,19 +1240,24 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             run_id=req.run_id,
             app_id=req.app_id,
         )
-        return await add(add_req, user_id)
+        result = await add(add_req, user_id)
+        store.increment_usage(user_id, "add")
+        return result
 
     @app.get("/v1/jobs/{job_id}", tags=["System"])
-    async def job_status(job_id: str, user_id: str = Depends(auth)):
+    async def job_status(job_id: str, ctx: AuthContext = Depends(auth)):
         """Check status of a background job."""
+        user_id = ctx.user_id
         job = store.get_job(job_id, user_id)
         if not job:
             raise HTTPException(status_code=404, detail="Job not found")
         return job
 
     @app.post("/v1/search", tags=["Search"])
-    async def search(req: SearchRequest, user_id: str = Depends(auth)):
+    async def search(req: SearchRequest, ctx: AuthContext = Depends(auth)):
         """Semantic search across memories with LLM re-ranking."""
+        user_id = ctx.user_id
+        check_quota(ctx, "search")
         import hashlib as _hashlib
 
         sub_uid = req.user_id or "default"
@@ -1166,6 +1266,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         cached = store.cache.get(cache_key)
         if cached:
             store.log_usage(user_id, "search")
+            store.increment_usage(user_id, "search")
             return {"results": cached}
 
         embedder = get_embedder()
@@ -1200,7 +1301,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
         # LLM re-ranking: only rerank direct matches (graph entities are logically relevant)
         if direct and len(direct) > 3:
-            direct = rerank_results(req.query, direct)
+            direct = rerank_results(req.query, direct, plan=ctx.plan)
 
         # Merge: direct first, then graph-expanded
         results = direct + graph
@@ -1236,20 +1337,24 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         # Cache results in Redis (TTL 30s)
         store.cache.set(cache_key, results, ttl=30)
         store.log_usage(user_id, "search")
+        store.increment_usage(user_id, "search")
 
         return {"results": results}
 
     @app.get("/v1/memories", tags=["Memory"])
     async def get_all(sub_user_id: str = Query("default"),
-                      user_id: str = Depends(auth)):
+                      ctx: AuthContext = Depends(auth)):
         """Get all memories (entities)."""
+        user_id = ctx.user_id
         entities = store.get_all_entities(user_id, sub_user_id=sub_user_id)
         store.log_usage(user_id, "get_all")
         return {"memories": entities}
 
     @app.post("/v1/reindex", tags=["Memory"])
-    async def reindex(sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
+    async def reindex(sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
         """Re-generate all embeddings (includes relations now)."""
+        user_id = ctx.user_id
+        check_quota(ctx, "reindex")
         embedder = get_embedder()
         if not embedder:
             raise HTTPException(status_code=500, detail="No embedder configured")
@@ -1277,11 +1382,13 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 store.save_embedding(entity_id, chunk, emb)
             count += 1
 
+        store.increment_usage(user_id, "reindex")
         return {"reindexed": count}
 
     @app.post("/v1/dedup", tags=["Memory"])
-    async def dedup(sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
+    async def dedup(sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
         """Find and merge duplicate entities."""
+        user_id = ctx.user_id
         entities = store.get_all_entities(user_id, sub_user_id=sub_user_id)
         names = [(e["name"], e.get("type", "unknown")) for e in entities]
         merged = []
@@ -1316,8 +1423,9 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         return {"merged": merged, "count": len(merged)}
 
     @app.delete("/v1/entity/{name}", tags=["Memory"])
-    async def delete_entity(name: str, sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
+    async def delete_entity(name: str, sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
         """Delete an entity and all its facts, relations, knowledge, embeddings."""
+        user_id = ctx.user_id
         entity_id = store.get_entity_id(user_id, name, sub_user_id=sub_user_id)
         if not entity_id:
             raise HTTPException(status_code=404, detail=f"Entity '{name}' not found")
@@ -1331,8 +1439,9 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         return {"deleted": name}
 
     @app.post("/v1/merge_user", tags=["Memory"])
-    async def merge_user_entity(sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
+    async def merge_user_entity(sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
         """Merge 'User' entity into the primary person entity (e.g. 'Ali Baizhanov')."""
+        user_id = ctx.user_id
         user_entity_id = store.get_entity_id(user_id, "User", sub_user_id=sub_user_id)
         if not user_entity_id:
             return {"status": "skip", "message": "No 'User' entity found"}
@@ -1349,8 +1458,9 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         return {"status": "merged", "from": "User", "into": target_name, "target_id": target_id}
 
     @app.post("/v1/merge", tags=["Memory"])
-    async def merge_entities_endpoint(source: str, target: str, sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
+    async def merge_entities_endpoint(source: str, target: str, sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
         """Merge source entity into target. Source gets deleted, all data moves to target."""
+        user_id = ctx.user_id
         source_id = store.get_entity_id(user_id, source, sub_user_id=sub_user_id)
         if not source_id:
             raise HTTPException(status_code=404, detail=f"Source entity '{source}' not found")
@@ -1363,8 +1473,9 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         return {"status": "merged", "from": source, "into": target}
 
     @app.patch("/v1/entity/{name}/type")
-    async def fix_entity_type(name: str, new_type: str, sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
+    async def fix_entity_type(name: str, new_type: str, sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
         """Fix entity type (e.g. 'company' → 'technology')."""
+        user_id = ctx.user_id
         valid_types = {"person", "project", "technology", "company", "concept", "unknown"}
         if new_type not in valid_types:
             raise HTTPException(status_code=400, detail=f"Invalid type. Must be one of: {valid_types}")
@@ -1376,18 +1487,23 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         return {"entity": name, "new_type": new_type}
 
     @app.post("/v1/entity/{name}/dedup", tags=["Memory"])
-    async def dedup_entity(name: str, sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
+    async def dedup_entity(name: str, sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
         """Use LLM to deduplicate facts on an entity. Keeps best version, archives redundant ones."""
+        user_id = ctx.user_id
+        check_quota(ctx, "dedup")
         entity_id = store.get_entity_id(user_id, name, sub_user_id=sub_user_id)
         if not entity_id:
             raise HTTPException(status_code=404, detail=f"Entity '{name}' not found")
         extractor = get_llm()
         result = store.dedup_entity_facts(entity_id, name, extractor.llm)
+        store.increment_usage(user_id, "dedup")
         return result
 
     @app.post("/v1/dedup_all", tags=["Memory"])
-    async def dedup_all_entities(sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
+    async def dedup_all_entities(sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
         """Deduplicate facts across ALL entities for this user."""
+        user_id = ctx.user_id
+        check_quota(ctx, "dedup")
         entities = store.get_all_entities(user_id, sub_user_id=sub_user_id)
         extractor = get_llm()
         total_archived = 0
@@ -1400,13 +1516,16 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             if r["archived"]:
                 total_archived += len(r["archived"])
                 results.append({"entity": e["name"], "archived": len(r["archived"])})
+        store.increment_usage(user_id, "dedup")
         return {"total_archived": total_archived, "entities": results}
 
     # ---- Reflection ----
 
     @app.post("/v1/reflect", tags=["Insights"])
-    async def trigger_reflection(sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
+    async def trigger_reflection(sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
         """Manually trigger memory reflection. Generates AI insights from facts."""
+        user_id = ctx.user_id
+        check_quota(ctx, "reflect")
         extractor = get_llm()
         stats = store.get_reflection_stats(user_id, sub_user_id=sub_user_id)
         result = store.generate_reflections(user_id, extractor.llm, sub_user_id=sub_user_id)
@@ -1415,6 +1534,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         cross_count = len(result.get("cross_entity", []))
         temporal_count = len(result.get("temporal", []))
 
+        store.increment_usage(user_id, "reflect")
         return {
             "status": "reflected",
             "generated": {
@@ -1426,13 +1546,15 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         }
 
     @app.get("/v1/reflections", tags=["Insights"])
-    async def get_reflections(scope: str = None, sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
+    async def get_reflections(scope: str = None, sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
         """Get all reflections. Optional ?scope=entity|cross|temporal"""
+        user_id = ctx.user_id
         return {"reflections": store.get_reflections(user_id, scope=scope, sub_user_id=sub_user_id)}
 
     @app.get("/v1/insights", tags=["Insights"])
-    async def get_insights(sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
+    async def get_insights(sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
         """Get formatted AI insights for dashboard."""
+        user_id = ctx.user_id
         return store.get_insights(user_id, sub_user_id=sub_user_id)
 
     # =====================================================
@@ -1444,25 +1566,31 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         agent: str = "all",
         auto_fix: bool = False,
         sub_user_id: str = Query("default"),
-        user_id: str = Depends(auth)
+        ctx: AuthContext = Depends(auth)
     ):
         """Run memory agents.
         ?agent=curator|connector|digest|all
         ?auto_fix=true — auto-archive low quality and stale facts (curator only)
         """
+        user_id = ctx.user_id
+        check_quota(ctx, "agent")
         llm = get_llm()
 
         if agent == "all":
             result = store.run_all_agents(user_id, llm.llm, auto_fix=auto_fix, sub_user_id=sub_user_id)
+            store.increment_usage(user_id, "agent")
             return {"status": "completed", "agents": result}
         elif agent == "curator":
             result = store.run_curator_agent(user_id, llm.llm, auto_fix=auto_fix, sub_user_id=sub_user_id)
+            store.increment_usage(user_id, "agent")
             return {"status": "completed", "agent": "curator", "result": result}
         elif agent == "connector":
             result = store.run_connector_agent(user_id, llm.llm, sub_user_id=sub_user_id)
+            store.increment_usage(user_id, "agent")
             return {"status": "completed", "agent": "connector", "result": result}
         elif agent == "digest":
             result = store.run_digest_agent(user_id, llm.llm, sub_user_id=sub_user_id)
+            store.increment_usage(user_id, "agent")
             return {"status": "completed", "agent": "digest", "result": result}
         else:
             raise HTTPException(status_code=400, detail=f"Unknown agent: {agent}. Use: curator, connector, digest, all")
@@ -1471,15 +1599,17 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     async def agent_history(
         agent: str = None,
         limit: int = 10,
-        user_id: str = Depends(auth)
+        ctx: AuthContext = Depends(auth)
     ):
         """Get agent run history. Optional ?agent=curator|connector|digest"""
+        user_id = ctx.user_id
         runs = store.get_agent_history(user_id, agent_type=agent, limit=limit)
         return {"runs": runs, "total": len(runs)}
 
     @app.get("/v1/agents/status", tags=["Agents"])
-    async def agent_status(sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
+    async def agent_status(sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
         """Check which agents are due to run."""
+        user_id = ctx.user_id
         due = store.should_run_agents(user_id, sub_user_id=sub_user_id)
         history = store.get_agent_history(user_id, limit=3)
         return {
@@ -1492,10 +1622,11 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     # =====================================================
 
     @app.post("/v1/webhooks", tags=["Webhooks"])
-    async def create_webhook(req: dict, user_id: str = Depends(auth)):
+    async def create_webhook(req: dict, ctx: AuthContext = Depends(auth)):
         """Create a webhook.
         Body: {"url": "https://...", "name": "My Hook", "event_types": ["memory_add"], "secret": "optional"}
         """
+        user_id = ctx.user_id
         url = req.get("url")
         if not url:
             raise HTTPException(status_code=400, detail="url is required")
@@ -1512,14 +1643,16 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             raise HTTPException(status_code=400, detail=str(e))
 
     @app.get("/v1/webhooks", tags=["Webhooks"])
-    async def list_webhooks(user_id: str = Depends(auth)):
+    async def list_webhooks(ctx: AuthContext = Depends(auth)):
         """List all webhooks."""
+        user_id = ctx.user_id
         hooks = store.get_webhooks(user_id)
         return {"webhooks": hooks, "total": len(hooks)}
 
     @app.put("/v1/webhooks/{webhook_id}", tags=["Webhooks"])
-    async def update_webhook(webhook_id: int, req: dict, user_id: str = Depends(auth)):
+    async def update_webhook(webhook_id: int, req: dict, ctx: AuthContext = Depends(auth)):
         """Update a webhook. Body: any of {url, name, event_types, active}"""
+        user_id = ctx.user_id
         result = store.update_webhook(
             user_id=user_id,
             webhook_id=webhook_id,
@@ -1531,8 +1664,9 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         return result
 
     @app.delete("/v1/webhooks/{webhook_id}", tags=["Webhooks"])
-    async def delete_webhook(webhook_id: int, user_id: str = Depends(auth)):
+    async def delete_webhook(webhook_id: int, ctx: AuthContext = Depends(auth)):
         """Delete a webhook."""
+        user_id = ctx.user_id
         deleted = store.delete_webhook(user_id, webhook_id)
         if not deleted:
             raise HTTPException(status_code=404, detail="Webhook not found")
@@ -1543,8 +1677,9 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     # =====================================================
 
     @app.post("/v1/teams", tags=["Teams"])
-    async def create_team(req: dict, user_id: str = Depends(auth)):
+    async def create_team(req: dict, ctx: AuthContext = Depends(auth)):
         """Create a team. Body: {"name": "My Team", "description": "optional"}"""
+        user_id = ctx.user_id
         name = req.get("name")
         if not name:
             raise HTTPException(status_code=400, detail="name is required")
@@ -1552,14 +1687,16 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         return {"status": "created", "team": team}
 
     @app.get("/v1/teams", tags=["Teams"])
-    async def list_teams(user_id: str = Depends(auth)):
+    async def list_teams(ctx: AuthContext = Depends(auth)):
         """List user's teams."""
+        user_id = ctx.user_id
         teams = store.get_user_teams(user_id)
         return {"teams": teams, "total": len(teams)}
 
     @app.post("/v1/teams/join", tags=["Teams"])
-    async def join_team(req: dict, user_id: str = Depends(auth)):
+    async def join_team(req: dict, ctx: AuthContext = Depends(auth)):
         """Join a team. Body: {"invite_code": "abc123"}"""
+        user_id = ctx.user_id
         code = req.get("invite_code")
         if not code:
             raise HTTPException(status_code=400, detail="invite_code is required")
@@ -1570,8 +1707,9 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             raise HTTPException(status_code=400, detail=str(e))
 
     @app.get("/v1/teams/{team_id}/members", tags=["Teams"])
-    async def team_members(team_id: int, user_id: str = Depends(auth)):
+    async def team_members(team_id: int, ctx: AuthContext = Depends(auth)):
         """Get team members."""
+        user_id = ctx.user_id
         try:
             members = store.get_team_members(user_id, team_id)
             return {"members": members, "total": len(members)}
@@ -1579,8 +1717,9 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             raise HTTPException(status_code=403, detail=str(e))
 
     @app.post("/v1/teams/{team_id}/share", tags=["Teams"])
-    async def share_entity(team_id: int, req: dict, sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
+    async def share_entity(team_id: int, req: dict, sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
         """Share a memory with team. Body: {"entity": "Redis"}"""
+        user_id = ctx.user_id
         entity_name = req.get("entity")
         if not entity_name:
             raise HTTPException(status_code=400, detail="entity name is required")
@@ -1590,23 +1729,26 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             raise HTTPException(status_code=400, detail=str(e))
 
     @app.post("/v1/teams/{team_id}/unshare", tags=["Teams"])
-    async def unshare_entity(team_id: int, req: dict, sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
+    async def unshare_entity(team_id: int, req: dict, sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
         """Make a shared memory personal again. Body: {"entity": "Redis"}"""
+        user_id = ctx.user_id
         entity_name = req.get("entity")
         if not entity_name:
             raise HTTPException(status_code=400, detail="entity name is required")
         return store.unshare_entity(user_id, entity_name, sub_user_id=sub_user_id)
 
     @app.post("/v1/teams/{team_id}/leave", tags=["Teams"])
-    async def leave_team(team_id: int, user_id: str = Depends(auth)):
+    async def leave_team(team_id: int, ctx: AuthContext = Depends(auth)):
         """Leave a team."""
+        user_id = ctx.user_id
         if store.leave_team(user_id, team_id):
             return {"status": "left"}
         raise HTTPException(status_code=400, detail="Cannot leave (owner or not a member)")
 
     @app.delete("/v1/teams/{team_id}", tags=["Teams"])
-    async def delete_team(team_id: int, user_id: str = Depends(auth)):
+    async def delete_team(team_id: int, ctx: AuthContext = Depends(auth)):
         """Delete a team (owner only)."""
+        user_id = ctx.user_id
         try:
             store.delete_team(user_id, team_id)
             return {"status": "deleted"}
@@ -1617,9 +1759,10 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     async def archive_fact(
         req: dict,
         sub_user_id: str = Query("default"),
-        user_id: str = Depends(auth)
+        ctx: AuthContext = Depends(auth)
     ):
         """Manually archive a wrong fact."""
+        user_id = ctx.user_id
         entity_name = req.get("entity_name")
         fact = req.get("fact_content") or req.get("fact")
         if not entity_name or not fact:
@@ -1642,23 +1785,26 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         after: str = None, before: str = None,
         limit: int = 20,
         sub_user_id: str = Query("default"),
-        user_id: str = Depends(auth)
+        ctx: AuthContext = Depends(auth)
     ):
         """Temporal search — what happened in a time range?
         after/before: ISO datetime strings (e.g. 2025-02-01T00:00:00Z)"""
+        user_id = ctx.user_id
         results = store.search_temporal(user_id, after=after, before=before, top_k=limit, sub_user_id=sub_user_id)
         return {"results": results}
 
     @app.get("/v1/memories/full", tags=["Memory"])
-    async def get_all_full(sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
+    async def get_all_full(sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
         """Get all memories with full facts, relations, knowledge. Single query."""
+        user_id = ctx.user_id
         entities = store.get_all_entities_full(user_id, sub_user_id=sub_user_id)
         store.log_usage(user_id, "get_all")
         return {"memories": entities}
 
     @app.get("/v1/memory/{name}", tags=["Memory"])
-    async def get_memory(name: str, sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
+    async def get_memory(name: str, sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
         """Get specific entity details."""
+        user_id = ctx.user_id
         entity = store.get_entity(user_id, name, sub_user_id=sub_user_id)
         if not entity:
             raise HTTPException(status_code=404, detail=f"Entity '{name}' not found")
@@ -1671,41 +1817,47 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         }
 
     @app.delete("/v1/memory/{name}", tags=["Memory"])
-    async def delete_memory(name: str, sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
+    async def delete_memory(name: str, sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
         """Delete a memory."""
+        user_id = ctx.user_id
         deleted = store.delete_entity(user_id, name, sub_user_id=sub_user_id)
         if not deleted:
             raise HTTPException(status_code=404, detail=f"Entity '{name}' not found")
         return {"status": "deleted", "entity": name}
 
     @app.get("/v1/stats", tags=["System"])
-    async def stats(sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
+    async def stats(sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
         """Usage statistics."""
+        user_id = ctx.user_id
         return store.get_stats(user_id, sub_user_id=sub_user_id)
 
     @app.get("/v1/graph", tags=["Memory"])
-    async def graph(sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
+    async def graph(sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
         """Knowledge graph for visualization."""
+        user_id = ctx.user_id
         return store.get_graph(user_id, sub_user_id=sub_user_id)
 
     @app.get("/v1/feed", tags=["Memory"])
-    async def feed(limit: int = 50, sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
+    async def feed(limit: int = 50, sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
         """Memory feed — recent facts with timestamps for dashboard."""
+        user_id = ctx.user_id
         return store.get_feed(user_id, limit=min(limit, 100), sub_user_id=sub_user_id)
 
     @app.get("/v1/profile/{target_user_id}", tags=["Memory"])
-    async def get_profile(target_user_id: str, force: bool = False, sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
+    async def get_profile(target_user_id: str, force: bool = False, sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
         """Cognitive Profile — generates a ready-to-use system prompt from user memory.
 
         Returns a personalization prompt that can be inserted into any LLM.
         Cached for 1 hour. Use force=true to regenerate."""
+        user_id = ctx.user_id
         if target_user_id != user_id:
             raise HTTPException(status_code=403, detail="Cannot access another user's profile")
         return store.get_profile(target_user_id, force=force, sub_user_id=sub_user_id)
 
     @app.get("/v1/profile", tags=["Memory"])
-    async def get_own_profile(force: bool = False, sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
+    async def get_own_profile(force: bool = False, sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
         """Cognitive Profile for the authenticated user."""
+        user_id = ctx.user_id
         return store.get_profile(user_id, force=force, sub_user_id=sub_user_id)
 
     # ---- Episodic Memory ----
@@ -1714,9 +1866,10 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     async def list_episodes(
         limit: int = 20, after: str = None, before: str = None,
         sub_user_id: str = Query("default"),
-        user_id: str = Depends(auth)
+        ctx: AuthContext = Depends(auth)
     ):
         """List episodic memories (events, interactions, experiences)."""
+        user_id = ctx.user_id
         episodes = store.get_episodes(user_id, limit=min(limit, 100),
                                        after=after, before=before, sub_user_id=sub_user_id)
         return {"episodes": episodes, "count": len(episodes)}
@@ -1726,9 +1879,10 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         query: str, limit: int = 5,
         after: str = None, before: str = None,
         sub_user_id: str = Query("default"),
-        user_id: str = Depends(auth)
+        ctx: AuthContext = Depends(auth)
     ):
         """Semantic search over episodic memories."""
+        user_id = ctx.user_id
         embedder = get_embedder()
         if embedder:
             emb = embedder.embed(query)
@@ -1744,9 +1898,10 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     async def list_procedures(
         limit: int = 20,
         sub_user_id: str = Query("default"),
-        user_id: str = Depends(auth)
+        ctx: AuthContext = Depends(auth)
     ):
         """List procedural memories (learned workflows, skills)."""
+        user_id = ctx.user_id
         procedures = store.get_procedures(user_id, limit=min(limit, 100), sub_user_id=sub_user_id)
         return {"procedures": procedures, "count": len(procedures)}
 
@@ -1754,9 +1909,10 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     async def search_procedures(
         query: str, limit: int = 5,
         sub_user_id: str = Query("default"),
-        user_id: str = Depends(auth)
+        ctx: AuthContext = Depends(auth)
     ):
         """Semantic search over procedural memories."""
+        user_id = ctx.user_id
         embedder = get_embedder()
         if embedder:
             emb = embedder.embed(query)
@@ -1770,13 +1926,14 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         procedure_id: str, success: bool = True,
         body: FeedbackRequest = None,
         sub_user_id: str = Query("default"),
-        user_id: str = Depends(auth)
+        ctx: AuthContext = Depends(auth)
     ):
         """Record success/failure feedback for a procedure.
 
         On failure with context, triggers experience-driven evolution:
         creates a linked failure episode and evolves the procedure to a new version.
         """
+        user_id = ctx.user_id
         result = store.procedure_feedback(user_id, procedure_id, success, sub_user_id=sub_user_id)
         if "error" in result:
             raise HTTPException(status_code=404, detail=result["error"])
@@ -1823,8 +1980,9 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         return result
 
     @app.get("/v1/procedures/{procedure_id}/history", tags=["Procedural Memory"])
-    async def procedure_history(procedure_id: str, sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
+    async def procedure_history(procedure_id: str, sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
         """Get version history for a procedure. Shows how it evolved over time."""
+        user_id = ctx.user_id
         history = store.get_procedure_history(user_id, procedure_id, sub_user_id=sub_user_id)
         if not history:
             raise HTTPException(status_code=404, detail="procedure not found")
@@ -1832,17 +1990,20 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         return {"versions": history, "evolution_log": evolution}
 
     @app.get("/v1/procedures/{procedure_id}/evolution", tags=["Procedural Memory"])
-    async def procedure_evolution(procedure_id: str, sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
+    async def procedure_evolution(procedure_id: str, sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
         """Get the evolution log for a procedure — what changed and why."""
+        user_id = ctx.user_id
         evolution = store.get_procedure_evolution(user_id, procedure_id, sub_user_id=sub_user_id)
         return {"evolution": evolution}
 
     # ---- Unified Search (all 3 memory types) ----
 
     @app.post("/v1/search/all", tags=["Search"])
-    async def search_all(req: SearchRequest, user_id: str = Depends(auth)):
+    async def search_all(req: SearchRequest, ctx: AuthContext = Depends(auth)):
         """Search across all memory types: semantic, episodic, and procedural.
         Returns categorized results from each memory system."""
+        user_id = ctx.user_id
+        check_quota(ctx, "search")
         import hashlib as _hashlib
 
         sub_uid = req.user_id or "default"
@@ -1851,6 +2012,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         cached = store.cache.get(cache_key)
         if cached:
             store.log_usage(user_id, "search_all")
+            store.increment_usage(user_id, "search")
             return cached
 
         embedder = get_embedder()
@@ -1891,7 +2053,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         direct_sem = [r for r in semantic if not r.get("_graph")]
         graph_sem = [r for r in semantic if r.get("_graph")]
         if direct_sem and len(direct_sem) > 3:
-            direct_sem = rerank_results(req.query, direct_sem)
+            direct_sem = rerank_results(req.query, direct_sem, plan=ctx.plan)
         semantic = (direct_sem + graph_sem)[:req.limit]
         for r in semantic:
             r.pop("_graph", None)
@@ -1916,6 +2078,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         # Cache in Redis (TTL 30s)
         store.cache.set(cache_key, result, ttl=30)
         store.log_usage(user_id, "search_all")
+        store.increment_usage(user_id, "search")
         return result
 
     # ============================================
@@ -1925,8 +2088,9 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     @app.get("/v1/triggers", tags=["Smart Triggers"])
     async def get_own_triggers(include_fired: bool = False,
                                limit: int = 50, sub_user_id: str = Query("default"),
-                               user_id: str = Depends(auth)):
+                               ctx: AuthContext = Depends(auth)):
         """Get smart triggers for the authenticated user."""
+        user_id = ctx.user_id
         triggers = store.get_triggers(user_id, include_fired=include_fired, limit=limit, sub_user_id=sub_user_id)
         for t in triggers:
             for key in ("fire_at", "fired_at", "created_at"):
@@ -1937,8 +2101,9 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     @app.get("/v1/triggers/{target_user_id}", tags=["Smart Triggers"])
     async def get_triggers(target_user_id: str, include_fired: bool = False,
                            limit: int = 50, sub_user_id: str = Query("default"),
-                           user_id: str = Depends(auth)):
+                           ctx: AuthContext = Depends(auth)):
         """Get smart triggers for a specific user."""
+        user_id = ctx.user_id
         triggers = store.get_triggers(target_user_id, include_fired=include_fired, limit=limit, sub_user_id=sub_user_id)
         for t in triggers:
             for key in ("fire_at", "fired_at", "created_at"):
@@ -1947,14 +2112,16 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         return {"triggers": triggers, "count": len(triggers)}
 
     @app.post("/v1/triggers/process", tags=["Smart Triggers"])
-    async def process_triggers(user_id: str = Depends(auth)):
+    async def process_triggers(ctx: AuthContext = Depends(auth)):
         """Manually process all pending triggers (fire those that are due)."""
+        user_id = ctx.user_id
         result = store.process_all_triggers()
         return result
 
     @app.delete("/v1/triggers/{trigger_id}", tags=["Smart Triggers"])
-    async def dismiss_trigger(trigger_id: int, user_id: str = Depends(auth)):
+    async def dismiss_trigger(trigger_id: int, ctx: AuthContext = Depends(auth)):
         """Dismiss (mark as fired) a specific trigger without sending webhook."""
+        user_id = ctx.user_id
         store.ensure_triggers_table()
         with store._cursor() as cur:
             cur.execute("""
@@ -1968,8 +2135,9 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         raise HTTPException(status_code=404, detail="Trigger not found")
 
     @app.post("/v1/triggers/detect/{target_user_id}", tags=["Smart Triggers"])
-    async def detect_triggers_debug(target_user_id: str, sub_user_id: str = Query("default"), user_id: str = Depends(auth)):
+    async def detect_triggers_debug(target_user_id: str, sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
         """Manually run trigger detection for a user. Returns detailed results."""
+        user_id = ctx.user_id
         results = {"reminders": 0, "contradictions": 0, "patterns": 0, "errors": []}
         try:
             results["reminders"] = store.detect_reminder_triggers(target_user_id, sub_user_id=sub_user_id)
@@ -2007,6 +2175,214 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     _cron_thread = threading.Thread(target=_trigger_cron_loop, daemon=True)
     _cron_thread.start()
     logger.info("🧠 Smart trigger cron started (every 5 min)")
+
+    # ---- Billing & Subscription ----
+
+    PADDLE_API_KEY = os.environ.get("PADDLE_API_KEY", "")
+    PADDLE_WEBHOOK_SECRET = os.environ.get("PADDLE_WEBHOOK_SECRET", "")
+    PADDLE_ENV = os.environ.get("PADDLE_ENVIRONMENT", "sandbox")
+    PADDLE_API_BASE = "https://api.paddle.com" if PADDLE_ENV == "production" else "https://sandbox-api.paddle.com"
+    PADDLE_PRICES = {
+        "pro": os.environ.get("PADDLE_PRICE_PRO", ""),
+        "business": os.environ.get("PADDLE_PRICE_BUSINESS", ""),
+    }
+
+    def _paddle_request(method: str, path: str, body: dict = None) -> dict:
+        """Make authenticated Paddle API request."""
+        import urllib.request, urllib.error
+        url = f"{PADDLE_API_BASE}{path}"
+        data = json.dumps(body).encode() if body else None
+        req = urllib.request.Request(
+            url, data=data, method=method,
+            headers={
+                "Authorization": f"Bearer {PADDLE_API_KEY}",
+                "Content-Type": "application/json",
+            }
+        )
+        with urllib.request.urlopen(req) as resp:
+            return json.loads(resp.read())
+
+    @app.get("/v1/billing", tags=["Billing"])
+    async def get_billing(ctx: AuthContext = Depends(auth)):
+        """Current subscription plan, usage, and quotas."""
+        user_id = ctx.user_id
+        sub = store.get_subscription(user_id)
+        usage = store.get_all_usage_counts(user_id)
+        quotas = PLAN_QUOTAS.get(ctx.plan, PLAN_QUOTAS["free"])
+        return {
+            "plan": ctx.plan,
+            "status": sub.get("status", "active"),
+            "current_period_end": sub.get("current_period_end"),
+            "usage": usage,
+            "quotas": {k: v for k, v in quotas.items() if k != "rate_limit"},
+            "rate_limit": quotas["rate_limit"],
+        }
+
+    @app.post("/v1/billing/checkout", tags=["Billing"])
+    async def create_checkout(plan: str = Query(..., regex="^(pro|business)$"), ctx: AuthContext = Depends(auth)):
+        """Create Paddle checkout transaction for plan upgrade. Returns checkout URL."""
+        user_id = ctx.user_id
+        if not PADDLE_API_KEY:
+            raise HTTPException(status_code=503, detail="Billing not configured")
+        price_id = PADDLE_PRICES.get(plan, "")
+        if not price_id:
+            raise HTTPException(status_code=400, detail=f"Unknown plan: {plan}")
+
+        # Build transaction request
+        txn_body = {
+            "items": [{"price_id": price_id, "quantity": 1}],
+            "custom_data": {"mengram_user_id": user_id, "plan": plan},
+        }
+
+        # Attach existing Paddle customer if we have one
+        sub = store.get_subscription(user_id)
+        customer_id = sub.get("paddle_customer_id")
+        if customer_id:
+            txn_body["customer_id"] = customer_id
+
+        try:
+            result = _paddle_request("POST", "/transactions", txn_body)
+            checkout_url = result.get("data", {}).get("checkout", {}).get("url", "")
+            if not checkout_url:
+                raise HTTPException(status_code=502, detail="Paddle did not return checkout URL")
+            return {"url": checkout_url}
+        except Exception as e:
+            logger.error(f"Paddle checkout error: {e}")
+            raise HTTPException(status_code=502, detail=f"Paddle error: {e}")
+
+    @app.post("/v1/billing/portal", tags=["Billing"])
+    async def create_portal(ctx: AuthContext = Depends(auth)):
+        """Create Paddle customer portal session for managing subscription."""
+        user_id = ctx.user_id
+        if not PADDLE_API_KEY:
+            raise HTTPException(status_code=503, detail="Billing not configured")
+
+        sub = store.get_subscription(user_id)
+        customer_id = sub.get("paddle_customer_id")
+        if not customer_id:
+            raise HTTPException(status_code=400, detail="No billing account. Subscribe first.")
+
+        try:
+            result = _paddle_request(
+                "POST",
+                f"/customers/{customer_id}/portal-sessions",
+                {}
+            )
+            urls = result.get("data", {}).get("urls", {})
+            overview_url = urls.get("general", {}).get("overview", "")
+            if not overview_url:
+                raise HTTPException(status_code=502, detail="Paddle did not return portal URL")
+            return {"url": overview_url}
+        except Exception as e:
+            logger.error(f"Paddle portal error: {e}")
+            raise HTTPException(status_code=502, detail=f"Paddle error: {e}")
+
+    @app.post("/webhooks/paddle", tags=["Billing"])
+    async def paddle_webhook(request: Request):
+        """Paddle webhook handler. No auth — verified by HMAC signature."""
+        if not PADDLE_WEBHOOK_SECRET:
+            raise HTTPException(status_code=503, detail="Billing not configured")
+
+        import hmac, hashlib
+
+        raw_body = await request.body()
+        sig_header = request.headers.get("Paddle-Signature", "")
+
+        # Parse ts=...;h1=... from header
+        sig_parts = {}
+        for part in sig_header.split(";"):
+            if "=" in part:
+                k, v = part.split("=", 1)
+                sig_parts[k] = v
+
+        ts = sig_parts.get("ts", "")
+        h1 = sig_parts.get("h1", "")
+        if not ts or not h1:
+            raise HTTPException(status_code=400, detail="Invalid Paddle-Signature")
+
+        # Verify HMAC-SHA256
+        signed_payload = f"{ts}:{raw_body.decode('utf-8')}"
+        computed = hmac.new(
+            PADDLE_WEBHOOK_SECRET.encode("utf-8"),
+            signed_payload.encode("utf-8"),
+            hashlib.sha256
+        ).hexdigest()
+        if not hmac.compare_digest(computed, h1):
+            raise HTTPException(status_code=400, detail="Invalid signature")
+
+        event = json.loads(raw_body)
+        event_type = event.get("event_type", "")
+        data = event.get("data", {})
+
+        if event_type == "subscription.activated":
+            custom = data.get("custom_data", {})
+            user_id = custom.get("mengram_user_id")
+            plan = custom.get("plan", "pro")
+            customer_id = data.get("customer_id", "")
+            subscription_id = data.get("id", "")
+
+            if not user_id and customer_id:
+                user_id = store.get_user_by_paddle_customer(customer_id)
+
+            if user_id:
+                updates = {
+                    "plan": plan,
+                    "status": "active",
+                    "paddle_customer_id": customer_id,
+                    "paddle_subscription_id": subscription_id,
+                }
+                # Parse billing period
+                current_period = data.get("current_billing_period", {})
+                if current_period.get("starts_at"):
+                    updates["current_period_start"] = current_period["starts_at"]
+                if current_period.get("ends_at"):
+                    updates["current_period_end"] = current_period["ends_at"]
+                store.update_subscription(user_id, **updates)
+                logger.info(f"Subscription activated: user={user_id} plan={plan}")
+
+        elif event_type == "subscription.canceled":
+            custom = data.get("custom_data", {})
+            user_id = custom.get("mengram_user_id")
+            customer_id = data.get("customer_id", "")
+            if not user_id and customer_id:
+                user_id = store.get_user_by_paddle_customer(customer_id)
+            if user_id:
+                store.update_subscription(user_id, plan="free", status="canceled")
+                logger.info(f"Subscription canceled: user={user_id}")
+
+        elif event_type == "subscription.past_due":
+            custom = data.get("custom_data", {})
+            user_id = custom.get("mengram_user_id")
+            customer_id = data.get("customer_id", "")
+            if not user_id and customer_id:
+                user_id = store.get_user_by_paddle_customer(customer_id)
+            if user_id:
+                store.update_subscription(user_id, status="past_due")
+                logger.warning(f"Payment past due: user={user_id}")
+
+        elif event_type == "subscription.updated":
+            # Handle plan changes (upgrade/downgrade)
+            custom = data.get("custom_data", {})
+            user_id = custom.get("mengram_user_id")
+            customer_id = data.get("customer_id", "")
+            if not user_id and customer_id:
+                user_id = store.get_user_by_paddle_customer(customer_id)
+            if user_id:
+                updates = {"status": data.get("status", "active")}
+                current_period = data.get("current_billing_period", {})
+                if current_period.get("starts_at"):
+                    updates["current_period_start"] = current_period["starts_at"]
+                if current_period.get("ends_at"):
+                    updates["current_period_end"] = current_period["ends_at"]
+                store.update_subscription(user_id, **updates)
+
+        elif event_type == "transaction.completed":
+            custom = data.get("custom_data", {})
+            user_id = custom.get("mengram_user_id")
+            if user_id:
+                logger.info(f"Payment completed: user={user_id}")
+
+        return {"received": True}
 
     return app
 

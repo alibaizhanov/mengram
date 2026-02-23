@@ -37,6 +37,19 @@ import urllib.parse
 from typing import Optional
 
 
+class QuotaExceededError(Exception):
+    """Raised when API quota is exceeded (HTTP 402)."""
+    def __init__(self, detail: dict):
+        self.action = detail.get("action", "unknown")
+        self.limit = detail.get("limit", 0)
+        self.current = detail.get("current", 0)
+        self.plan = detail.get("plan", "free")
+        super().__init__(
+            f"Quota exceeded for '{self.action}': {self.current}/{self.limit} "
+            f"(plan: {self.plan}). Upgrade at https://mengram.io/dashboard"
+        )
+
+
 class CloudMemory:
     """
     Mengram Cloud client.
@@ -88,6 +101,9 @@ class CloudMemory:
                     detail = json.loads(resp_body).get("detail", resp_body)
                 except Exception:
                     detail = resp_body
+                # Quota exceeded — structured error
+                if e.code == 402 and isinstance(detail, dict):
+                    raise QuotaExceededError(detail)
                 raise Exception(f"API error {e.code}: {detail}")
             except (urllib.error.URLError, ConnectionError, TimeoutError) as e:
                 # Retry on network errors
@@ -720,6 +736,31 @@ class CloudMemory:
         if user_id and user_id != "default":
             params["sub_user_id"] = user_id
         return self._request("POST", f"/v1/triggers/detect/{target_user_id}", params=params)
+
+    # ---- Billing ----
+
+    def get_billing(self) -> dict:
+        """Get current subscription plan, usage, and quotas."""
+        return self._request("GET", "/v1/billing")
+
+    def create_checkout(self, plan: str) -> dict:
+        """Create Paddle checkout session for plan upgrade.
+
+        Args:
+            plan: 'pro' or 'business'
+
+        Returns:
+            {"url": "https://...paddle.com/..."}
+        """
+        return self._request("POST", "/v1/billing/checkout", params={"plan": plan})
+
+    def create_portal(self) -> dict:
+        """Create Paddle customer portal session for managing subscription.
+
+        Returns:
+            {"url": "https://customer-portal.paddle.com/..."}
+        """
+        return self._request("POST", "/v1/billing/portal")
 
     # ---- Import ----
 
