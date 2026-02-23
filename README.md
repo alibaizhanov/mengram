@@ -169,7 +169,7 @@ m.import_files(["notes.md", "journal.txt"])
 from integrations.langchain import MengramChatMessageHistory, MengramRetriever
 
 # Drop-in message history — auto-saves to Mengram
-history = MengramChatMessageHistory(api_key="om-...", session_id="session-1")
+history = MengramChatMessageHistory(api_key="om-...", user_id="user-1")
 
 # RAG retriever — searches all 3 memory types
 retriever = MengramRetriever(api_key="om-...")

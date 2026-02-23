@@ -167,11 +167,11 @@ export declare class MengramClient {
   addText(text: string, options?: MemoryOptions): Promise<AddResult>;
   search(query: string, options?: SearchOptions): Promise<SearchResult[]>;
   getAll(options?: MemoryOptions): Promise<Entity[]>;
-  getAllFull(): Promise<Entity[]>;
-  get(name: string): Promise<Entity | null>;
-  delete(name: string): Promise<boolean>;
-  stats(): Promise<Stats>;
-  graph(): Promise<{ nodes: any[]; edges: any[] }>;
+  getAllFull(options?: { userId?: string }): Promise<Entity[]>;
+  get(name: string, options?: { userId?: string }): Promise<Entity | null>;
+  delete(name: string, options?: { userId?: string }): Promise<boolean>;
+  stats(options?: { userId?: string }): Promise<Stats>;
+  graph(options?: { userId?: string }): Promise<{ nodes: any[]; edges: any[] }>;
   getProfile(userId?: string, options?: { force?: boolean }): Promise<CognitiveProfile>;
   timeline(options?: { after?: string; before?: string; limit?: number }): Promise<any[]>;
 
@@ -193,8 +193,8 @@ export declare class MengramClient {
   agentStatus(options?: { userId?: string }): Promise<any>;
 
   // Insights
-  insights(): Promise<any>;
-  reflect(): Promise<any>;
+  insights(options?: { userId?: string }): Promise<any>;
+  reflect(options?: { userId?: string }): Promise<any>;
   reflections(options?: { scope?: string; userId?: string }): Promise<any[]>;
 
   // Webhooks

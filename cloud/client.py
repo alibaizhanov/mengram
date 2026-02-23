@@ -255,10 +255,12 @@ class CloudMemory:
             params["sub_user_id"] = user_id
         return self._request("POST", "/v1/merge", {"source": source, "target": target}, params=params)
 
-    def merge_user(self, source_user: str, target_user: str) -> dict:
-        """Merge all memories from one user into another."""
-        return self._request("POST", "/v1/merge_user",
-                            {"source_user_id": source_user, "target_user_id": target_user})
+    def merge_user(self, user_id: str = "default") -> dict:
+        """Merge 'User' entity into the primary person entity."""
+        params = {}
+        if user_id and user_id != "default":
+            params["sub_user_id"] = user_id
+        return self._request("POST", "/v1/merge_user", params=params)
 
     def archive_fact(self, entity: str, fact: str, user_id: str = "default") -> dict:
         """Archive a specific fact on an entity."""
@@ -266,7 +268,7 @@ class CloudMemory:
         if user_id and user_id != "default":
             params["sub_user_id"] = user_id
         return self._request("POST", "/v1/archive_fact",
-                            {"entity": entity, "fact": fact}, params=params)
+                            {"entity_name": entity, "fact_content": fact}, params=params)
 
     def fix_entity_type(self, name: str, new_type: str, user_id: str = "default") -> dict:
         """Fix entity type classification."""

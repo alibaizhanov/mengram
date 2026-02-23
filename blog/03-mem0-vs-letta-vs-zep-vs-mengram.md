@@ -29,7 +29,7 @@ I spent the last year building [Mengram](https://mengram.io), so I've studied th
 | **Self-improving workflows** | No | No | No | Yes (procedures evolve from failures) |
 | **Cognitive Profile** | No | No | No | Yes (AI-generated system prompt) |
 | **Smart Triggers** | No | No | No | Yes (reminders, contradictions, patterns) |
-| **Temporal tracking** | No | No | Yes | No |
+| **Temporal tracking** | No | No | Yes | Yes |
 | **Agent-controlled memory** | No | Yes (unique) | No | No |
 | **Pricing** | Free tier + $19-249/mo | Free (self-hosted) | Enterprise (cloud-only) | Free cloud API, self-hostable |
 | **Multi-user isolation** | Yes (user_id) | No | Yes | Yes (user_id) |
@@ -165,7 +165,7 @@ This third type, procedural memory, is what makes Mengram architecturally differ
 I'll be honest about where Mengram falls short:
 
 - **Newer and smaller community.** With 13 GitHub stars versus Mem0's 25,000+, Mengram is still early. You won't find as many tutorials, Stack Overflow answers, or community plugins. You're betting on a newer project.
-- **No temporal tracking.** Unlike Zep, Mengram doesn't natively track how facts change over time. If temporal reasoning is critical, Zep does this better.
+- **Limited temporal tracking.** Mengram supports timeline queries and event_date on episodes, but doesn't track how individual facts change over time the way Zep does. If fine-grained temporal reasoning on facts is critical, Zep does this better.
 - **No agent-controlled memory.** Unlike Letta, Mengram's memory operations are API-driven, not agent-driven. The developer (or framework) decides when to store and retrieve — the agent doesn't self-curate its memory.
 - **No enterprise compliance certifications (yet).** No SOC2 or HIPAA. If you're in a regulated industry, this matters.
 - **Bootstrapped.** No VC backing means a smaller team and slower development on some fronts, though it also means no pressure to lock you into expensive tiers.

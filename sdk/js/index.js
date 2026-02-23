@@ -5,7 +5,7 @@
  *   const { MengramClient } = require('mengram-ai');
  *   // or: import { MengramClient } from 'mengram-ai';
  *
- *   const m = new MengramClient('mg-...');
+ *   const m = new MengramClient('om-...');
  *
  *   await m.add([
  *     { role: 'user', content: 'I prefer dark mode and use Vim.' },
@@ -17,7 +17,7 @@
 
 class MengramClient {
   /**
-   * @param {string} apiKey - Your Mengram API key (mg-...)
+   * @param {string} apiKey - Your Mengram API key (om-...)
    * @param {object} [options]
    * @param {string} [options.baseUrl] - API base URL (default: https://mengram.io)
    * @param {number} [options.timeout] - Request timeout in ms (default: 30000)

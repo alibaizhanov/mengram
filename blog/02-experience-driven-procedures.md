@@ -271,4 +271,4 @@ Your runbook failed on Friday. By Monday, it already knows better.
 
 ---
 
-*[Mengram](https://mengram.io) is an AI memory platform with semantic, episodic, and procedural memory. Experience-driven procedures ship in v2.7. [Get started](https://mengram.io) or check the [docs](https://mengram.io/docs).*
+*[Mengram](https://mengram.io) is an AI memory platform with semantic, episodic, and procedural memory. Experience-driven procedures are available since v2.7. [Get started](https://mengram.io) or check the [docs](https://mengram.io/docs).*

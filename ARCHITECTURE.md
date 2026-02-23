@@ -23,7 +23,7 @@ Any client (SDK, MCP, LangChain, CrewAI, OpenClaw)
 │   → Episodes (events)                   │
 │   → Procedures (workflows)              │
 ├─────────────────────────────────────────┤
-│        Evolution Engine (v2.7)          │
+│        Evolution Engine                 │
 │   Auto-link episodes ↔ procedures       │
 │   Failure → LLM analysis → evolve      │
 │   3+ similar episodes → auto-create     │
@@ -54,7 +54,7 @@ Claude Desktop / Cursor (MCP)
 └─────────────────────────────────────────┘
 ```
 
-## Experience-Driven Procedures (v2.7)
+## Experience-Driven Procedures
 
 Closed feedback loop between episodic and procedural memory:
 
@@ -82,7 +82,7 @@ mengram/
 │   ├── api.py               # FastAPI server (all endpoints)
 │   ├── store.py             # PostgreSQL + pgvector backend
 │   ├── client.py            # Python SDK (CloudMemory)
-│   ├── evolution.py         # Evolution Engine (v2.7)
+│   ├── evolution.py         # Evolution Engine
 │   ├── embedder.py          # OpenAI embeddings (API-based)
 │   ├── schema.sql           # Full PostgreSQL schema
 │   ├── dashboard.html       # Web dashboard
