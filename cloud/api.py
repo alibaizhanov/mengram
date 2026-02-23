@@ -1888,17 +1888,9 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         chunks = []
         try:
             if embedder and emb is not None:
-                with store._cursor(dict_cursor=True) as _cur:
-                    _cur.execute(
-                        """SELECT COUNT(*) as cnt FROM conversation_chunks
-                           WHERE user_id = %s AND sub_user_id = %s""",
-                        (user_id, sub_uid))
-                    _cnt = _cur.fetchone()["cnt"]
-                    logger.warning(f"CHUNK_DEBUG user={user_id} sub={sub_uid} chunks={_cnt}")
                 chunks = store.search_chunks_vector(
                     user_id, emb, query_text=req.query,
                     top_k=max(req.limit // 3, 3), sub_user_id=sub_uid)
-                logger.warning(f"CHUNK_DEBUG search returned {len(chunks)}")
         except Exception as e:
             logger.warning(f"Chunk search failed: {e}")
 
