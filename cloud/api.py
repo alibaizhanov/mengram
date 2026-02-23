@@ -124,7 +124,7 @@ results = m.search_all("deployment")  # semantic + episodic + procedural
 profile = m.get_profile()             # instant system prompt
 ```
         """,
-        version="2.14.3",
+        version="2.14.4",
         docs_url="/docs",
         redoc_url="/redoc",
         openapi_tags=[
@@ -716,7 +716,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             db_info["error"] = str(e)
         return {
             "status": "ok",
-            "version": "2.14.3",
+            "version": "2.14.4",
             "cache": cache_stats,
             "connection": pool_info,
             "db": db_info,
