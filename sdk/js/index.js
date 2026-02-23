@@ -45,31 +45,54 @@ class MengramClient {
       'Content-Type': 'application/json',
     };
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.timeout);
+    let lastErr;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.timeout);
 
-    try {
-      const res = await fetch(url, {
-        method,
-        headers,
-        body: body ? JSON.stringify(body) : undefined,
-        signal: controller.signal,
-      });
+      try {
+        const res = await fetch(url, {
+          method,
+          headers,
+          body: body ? JSON.stringify(body) : undefined,
+          signal: controller.signal,
+        });
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new MengramError(data.detail || `HTTP ${res.status}`, res.status);
+        const data = await res.json();
+        if (!res.ok) {
+          // Retry on transient errors
+          if ([429, 502, 503, 504].includes(res.status) && attempt < 2) {
+            lastErr = new MengramError(data.detail || `HTTP ${res.status}`, res.status);
+            await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+            continue;
+          }
+          throw new MengramError(data.detail || `HTTP ${res.status}`, res.status);
+        }
+        return data;
+      } catch (err) {
+        if (err instanceof MengramError) {
+          if ([429, 502, 503, 504].includes(err.status) && attempt < 2) {
+            lastErr = err;
+            await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+            continue;
+          }
+          throw err;
+        }
+        if (err.name === 'AbortError') {
+          throw new MengramError(`Request timeout after ${this.timeout}ms`, 408);
+        }
+        // Retry on network errors
+        if (attempt < 2) {
+          lastErr = err;
+          await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+          continue;
+        }
+        throw new MengramError(err.message, 0);
+      } finally {
+        clearTimeout(timer);
       }
-      return data;
-    } catch (err) {
-      if (err instanceof MengramError) throw err;
-      if (err.name === 'AbortError') {
-        throw new MengramError(`Request timeout after ${this.timeout}ms`, 408);
-      }
-      throw new MengramError(err.message, 0);
-    } finally {
-      clearTimeout(timer);
     }
+    throw lastErr || new MengramError('Request failed after 3 attempts', 0);
   }
 
   // ---- Memory ----

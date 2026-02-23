@@ -697,7 +697,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     @app.get("/v1/health", tags=["System"])
     async def health():
         cache_stats = store.cache.stats()
-        pool_info = {"type": "pool", "max": 10} if store._pool else {"type": "single"}
+        pool_info = {"type": "pool", "max": store._pool.maxconn} if store._pool else {"type": "single"}
         # Basic DB diagnostics
         db_info = {}
         try:

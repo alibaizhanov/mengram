@@ -139,7 +139,7 @@ class CloudStore:
     - Proper logging
     """
 
-    def __init__(self, database_url: str, pool_min: int = 1, pool_max: int = 3,
+    def __init__(self, database_url: str, pool_min: int = 2, pool_max: int = 10,
                  redis_url: str = None):
         if not PSYCOPG2_AVAILABLE:
             raise ImportError("pip install psycopg2-binary")
@@ -165,12 +165,23 @@ class CloudStore:
     @contextmanager
     def _get_conn(self):
         """Get a connection from pool (or fallback to self.conn).
-        Auto-returns to pool on exit. Auto-reconnects on failure."""
+        Auto-returns to pool on exit. Auto-reconnects on failure.
+        Retries up to 3 times on pool exhaustion."""
+        import time as _time
         conn = None
         from_pool = False
         try:
             if self._pool:
-                conn = self._pool.getconn()
+                # Retry on pool exhaustion (all connections busy)
+                for attempt in range(3):
+                    try:
+                        conn = self._pool.getconn()
+                        break
+                    except psycopg2.pool.PoolError:
+                        if attempt < 2:
+                            _time.sleep(0.1 * (attempt + 1))
+                        else:
+                            raise
                 conn.autocommit = True
                 from_pool = True
             else:

@@ -53,7 +53,9 @@ class CloudMemory:
 
     def _request(self, method: str, path: str, data: dict = None,
                  params: dict = None) -> dict:
-        """Make authenticated API request."""
+        """Make authenticated API request with retry for transient errors."""
+        import time as _time
+
         url = f"{self.base_url}{path}"
         if params:
             query_string = "&".join(f"{k}={urllib.parse.quote(str(v))}" for k, v in params.items() if v is not None)
@@ -61,26 +63,40 @@ class CloudMemory:
                 url = f"{url}?{query_string}"
         body = json.dumps(data).encode() if data else None
 
-        req = urllib.request.Request(
-            url,
-            data=body,
-            method=method,
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-            }
-        )
-
-        try:
-            with urllib.request.urlopen(req) as resp:
-                return json.loads(resp.read())
-        except urllib.error.HTTPError as e:
-            body = e.read().decode()
+        last_err = None
+        for attempt in range(3):
+            req = urllib.request.Request(
+                url,
+                data=body,
+                method=method,
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                }
+            )
             try:
-                detail = json.loads(body).get("detail", body)
-            except Exception:
-                detail = body
-            raise Exception(f"API error {e.code}: {detail}")
+                with urllib.request.urlopen(req) as resp:
+                    return json.loads(resp.read())
+            except urllib.error.HTTPError as e:
+                resp_body = e.read().decode()
+                # Retry on transient errors (429, 502, 503, 504)
+                if e.code in (429, 502, 503, 504) and attempt < 2:
+                    _time.sleep(1 * (attempt + 1))
+                    last_err = e
+                    continue
+                try:
+                    detail = json.loads(resp_body).get("detail", resp_body)
+                except Exception:
+                    detail = resp_body
+                raise Exception(f"API error {e.code}: {detail}")
+            except (urllib.error.URLError, ConnectionError, TimeoutError) as e:
+                # Retry on network errors
+                if attempt < 2:
+                    _time.sleep(1 * (attempt + 1))
+                    last_err = e
+                    continue
+                raise Exception(f"Network error: {e}")
+        raise Exception(f"Request failed after 3 attempts: {last_err}")
 
     def add(self, messages: list[dict], user_id: str = "default",
             agent_id: str = None, run_id: str = None, app_id: str = None,
