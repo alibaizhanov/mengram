@@ -55,7 +55,7 @@ export interface Stats {
 }
 
 export interface ApiKey {
-  id: number;
+  id: string;
   name: string;
   prefix: string;
   active: boolean;
@@ -190,26 +190,41 @@ export declare class MengramClient {
   // Agents
   runAgents(options?: { agent?: string; autoFix?: boolean }): Promise<any>;
   agentHistory(options?: { agent?: string; limit?: number }): Promise<any[]>;
+  agentStatus(options?: { userId?: string }): Promise<any>;
 
   // Insights
   insights(): Promise<any>;
   reflect(): Promise<any>;
+  reflections(options?: { scope?: string; userId?: string }): Promise<any[]>;
 
   // Webhooks
   listWebhooks(): Promise<Webhook[]>;
   createWebhook(webhook: { url: string; eventTypes: string[]; name?: string; secret?: string }): Promise<any>;
   deleteWebhook(webhookId: number): Promise<boolean>;
+  updateWebhook(webhookId: number, updates?: { url?: string; name?: string; eventTypes?: string[]; active?: boolean }): Promise<any>;
 
   // Teams
   createTeam(name: string, description?: string): Promise<any>;
   joinTeam(inviteCode: string): Promise<any>;
   listTeams(): Promise<any[]>;
-  shareMemory(entityName: string, teamId: number): Promise<any>;
+  shareMemory(entityName: string, teamId: number, options?: { userId?: string }): Promise<any>;
+  unshareMemory(entityName: string, teamId: number, options?: { userId?: string }): Promise<any>;
+  teamMembers(teamId: number): Promise<any[]>;
+  leaveTeam(teamId: number): Promise<any>;
+  deleteTeam(teamId: number): Promise<any>;
 
   // API Keys
   listKeys(): Promise<ApiKey[]>;
   createKey(name?: string): Promise<{ key: string; name: string }>;
-  revokeKey(keyId: number): Promise<any>;
+  revokeKey(keyId: string): Promise<any>;
+
+  // Memory Management
+  reindex(options?: { userId?: string }): Promise<any>;
+  dedup(options?: { userId?: string }): Promise<any>;
+  dedupAll(options?: { userId?: string }): Promise<any>;
+  archiveFact(entityName: string, factContent: string, options?: { userId?: string }): Promise<any>;
+  merge(sourceName: string, targetName: string, options?: { userId?: string }): Promise<any>;
+  feed(options?: { limit?: number; userId?: string }): Promise<any[]>;
 
   // Jobs
   jobStatus(jobId: string): Promise<JobStatus>;
@@ -219,6 +234,7 @@ export declare class MengramClient {
   getTriggers(userId?: string, options?: { includeFired?: boolean; limit?: number }): Promise<SmartTrigger[]>;
   processTriggers(): Promise<{ processed: number; fired: number; errors: number }>;
   dismissTrigger(triggerId: number): Promise<{ status: string; id: number }>;
+  detectTriggers(userId: string, options?: { userId?: string }): Promise<any>;
 
   // Import (v2.9)
   importChatgpt(zipPath: string, options?: { chunkSize?: number; onProgress?: (current: number, total: number, title: string) => void }): Promise<ImportResult>;
