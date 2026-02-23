@@ -125,6 +125,7 @@ class MengramClient {
    * @param {string} [options.runId]
    * @param {string} [options.appId]
    * @param {number} [options.limit] - Max results (default: 5)
+   * @param {number} [options.graphDepth] - Knowledge graph traversal depth (default: 2)
    * @returns {Promise<Array>}
    */
   async search(query, options = {}) {
@@ -135,6 +136,7 @@ class MengramClient {
       run_id: options.runId || null,
       app_id: options.appId || null,
       limit: options.limit || 5,
+      graph_depth: options.graphDepth != null ? options.graphDepth : 2,
     });
     return data.results || [];
   }
@@ -350,6 +352,7 @@ class MengramClient {
    * @param {string} query - Search query
    * @param {object} [options]
    * @param {number} [options.limit] - Max results per type (default 5)
+   * @param {number} [options.graphDepth] - Knowledge graph traversal depth (default: 2)
    * @returns {Promise<{semantic: Array, episodic: Array, procedural: Array}>}
    */
   async searchAll(query, options = {}) {
@@ -357,6 +360,7 @@ class MengramClient {
       query,
       limit: options.limit || 5,
       user_id: options.userId || 'default',
+      graph_depth: options.graphDepth != null ? options.graphDepth : 2,
     });
   }
 

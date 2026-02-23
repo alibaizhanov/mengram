@@ -129,10 +129,11 @@ class CloudMemory:
 
     def search(self, query: str, user_id: str = "default",
                limit: int = 5, agent_id: str = None,
-               run_id: str = None, app_id: str = None) -> list[dict]:
+               run_id: str = None, app_id: str = None,
+               graph_depth: int = 2) -> list[dict]:
         """
         Semantic search across memories.
-        
+
         Args:
             query: Natural language query
             user_id: User identifier
@@ -140,11 +141,13 @@ class CloudMemory:
             agent_id: Filter by agent
             run_id: Filter by run/session
             app_id: Filter by application
-            
+            graph_depth: How many hops to traverse in the knowledge graph (default: 2)
+
         Returns:
             [{"entity": "...", "type": "...", "score": 0.85, "facts": [...], "knowledge": [...]}]
         """
-        body = {"query": query, "user_id": user_id, "limit": limit}
+        body = {"query": query, "user_id": user_id, "limit": limit,
+                "graph_depth": graph_depth}
         if agent_id:
             body["agent_id"] = agent_id
         if run_id:
@@ -446,15 +449,23 @@ class CloudMemory:
     # ---- Unified Search ----
 
     def search_all(self, query: str, limit: int = 5,
-                   user_id: str = "default") -> dict:
+                   user_id: str = "default",
+                   graph_depth: int = 2) -> dict:
         """
         Search across all 3 memory types: semantic, episodic, procedural.
-        
+
+        Args:
+            query: Natural language query
+            limit: Max results per type
+            user_id: User identifier
+            graph_depth: How many hops to traverse in the knowledge graph (default: 2)
+
         Returns:
             {"semantic": [...], "episodic": [...], "procedural": [...]}
         """
         return self._request("POST", "/v1/search/all",
-                            data={"query": query, "limit": limit, "user_id": user_id})
+                            data={"query": query, "limit": limit,
+                                  "user_id": user_id, "graph_depth": graph_depth})
 
     # ---- Agents ----
 

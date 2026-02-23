@@ -38,6 +38,8 @@ CREATE TABLE entities (
     sub_user_id TEXT NOT NULL DEFAULT 'default',
     name VARCHAR(255) NOT NULL,
     type VARCHAR(50) NOT NULL DEFAULT 'concept',  -- person, project, technology, company, concept
+    metadata JSONB DEFAULT '{}',
+    team_id INTEGER,                              -- v2.14: shared memory via teams (FK added after teams table)
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW(),
 
@@ -48,6 +50,7 @@ CREATE INDEX idx_entities_user ON entities(user_id);
 CREATE INDEX idx_entities_sub_user ON entities(user_id, sub_user_id);
 CREATE INDEX idx_entities_type ON entities(user_id, type);
 CREATE INDEX idx_entities_name ON entities(user_id, name);
+CREATE INDEX idx_entities_metadata ON entities USING gin(metadata);
 
 -- ============================================
 -- 3. Facts (replaces ## Facts section in .md)
@@ -58,13 +61,20 @@ CREATE TABLE facts (
     entity_id UUID NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
     content TEXT NOT NULL,
     event_date TEXT,                       -- when the event occurred (extracted from conversation)
-    created_at TIMESTAMP DEFAULT NOW(),
+    archived BOOLEAN DEFAULT FALSE,        -- v1.4: conflict resolution
+    superseded_by TEXT DEFAULT NULL,        -- v1.4: tracks what replaced this fact
+    importance FLOAT DEFAULT 0.5,          -- v1.6: importance scoring
+    access_count INTEGER DEFAULT 0,        -- v1.6: access frequency
+    last_accessed TIMESTAMPTZ DEFAULT NULL, -- v1.6: last access time
+    expires_at TIMESTAMPTZ DEFAULT NULL,   -- v2.3: TTL expiry
+    created_at TIMESTAMPTZ DEFAULT NOW(),
 
     UNIQUE(entity_id, content)
 );
 
 CREATE INDEX idx_facts_entity ON facts(entity_id);
 CREATE INDEX idx_facts_event_date ON facts(event_date) WHERE event_date IS NOT NULL;
+CREATE INDEX idx_facts_expires ON facts(expires_at) WHERE expires_at IS NOT NULL;
 
 -- ============================================
 -- 4. Relations (replaces ## Relations section)
@@ -95,6 +105,12 @@ CREATE TABLE knowledge (
     title VARCHAR(255) NOT NULL,
     content TEXT NOT NULL,
     artifact TEXT,                        -- code snippet, YAML config, SQL query, etc
+    scope VARCHAR(20) DEFAULT 'insight', -- v1.7: entity, cross, temporal, insight
+    confidence FLOAT DEFAULT 1.0,        -- v1.7: confidence score
+    based_on_facts TEXT[] DEFAULT '{}',  -- v1.7: fact IDs this knowledge is based on
+    refreshed_at TIMESTAMPTZ DEFAULT NOW(), -- v1.7: last reflection refresh
+    user_id VARCHAR(255) DEFAULT NULL,   -- v1.7: for cross-entity/temporal insights
+    sub_user_id TEXT NOT NULL DEFAULT 'default', -- v2.12: sub-user isolation
     created_at TIMESTAMP DEFAULT NOW(),
 
     UNIQUE(entity_id, title)
@@ -102,6 +118,9 @@ CREATE TABLE knowledge (
 
 CREATE INDEX idx_knowledge_entity ON knowledge(entity_id);
 CREATE INDEX idx_knowledge_type ON knowledge(entity_id, type);
+CREATE INDEX idx_knowledge_scope ON knowledge(scope) WHERE scope IN ('entity', 'cross', 'temporal');
+CREATE INDEX idx_knowledge_user ON knowledge(user_id) WHERE user_id IS NOT NULL;
+CREATE INDEX idx_knowledge_sub_user ON knowledge(user_id, sub_user_id) WHERE user_id IS NOT NULL;
 
 -- ============================================
 -- 6. Vector Embeddings (replaces SQLite vectors)
@@ -320,6 +339,73 @@ CREATE INDEX idx_chunk_emb_hnsw ON chunk_embeddings
     USING hnsw (embedding vector_cosine_ops)
     WITH (m = 16, ef_construction = 64);
 CREATE INDEX idx_chunk_emb_tsv ON chunk_embeddings USING gin(tsv);
+
+-- ============================================
+-- 13. Email & OAuth Codes (authentication flow)
+-- ============================================
+
+CREATE TABLE email_codes (
+    email TEXT PRIMARY KEY,
+    code TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE oauth_codes (
+    code TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    redirect_uri TEXT,
+    state TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================
+-- 14. Webhooks (v2.14 — event notifications)
+-- ============================================
+
+CREATE TABLE webhooks (
+    id SERIAL PRIMARY KEY,
+    user_id VARCHAR(255) NOT NULL,
+    url TEXT NOT NULL,
+    name VARCHAR(255) DEFAULT '',
+    event_types JSONB DEFAULT '["memory_add","memory_update","memory_delete"]',
+    secret VARCHAR(255) DEFAULT '',
+    active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    last_triggered TIMESTAMPTZ,
+    trigger_count INTEGER DEFAULT 0,
+    last_error TEXT
+);
+
+CREATE INDEX idx_webhooks_user ON webhooks(user_id, active);
+
+-- ============================================
+-- 15. Teams & Shared Memory (v2.14)
+-- ============================================
+
+CREATE TABLE teams (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    description TEXT DEFAULT '',
+    invite_code VARCHAR(20) UNIQUE NOT NULL,
+    created_by VARCHAR(255) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE team_members (
+    id SERIAL PRIMARY KEY,
+    team_id INTEGER REFERENCES teams(id) ON DELETE CASCADE,
+    user_id VARCHAR(255) NOT NULL,
+    role VARCHAR(20) DEFAULT 'member',
+    joined_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(team_id, user_id)
+);
+
+CREATE INDEX idx_team_members_user ON team_members(user_id);
+
+-- Add FK for entities → teams (deferred because teams table is created after entities)
+ALTER TABLE entities ADD CONSTRAINT fk_entities_team
+    FOREIGN KEY (team_id) REFERENCES teams(id);
+CREATE INDEX idx_entities_team ON entities(team_id) WHERE team_id IS NOT NULL;
 
 -- ============================================
 -- Helper views

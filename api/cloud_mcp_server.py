@@ -382,6 +382,123 @@ def create_cloud_mcp_server(mem: CloudMemory, user_id: str = "default") -> "Serv
                     "required": ["procedure_id"],
                 },
             ),
+            Tool(
+                name="get_entity",
+                description="Get details of a specific entity — facts, relations, knowledge. Use when user asks about a specific person, project, or concept by name.",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string", "description": "Entity name to look up"},
+                        "user_id": {"type": "string", "description": "Optional user ID override"},
+                    },
+                    "required": ["name"],
+                },
+            ),
+            Tool(
+                name="delete_entity",
+                description="Delete an entity and all its data (facts, relations, knowledge). Use when user explicitly asks to remove something from memory.",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string", "description": "Entity name to delete"},
+                        "user_id": {"type": "string", "description": "Optional user ID override"},
+                    },
+                    "required": ["name"],
+                },
+            ),
+            Tool(
+                name="list_episodes",
+                description="List or search episodic memories (events, interactions, experiences). Use when user asks 'what happened', 'show my recent events', 'find episodes about...'.",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string", "description": "Search query (optional — if omitted, returns recent episodes)"},
+                        "limit": {"type": "integer", "default": 20, "description": "Max results to return"},
+                        "user_id": {"type": "string", "description": "Optional user ID override"},
+                    },
+                },
+            ),
+            Tool(
+                name="search_all",
+                description="Unified search across ALL memory types — semantic, episodic, and procedural. Best for broad queries that might match different memory types.",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string", "description": "Search query"},
+                        "limit": {"type": "integer", "default": 5, "description": "Max results per memory type"},
+                        "user_id": {"type": "string", "description": "Optional user ID override"},
+                    },
+                    "required": ["query"],
+                },
+            ),
+            Tool(
+                name="get_graph",
+                description="Get the knowledge graph — all entities and their relationships. Use when user asks 'show my knowledge graph', 'how are things connected', 'map my memory'.",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "user_id": {"type": "string", "description": "Optional user ID override"},
+                    },
+                },
+            ),
+            Tool(
+                name="get_triggers",
+                description="List smart triggers — reminders, contradictions detected, and patterns. Use when user asks 'any reminders?', 'what should I know?', 'pending alerts'.",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "include_fired": {"type": "boolean", "default": False, "description": "Include already-fired triggers"},
+                        "user_id": {"type": "string", "description": "Optional user ID override"},
+                    },
+                },
+            ),
+            Tool(
+                name="get_feed",
+                description="Get activity feed — recent memory changes and events. Use when user asks 'what's new in my memory?', 'show recent activity', 'memory changelog'.",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "limit": {"type": "integer", "default": 20, "description": "Max feed items to return"},
+                        "user_id": {"type": "string", "description": "Optional user ID override"},
+                    },
+                },
+            ),
+            Tool(
+                name="archive_fact",
+                description="Archive a specific fact on an entity — soft-delete without removing the entity. Use when a fact is outdated, wrong, or no longer relevant.",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "entity_name": {"type": "string", "description": "Entity the fact belongs to"},
+                        "fact_content": {"type": "string", "description": "Exact text of the fact to archive"},
+                        "user_id": {"type": "string", "description": "Optional user ID override"},
+                    },
+                    "required": ["entity_name", "fact_content"],
+                },
+            ),
+            Tool(
+                name="merge_entities",
+                description="Merge two entities into one — combines facts, relations, and knowledge. Use when there are duplicate entities (e.g. 'JS' and 'JavaScript').",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "source": {"type": "string", "description": "Entity to merge FROM (will be deleted)"},
+                        "target": {"type": "string", "description": "Entity to merge INTO (will be kept)"},
+                        "user_id": {"type": "string", "description": "Optional user ID override"},
+                    },
+                    "required": ["source", "target"],
+                },
+            ),
+            Tool(
+                name="reflect",
+                description="Trigger AI reflection on memories — analyzes facts to find patterns, insights, and connections. Use when user asks 'analyze my memory', 'find patterns', 'what can you learn from my data?'.",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "user_id": {"type": "string", "description": "Optional user ID override"},
+                    },
+                },
+            ),
         ]
 
     @server.call_tool()
@@ -595,6 +712,240 @@ def create_cloud_mcp_server(mem: CloudMemory, user_id: str = "default") -> "Serv
                             if items:
                                 for item in items:
                                     lines.append(f"  {key}: {item}")
+
+                return [TextContent(type="text", text="\n".join(lines))]
+
+            elif name == "get_entity":
+                uid = arguments.get("user_id", user_id)
+                entity = mem.get(arguments["name"], user_id=uid)
+                if not entity:
+                    return [TextContent(type="text", text=f"Entity '{arguments['name']}' not found.")]
+
+                lines = [f"## {entity.get('entity', arguments['name'])} ({entity.get('type', 'unknown')})\n"]
+
+                facts = entity.get("facts", [])
+                if facts:
+                    lines.append("**Facts:**")
+                    for f in facts:
+                        lines.append(f"- {f}")
+
+                relations = entity.get("relations", [])
+                if relations:
+                    lines.append("\n**Relations:**")
+                    for r in relations:
+                        arrow = "→" if r.get("direction") == "outgoing" else "←"
+                        lines.append(f"- {arrow} {r.get('type', '')}: {r.get('target', '')}")
+
+                knowledge = entity.get("knowledge", [])
+                if knowledge:
+                    lines.append("\n**Knowledge:**")
+                    for k in knowledge:
+                        lines.append(f"\n[{k.get('type', '')}] {k.get('title', '')}")
+                        lines.append(k.get("content", ""))
+                        if k.get("artifact"):
+                            lines.append(f"```\n{k['artifact']}\n```")
+
+                return [TextContent(type="text", text="\n".join(lines))]
+
+            elif name == "delete_entity":
+                uid = arguments.get("user_id", user_id)
+                success = mem.delete(arguments["name"], user_id=uid)
+                if success:
+                    text = f"🗑️ Deleted entity '{arguments['name']}' and all its data."
+                    try:
+                        await server.request_context.session.send_resource_updated(uri="memory://profile")
+                    except Exception:
+                        pass
+                else:
+                    text = f"❌ Could not delete '{arguments['name']}' — entity may not exist."
+                return [TextContent(type="text", text=text)]
+
+            elif name == "list_episodes":
+                uid = arguments.get("user_id", user_id)
+                query = arguments.get("query")
+                limit = arguments.get("limit", 20)
+                episodes = mem.episodes(query=query, limit=limit, user_id=uid)
+
+                if not episodes:
+                    return [TextContent(type="text", text="No episodes found.")]
+
+                lines = [f"📖 **{len(episodes)} Episode(s)**\n"]
+                for ep in episodes:
+                    summary = ep.get("summary", "No summary")
+                    ts = ep.get("created_at", "")[:16] if ep.get("created_at") else ""
+                    category = ep.get("category", "")
+                    participants = ", ".join(ep.get("participants", [])) if ep.get("participants") else ""
+
+                    header = f"### {summary}"
+                    if ts:
+                        header += f" ({ts})"
+                    lines.append(header)
+                    if category:
+                        lines.append(f"Category: {category}")
+                    if participants:
+                        lines.append(f"Participants: {participants}")
+                    if ep.get("outcome"):
+                        lines.append(f"Outcome: {ep['outcome']}")
+                    if ep.get("context"):
+                        lines.append(f"Context: {ep['context']}")
+                    lines.append("")
+                return [TextContent(type="text", text="\n".join(lines))]
+
+            elif name == "search_all":
+                uid = arguments.get("user_id", user_id)
+                limit = arguments.get("limit", 5)
+                results = mem.search_all(arguments["query"], limit=limit, user_id=uid)
+
+                lines = [f"🔍 **Unified search: '{arguments['query']}'**\n"]
+
+                # Semantic results
+                semantic = results.get("semantic", [])
+                if semantic:
+                    lines.append(f"### Semantic ({len(semantic)} results)")
+                    for r in semantic:
+                        lines.append(f"**{r.get('entity', '?')}** ({r.get('type', '?')}) — score: {r.get('score', 0)}")
+                        for fact in r.get("facts", []):
+                            lines.append(f"- {fact}")
+                        lines.append("")
+
+                # Episodic results
+                episodic = results.get("episodic", [])
+                if episodic:
+                    lines.append(f"### Episodic ({len(episodic)} results)")
+                    for ep in episodic:
+                        lines.append(f"- {ep.get('summary', '?')}")
+                    lines.append("")
+
+                # Procedural results
+                procedural = results.get("procedural", [])
+                if procedural:
+                    lines.append(f"### Procedural ({len(procedural)} results)")
+                    for p in procedural:
+                        lines.append(f"- {p.get('name', '?')} (v{p.get('version', 1)})")
+                    lines.append("")
+
+                if not semantic and not episodic and not procedural:
+                    lines.append("No results found across any memory type.")
+
+                return [TextContent(type="text", text="\n".join(lines))]
+
+            elif name == "get_graph":
+                uid = arguments.get("user_id", user_id)
+                graph = mem.graph(user_id=uid)
+
+                nodes = graph.get("nodes", [])
+                edges = graph.get("edges", [])
+
+                lines = [f"🕸️ **Knowledge Graph** — {len(nodes)} entities, {len(edges)} relations\n"]
+
+                if nodes:
+                    lines.append("**Entities:**")
+                    for n in nodes:
+                        facts_count = n.get("facts_count", 0)
+                        lines.append(f"- {n.get('name', '?')} ({n.get('type', '?')}) — {facts_count} facts")
+
+                if edges:
+                    lines.append("\n**Relations:**")
+                    for e in edges:
+                        lines.append(f"- {e.get('source', '?')} → {e.get('type', '?')} → {e.get('target', '?')}")
+
+                return [TextContent(type="text", text="\n".join(lines))]
+
+            elif name == "get_triggers":
+                uid = arguments.get("user_id", user_id)
+                include_fired = arguments.get("include_fired", False)
+                triggers = mem.get_triggers(include_fired=include_fired, user_id=uid)
+
+                if not triggers:
+                    return [TextContent(type="text", text="No triggers found.")]
+
+                lines = [f"🔔 **{len(triggers)} Trigger(s)**\n"]
+                for t in triggers:
+                    ttype = t.get("trigger_type", t.get("type", "unknown"))
+                    title = t.get("title", "Untitled")
+                    detail = t.get("detail", "")
+                    fire_at = t.get("fire_at", "")
+                    trigger_id = t.get("id", "")
+
+                    lines.append(f"### [{ttype}] {title}")
+                    if detail:
+                        lines.append(f"{detail}")
+                    if fire_at:
+                        ts = fire_at[:16] if isinstance(fire_at, str) else str(fire_at)[:16]
+                        lines.append(f"Due: {ts}")
+                    if trigger_id:
+                        lines.append(f"ID: `{trigger_id}`")
+                    lines.append("")
+
+                return [TextContent(type="text", text="\n".join(lines))]
+
+            elif name == "get_feed":
+                uid = arguments.get("user_id", user_id)
+                limit = arguments.get("limit", 20)
+                feed = mem.feed(limit=limit, user_id=uid)
+
+                if not feed:
+                    return [TextContent(type="text", text="No activity yet.")]
+
+                lines = [f"📰 **Activity Feed** ({len(feed)} items)\n"]
+                for item in feed:
+                    action = item.get("action", "?")
+                    entity = item.get("entity", "?")
+                    ts = item.get("created_at", "")[:16] if item.get("created_at") else ""
+                    detail = item.get("detail", "")
+
+                    entry = f"- **{action}** {entity}"
+                    if ts:
+                        entry += f" ({ts})"
+                    lines.append(entry)
+                    if detail:
+                        lines.append(f"  {detail}")
+
+                return [TextContent(type="text", text="\n".join(lines))]
+
+            elif name == "archive_fact":
+                uid = arguments.get("user_id", user_id)
+                result = mem.archive_fact(
+                    arguments["entity_name"],
+                    arguments["fact_content"],
+                    user_id=uid,
+                )
+                text = f"🗄️ Archived fact on '{arguments['entity_name']}': {arguments['fact_content'][:80]}"
+                try:
+                    await server.request_context.session.send_resource_updated(uri="memory://profile")
+                except Exception:
+                    pass
+                return [TextContent(type="text", text=text)]
+
+            elif name == "merge_entities":
+                uid = arguments.get("user_id", user_id)
+                result = mem.merge(arguments["source"], arguments["target"], user_id=uid)
+                text = (
+                    f"🔗 Merged '{arguments['source']}' → '{arguments['target']}'\n"
+                    f"All facts, relations, and knowledge have been combined."
+                )
+                try:
+                    await server.request_context.session.send_resource_updated(uri="memory://profile")
+                except Exception:
+                    pass
+                return [TextContent(type="text", text=text)]
+
+            elif name == "reflect":
+                uid = arguments.get("user_id", user_id)
+                result = mem.reflect(user_id=uid)
+
+                lines = ["🧠 **Reflection triggered**\n"]
+                if result.get("reflections"):
+                    for r in result["reflections"]:
+                        lines.append(f"### {r.get('title', 'Insight')}")
+                        lines.append(r.get("content", ""))
+                        if r.get("scope"):
+                            lines.append(f"*Scope: {r['scope']}*")
+                        lines.append("")
+                elif result.get("message"):
+                    lines.append(result["message"])
+                else:
+                    lines.append(json.dumps(result, ensure_ascii=False, indent=2)[:2000])
 
                 return [TextContent(type="text", text="\n".join(lines))]
 

@@ -18,6 +18,7 @@ export interface MemoryOptions {
 
 export interface SearchOptions extends MemoryOptions {
   limit?: number;
+  graphDepth?: number;
 }
 
 export interface AddResult {
@@ -186,7 +187,7 @@ export declare class MengramClient {
   procedureEvolution(procedureId: string, options?: { userId?: string }): Promise<{ evolution: ProcedureEvolutionEntry[] }>;
 
   // Unified Search
-  searchAll(query: string, options?: { limit?: number }): Promise<UnifiedSearchResult>;
+  searchAll(query: string, options?: { limit?: number; graphDepth?: number }): Promise<UnifiedSearchResult>;
 
   // Agents
   runAgents(options?: { agent?: string; autoFix?: boolean }): Promise<any>;
