@@ -2823,7 +2823,8 @@ SEMANTIC MEMORY (facts about the user):
         """Get episodes by time range."""
         query = """SELECT id, summary, context, outcome, participants,
                           emotional_valence, importance, metadata,
-                          linked_procedure_id, failed_at_step, created_at
+                          linked_procedure_id, failed_at_step, created_at,
+                          happened_at
                    FROM episodes
                    WHERE user_id = %s AND sub_user_id = %s
                      AND (expires_at IS NULL OR expires_at > NOW())"""
@@ -2852,6 +2853,7 @@ SEMANTIC MEMORY (facts about the user):
                     "metadata": row["metadata"] or {},
                     "linked_procedure_id": str(row["linked_procedure_id"]) if row["linked_procedure_id"] else None,
                     "failed_at_step": row["failed_at_step"],
+                    "happened_at": row.get("happened_at"),
                     "created_at": row["created_at"].isoformat() if row["created_at"] else None,
                 })
             return results
@@ -2863,6 +2865,7 @@ SEMANTIC MEMORY (facts about the user):
         query = """
             SELECT ep.id, ep.summary, ep.context, ep.outcome, ep.participants,
                    ep.emotional_valence, ep.importance, ep.created_at,
+                   ep.happened_at,
                    1 - (ee.embedding <=> %s::vector) AS score
             FROM episode_embeddings ee
             JOIN episodes ep ON ep.id = ee.episode_id
@@ -2897,6 +2900,7 @@ SEMANTIC MEMORY (facts about the user):
                     "emotional_valence": row["emotional_valence"],
                     "importance": round(float(row["importance"] or 0.5), 2),
                     "score": round(float(row["score"]), 4),
+                    "happened_at": row.get("happened_at"),
                     "created_at": row["created_at"].isoformat() if row["created_at"] else None,
                     "memory_type": "episodic",
                 })
@@ -2908,6 +2912,7 @@ SEMANTIC MEMORY (facts about the user):
         sql = """
             SELECT ep.id, ep.summary, ep.context, ep.outcome, ep.participants,
                    ep.emotional_valence, ep.importance, ep.created_at,
+                   ep.happened_at,
                    ts_rank(ee.tsv, plainto_tsquery('english', %s)) AS score
             FROM episode_embeddings ee
             JOIN episodes ep ON ep.id = ee.episode_id
@@ -2935,6 +2940,7 @@ SEMANTIC MEMORY (facts about the user):
                     "emotional_valence": row["emotional_valence"],
                     "importance": round(float(row["importance"] or 0.5), 2),
                     "score": round(float(row["score"]), 4),
+                    "happened_at": row.get("happened_at"),
                     "created_at": row["created_at"].isoformat() if row["created_at"] else None,
                     "memory_type": "episodic",
                 })

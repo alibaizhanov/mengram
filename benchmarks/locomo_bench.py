@@ -258,7 +258,7 @@ def retrieve_context(
         summary = ep.get("summary", "")
         context_str = ep.get("context", "")
         outcome = ep.get("outcome", "")
-        ts = ep.get("created_at", "")
+        ts = ep.get("happened_at") or ep.get("created_at", "")
         parts = [summary]
         if context_str:
             parts.append(f"Context: {context_str}")
