@@ -218,7 +218,7 @@ profile = m.get_profile()             # instant system prompt
                 # Group relevant facts back by entity
                 entity_facts = {}  # entity_idx → [(fact_text, score)]
                 for item in resp.results:
-                    if item.relevance_score >= 0.15:
+                    if item.relevance_score >= 0.25:
                         eidx, fidx, _ = fact_docs[item.index]
                         fact_text = results[eidx]["facts"][fidx]
                         if eidx not in entity_facts:
@@ -1880,7 +1880,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         graph_sem = [r for r in semantic if r.get("_graph")]
         if direct_sem and len(direct_sem) > 3:
             direct_sem = rerank_results(req.query, direct_sem)
-        semantic = (direct_sem + graph_sem)[:req.limit]
+        semantic = (direct_sem + graph_sem)[:min(req.limit, 12)]
         for r in semantic:
             r.pop("_graph", None)
 
@@ -1890,7 +1890,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             if embedder and emb is not None:
                 chunks = store.search_chunks_vector(
                     user_id, emb, query_text=req.query,
-                    top_k=max(req.limit // 3, 3), sub_user_id=sub_uid)
+                    top_k=max(req.limit // 2, 5), sub_user_id=sub_uid)
         except Exception as e:
             logger.warning(f"Chunk search failed: {e}")
 

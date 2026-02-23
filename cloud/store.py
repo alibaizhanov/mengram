@@ -1844,7 +1844,7 @@ class CloudStore:
                         0.3 * f["importance"]
                     ),
                     reverse=True
-                )[:7]
+                )[:5]
                 entity_map[eid]["facts"] = [
                     f"[{f['event_date']}] {f['content']}" if f.get("event_date")
                     else f["content"]
@@ -4298,11 +4298,11 @@ Be specific and personal, not generic. No markdown, just JSON."""
                 fact_str = f"[{r['event_date']}] {r['content']}" if r.get("event_date") else r["content"]
                 facts_raw[eid].append((fact_str, combined))
 
-            # Sort by combined score, keep top 7 per entity
+            # Sort by combined score, keep top 5 per entity
             facts_map = {}
             for eid, facts_list in facts_raw.items():
                 facts_list.sort(key=lambda x: x[1], reverse=True)
-                facts_map[eid] = [f[0] for f in facts_list[:7]]
+                facts_map[eid] = [f[0] for f in facts_list[:5]]
 
             # Batch fetch knowledge
             cur.execute(
