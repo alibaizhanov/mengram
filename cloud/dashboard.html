@@ -1572,9 +1572,9 @@ function confirmDeleteAll() {
 }
 async function deleteAll() {
     try {
-        const d = await (await fetch(`${API}/v1/memories`,{headers:H()})).json();
-        for(const e of (d.memories||[])) await fetch(`${API}/v1/entity/${encodeURIComponent(e.name)}`,{method:'DELETE',headers:H()});
-        loadAll(); showToast('All data deleted', 'success');
+        const d = await (await fetch(`${API}/v1/memories/all`,{method:'DELETE',headers:H()})).json();
+        _invalidateCache('graph'); _invalidateCache('entities');
+        loadAll(); showToast(`Deleted ${d.count} entities`, 'success');
     } catch(e) { showToast('Failed to delete data', 'error'); }
 }
 

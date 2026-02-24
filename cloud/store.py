@@ -1698,6 +1698,18 @@ class CloudStore:
             self.cache.invalidate(f"stats:{user_id}")
         return deleted
 
+    def delete_all_entities(self, user_id: str, sub_user_id: str = "default") -> int:
+        """Delete ALL entities (and cascade to facts, relations, knowledge, embeddings)."""
+        with self._cursor() as cur:
+            cur.execute(
+                "DELETE FROM entities WHERE user_id = %s AND sub_user_id = %s RETURNING id",
+                (user_id, sub_user_id)
+            )
+            count = cur.rowcount
+        self.cache.invalidate(f"stats:{user_id}")
+        self.cache.invalidate(f"graph:{user_id}:{sub_user_id}:150")
+        return count
+
     # ---- Graph Traversal ----
 
     def _graph_expand(self, cur, user_id: str, seed_ids: list[str],

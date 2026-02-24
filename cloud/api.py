@@ -202,11 +202,24 @@ profile = m.get_profile()             # instant system prompt
         ],
     )
 
+    from starlette.middleware.base import BaseHTTPMiddleware
+
+    class RateLimitHeaderMiddleware(BaseHTTPMiddleware):
+        async def dispatch(self, request, call_next):
+            response = await call_next(request)
+            if hasattr(request.state, 'rate_limit'):
+                response.headers["X-RateLimit-Limit"] = str(request.state.rate_limit)
+                response.headers["X-RateLimit-Remaining"] = str(request.state.rate_remaining)
+                response.headers["X-RateLimit-Reset"] = "60"
+            return response
+
+    app.add_middleware(RateLimitHeaderMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset"],
     )
 
     store = CloudStore(DATABASE_URL, pool_min=2, pool_max=10, redis_url=REDIS_URL)
@@ -501,8 +514,27 @@ Be strict — only include entities that directly answer or relate to the query.
         if not _check_rate_limit(user_id, rate_limit):
             raise HTTPException(
                 status_code=429,
-                detail=f"Rate limit exceeded ({rate_limit} requests/min). Retry in 60 seconds."
+                detail=f"Rate limit exceeded ({rate_limit} requests/min). Retry in 60 seconds.",
+                headers={
+                    "X-RateLimit-Limit": str(rate_limit),
+                    "X-RateLimit-Remaining": "0",
+                    "X-RateLimit-Reset": "60",
+                },
             )
+
+        # Get remaining count from Redis for headers
+        remaining = rate_limit
+        redis_client = getattr(store.cache, '_redis', None) if store else None
+        if redis_client:
+            try:
+                count = redis_client.get(f"rl:{user_id}")
+                if count:
+                    remaining = max(0, rate_limit - int(count))
+            except Exception:
+                pass
+        request.state.rate_limit = rate_limit
+        request.state.rate_remaining = remaining
+
         key_prefix = key[:10] if len(key) > 10 else key[:4]
         logger.info(f"🔑 {request.method} {request.url.path} | key={key_prefix}... | user={user_id[:8]} | plan={plan}")
         return AuthContext(user_id=user_id, plan=plan, rate_limit=rate_limit)
@@ -2031,6 +2063,14 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         if not deleted:
             raise HTTPException(status_code=404, detail=f"Entity '{name}' not found")
         return {"status": "deleted", "entity": name}
+
+    @app.delete("/v1/memories/all", tags=["Memory"])
+    async def delete_all_memories(sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
+        """Delete ALL memories (entities, facts, relations, knowledge). Irreversible."""
+        user_id = ctx.user_id
+        count = store.delete_all_entities(user_id, sub_user_id=sub_user_id)
+        logger.warning(f"🗑️ DELETE ALL | user={user_id[:8]} | deleted={count} entities")
+        return {"status": "deleted", "count": count}
 
     @app.get("/v1/stats", tags=["System"])
     async def stats(sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
