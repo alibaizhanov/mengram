@@ -433,10 +433,10 @@ Be strict — only include entities that directly answer or relate to the query.
         max_allowed = plan_quotas.get(quota_key, 0)
         if max_allowed == -1:
             return  # unlimited
-        # Fast reject: if already blocked this period+plan, skip DB entirely
-        block_key = f"{ctx.user_id}:{action}:{ctx.plan}"
-        period = str(datetime.date.today().replace(day=1))
-        if _quota_blocked.get(block_key) == period:
+        # Fast reject: if already blocked in Redis, skip DB entirely
+        block_key = f"qb:{ctx.user_id}:{action}:{ctx.plan}"
+        redis_client = getattr(store.cache, '_redis', None)
+        if redis_client and redis_client.get(block_key):
             logger.info(f"🚫 BLOCKED {action} | user={ctx.user_id[:8]} | plan={ctx.plan} (cached)")
             _raise_quota_error(action, max_allowed, max_allowed, ctx.plan, ctx.user_id)
         try:
@@ -449,13 +449,18 @@ Be strict — only include entities that directly answer or relate to the query.
                 _raise_quota_error(action, limit, current, ctx.plan, ctx.user_id)
             raise
 
-    # In-memory set of blocked user:action pairs (reset on restart / period change)
-    _quota_blocked: dict[str, str] = {}  # "user_id:action:plan" -> period_start
-
     def _raise_quota_error(action, max_allowed, current, plan, user_id=None):
         if user_id:
-            period = str(datetime.date.today().replace(day=1))
-            _quota_blocked[f"{user_id}:{action}:{plan}"] = period
+            # Cache block in Redis — TTL = seconds until end of month
+            try:
+                redis_client = getattr(store.cache, '_redis', None)
+                if redis_client:
+                    import calendar
+                    today = datetime.date.today()
+                    days_left = calendar.monthrange(today.year, today.month)[1] - today.day + 1
+                    redis_client.set(f"qb:{user_id}:{action}:{plan}", "1", ex=days_left * 86400)
+            except Exception:
+                pass
             logger.warning(f"🚫 QUOTA {action} | user={user_id[:8]} | {current}/{max_allowed} | plan={plan}")
         raise HTTPException(
             status_code=402,
