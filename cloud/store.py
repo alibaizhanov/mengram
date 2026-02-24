@@ -1483,7 +1483,7 @@ class CloudStore:
         with self._cursor(dict_cursor=True) as cur:
             if limit is not None:
                 cur.execute(
-                    "SELECT COUNT(*) FROM entity_overview WHERE user_id = %s AND sub_user_id = %s AND name NOT LIKE '\\_%%'",
+                    "SELECT COUNT(*) FROM entities WHERE user_id = %s AND sub_user_id = %s AND name NOT LIKE '\\_%%'",
                     (user_id, sub_user_id)
                 )
                 total = cur.fetchone()[0]
@@ -2963,9 +2963,9 @@ SEMANTIC MEMORY (facts about the user):
             return cached
 
         with self._cursor(dict_cursor=True) as cur:
-            # Total node count
+            # Total node count (use base table, not the expensive VIEW)
             cur.execute(
-                "SELECT COUNT(*) FROM entity_overview WHERE user_id = %s AND sub_user_id = %s",
+                "SELECT COUNT(*) FROM entities WHERE user_id = %s AND sub_user_id = %s",
                 (user_id, sub_user_id)
             )
             total_nodes = cur.fetchone()[0]
