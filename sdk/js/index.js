@@ -881,7 +881,7 @@ class MengramClient {
   /**
    * Create Paddle checkout session for plan upgrade.
    * @param {string} plan - 'pro' or 'business'
-   * @returns {Promise<{url: string}>}
+   * @returns {Promise<{checkout_url: string, transaction_id: string}>}
    */
   async createCheckout(plan) {
     return this._request('POST', '/v1/billing/checkout', null, { plan });

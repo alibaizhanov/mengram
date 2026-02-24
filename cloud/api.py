@@ -2248,10 +2248,12 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
         try:
             result = _paddle_request("POST", "/transactions", txn_body)
-            checkout_url = result.get("data", {}).get("checkout", {}).get("url", "")
+            data = result.get("data", {})
+            checkout_url = data.get("checkout", {}).get("url", "")
+            transaction_id = data.get("id", "")
             if not checkout_url:
                 raise HTTPException(status_code=502, detail="Paddle did not return checkout URL")
-            return {"url": checkout_url}
+            return {"checkout_url": checkout_url, "transaction_id": transaction_id}
         except Exception as e:
             logger.error(f"Paddle checkout error: {e}")
             raise HTTPException(status_code=502, detail=f"Paddle error: {e}")

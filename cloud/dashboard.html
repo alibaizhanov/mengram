@@ -226,6 +226,7 @@
             <div class="nav-item" onclick="switchTab('graph')"><span class="icon">🕸️</span> Knowledge Graph</div>
             <div class="nav-item" onclick="switchTab('entities')"><span class="icon">📦</span> Entities</div>
             <div class="nav-item" onclick="switchTab('procedures')"><span class="icon">🧬</span> Procedures</div>
+            <div class="nav-item" onclick="switchTab('billing')"><span class="icon">💳</span> Billing</div>
             <div class="nav-item" onclick="switchTab('settings')"><span class="icon">⚙️</span> Settings</div>
         </div>
         <div class="sidebar-footer"><a href="/">← Home</a></div>
@@ -323,6 +324,62 @@
                     <span id="proc-detail-version" style="background:var(--accent-dim);color:var(--accent);padding:2px 8px;border-radius:6px;font-size:12px;font-weight:500;"></span>
                 </div>
                 <div id="proc-detail-content"></div>
+            </div>
+        </div>
+
+        <div class="tab-content" id="tab-billing">
+            <div class="page-header"><h2>Billing</h2></div>
+            <div class="set-section" id="billing-plan">
+                <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+                    <div>
+                        <h3 style="margin-bottom:4px;">Current Plan</h3>
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <span id="plan-badge" style="display:inline-block;padding:4px 14px;border-radius:8px;font-size:14px;font-weight:600;background:var(--accent-dim);color:var(--accent);text-transform:capitalize;">free</span>
+                            <span id="plan-status" style="font-size:13px;color:var(--text-2);"></span>
+                        </div>
+                    </div>
+                    <div id="plan-manage" style="display:none;">
+                        <button onclick="openPortal()" style="padding:8px 20px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;color:var(--text);cursor:pointer;font-size:13px;font-family:inherit;">Manage Subscription</button>
+                    </div>
+                </div>
+            </div>
+            <div class="set-section">
+                <h3>Usage This Period</h3>
+                <div id="billing-usage" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-top:12px;">
+                    <div style="text-align:center;padding:12px;background:var(--bg);border-radius:10px;">
+                        <div style="font-size:11px;color:var(--text-3);text-transform:uppercase;margin-bottom:4px;">Adds</div>
+                        <div style="font-size:20px;font-weight:700;" id="usage-adds">—</div>
+                    </div>
+                    <div style="text-align:center;padding:12px;background:var(--bg);border-radius:10px;">
+                        <div style="font-size:11px;color:var(--text-3);text-transform:uppercase;margin-bottom:4px;">Searches</div>
+                        <div style="font-size:20px;font-weight:700;" id="usage-searches">—</div>
+                    </div>
+                    <div style="text-align:center;padding:12px;background:var(--bg);border-radius:10px;">
+                        <div style="font-size:11px;color:var(--text-3);text-transform:uppercase;margin-bottom:4px;">Agents</div>
+                        <div style="font-size:20px;font-weight:700;" id="usage-agents">—</div>
+                    </div>
+                    <div style="text-align:center;padding:12px;background:var(--bg);border-radius:10px;">
+                        <div style="font-size:11px;color:var(--text-3);text-transform:uppercase;margin-bottom:4px;">Reflects</div>
+                        <div style="font-size:20px;font-weight:700;" id="usage-reflects">—</div>
+                    </div>
+                </div>
+            </div>
+            <div class="set-section" id="billing-upgrade">
+                <h3>Upgrade</h3>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-top:12px;">
+                    <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:20px;text-align:center;">
+                        <div style="font-size:16px;font-weight:700;margin-bottom:4px;">Pro</div>
+                        <div style="font-size:28px;font-weight:700;color:var(--accent);margin-bottom:4px;">$19<span style="font-size:14px;color:var(--text-2);font-weight:400;">/mo</span></div>
+                        <div style="font-size:12px;color:var(--text-2);margin-bottom:14px;">1K adds, 10K searches, LLM rerank</div>
+                        <button onclick="upgradePlan('pro')" id="btn-upgrade-pro" style="width:100%;padding:10px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600;font-family:inherit;">Upgrade to Pro</button>
+                    </div>
+                    <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:20px;text-align:center;">
+                        <div style="font-size:16px;font-weight:700;margin-bottom:4px;">Business</div>
+                        <div style="font-size:28px;font-weight:700;color:var(--accent);margin-bottom:4px;">$99<span style="font-size:14px;color:var(--text-2);font-weight:400;">/mo</span></div>
+                        <div style="font-size:12px;color:var(--text-2);margin-bottom:14px;">5K adds, 30K searches, Cohere rerank</div>
+                        <button onclick="upgradePlan('business')" id="btn-upgrade-business" style="width:100%;padding:10px;background:var(--bg-elevated);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:14px;font-weight:600;font-family:inherit;">Upgrade to Business</button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -429,6 +486,7 @@ function switchTab(t) {
     if(t==='insights') loadInsights();
     if(t==='agents') loadAgentHistory();
     if(t==='procedures') loadProcedures();
+    if(t==='billing') loadBilling();
     if(t==='settings') { loadWebhooks(); loadTeams(); loadKeys(); }
 }
 
@@ -1226,6 +1284,92 @@ function closeProcedureDetail() {
     document.getElementById('procedure-detail').style.display = 'none';
     document.getElementById('procedures-box').style.display = 'block';
 }
+
+// ---- Billing ----
+const PLAN_LIMITS = {
+    free: { adds: 100, searches: 500, agents: 5, reflects: 5 },
+    pro: { adds: 1000, searches: 10000, agents: 50, reflects: 30 },
+    business: { adds: 5000, searches: 30000, agents: -1, reflects: -1 }
+};
+
+async function loadBilling() {
+    try {
+        const r = await fetch(`${API}/v1/billing`, { headers: H() });
+        if (!r.ok) return;
+        const d = await r.json();
+        const plan = d.plan || 'free';
+        const usage = d.usage || {};
+        const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.free;
+
+        document.getElementById('plan-badge').textContent = plan;
+        const statusEl = document.getElementById('plan-status');
+        if (d.status === 'active' && plan !== 'free') {
+            statusEl.textContent = d.current_period_end ? 'Renews ' + new Date(d.current_period_end).toLocaleDateString() : 'Active';
+        } else if (d.status === 'canceled') {
+            statusEl.textContent = 'Canceled — access until ' + (d.current_period_end ? new Date(d.current_period_end).toLocaleDateString() : 'end of period');
+        } else if (d.status === 'past_due') {
+            statusEl.textContent = 'Payment past due';
+            statusEl.style.color = 'var(--red)';
+        } else {
+            statusEl.textContent = '';
+        }
+
+        document.getElementById('plan-manage').style.display = plan !== 'free' ? 'block' : 'none';
+
+        function fmt(used, limit) {
+            if (limit === -1) return `${used} / ∞`;
+            return `${used} / ${limit.toLocaleString()}`;
+        }
+        document.getElementById('usage-adds').textContent = fmt(usage.add_count || 0, limits.adds);
+        document.getElementById('usage-searches').textContent = fmt(usage.search_count || 0, limits.searches);
+        document.getElementById('usage-agents').textContent = fmt(usage.agent_count || 0, limits.agents);
+        document.getElementById('usage-reflects').textContent = fmt(usage.reflect_count || 0, limits.reflects);
+
+        // Hide upgrade section if already on business
+        document.getElementById('billing-upgrade').style.display = plan === 'business' ? 'none' : 'block';
+        if (plan === 'pro') {
+            document.getElementById('btn-upgrade-pro').textContent = 'Current Plan';
+            document.getElementById('btn-upgrade-pro').disabled = true;
+            document.getElementById('btn-upgrade-pro').style.opacity = '0.5';
+        }
+    } catch(e) { console.error('loadBilling error:', e); }
+}
+
+async function upgradePlan(plan) {
+    try {
+        const r = await fetch(`${API}/v1/billing/checkout`, {
+            method: 'POST', headers: H(),
+            body: JSON.stringify({ plan })
+        });
+        const d = await r.json();
+        if (d.checkout_url) {
+            // Open Paddle checkout overlay if Paddle.js loaded, otherwise redirect
+            if (window.Paddle && d.transaction_id) {
+                Paddle.Checkout.open({ transactionId: d.transaction_id });
+            } else if (d.checkout_url) {
+                window.open(d.checkout_url, '_blank');
+            }
+        } else {
+            alert(d.detail || 'Failed to create checkout');
+        }
+    } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function openPortal() {
+    try {
+        const r = await fetch(`${API}/v1/billing/portal`, { method: 'POST', headers: H() });
+        const d = await r.json();
+        if (d.portal_url) {
+            window.open(d.portal_url, '_blank');
+        } else {
+            alert(d.detail || 'Failed to open billing portal');
+        }
+    } catch(e) { alert('Error: ' + e.message); }
+}
+</script>
+<script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
+<script>
+    Paddle.Initialize({ token: 'live_45d33010340ea579d61b1e7233d' });
 </script>
 </body>
 </html>

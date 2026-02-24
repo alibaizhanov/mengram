@@ -750,7 +750,7 @@ class CloudMemory:
             plan: 'pro' or 'business'
 
         Returns:
-            {"url": "https://...paddle.com/..."}
+            {"checkout_url": "https://...paddle.com/...", "transaction_id": "txn_..."}
         """
         return self._request("POST", "/v1/billing/checkout", params={"plan": plan})
 

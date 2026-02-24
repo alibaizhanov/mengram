@@ -1458,7 +1458,7 @@ crew = Crew(agents=[agent], tasks=[...])</pre>
                         <li>10 webhooks</li>
                         <li>5 teams</li>
                     </ul>
-                    <button onclick="Paddle.Checkout.open({items:[{priceId:'pri_01kj78whsg8dg05s56thyz7n3y',quantity:1}]})" class="price-btn primary">Upgrade to Pro</button>
+                    <a href="/dashboard" class="price-btn primary">Upgrade to Pro</a>
                 </div>
                 <!-- Business -->
                 <div class="price-card">
@@ -1475,7 +1475,7 @@ crew = Crew(agents=[agent], tasks=[...])</pre>
                         <li>50 webhooks</li>
                         <li>Unlimited teams</li>
                     </ul>
-                    <button onclick="Paddle.Checkout.open({items:[{priceId:'pri_01kj7958ywjet31myhmqfxx2eb',quantity:1}]})" class="price-btn">Upgrade to Business</button>
+                    <a href="/dashboard" class="price-btn">Upgrade to Business</a>
                 </div>
             </div>
         </section>
@@ -1679,10 +1679,6 @@ crew = Crew(agents=[agent], tasks=[...])</pre>
         document.getElementById("email-input").addEventListener("keydown", e => {
             if (e.key === "Enter") signup();
         });
-    </script>
-    <script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
-    <script>
-        Paddle.Initialize({ token: 'live_45d33010340ea579d61b1e7233d' });
     </script>
 </body>
 </html>

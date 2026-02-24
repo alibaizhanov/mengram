@@ -260,7 +260,7 @@ export declare class MengramClient {
 
   // Billing
   getBilling(): Promise<BillingInfo>;
-  createCheckout(plan: 'pro' | 'business'): Promise<{ url: string }>;
+  createCheckout(plan: 'pro' | 'business'): Promise<{ checkout_url: string; transaction_id: string }>;
   createPortal(): Promise<{ url: string }>;
 
   // Import (v2.9)
