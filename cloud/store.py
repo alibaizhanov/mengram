@@ -165,16 +165,16 @@ class CloudStore:
         self.redis_url = redis_url
         self.cache = TTLCache(default_ttl=30, redis_url=redis_url)
 
-        # Connection pool
+        # Connection pool — keep minimal for multi-replica deploys
+        self._pool = None
+        self.conn = None
         try:
             self._pool = psycopg2.pool.ThreadedConnectionPool(
                 pool_min, pool_max, database_url
             )
             logger.info(f"Connection pool created ({pool_min}-{pool_max})")
-            self.conn = None  # No fallback needed when pool works
         except Exception as e:
             logger.warning(f"Pool creation failed, falling back to single connection: {e}")
-            self._pool = None
             self.conn = psycopg2.connect(database_url)
             self.conn.autocommit = True
 
