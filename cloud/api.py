@@ -2200,8 +2200,13 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 "Content-Type": "application/json",
             }
         )
-        with urllib.request.urlopen(req) as resp:
-            return json.loads(resp.read())
+        try:
+            with urllib.request.urlopen(req) as resp:
+                return json.loads(resp.read())
+        except urllib.error.HTTPError as e:
+            err_body = e.read().decode()
+            logger.error(f"Paddle API error {e.code}: {err_body}")
+            raise Exception(f"Paddle API {e.code}: {err_body}")
 
     @app.get("/v1/billing", tags=["Billing"])
     async def get_billing(ctx: AuthContext = Depends(auth)):
