@@ -193,17 +193,129 @@
         .reflecting-spinner { display: inline-block; animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
+        /* Tab transitions */
+        .tab-content { opacity: 0; transition: opacity 0.15s ease; }
+        .tab-content.active { opacity: 1; }
+
+        /* Stat card hover */
+        .stat-card { transition: border-color 0.2s, box-shadow 0.2s; }
+        .stat-card:hover { border-color: var(--border-hover); box-shadow: 0 0 20px rgba(168,85,247,0.06); }
+
+        /* Toast notifications */
+        .toast-container { position: fixed; bottom: 24px; right: 24px; display: flex; flex-direction: column; gap: 8px; z-index: 9999; pointer-events: none; }
+        .toast { pointer-events: auto; display: flex; align-items: center; gap: 10px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; min-width: 280px; max-width: 420px; font-size: 13px; color: var(--text); box-shadow: 0 8px 32px rgba(0,0,0,0.4); animation: toastIn 0.25s ease; border-left: 3px solid var(--accent); }
+        .toast.success { border-left-color: var(--green); }
+        .toast.error { border-left-color: var(--red); }
+        .toast.info { border-left-color: var(--blue); }
+        .toast-icon { font-size: 16px; flex-shrink: 0; }
+        .toast-msg { flex: 1; line-height: 1.4; word-break: break-word; }
+        .toast-close { background: none; border: none; color: var(--text-3); cursor: pointer; font-size: 14px; padding: 2px; flex-shrink: 0; }
+        .toast-close:hover { color: var(--text); }
+        .toast.removing { animation: toastOut 0.2s ease forwards; }
+        @keyframes toastIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes toastOut { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(40px); } }
+
+        /* Confirm modal */
+        .confirm-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 10000; align-items: center; justify-content: center; padding: 24px; backdrop-filter: blur(4px); }
+        .confirm-bg.show { display: flex; }
+        .confirm-box { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 28px; max-width: 400px; width: 100%; animation: confirmIn 0.2s ease; }
+        .confirm-title { font-size: 17px; font-weight: 700; margin-bottom: 8px; }
+        .confirm-msg { font-size: 14px; color: var(--text-2); line-height: 1.5; margin-bottom: 20px; }
+        .confirm-btns { display: flex; gap: 8px; justify-content: flex-end; }
+        .confirm-btn { padding: 9px 20px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: 'Sora', sans-serif; border: 1px solid var(--border); transition: all 0.15s; }
+        .confirm-cancel { background: var(--bg-elevated); color: var(--text); }
+        .confirm-cancel:hover { border-color: var(--border-hover); }
+        .confirm-ok { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .confirm-ok:hover { background: #9333ea; }
+        .confirm-ok.danger { background: var(--red); border-color: var(--red); }
+        .confirm-ok.danger:hover { background: #ef4444; }
+        @keyframes confirmIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+
+        /* Command palette */
+        .cmd-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 10001; align-items: flex-start; justify-content: center; padding-top: 20vh; backdrop-filter: blur(4px); }
+        .cmd-bg.show { display: flex; }
+        .cmd-box { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; max-width: 520px; width: 100%; overflow: hidden; animation: confirmIn 0.15s ease; box-shadow: 0 16px 64px rgba(0,0,0,0.5); }
+        .cmd-input { width: 100%; padding: 14px 18px; background: transparent; border: none; border-bottom: 1px solid var(--border); color: var(--text); font-size: 15px; font-family: 'Sora', sans-serif; outline: none; }
+        .cmd-input::placeholder { color: var(--text-3); }
+        .cmd-results { max-height: 320px; overflow-y: auto; padding: 6px; }
+        .cmd-group { padding: 6px 12px 4px; font-size: 11px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; }
+        .cmd-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 8px; cursor: pointer; font-size: 14px; color: var(--text-2); transition: all 0.1s; }
+        .cmd-item:hover, .cmd-item.active { background: var(--accent-dim); color: var(--text); }
+        .cmd-item .ci-icon { font-size: 15px; width: 22px; text-align: center; }
+        .cmd-item .ci-label { flex: 1; }
+        .cmd-item .ci-hint { font-size: 11px; color: var(--text-3); }
+        .cmd-empty { padding: 24px; text-align: center; color: var(--text-3); font-size: 13px; }
+        .cmd-footer { padding: 8px 14px; border-top: 1px solid var(--border); display: flex; gap: 12px; font-size: 11px; color: var(--text-3); }
+        .cmd-footer kbd { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-family: 'JetBrains Mono', monospace; font-size: 10px; }
+
+        /* Progress bars (billing) */
+        .usage-bar-wrap { margin-top: 6px; }
+        .usage-bar { height: 6px; background: var(--bg-elevated); border-radius: 3px; overflow: hidden; }
+        .usage-bar-fill { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
+        .usage-label { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-3); margin-top: 4px; }
+
+        /* Mobile */
+        .mobile-header { display: none; position: fixed; top: 0; left: 0; right: 0; height: 56px; background: var(--bg-card); border-bottom: 1px solid var(--border); z-index: 11; align-items: center; padding: 0 16px; }
+        .hamburger { background: none; border: none; cursor: pointer; width: 32px; height: 32px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 5px; }
+        .hamburger span { display: block; width: 20px; height: 2px; background: var(--text); border-radius: 1px; transition: all 0.25s; }
+        .hamburger.open span:nth-child(1) { transform: rotate(45deg) translate(2.5px, 2.5px); }
+        .hamburger.open span:nth-child(2) { opacity: 0; }
+        .hamburger.open span:nth-child(3) { transform: rotate(-45deg) translate(2.5px, -2.5px); }
+        .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9; }
+        .sidebar-overlay.show { display: block; }
+        .mobile-logo { font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 6px; margin-left: 12px; }
+
         @media (max-width: 768px) {
-            .sidebar { display: none; }
-            .main { margin-left: 0; }
-            .stats-strip { grid-template-columns: repeat(2, 1fr); }
+            .mobile-header { display: flex; }
+            .sidebar { transform: translateX(-100%); transition: transform 0.25s ease; z-index: 10; }
+            .sidebar.open { transform: translateX(0); }
+            .main { margin-left: 0; padding: 16px; padding-top: 72px; }
+            .stats-strip { grid-template-columns: repeat(2, 1fr); gap: 8px; }
             .entities-grid { grid-template-columns: 1fr; }
             .insight-grid { grid-template-columns: 1fr; }
             .search-bar { width: 100%; }
+            .toast-container { bottom: 16px; right: 16px; left: 16px; }
+            .toast { min-width: auto; }
+            .cmd-bg { padding-top: 10vh; padding-left: 12px; padding-right: 12px; }
         }
     </style>
 </head>
 <body>
+
+<!-- Mobile header -->
+<div class="mobile-header" id="mobile-header">
+    <button class="hamburger" id="hamburger" onclick="toggleMobileMenu()"><span></span><span></span><span></span></button>
+    <div class="mobile-logo"><svg width="18" height="18" viewBox="0 0 120 120"><path d="M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68" fill="none" stroke="#a855f7" stroke-width="8" stroke-linecap="round"/><circle cx="62" cy="68" r="8" fill="#a855f7"/><circle cx="62" cy="68" r="3.5" fill="#fff"/></svg> Mengram</div>
+</div>
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileMenu()"></div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- Confirm modal -->
+<div class="confirm-bg" id="confirm-bg" onclick="if(event.target===this)closeConfirm()">
+    <div class="confirm-box">
+        <div class="confirm-title" id="confirm-title"></div>
+        <div class="confirm-msg" id="confirm-msg"></div>
+        <div class="confirm-btns">
+            <button class="confirm-btn confirm-cancel" onclick="closeConfirm()">Cancel</button>
+            <button class="confirm-btn confirm-ok" id="confirm-ok" onclick="doConfirm()">Confirm</button>
+        </div>
+    </div>
+</div>
+
+<!-- Command palette -->
+<div class="cmd-bg" id="cmd-bg" onclick="if(event.target===this)closeCmdPalette()">
+    <div class="cmd-box">
+        <input class="cmd-input" id="cmd-input" placeholder="Search commands, entities, actions..." autocomplete="off">
+        <div class="cmd-results" id="cmd-results"></div>
+        <div class="cmd-footer">
+            <span><kbd>↑↓</kbd> navigate</span>
+            <span><kbd>↵</kbd> select</span>
+            <span><kbd>esc</kbd> close</span>
+        </div>
+    </div>
+</div>
 
 <div class="login-screen" id="login-screen">
     <div class="login-box">
@@ -229,7 +341,10 @@
             <div class="nav-item" onclick="switchTab('billing')"><span class="icon">💳</span> Billing</div>
             <div class="nav-item" onclick="switchTab('settings')"><span class="icon">⚙️</span> Settings</div>
         </div>
-        <div class="sidebar-footer"><a href="/">← Home</a></div>
+        <div class="sidebar-footer">
+            <a href="/">← Home</a>
+            <div style="margin-top:8px;cursor:pointer;color:var(--text-3);font-size:11px;" onclick="openCmdPalette()">⌘K Search</div>
+        </div>
     </div>
 
     <div class="main">
@@ -345,24 +460,7 @@
             </div>
             <div class="set-section">
                 <h3>Usage This Period</h3>
-                <div id="billing-usage" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-top:12px;">
-                    <div style="text-align:center;padding:12px;background:var(--bg);border-radius:10px;">
-                        <div style="font-size:11px;color:var(--text-3);text-transform:uppercase;margin-bottom:4px;">Adds</div>
-                        <div style="font-size:20px;font-weight:700;" id="usage-adds">—</div>
-                    </div>
-                    <div style="text-align:center;padding:12px;background:var(--bg);border-radius:10px;">
-                        <div style="font-size:11px;color:var(--text-3);text-transform:uppercase;margin-bottom:4px;">Searches</div>
-                        <div style="font-size:20px;font-weight:700;" id="usage-searches">—</div>
-                    </div>
-                    <div style="text-align:center;padding:12px;background:var(--bg);border-radius:10px;">
-                        <div style="font-size:11px;color:var(--text-3);text-transform:uppercase;margin-bottom:4px;">Agents</div>
-                        <div style="font-size:20px;font-weight:700;" id="usage-agents">—</div>
-                    </div>
-                    <div style="text-align:center;padding:12px;background:var(--bg);border-radius:10px;">
-                        <div style="font-size:11px;color:var(--text-3);text-transform:uppercase;margin-bottom:4px;">Reflects</div>
-                        <div style="font-size:20px;font-weight:700;" id="usage-reflects">—</div>
-                    </div>
-                </div>
+                <div id="billing-usage" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:12px;"></div>
             </div>
             <div class="set-section" id="billing-upgrade">
                 <h3>Upgrade</h3>
@@ -434,7 +532,7 @@
                 <p>Export or delete all your memory data.</p>
                 <div style="display:flex;gap:10px;">
                     <button class="btn-s" onclick="exportData()">Export JSON</button>
-                    <button class="btn-s btn-d" onclick="if(confirm('Delete ALL data? Cannot be undone.'))deleteAll()">Delete All</button>
+                    <button class="btn-s btn-d" onclick="confirmDeleteAll()">Delete All</button>
                 </div>
             </div>
             <div class="set-section">
@@ -457,6 +555,177 @@ let KEY = '';
 function H() { return { 'Authorization': `Bearer ${KEY}`, 'Content-Type': 'application/json' }; }
 function esc(s) { if(!s)return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
 function escA(s) { return (s||'').replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
+
+// ---- Toast notifications ----
+function showToast(message, type='success', duration=3500) {
+    const container = document.getElementById('toast-container');
+    const icons = { success: '✓', error: '✕', info: 'ℹ' };
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.innerHTML = `<span class="toast-icon">${icons[type]||icons.info}</span><span class="toast-msg">${esc(message)}</span><button class="toast-close" onclick="dismissToast(this.parentElement)">✕</button>`;
+    container.appendChild(toast);
+    setTimeout(() => dismissToast(toast), duration);
+    return toast;
+}
+function dismissToast(el) {
+    if (!el || el.classList.contains('removing')) return;
+    el.classList.add('removing');
+    setTimeout(() => el.remove(), 200);
+}
+
+// ---- Confirm modal ----
+let _confirmCb = null;
+function showConfirm(title, message, onConfirm, danger=false) {
+    document.getElementById('confirm-title').textContent = title;
+    document.getElementById('confirm-msg').textContent = message;
+    const okBtn = document.getElementById('confirm-ok');
+    okBtn.className = `confirm-btn confirm-ok${danger ? ' danger' : ''}`;
+    okBtn.textContent = danger ? 'Delete' : 'Confirm';
+    _confirmCb = onConfirm;
+    document.getElementById('confirm-bg').classList.add('show');
+}
+function closeConfirm() { document.getElementById('confirm-bg').classList.remove('show'); _confirmCb = null; }
+function doConfirm() { if (_confirmCb) _confirmCb(); closeConfirm(); }
+
+// ---- Copy utility ----
+function copyText(text, label='') {
+    navigator.clipboard.writeText(text);
+    showToast(label ? `Copied ${label}!` : 'Copied to clipboard!', 'success', 2000);
+}
+
+// ---- Mobile menu ----
+function toggleMobileMenu() {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    const burger = document.getElementById('hamburger');
+    const isOpen = sidebar.classList.contains('open');
+    sidebar.classList.toggle('open');
+    overlay.classList.toggle('show');
+    burger.classList.toggle('open');
+}
+
+// ---- Command palette ----
+let cmdActive = -1;
+const CMD_NAV = [
+    { icon: '📋', label: 'Memory Feed', action: () => switchTabDirect('feed') },
+    { icon: '🤖', label: 'Agents', action: () => switchTabDirect('agents') },
+    { icon: '✨', label: 'AI Insights', action: () => switchTabDirect('insights') },
+    { icon: '🕸️', label: 'Knowledge Graph', action: () => switchTabDirect('graph') },
+    { icon: '📦', label: 'Entities', action: () => switchTabDirect('entities') },
+    { icon: '🧬', label: 'Procedures', action: () => switchTabDirect('procedures') },
+    { icon: '💳', label: 'Billing', action: () => switchTabDirect('billing') },
+    { icon: '⚙️', label: 'Settings', action: () => switchTabDirect('settings') },
+];
+const CMD_ACTIONS = [
+    { icon: '🔄', label: 'Reflect Now', hint: 'Generate insights', action: () => { switchTabDirect('insights'); triggerReflection(); } },
+    { icon: '🚀', label: 'Run All Agents', hint: 'Curator + Connector + Digest', action: () => { switchTabDirect('agents'); runAgent('all'); } },
+    { icon: '📥', label: 'Export JSON', hint: 'Download all data', action: () => exportData() },
+];
+
+function openCmdPalette() {
+    document.getElementById('cmd-bg').classList.add('show');
+    const inp = document.getElementById('cmd-input');
+    inp.value = '';
+    cmdActive = -1;
+    renderCmdResults('');
+    setTimeout(() => inp.focus(), 50);
+}
+function closeCmdPalette() {
+    document.getElementById('cmd-bg').classList.remove('show');
+    cmdActive = -1;
+}
+
+let cmdSearchTimer;
+document.getElementById('cmd-input')?.addEventListener('input', e => {
+    clearTimeout(cmdSearchTimer);
+    const q = e.target.value.trim();
+    cmdActive = -1;
+    renderCmdResults(q);
+    if (q.length >= 2) {
+        cmdSearchTimer = setTimeout(() => searchCmdEntities(q), 300);
+    }
+});
+document.getElementById('cmd-input')?.addEventListener('keydown', e => {
+    const items = document.querySelectorAll('#cmd-results .cmd-item');
+    if (e.key === 'ArrowDown') { e.preventDefault(); cmdActive = Math.min(cmdActive + 1, items.length - 1); updateCmdActive(items); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); cmdActive = Math.max(cmdActive - 1, 0); updateCmdActive(items); }
+    else if (e.key === 'Enter' && cmdActive >= 0 && items[cmdActive]) { e.preventDefault(); items[cmdActive].click(); }
+    else if (e.key === 'Escape') { closeCmdPalette(); }
+});
+function updateCmdActive(items) {
+    items.forEach((el, i) => el.classList.toggle('active', i === cmdActive));
+    if (items[cmdActive]) items[cmdActive].scrollIntoView({ block: 'nearest' });
+}
+function renderCmdResults(query) {
+    const box = document.getElementById('cmd-results');
+    const q = query.toLowerCase();
+    let html = '';
+    const navFiltered = CMD_NAV.filter(c => c.label.toLowerCase().includes(q));
+    const actFiltered = CMD_ACTIONS.filter(c => c.label.toLowerCase().includes(q) || (c.hint && c.hint.toLowerCase().includes(q)));
+    if (navFiltered.length) {
+        html += '<div class="cmd-group">Navigate</div>';
+        navFiltered.forEach((c, i) => {
+            html += `<div class="cmd-item" onclick="closeCmdPalette();CMD_NAV[${CMD_NAV.indexOf(c)}].action()"><span class="ci-icon">${c.icon}</span><span class="ci-label">${c.label}</span></div>`;
+        });
+    }
+    if (actFiltered.length) {
+        html += '<div class="cmd-group">Actions</div>';
+        actFiltered.forEach(c => {
+            html += `<div class="cmd-item" onclick="closeCmdPalette();CMD_ACTIONS[${CMD_ACTIONS.indexOf(c)}].action()"><span class="ci-icon">${c.icon}</span><span class="ci-label">${c.label}</span><span class="ci-hint">${c.hint||''}</span></div>`;
+        });
+    }
+    if (q.length >= 2) {
+        html += '<div class="cmd-group" id="cmd-entities-group" style="display:none;">Entities</div>';
+        html += '<div id="cmd-entities"></div>';
+    }
+    if (!html) html = '<div class="cmd-empty">No results</div>';
+    box.innerHTML = html;
+}
+async function searchCmdEntities(q) {
+    try {
+        const d = await (await fetch(`${API}/v1/search`, { method: 'POST', headers: H(), body: JSON.stringify({ query: q, limit: 5 }) })).json();
+        if (d.results?.length) {
+            const group = document.getElementById('cmd-entities-group');
+            const box = document.getElementById('cmd-entities');
+            if (group) group.style.display = 'block';
+            if (box) {
+                box.innerHTML = d.results.map(r => `<div class="cmd-item" onclick="closeCmdPalette();openEntity('${escA(r.entity)}')"><span class="ci-icon">📦</span><span class="ci-label">${esc(r.entity)}</span><span class="ci-hint">${r.type}</span></div>`).join('');
+            }
+        }
+    } catch (e) {}
+}
+function switchTabDirect(t) {
+    document.querySelectorAll('.nav-item').forEach((n, i) => {
+        const tabs = ['feed','agents','insights','graph','entities','procedures','billing','settings'];
+        n.classList.toggle('active', tabs[i] === t);
+    });
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    document.getElementById('tab-' + t).classList.add('active');
+    if (t === 'graph') loadGraph();
+    if (t === 'entities') loadEntities();
+    if (t === 'insights') loadInsights();
+    if (t === 'agents') loadAgentHistory();
+    if (t === 'procedures') loadProcedures();
+    if (t === 'billing') loadBilling();
+    if (t === 'settings') { loadWebhooks(); loadTeams(); loadKeys(); }
+}
+
+// ---- Keyboard shortcuts ----
+document.addEventListener('keydown', e => {
+    // Cmd+K / Ctrl+K = command palette
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        if (document.getElementById('cmd-bg').classList.contains('show')) closeCmdPalette();
+        else openCmdPalette();
+        return;
+    }
+    // Escape = close anything open
+    if (e.key === 'Escape') {
+        if (document.getElementById('cmd-bg').classList.contains('show')) { closeCmdPalette(); return; }
+        if (document.getElementById('confirm-bg').classList.contains('show')) { closeConfirm(); return; }
+        if (document.getElementById('modal-bg').classList.contains('show')) { closeModal(); return; }
+    }
+});
 
 document.getElementById('key-input').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
 const saved = localStorage.getItem('mengram_key');
@@ -481,6 +750,9 @@ function switchTab(t) {
     document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
     document.getElementById('tab-'+t).classList.add('active');
     event.currentTarget.classList.add('active');
+    // Close mobile menu on tab switch
+    const sidebar = document.querySelector('.sidebar');
+    if (sidebar.classList.contains('open')) toggleMobileMenu();
     if(t==='graph') loadGraph();
     if(t==='entities') loadEntities();
     if(t==='insights') loadInsights();
@@ -708,13 +980,29 @@ async function triggerReflection() {
     }
 }
 
+function countUp(el, target, duration=600) {
+    const start = parseInt(el.textContent) || 0;
+    if (start === target) return;
+    const step = (target - start) / (duration / 16);
+    let current = start;
+    const tick = () => {
+        current += step;
+        if ((step > 0 && current >= target) || (step < 0 && current <= target)) {
+            el.textContent = target;
+            return;
+        }
+        el.textContent = Math.round(current);
+        requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+}
 async function loadStats() {
     try {
         const d = await (await fetch(`${API}/v1/stats`,{headers:H()})).json();
-        document.getElementById('s-ent').textContent = d.entities||0;
-        document.getElementById('s-facts').textContent = d.facts||0;
-        document.getElementById('s-rels').textContent = d.relations||0;
-        document.getElementById('s-know').textContent = d.knowledge||0;
+        countUp(document.getElementById('s-ent'), d.entities||0);
+        countUp(document.getElementById('s-facts'), d.facts||0);
+        countUp(document.getElementById('s-rels'), d.relations||0);
+        countUp(document.getElementById('s-know'), d.knowledge||0);
     } catch(e){}
 }
 
@@ -750,12 +1038,14 @@ async function loadFeed() {
 }
 
 async function archFact(id,entity,fact,btn) {
-    if(!confirm(`Delete: "${fact}"?`)) return;
-    try {
-        await fetch(`${API}/v1/archive_fact`,{method:'POST',headers:H(),body:JSON.stringify({entity_name:entity,fact_content:fact})});
-        btn.closest('.feed-item').style.display='none';
-        loadStats();
-    } catch(e){}
+    showConfirm('Delete Fact', fact, async () => {
+        try {
+            await fetch(`${API}/v1/archive_fact`,{method:'POST',headers:H(),body:JSON.stringify({entity_name:entity,fact_content:fact})});
+            btn.closest('.feed-item').style.display='none';
+            loadStats();
+            showToast('Fact deleted', 'success');
+        } catch(e){ showToast('Failed to delete fact', 'error'); }
+    }, true);
 }
 
 // ---- Graph ----
@@ -863,26 +1153,27 @@ async function openEntity(name) {
 }
 function closeModal() { document.getElementById('modal-bg').classList.remove('show'); }
 async function archFactM(entity,fact,btn) {
-    try { await fetch(`${API}/v1/archive_fact`,{method:'POST',headers:H(),body:JSON.stringify({entity_name:entity,fact_content:fact})}); btn.closest('.m-fact').style.display='none'; loadStats(); } catch(e){}
+    try { await fetch(`${API}/v1/archive_fact`,{method:'POST',headers:H(),body:JSON.stringify({entity_name:entity,fact_content:fact})}); btn.closest('.m-fact').style.display='none'; loadStats(); showToast('Fact deleted', 'success'); } catch(e){ showToast('Failed', 'error'); }
 }
 async function delEntity(name) {
-    if(!confirm(`Delete "${name}" and ALL its data?`)) return;
-    try { await fetch(`${API}/v1/entity/${encodeURIComponent(name)}`,{method:'DELETE',headers:H()}); closeModal(); loadAll(); } catch(e){}
+    showConfirm('Delete Entity', `Delete "${name}" and ALL its data? This cannot be undone.`, async () => {
+        try { await fetch(`${API}/v1/entity/${encodeURIComponent(name)}`,{method:'DELETE',headers:H()}); closeModal(); loadAll(); showToast(`"${name}" deleted`, 'success'); } catch(e){ showToast('Failed to delete', 'error'); }
+    }, true);
 }
 async function shareEntityDialog(name) {
     try {
         const d = await (await fetch(`${API}/v1/teams`,{headers:H()})).json();
-        if (!d.teams?.length) { alert('No teams yet. Create a team in Settings first.'); return; }
+        if (!d.teams?.length) { showToast('No teams yet. Create a team in Settings first.', 'info'); return; }
         const teamNames = d.teams.map((t,i) => `${i+1}. ${t.name}`).join('\n');
         const choice = prompt(`Share "${name}" to which team?\n\n${teamNames}\n\nEnter number:`);
         if (!choice) return;
         const idx = parseInt(choice) - 1;
-        if (idx < 0 || idx >= d.teams.length) { alert('Invalid choice'); return; }
+        if (idx < 0 || idx >= d.teams.length) { showToast('Invalid choice', 'error'); return; }
         const team = d.teams[idx];
         const r = await fetch(`${API}/v1/teams/${team.id}/share`, {method:'POST', headers:H(), body:JSON.stringify({entity:name})});
-        if (r.ok) { alert(`✅ "${name}" shared with ${team.name}!`); }
-        else { const err = await r.json(); alert(err.detail || 'Failed to share'); }
-    } catch(e) { alert('Error: ' + e.message); }
+        if (r.ok) { showToast(`"${name}" shared with ${team.name}!`, 'success'); }
+        else { const err = await r.json(); showToast(err.detail || 'Failed to share', 'error'); }
+    } catch(e) { showToast('Error: ' + e.message, 'error'); }
 }
 
 // ---- Search ----
@@ -934,7 +1225,7 @@ async function loadWebhooks() {
                     </div>
                     <div style="display:flex;gap:6px;">
                         <button onclick="toggleWebhook(${w.id},${!w.active})" style="padding:4px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text-2);cursor:pointer;font-size:11px;">${w.active?'Disable':'Enable'}</button>
-                        <button onclick="if(confirm('Delete this webhook?'))deleteWebhook(${w.id})" style="padding:4px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--red);cursor:pointer;font-size:11px;">Delete</button>
+                        <button onclick="deleteWebhook(${w.id})" style="padding:4px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--red);cursor:pointer;font-size:11px;">Delete</button>
                     </div>
                 </div>
                 <div style="margin-top:6px;">${events}</div>
@@ -951,7 +1242,7 @@ async function loadWebhooks() {
 async function createWebhook() {
     const url = document.getElementById('wh-url').value.trim();
     const name = document.getElementById('wh-name').value.trim();
-    if (!url) { alert('URL is required'); return; }
+    if (!url) { showToast('URL is required', 'error'); return; }
     try {
         const r = await fetch(`${API}/v1/webhooks`, {
             method:'POST', headers:H(),
@@ -962,24 +1253,29 @@ async function createWebhook() {
             document.getElementById('wh-url').value = '';
             document.getElementById('wh-name').value = '';
             loadWebhooks();
+            showToast('Webhook created', 'success');
         } else {
-            alert(d.detail || 'Failed to create webhook');
+            showToast(d.detail || 'Failed to create webhook', 'error');
         }
-    } catch(e) { alert('Error: ' + e.message); }
+    } catch(e) { showToast('Error: ' + e.message, 'error'); }
 }
 
 async function toggleWebhook(id, active) {
     try {
         await fetch(`${API}/v1/webhooks/${id}`, {method:'PUT', headers:H(), body: JSON.stringify({active})});
         loadWebhooks();
-    } catch(e) { alert('Failed'); }
+        showToast(active ? 'Webhook enabled' : 'Webhook disabled', 'success');
+    } catch(e) { showToast('Failed to update webhook', 'error'); }
 }
 
 async function deleteWebhook(id) {
-    try {
-        await fetch(`${API}/v1/webhooks/${id}`, {method:'DELETE', headers:H()});
-        loadWebhooks();
-    } catch(e) { alert('Failed'); }
+    showConfirm('Delete Webhook', 'Are you sure you want to delete this webhook?', async () => {
+        try {
+            await fetch(`${API}/v1/webhooks/${id}`, {method:'DELETE', headers:H()});
+            loadWebhooks();
+            showToast('Webhook deleted', 'success');
+        } catch(e) { showToast('Failed to delete webhook', 'error'); }
+    }, true);
 }
 
 // ---- Teams ----
@@ -1001,8 +1297,8 @@ async function loadTeams() {
                         <span style="font-size:11px;padding:2px 6px;border-radius:4px;margin-left:6px;background:${isOwner?'var(--accent-dim)':'rgba(100,200,100,0.15)'};color:${isOwner?'var(--accent)':'var(--green)'};">${t.role}</span>
                     </div>
                     <div style="display:flex;gap:6px;">
-                        ${isOwner ? `<button onclick="if(confirm('Delete team?'))deleteTeam(${t.id})" style="padding:4px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--red);cursor:pointer;font-size:11px;">Delete</button>` : 
-                        `<button onclick="if(confirm('Leave team?'))leaveTeam(${t.id})" style="padding:4px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text-2);cursor:pointer;font-size:11px;">Leave</button>`}
+                        ${isOwner ? `<button onclick="deleteTeam(${t.id})" style="padding:4px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--red);cursor:pointer;font-size:11px;">Delete</button>` :
+                        `<button onclick="leaveTeam(${t.id})" style="padding:4px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text-2);cursor:pointer;font-size:11px;">Leave</button>`}
                     </div>
                 </div>
                 <div style="font-size:12px;color:var(--text-2);margin-top:6px;">
@@ -1018,52 +1314,56 @@ async function loadTeams() {
 }
 
 function copyInvite(code) {
-    navigator.clipboard.writeText(code);
-    alert('Invite code copied: ' + code + '\nShare it with your team!');
+    copyText(code, 'invite code');
 }
 
 async function createTeam() {
     const name = document.getElementById('team-name').value.trim();
-    if (!name) { alert('Team name is required'); return; }
+    if (!name) { showToast('Team name is required', 'error'); return; }
     try {
         const r = await fetch(`${API}/v1/teams`, {method:'POST', headers:H(), body: JSON.stringify({name})});
         const d = await r.json();
         if (r.ok) {
             document.getElementById('team-name').value = '';
             loadTeams();
-            alert(`Team created! Invite code: ${d.team?.invite_code}\nShare it with your team.`);
-        } else { alert(d.detail || 'Failed'); }
-    } catch(e) { alert('Error: ' + e.message); }
+            showToast(`Team created! Invite: ${d.team?.invite_code}`, 'success', 5000);
+        } else { showToast(d.detail || 'Failed', 'error'); }
+    } catch(e) { showToast('Error: ' + e.message, 'error'); }
 }
 
 async function joinTeam() {
     const code = document.getElementById('invite-code').value.trim();
-    if (!code) { alert('Invite code is required'); return; }
+    if (!code) { showToast('Invite code is required', 'error'); return; }
     try {
         const r = await fetch(`${API}/v1/teams/join`, {method:'POST', headers:H(), body: JSON.stringify({invite_code: code})});
         const d = await r.json();
         if (r.ok) {
             document.getElementById('invite-code').value = '';
             loadTeams();
-            alert(`Joined team: ${d.team_name}!`);
-        } else { alert(d.detail || 'Failed'); }
-    } catch(e) { alert('Error: ' + e.message); }
+            showToast(`Joined team: ${d.team_name}!`, 'success');
+        } else { showToast(d.detail || 'Failed', 'error'); }
+    } catch(e) { showToast('Error: ' + e.message, 'error'); }
 }
 
 async function deleteTeam(id) {
-    try { await fetch(`${API}/v1/teams/${id}`, {method:'DELETE', headers:H()}); loadTeams(); } catch(e) { alert('Failed'); }
+    showConfirm('Delete Team', 'Delete this team and remove all members?', async () => {
+        try { await fetch(`${API}/v1/teams/${id}`, {method:'DELETE', headers:H()}); loadTeams(); showToast('Team deleted', 'success'); } catch(e) { showToast('Failed', 'error'); }
+    }, true);
 }
 
 async function leaveTeam(id) {
-    try { await fetch(`${API}/v1/teams/${id}/leave`, {method:'POST', headers:H()}); loadTeams(); } catch(e) { alert('Failed'); }
+    showConfirm('Leave Team', 'Are you sure you want to leave this team?', async () => {
+        try { await fetch(`${API}/v1/teams/${id}/leave`, {method:'POST', headers:H()}); loadTeams(); showToast('Left team', 'success'); } catch(e) { showToast('Failed', 'error'); }
+    });
 }
 
 async function resetKey() {
-    if(!confirm('Reset API key? All current keys stop working.')) return;
-    try {
-        const d = await (await fetch(`${API}/v1/reset-key`,{method:'POST',headers:H()})).json();
-        if(d.api_key) { KEY=d.api_key; localStorage.setItem('mengram_key',d.api_key); alert('New key: '+d.api_key+'\n\nSave it!'); }
-    } catch(e) { alert('Failed.'); }
+    showConfirm('Reset API Key', 'All current keys will stop working. Are you sure?', async () => {
+        try {
+            const d = await (await fetch(`${API}/v1/reset-key`,{method:'POST',headers:H()})).json();
+            if(d.api_key) { KEY=d.api_key; localStorage.setItem('mengram_key',d.api_key); showToast('New key generated — click to copy', 'success', 6000); copyText(d.api_key, 'API key'); }
+        } catch(e) { showToast('Failed to reset key', 'error'); }
+    }, true);
 }
 
 async function loadKeys() {
@@ -1080,7 +1380,7 @@ async function loadKeys() {
                 : '<span style="color:var(--text-3);">○ revoked</span>';
             const lastUsed = k.last_used ? 'Used ' + new Date(k.last_used).toLocaleDateString() : 'Never used';
             const actions = k.active
-                ? `<button onclick="if(confirm('Revoke key ${esc(k.prefix)}...?'))revokeKey(${k.id})" style="padding:3px 10px;background:none;border:1px solid var(--border);border-radius:6px;color:var(--red);cursor:pointer;font-size:11px;">Revoke</button>`
+                ? `<button onclick="revokeKey(${k.id},'${escA(k.prefix)}')" style="padding:3px 10px;background:none;border:1px solid var(--border);border-radius:6px;color:var(--red);cursor:pointer;font-size:11px;">Revoke</button>`
                 : '';
             return `<div style="background:var(--bg-card);border-radius:10px;padding:10px 14px;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;">
                 <div>
@@ -1105,36 +1405,44 @@ async function createNewKey() {
             body: JSON.stringify({name})
         })).json();
         if (d.key) {
-            alert('New API key created!\n\n' + d.key + '\n\nSave this — it will not be shown again.');
             document.getElementById('new-key-name').value = '';
             loadKeys();
+            copyText(d.key, 'API key');
+            showToast('Key created and copied! Save it — it won\'t be shown again.', 'success', 6000);
         } else {
-            alert(d.detail || 'Failed to create key');
+            showToast(d.detail || 'Failed to create key', 'error');
         }
-    } catch(e) { alert('Failed to create key.'); }
+    } catch(e) { showToast('Failed to create key', 'error'); }
 }
 
-async function revokeKey(keyId) {
-    try {
-        const r = await fetch(`${API}/v1/keys/${keyId}`, {method:'DELETE', headers:H()});
-        const d = await r.json();
-        if (r.ok) { loadKeys(); }
-        else { alert(d.detail || 'Failed to revoke'); }
-    } catch(e) { alert('Failed.'); }
+async function revokeKey(keyId, prefix) {
+    showConfirm('Revoke API Key', `Revoke key ${prefix||''}...? It will stop working immediately.`, async () => {
+        try {
+            const r = await fetch(`${API}/v1/keys/${keyId}`, {method:'DELETE', headers:H()});
+            const d = await r.json();
+            if (r.ok) { loadKeys(); showToast('Key revoked', 'success'); }
+            else { showToast(d.detail || 'Failed to revoke', 'error'); }
+        } catch(e) { showToast('Failed', 'error'); }
+    }, true);
 }
 async function exportData() {
     try {
+        showToast('Exporting...', 'info', 2000);
         const d = await (await fetch(`${API}/v1/memories/full`,{headers:H()})).json();
         const b=new Blob([JSON.stringify(d,null,2)],{type:'application/json'});
         const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='mengram-export.json'; a.click();
-    } catch(e) { alert('Export failed.'); }
+        showToast('Export downloaded', 'success');
+    } catch(e) { showToast('Export failed', 'error'); }
+}
+function confirmDeleteAll() {
+    showConfirm('Delete All Data', 'This will permanently delete ALL your memory data. This cannot be undone.', deleteAll, true);
 }
 async function deleteAll() {
     try {
         const d = await (await fetch(`${API}/v1/memories`,{headers:H()})).json();
         for(const e of (d.memories||[])) await fetch(`${API}/v1/entity/${encodeURIComponent(e.name)}`,{method:'DELETE',headers:H()});
-        loadAll(); alert('All data deleted.');
-    } catch(e) { alert('Failed.'); }
+        loadAll(); showToast('All data deleted', 'success');
+    } catch(e) { showToast('Failed to delete data', 'error'); }
 }
 
 // ---- Procedures ----
@@ -1316,14 +1624,33 @@ async function loadBilling() {
 
         document.getElementById('plan-manage').style.display = plan !== 'free' ? 'block' : 'none';
 
-        function fmt(used, limit) {
-            if (limit === -1) return `${used} / ∞`;
-            return `${used} / ${limit.toLocaleString()}`;
+        function usageCard(label, used, limit) {
+            if (limit === -1) {
+                return `<div style="padding:14px;background:var(--bg);border-radius:10px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                        <span style="font-size:12px;color:var(--text-3);text-transform:uppercase;">${label}</span>
+                        <span style="font-size:11px;color:var(--text-3);">unlimited</span>
+                    </div>
+                    <div style="font-size:22px;font-weight:700;">${used.toLocaleString()}</div>
+                </div>`;
+            }
+            const pct = limit > 0 ? Math.min((used / limit) * 100, 100) : 0;
+            const color = pct > 90 ? 'var(--red)' : pct > 70 ? 'var(--orange)' : 'var(--green)';
+            return `<div style="padding:14px;background:var(--bg);border-radius:10px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                    <span style="font-size:12px;color:var(--text-3);text-transform:uppercase;">${label}</span>
+                    <span style="font-size:12px;font-weight:600;color:${color};">${Math.round(pct)}%</span>
+                </div>
+                <div style="font-size:22px;font-weight:700;margin-bottom:8px;">${used.toLocaleString()}</div>
+                <div class="usage-bar"><div class="usage-bar-fill" style="width:${pct}%;background:${color};"></div></div>
+                <div class="usage-label"><span>${used.toLocaleString()} used</span><span>${limit.toLocaleString()} limit</span></div>
+            </div>`;
         }
-        document.getElementById('usage-adds').textContent = fmt(usage.add_count || 0, limits.adds);
-        document.getElementById('usage-searches').textContent = fmt(usage.search_count || 0, limits.searches);
-        document.getElementById('usage-agents').textContent = fmt(usage.agent_count || 0, limits.agents);
-        document.getElementById('usage-reflects').textContent = fmt(usage.reflect_count || 0, limits.reflects);
+        document.getElementById('billing-usage').innerHTML =
+            usageCard('Adds', usage.add_count || 0, limits.adds) +
+            usageCard('Searches', usage.search_count || 0, limits.searches) +
+            usageCard('Agents', usage.agent_count || 0, limits.agents) +
+            usageCard('Reflects', usage.reflect_count || 0, limits.reflects);
 
         // Hide upgrade section if already on business
         document.getElementById('billing-upgrade').style.display = plan === 'business' ? 'none' : 'block';
@@ -1348,9 +1675,9 @@ async function upgradePlan(plan) {
                 window.open(d.checkout_url, '_blank');
             }
         } else {
-            alert(typeof d.detail === 'string' ? d.detail : JSON.stringify(d));
+            showToast(typeof d.detail === 'string' ? d.detail : 'Failed to start checkout', 'error');
         }
-    } catch(e) { alert('Error: ' + e.message); }
+    } catch(e) { showToast('Error: ' + e.message, 'error'); }
 }
 
 async function openPortal() {
@@ -1360,9 +1687,9 @@ async function openPortal() {
         if (d.portal_url) {
             window.open(d.portal_url, '_blank');
         } else {
-            alert(typeof d.detail === 'string' ? d.detail : JSON.stringify(d));
+            showToast(typeof d.detail === 'string' ? d.detail : 'Failed to open portal', 'error');
         }
-    } catch(e) { alert('Error: ' + e.message); }
+    } catch(e) { showToast('Error: ' + e.message, 'error'); }
 }
 </script>
 <script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
