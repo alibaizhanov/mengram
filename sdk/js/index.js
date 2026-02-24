@@ -75,7 +75,7 @@ class MengramClient {
         return data;
       } catch (err) {
         if (err instanceof MengramError) {
-          if ([429, 502, 503, 504].includes(err.status) && attempt < 2) {
+          if ([429, 502, 503, 504].includes(err.statusCode) && attempt < 2) {
             lastErr = err;
             await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
             continue;
@@ -1187,7 +1187,7 @@ class QuotaExceededError extends MengramError {
   constructor(detail) {
     const action = detail.action || 'unknown';
     const limit = detail.limit || 0;
-    const current = detail.current || 0;
+    const current = detail.used || 0;
     const plan = detail.plan || 'free';
     super(
       `Quota exceeded for '${action}': ${current}/${limit} (plan: ${plan}). Upgrade at https://mengram.io/dashboard`,

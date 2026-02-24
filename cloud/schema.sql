@@ -328,7 +328,6 @@ CREATE INDEX idx_chunks_user ON conversation_chunks(user_id, sub_user_id);
 CREATE TABLE chunk_embeddings (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     chunk_id UUID NOT NULL REFERENCES conversation_chunks(id) ON DELETE CASCADE,
-    chunk_text TEXT NOT NULL,
     embedding vector(1536),
     tsv tsvector,
     created_at TIMESTAMPTZ DEFAULT NOW()

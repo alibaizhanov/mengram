@@ -42,7 +42,7 @@ class QuotaExceededError(Exception):
     def __init__(self, detail: dict):
         self.action = detail.get("action", "unknown")
         self.limit = detail.get("limit", 0)
-        self.current = detail.get("current", 0)
+        self.current = detail.get("used", 0)
         self.plan = detail.get("plan", "free")
         super().__init__(
             f"Quota exceeded for '{self.action}': {self.current}/{self.limit} "

@@ -516,8 +516,12 @@ Be strict — only include entities that directly answer or relate to the query.
         )
 
     @app.post("/v1/signup", tags=["System"], response_model=SignupResponse)
-    async def signup(req: SignupRequest):
+    async def signup(req: SignupRequest, request: Request):
         """Create account and get API key."""
+        # Rate limit signups: 5/min per IP
+        client_ip = request.client.host if request.client else "unknown"
+        if not _check_rate_limit(f"signup:{client_ip}", 5):
+            raise HTTPException(status_code=429, detail="Too many signup attempts. Try again in 60 seconds.")
         existing = store.get_user_by_email(req.email)
         if existing:
             raise HTTPException(status_code=409, detail="Email already registered")
@@ -534,8 +538,12 @@ Be strict — only include entities that directly answer or relate to the query.
         )
 
     @app.post("/v1/reset-key", tags=["System"])
-    async def reset_key(req: ResetKeyRequest):
+    async def reset_key(req: ResetKeyRequest, request: Request):
         """Reset API key and send new one to email."""
+        # Rate limit reset: 3/min per IP
+        client_ip = request.client.host if request.client else "unknown"
+        if not _check_rate_limit(f"reset:{client_ip}", 3):
+            raise HTTPException(status_code=429, detail="Too many reset attempts. Try again in 60 seconds.")
         user_id = store.get_user_by_email(req.email)
         if not user_id:
             # Don't reveal whether email exists
@@ -1232,8 +1240,6 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     @app.post("/v1/add_text", tags=["Memory"])
     async def add_text(req: AddTextRequest, ctx: AuthContext = Depends(auth)):
         """Add memories from plain text (wraps into a single user message)."""
-        user_id = ctx.user_id
-        check_quota(ctx, "add")
         add_req = AddRequest(
             messages=[Message(role="user", content=req.text)],
             user_id=req.user_id,
@@ -1241,8 +1247,8 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             run_id=req.run_id,
             app_id=req.app_id,
         )
-        result = await add(add_req, user_id)
-        store.increment_usage(user_id, "add")
+        # Delegate to add() which handles quota check + increment internally
+        result = await add(add_req, ctx)
         return result
 
     @app.get("/v1/jobs/{job_id}", tags=["System"])
@@ -1390,6 +1396,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     async def dedup(sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
         """Find and merge duplicate entities."""
         user_id = ctx.user_id
+        check_quota(ctx, "dedup")
         entities = store.get_all_entities(user_id, sub_user_id=sub_user_id)
         names = [(e["name"], e.get("type", "unknown")) for e in entities]
         merged = []
@@ -1421,6 +1428,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                         merged.append(f"{shorter} → {canonical}")
                         processed.add(shorter)
 
+        store.increment_usage(user_id, "dedup")
         return {"merged": merged, "count": len(merged)}
 
     @app.delete("/v1/entity/{name}", tags=["Memory"])
@@ -2103,9 +2111,12 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     async def get_triggers(target_user_id: str, include_fired: bool = False,
                            limit: int = 50, sub_user_id: str = Query("default"),
                            ctx: AuthContext = Depends(auth)):
-        """Get smart triggers for a specific user."""
+        """Get smart triggers for a specific user (must be your own user_id or a sub_user_id)."""
         user_id = ctx.user_id
-        triggers = store.get_triggers(target_user_id, include_fired=include_fired, limit=limit, sub_user_id=sub_user_id)
+        # Authorization: only allow accessing own triggers
+        if target_user_id != user_id:
+            raise HTTPException(status_code=403, detail="Cannot access other users' triggers")
+        triggers = store.get_triggers(user_id, include_fired=include_fired, limit=limit, sub_user_id=sub_user_id)
         for t in triggers:
             for key in ("fire_at", "fired_at", "created_at"):
                 if t.get(key) and hasattr(t[key], "isoformat"):
@@ -2114,9 +2125,9 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
     @app.post("/v1/triggers/process", tags=["Smart Triggers"])
     async def process_triggers(ctx: AuthContext = Depends(auth)):
-        """Manually process all pending triggers (fire those that are due)."""
+        """Process pending triggers for the authenticated user only."""
         user_id = ctx.user_id
-        result = store.process_all_triggers()
+        result = store.process_user_triggers(user_id) if hasattr(store, 'process_user_triggers') else store.process_all_triggers()
         return result
 
     @app.delete("/v1/triggers/{trigger_id}", tags=["Smart Triggers"])
@@ -2137,18 +2148,21 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
     @app.post("/v1/triggers/detect/{target_user_id}", tags=["Smart Triggers"])
     async def detect_triggers_debug(target_user_id: str, sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
-        """Manually run trigger detection for a user. Returns detailed results."""
+        """Manually run trigger detection for the authenticated user. Returns detailed results."""
         user_id = ctx.user_id
+        # Authorization: only allow detecting own triggers
+        if target_user_id != user_id:
+            raise HTTPException(status_code=403, detail="Cannot detect triggers for other users")
         results = {"reminders": 0, "contradictions": 0, "patterns": 0, "errors": []}
         try:
-            results["reminders"] = store.detect_reminder_triggers(target_user_id, sub_user_id=sub_user_id)
+            results["reminders"] = store.detect_reminder_triggers(user_id, sub_user_id=sub_user_id)
         except Exception as e:
             results["errors"].append(f"reminders: {e}")
         try:
-            results["patterns"] = store.detect_pattern_triggers(target_user_id, sub_user_id=sub_user_id)
+            results["patterns"] = store.detect_pattern_triggers(user_id, sub_user_id=sub_user_id)
         except Exception as e:
             results["errors"].append(f"patterns: {e}")
-        triggers = store.get_triggers(target_user_id, sub_user_id=sub_user_id)
+        triggers = store.get_triggers(user_id, sub_user_id=sub_user_id)
         results["total_pending"] = len(triggers)
         results["triggers"] = triggers
         # Serialize datetimes
@@ -2322,15 +2336,36 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         event_type = event.get("event_type", "")
         data = event.get("data", {})
 
-        if event_type == "subscription.activated":
+        if event_type == "transaction.completed":
+            # Save customer_id → user mapping early (before subscription events)
             custom = data.get("custom_data", {})
             user_id = custom.get("mengram_user_id")
-            plan = custom.get("plan", "pro")
+            customer_id = data.get("customer_id", "")
+            if user_id and customer_id:
+                store.update_subscription(user_id, paddle_customer_id=customer_id)
+                logger.info(f"Payment completed: user={user_id} customer={customer_id}")
+
+        elif event_type == "subscription.activated":
+            custom = data.get("custom_data") or {}
+            user_id = custom.get("mengram_user_id")
             customer_id = data.get("customer_id", "")
             subscription_id = data.get("id", "")
 
             if not user_id and customer_id:
                 user_id = store.get_user_by_paddle_customer(customer_id)
+
+            # Detect plan from custom_data or items price_id
+            plan = custom.get("plan")
+            if not plan:
+                items = data.get("items", [])
+                if items:
+                    price_id = items[0].get("price", {}).get("id", "")
+                    if price_id == PADDLE_PRICES.get("business"):
+                        plan = "business"
+                    elif price_id == PADDLE_PRICES.get("pro"):
+                        plan = "pro"
+            if not plan:
+                plan = "pro"
 
             if user_id:
                 updates = {
@@ -2339,7 +2374,6 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                     "paddle_customer_id": customer_id,
                     "paddle_subscription_id": subscription_id,
                 }
-                # Parse billing period
                 current_period = data.get("current_billing_period", {})
                 if current_period.get("starts_at"):
                     updates["current_period_start"] = current_period["starts_at"]
@@ -2347,6 +2381,8 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                     updates["current_period_end"] = current_period["ends_at"]
                 store.update_subscription(user_id, **updates)
                 logger.info(f"Subscription activated: user={user_id} plan={plan}")
+            else:
+                logger.error(f"Subscription activated but no user found: customer={customer_id}")
 
         elif event_type == "subscription.canceled":
             custom = data.get("custom_data", {})
@@ -2392,12 +2428,6 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                     updates["current_period_end"] = current_period["ends_at"]
                 store.update_subscription(user_id, **updates)
                 logger.info(f"Subscription updated: user={user_id} updates={updates}")
-
-        elif event_type == "transaction.completed":
-            custom = data.get("custom_data", {})
-            user_id = custom.get("mengram_user_id")
-            if user_id:
-                logger.info(f"Payment completed: user={user_id}")
 
         return {"received": True}
 
