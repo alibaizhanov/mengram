@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mengram — Dashboard</title>
+    <title>Mengram — Memory Console</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Cpath d='M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68' fill='none' stroke='%23a855f7' stroke-width='10' stroke-linecap='round'/%3E%3Ccircle cx='62' cy='68' r='10' fill='%23a855f7'/%3E%3Ccircle cx='62' cy='68' r='4.5' fill='%23fff'/%3E%3C/svg%3E">
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Sora:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
@@ -352,15 +352,10 @@
 <div class="login-screen" id="login-screen">
     <div class="login-box">
         <h1><svg width="28" height="28" viewBox="0 0 120 120" style="vertical-align:middle;margin-right:4px;"><path d="M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68" fill="none" stroke="#a855f7" stroke-width="8" stroke-linecap="round"/><circle cx="62" cy="68" r="8" fill="#a855f7"/><circle cx="62" cy="68" r="3.5" fill="#fff"/></svg> Mengram</h1>
-        <p>Enter your API key to access your memory dashboard.</p>
-        <a href="/auth/github" class="login-btn" style="display:flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;background:#24292f;margin-bottom:8px;">
-            <svg width="18" height="18" viewBox="0 0 16 16" fill="white"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-            Sign in with GitHub
-        </a>
-        <p style="color:var(--text-2);font-size:12px;margin-bottom:10px;">or enter your key:</p>
+        <p>Enter your API key to access your Memory Console.</p>
         <div id="login-key">
             <input type="password" class="login-input" id="key-input" placeholder="om-..." autocomplete="off">
-            <button class="login-btn" onclick="doLogin()">Open Dashboard</button>
+            <button class="login-btn" onclick="doLogin()">Open Console</button>
             <div class="login-error" id="login-error">Invalid API key. Check and try again.</div>
         </div>
         <div id="login-reset" style="display:none">
@@ -886,7 +881,8 @@ async function verifyResetCode() {
             document.getElementById('reset-step-code').style.display = 'none';
             const res = document.getElementById('reset-result');
             res.style.display = 'block';
-            res.innerHTML = `<strong style="color:var(--green);">New key generated!</strong><p style="margin-top:8px;font-size:13px;color:var(--text-2);">Save it — old keys are now inactive:</p><div style="margin-top:8px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:13px;word-break:break-all;">${esc(d.api_key)}</div><button onclick="navigator.clipboard.writeText('${d.api_key.replace(/'/g,"\\'")}');this.textContent='Copied!';setTimeout(()=>this.textContent='Copy Key',2000)" style="margin-top:8px;padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;width:100%;">Copy Key</button>`;
+            localStorage.setItem('mengram_key', d.api_key);
+            res.innerHTML = `<strong style="color:var(--green);">New key generated!</strong><p style="margin-top:8px;font-size:13px;color:var(--text-2);">Save it — old keys are now inactive:</p><div style="margin-top:8px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:13px;word-break:break-all;">${esc(d.api_key)}</div><button onclick="navigator.clipboard.writeText('${d.api_key.replace(/'/g,"\\'")}');this.textContent='Copied!';setTimeout(()=>this.textContent='Copy Key',2000)" style="margin-top:8px;padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;width:100%;">Copy Key</button><button onclick="tryLogin('${d.api_key.replace(/'/g,"\\'")}')" style="margin-top:6px;padding:8px 16px;background:var(--bg-card);color:var(--accent);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:13px;width:100%;">Open Console with this key →</button>`;
         } else { err.textContent = d.detail || 'Invalid code'; err.style.display = 'block'; }
     } catch(e) { err.textContent = 'Network error'; err.style.display = 'block'; }
 }

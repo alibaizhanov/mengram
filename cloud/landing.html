@@ -815,7 +815,7 @@
                 <a href="#features">Features</a>
                 <a href="#pricing">Pricing</a>
                 <a href="#changelog">Changelog</a>
-                <a href="/dashboard">Dashboard</a>
+                <a href="/dashboard">Console</a>
                 <a href="https://github.com/alibaizhanov/mengram">GitHub</a>
                 <a href="#signup" class="btn btn-ghost" style="padding:8px 18px; font-size:13px;">Get API Key</a>
             </div>
@@ -1697,6 +1697,7 @@ crew = Crew(agents=[agent], tasks=[...])</pre>
                     document.getElementById("step-code").style.display = "none";
                     document.getElementById("signup-note").style.display = "none";
                     result.className = "signup-result show success";
+                    localStorage.setItem('mengram_key', data.api_key);
                     result.innerHTML = `
                         <strong style="color: var(--green);">✅ Account created!</strong>
                         <p style="margin-top:8px; color: var(--text-2); font-size:14px;">
@@ -1708,7 +1709,7 @@ crew = Crew(agents=[agent], tasks=[...])</pre>
                         </div>
                         <div style="display:flex; gap:10px; margin-top:16px; flex-wrap:wrap;">
                             <a href="#install" class="btn btn-primary" style="padding:10px 18px; font-size:13px;">⚡ Get Started</a>
-                            <a href="/dashboard" class="btn btn-secondary" style="padding:10px 18px; font-size:13px;">📊 Open Dashboard</a>
+                            <a href="/dashboard" class="btn btn-secondary" style="padding:10px 18px; font-size:13px;">📊 Open Console</a>
                         </div>
                     `;
                 } else {

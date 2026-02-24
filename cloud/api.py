@@ -587,7 +587,7 @@ Be strict — only include entities that directly answer or relate to the query.
                 </p>
                 <hr style="border:none;border-top:1px solid #1a1a2e;margin:28px 0">
                 <p style="font-size:12px;color:#55556a;text-align:center">
-                    <a href="https://mengram.io/dashboard" style="color:#7c3aed;text-decoration:none">Dashboard</a> ·
+                    <a href="https://mengram.io/dashboard" style="color:#7c3aed;text-decoration:none">Console</a> ·
                     <a href="https://mengram.io/docs" style="color:#7c3aed;text-decoration:none">API Docs</a> ·
                     <a href="https://github.com/alibaizhanov/mengram" style="color:#7c3aed;text-decoration:none">GitHub</a>
                 </p>
@@ -655,7 +655,7 @@ Be strict — only include entities that directly answer or relate to the query.
 
     @app.get("/dashboard", response_class=HTMLResponse)
     async def dashboard():
-        """Web dashboard."""
+        """Memory Console."""
         dashboard_path = Path(__file__).parent / "dashboard.html"
         return dashboard_path.read_text(encoding="utf-8")
 
@@ -895,30 +895,52 @@ Be strict — only include entities that directly answer or relate to the query.
             logger.error(f"GitHub email fetch failed: {e}")
             return _github_error_page("Failed to fetch email from GitHub.")
 
-        # Create or login user
+        # Create user or reject if already exists
         existing_user_id = store.get_user_by_email(email)
         if existing_user_id:
-            # Existing user — generate new key
-            api_key = store.create_api_key(existing_user_id, name="github-oauth")
-            is_new = False
-        else:
-            # New user — create account
-            user_id = store.create_user(email)
-            api_key = store.create_api_key(user_id, name="github-oauth")
-            is_new = True
+            return _github_existing_page(email)
 
-        _send_api_key_email(email, api_key, is_reset=not is_new)
-        logger.info(f"🐙 GitHub OAuth {'signup' if is_new else 'login'}: {email}")
+        # New user — create account + key
+        user_id = store.create_user(email)
+        api_key = store.create_api_key(user_id, name="github-oauth")
+        _send_api_key_email(email, api_key, is_reset=False)
+        logger.info(f"🐙 GitHub OAuth signup: {email}")
 
-        return _github_success_page(api_key, email, is_new)
+        return _github_success_page(api_key, email)
 
-    def _github_success_page(api_key: str, email: str, is_new: bool) -> str:
+    def _github_existing_page(email: str) -> str:
         import html as _html
         email = _html.escape(email)
-        action = "Account created" if is_new else "Signed in"
         return f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Mengram — {action}</title>
+<title>Mengram — Account Exists</title>
+<style>
+*{{margin:0;padding:0;box-sizing:border-box}}
+body{{font-family:-apple-system,system-ui,sans-serif;background:#0a0a0a;color:#e0e0e0;display:flex;align-items:center;justify-content:center;min-height:100vh}}
+.card{{background:#141414;border:1px solid #2a2a2a;border-radius:16px;padding:40px;max-width:420px;width:100%;text-align:center}}
+h1{{font-size:20px;margin-bottom:8px;color:#e8e8f0}}
+p{{color:#888;font-size:14px;margin-bottom:16px}}
+.email{{color:#a78bfa;font-weight:600}}
+a{{display:block;padding:10px 20px;border-radius:8px;text-decoration:none;font-size:14px;margin:6px 0}}
+.dash{{background:#a855f7;color:#fff}}
+.dash:hover{{background:#9333ea}}
+.reset{{background:#1a1a2e;color:#a78bfa;border:1px solid #2a2a3e}}
+.reset:hover{{background:#22223a}}
+</style></head><body>
+<div class="card">
+<h1>Account already exists</h1>
+<p>An account with <span class="email">{email}</span> is already registered.</p>
+<p>Use your existing API key to log in, or reset it if you lost it.</p>
+<a class="dash" href="/dashboard">Go to Console</a>
+<a class="reset" href="/dashboard">Lost your key? Reset it →</a>
+</div></body></html>"""
+
+    def _github_success_page(api_key: str, email: str) -> str:
+        import html as _html
+        email = _html.escape(email)
+        return f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mengram — Account created</title>
 <style>
 *{{margin:0;padding:0;box-sizing:border-box}}
 body{{font-family:-apple-system,system-ui,sans-serif;background:#0a0a0a;color:#e0e0e0;display:flex;align-items:center;justify-content:center;min-height:100vh}}
@@ -935,7 +957,7 @@ h1{{font-size:22px;margin-bottom:8px;color:#e8e8f0}}
 .dash-btn:hover{{background:#22223a}}
 </style></head><body>
 <div class="card">
-<h1>&#10003; {action}!</h1>
+<h1>&#10003; Account created!</h1>
 <p class="sub">{email}</p>
 <div class="key-box">
 <p class="key-label">Your API Key</p>
@@ -943,7 +965,7 @@ h1{{font-size:22px;margin-bottom:8px;color:#e8e8f0}}
 </div>
 <p class="warn">Save this key — it won't be shown again.</p>
 <button class="copy-btn" onclick="navigator.clipboard.writeText('{api_key}');this.textContent='Copied!';setTimeout(()=>this.textContent='Copy Key',2000)">Copy Key</button>
-<a class="dash-btn" href="/dashboard">Open Dashboard →</a>
+<a class="dash-btn" href="/dashboard">Open Console →</a>
 <p style="color:#555;font-size:12px;margin-top:16px">Key also sent to {email}</p>
 </div>
 <script>localStorage.setItem('mengram_key','{api_key}')</script>
