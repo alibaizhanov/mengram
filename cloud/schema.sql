@@ -452,7 +452,7 @@ CREATE INDEX idx_usage_counters_user_period ON usage_counters(user_id, period_st
 -- Helper views
 -- ============================================
 
--- Entity overview with counts
+-- Entity overview with counts (subqueries, not JOINs — avoids cartesian product)
 CREATE VIEW entity_overview AS
 SELECT
     e.id,
@@ -462,15 +462,10 @@ SELECT
     e.type,
     e.created_at,
     e.updated_at,
-    COUNT(DISTINCT f.id) AS facts_count,
-    COUNT(DISTINCT k.id) AS knowledge_count,
-    COUNT(DISTINCT r1.id) + COUNT(DISTINCT r2.id) AS relations_count
-FROM entities e
-LEFT JOIN facts f ON f.entity_id = e.id
-LEFT JOIN knowledge k ON k.entity_id = e.id
-LEFT JOIN relations r1 ON r1.source_id = e.id
-LEFT JOIN relations r2 ON r2.target_id = e.id
-GROUP BY e.id;
+    (SELECT COUNT(*) FROM facts f WHERE f.entity_id = e.id) AS facts_count,
+    (SELECT COUNT(*) FROM knowledge k WHERE k.entity_id = e.id) AS knowledge_count,
+    (SELECT COUNT(*) FROM relations r WHERE r.source_id = e.id OR r.target_id = e.id) AS relations_count
+FROM entities e;
 
 -- ============================================
 -- Example: semantic search query

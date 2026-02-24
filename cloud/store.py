@@ -703,21 +703,17 @@ class CloudStore:
                 ON memory_triggers(user_id, sub_user_id)
             """)
 
-            # Recreate entity_overview view to include sub_user_id
+            # Recreate entity_overview view — use subqueries instead of JOINs
+            # to avoid cartesian product (449 entities × 3500 facts × 2300 knowledge = billions of rows)
             cur.execute("DROP VIEW IF EXISTS entity_overview")
             cur.execute("""
                 CREATE VIEW entity_overview AS
                 SELECT e.id, e.user_id, e.sub_user_id, e.name, e.type,
                        e.created_at, e.updated_at,
-                       COUNT(DISTINCT f.id) AS facts_count,
-                       COUNT(DISTINCT k.id) AS knowledge_count,
-                       COUNT(DISTINCT r1.id) + COUNT(DISTINCT r2.id) AS relations_count
+                       (SELECT COUNT(*) FROM facts f WHERE f.entity_id = e.id) AS facts_count,
+                       (SELECT COUNT(*) FROM knowledge k WHERE k.entity_id = e.id) AS knowledge_count,
+                       (SELECT COUNT(*) FROM relations r WHERE r.source_id = e.id OR r.target_id = e.id) AS relations_count
                 FROM entities e
-                LEFT JOIN facts f ON f.entity_id = e.id
-                LEFT JOIN knowledge k ON k.entity_id = e.id
-                LEFT JOIN relations r1 ON r1.source_id = e.id
-                LEFT JOIN relations r2 ON r2.target_id = e.id
-                GROUP BY e.id
             """)
         logger.info("✅ Migration complete (v2.12: sub-user isolation)")
 
