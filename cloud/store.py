@@ -171,13 +171,13 @@ class CloudStore:
                 pool_min, pool_max, database_url
             )
             logger.info(f"Connection pool created ({pool_min}-{pool_max})")
+            self.conn = None  # No fallback needed when pool works
         except Exception as e:
             logger.warning(f"Pool creation failed, falling back to single connection: {e}")
             self._pool = None
+            self.conn = psycopg2.connect(database_url)
+            self.conn.autocommit = True
 
-        # Fallback single connection (also used for migrations)
-        self.conn = psycopg2.connect(database_url)
-        self.conn.autocommit = True
         self._migrate()
 
     @contextmanager
