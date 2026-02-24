@@ -353,10 +353,28 @@
     <div class="login-box">
         <h1><svg width="28" height="28" viewBox="0 0 120 120" style="vertical-align:middle;margin-right:4px;"><path d="M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68" fill="none" stroke="#a855f7" stroke-width="8" stroke-linecap="round"/><circle cx="62" cy="68" r="8" fill="#a855f7"/><circle cx="62" cy="68" r="3.5" fill="#fff"/></svg> Mengram</h1>
         <p>Enter your API key to access your memory dashboard.</p>
-        <input type="password" class="login-input" id="key-input" placeholder="om-..." autocomplete="off">
-        <button class="login-btn" onclick="doLogin()">Open Dashboard</button>
-        <div class="login-error" id="login-error">Invalid API key. Check and try again.</div>
-        <div class="login-links">Don't have a key? <a href="/">Sign up free →</a></div>
+        <div id="login-key">
+            <input type="password" class="login-input" id="key-input" placeholder="om-..." autocomplete="off">
+            <button class="login-btn" onclick="doLogin()">Open Dashboard</button>
+            <div class="login-error" id="login-error">Invalid API key. Check and try again.</div>
+        </div>
+        <div id="login-reset" style="display:none">
+            <div id="reset-step-email">
+                <input type="email" class="login-input" id="reset-email" placeholder="your@email.com">
+                <button class="login-btn" onclick="sendResetCode()">Send Code</button>
+            </div>
+            <div id="reset-step-code" style="display:none">
+                <input type="text" class="login-input" id="reset-code" placeholder="6-digit code" maxlength="6" inputmode="numeric">
+                <button class="login-btn" onclick="verifyResetCode()">Get New Key</button>
+            </div>
+            <div class="login-error" id="reset-error" style="display:none"></div>
+            <div id="reset-result" style="display:none;text-align:left;margin-top:12px;background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.15);padding:16px;border-radius:10px;"></div>
+        </div>
+        <div class="login-links">
+            <span id="link-forgot" style="cursor:pointer;color:var(--accent);" onclick="showResetFlow()">Lost your key?</span>
+            <span id="link-back" style="display:none;cursor:pointer;color:var(--accent);" onclick="showKeyLogin()">← Back to login</span>
+            &nbsp;·&nbsp; Don't have a key? <a href="/">Sign up free →</a>
+        </div>
     </div>
 </div>
 
@@ -815,6 +833,57 @@ function logout() {
     document.getElementById('login-screen').style.display = '';
     document.getElementById('key-input').value = '';
     document.getElementById('login-error').style.display = 'none';
+    showKeyLogin();
+}
+function showResetFlow() {
+    document.getElementById('login-key').style.display = 'none';
+    document.getElementById('login-reset').style.display = 'block';
+    document.getElementById('link-forgot').style.display = 'none';
+    document.getElementById('link-back').style.display = 'inline';
+    document.getElementById('reset-email').focus();
+}
+function showKeyLogin() {
+    document.getElementById('login-key').style.display = 'block';
+    document.getElementById('login-reset').style.display = 'none';
+    document.getElementById('reset-step-email').style.display = 'block';
+    document.getElementById('reset-step-code').style.display = 'none';
+    document.getElementById('reset-error').style.display = 'none';
+    document.getElementById('reset-result').style.display = 'none';
+    document.getElementById('link-forgot').style.display = 'inline';
+    document.getElementById('link-back').style.display = 'none';
+}
+let _resetEmail = '';
+async function sendResetCode() {
+    const email = document.getElementById('reset-email').value.trim();
+    const err = document.getElementById('reset-error');
+    if (!email || !email.includes('@')) { err.textContent = 'Enter a valid email.'; err.style.display = 'block'; return; }
+    err.style.display = 'none';
+    try {
+        const r = await fetch(`${API}/v1/reset-key`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({email}) });
+        const d = await r.json();
+        if (r.ok) {
+            _resetEmail = email;
+            document.getElementById('reset-step-email').style.display = 'none';
+            document.getElementById('reset-step-code').style.display = 'block';
+            document.getElementById('reset-code').focus();
+        } else { err.textContent = d.detail || 'Failed'; err.style.display = 'block'; }
+    } catch(e) { err.textContent = 'Network error'; err.style.display = 'block'; }
+}
+async function verifyResetCode() {
+    const code = document.getElementById('reset-code').value.trim();
+    const err = document.getElementById('reset-error');
+    if (!code || code.length < 6) { err.textContent = 'Enter the 6-digit code.'; err.style.display = 'block'; return; }
+    err.style.display = 'none';
+    try {
+        const r = await fetch(`${API}/v1/reset-key/verify`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({email:_resetEmail, code}) });
+        const d = await r.json();
+        if (r.ok) {
+            document.getElementById('reset-step-code').style.display = 'none';
+            const res = document.getElementById('reset-result');
+            res.style.display = 'block';
+            res.innerHTML = `<strong style="color:var(--green);">New key generated!</strong><p style="margin-top:8px;font-size:13px;color:var(--text-2);">Save it — old keys are now inactive:</p><div style="margin-top:8px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:13px;word-break:break-all;">${esc(d.api_key)}</div><button onclick="navigator.clipboard.writeText('${d.api_key.replace(/'/g,"\\'")}');this.textContent='Copied!';setTimeout(()=>this.textContent='Copy Key',2000)" style="margin-top:8px;padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;width:100%;">Copy Key</button>`;
+        } else { err.textContent = d.detail || 'Invalid code'; err.style.display = 'block'; }
+    } catch(e) { err.textContent = 'Network error'; err.style.display = 'block'; }
 }
 async function tryLogin(k) {
     if(!k) return;

@@ -750,25 +750,58 @@ Be strict — only include entities that directly answer or relate to the query.
 
     @app.post("/v1/reset-key", tags=["System"])
     async def reset_key(req: ResetKeyRequest, request: Request):
-        """Reset API key and send new one to email."""
+        """Step 1: Send verification code to reset API key."""
         try:
             email = req.validated_email
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid email address")
 
-        # Rate limit reset: 3/min per IP
+        # Rate limit: 3/min per IP, 3/min per email
         client_ip = request.client.host if request.client else "unknown"
         if not _check_rate_limit(f"reset:{client_ip}", 3):
             raise HTTPException(status_code=429, detail="Too many reset attempts. Try again in 60 seconds.")
+        if not _check_rate_limit(f"reset_email:{email}", 3):
+            raise HTTPException(status_code=429, detail="Too many attempts for this email.")
+
+        # Don't reveal whether email exists — always say "code sent"
+        user_id = store.get_user_by_email(email)
+        if user_id:
+            code = f"{secrets.randbelow(900000) + 100000}"
+            store.save_email_code(email, code)
+            _send_verification_email(email, code)
+
+        return {"message": "If this email is registered, a verification code has been sent."}
+
+    @app.post("/v1/reset-key/verify", tags=["System"], response_model=SignupResponse)
+    async def verify_reset_key(req: VerifyRequest, request: Request):
+        """Step 2: Verify code and get new API key."""
+        try:
+            email = req.validated_email
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid email address")
+        code = req.code.strip()
+
+        # Rate limit: 5/min per email, 20/min per IP
+        if not _check_rate_limit(f"verify_reset:{email}", 5):
+            raise HTTPException(status_code=429, detail="Too many attempts. Try again in 60 seconds.")
+        client_ip = request.client.host if request.client else "unknown"
+        if not _check_rate_limit(f"verify_reset_ip:{client_ip}", 20):
+            raise HTTPException(status_code=429, detail="Too many attempts.")
+
+        if not store.verify_email_code(email, code):
+            raise HTTPException(status_code=400, detail="Invalid or expired code. Request a new one.")
+
         user_id = store.get_user_by_email(email)
         if not user_id:
-            # Don't reveal whether email exists
-            return {"message": "If this email is registered, a new API key has been sent."}
+            raise HTTPException(status_code=404, detail="Account not found")
 
         new_key = store.reset_api_key(user_id)
         _send_api_key_email(email, new_key, is_reset=True)
 
-        return {"message": "If this email is registered, a new API key has been sent."}
+        return SignupResponse(
+            api_key=new_key,
+            message="New API key generated. Old keys are now inactive."
+        )
 
     # ---- API Key Management ----
 
