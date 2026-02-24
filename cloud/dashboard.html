@@ -378,6 +378,7 @@
             <div style="margin-top:8px;display:flex;gap:12px;align-items:center;">
                 <div style="cursor:pointer;color:var(--text-3);font-size:11px;" onclick="openCmdPalette()">⌘K Search</div>
                 <div id="theme-toggle" style="cursor:pointer;color:var(--text-3);font-size:13px;" onclick="toggleTheme()" title="Toggle theme">🌙</div>
+                <div style="cursor:pointer;color:var(--text-3);font-size:11px;" onclick="logout()" title="Logout">Logout</div>
             </div>
         </div>
     </div>
@@ -802,10 +803,19 @@ document.addEventListener('keydown', e => {
 });
 
 document.getElementById('key-input').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+// Pre-fill saved key but don't auto-login
 const saved = localStorage.getItem('mengram_key');
-if(saved) { KEY=saved; tryLogin(saved); }
+if(saved) { document.getElementById('key-input').value = saved; }
 
 async function doLogin() { await tryLogin(document.getElementById('key-input').value.trim()); }
+function logout() {
+    KEY = '';
+    localStorage.removeItem('mengram_key');
+    document.getElementById('app').classList.remove('active');
+    document.getElementById('login-screen').style.display = '';
+    document.getElementById('key-input').value = '';
+    document.getElementById('login-error').style.display = 'none';
+}
 async function tryLogin(k) {
     if(!k) return;
     try {
