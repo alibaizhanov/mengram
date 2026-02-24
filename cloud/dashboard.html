@@ -392,6 +392,7 @@
             <div class="nav-item" onclick="switchTab('settings')"><span class="icon">⚙️</span> Settings</div>
         </div>
         <div class="sidebar-footer">
+            <div id="account-info" style="margin-bottom:8px;font-size:12px;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title=""></div>
             <a href="/">← Home</a>
             <div style="margin-top:8px;display:flex;gap:12px;align-items:center;">
                 <div style="cursor:pointer;color:var(--text-3);font-size:11px;" onclick="openCmdPalette()">⌘K Search</div>
@@ -918,7 +919,19 @@ function switchTab(t) {
     if(t==='settings') { loadWebhooks(); loadTeams(); loadKeys(); }
 }
 
-async function loadAll() { loadStats(); loadFeed(); }
+async function loadAll() { loadStats(); loadFeed(); loadAccount(); }
+async function loadAccount() {
+    try {
+        const r = await fetch(`${API}/v1/me`, { headers: {'Authorization':`Bearer ${KEY}`} });
+        if (r.ok) {
+            const d = await r.json();
+            const el = document.getElementById('account-info');
+            const plan = d.plan === 'free' ? '' : ` · <span style="color:var(--accent)">${d.plan}</span>`;
+            el.innerHTML = `${esc(d.email)}${plan}`;
+            el.title = d.email;
+        }
+    } catch(e) {}
+}
 
 // ---- Agents ----
 let agentRunning = false;

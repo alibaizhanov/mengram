@@ -689,6 +689,19 @@ Be strict — only include entities that directly answer or relate to the query.
             media_type="application/zip"
         )
 
+    @app.get("/v1/me", tags=["System"])
+    async def me(ctx: AuthContext = Depends(auth)):
+        """Current account info."""
+        user_id = ctx.user_id
+        email = store.get_user_email(user_id)
+        sub = store.get_subscription(user_id)
+        plan = sub.get("plan", "free") if sub else "free"
+        return {
+            "email": email,
+            "plan": plan,
+            "user_id": user_id,
+        }
+
     @app.post("/v1/signup", tags=["System"])
     async def signup(req: SignupRequest, request: Request):
         """Step 1: Send verification code to email."""

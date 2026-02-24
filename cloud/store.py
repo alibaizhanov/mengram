@@ -972,6 +972,13 @@ class CloudStore:
             row = cur.fetchone()
             return str(row[0]) if row else None
 
+    def get_user_email(self, user_id: str) -> Optional[str]:
+        """Get email by user_id."""
+        with self._cursor() as cur:
+            cur.execute("SELECT email FROM users WHERE id = %s", (user_id,))
+            row = cur.fetchone()
+            return row[0] if row else None
+
     def create_api_key(self, user_id: str, name: str = "default") -> str:
         """Generate API key, store hash, return raw key."""
         raw_key = f"om-{secrets.token_urlsafe(32)}"
