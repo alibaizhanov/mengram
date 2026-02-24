@@ -417,7 +417,7 @@ Be strict — only include entities that directly answer or relate to the query.
             return  # unlimited
         current = store.get_usage_count(ctx.user_id, action)
         if current >= max_allowed:
-            _raise_quota_error(action, max_allowed, current, ctx.plan)
+            _raise_quota_error(action, max_allowed, current, ctx.plan, ctx.user_id)
 
     def use_quota(ctx: AuthContext, action: str, count: int = 1):
         """Atomically check quota AND increment usage in one operation.
@@ -431,6 +431,14 @@ Be strict — only include entities that directly answer or relate to the query.
             return
         plan_quotas = PLAN_QUOTAS.get(ctx.plan, PLAN_QUOTAS["free"])
         max_allowed = plan_quotas.get(quota_key, 0)
+        if max_allowed == -1:
+            return  # unlimited
+        # Fast reject: if already blocked this period, skip DB entirely
+        block_key = f"{ctx.user_id}:{action}"
+        period = str(datetime.date.today().replace(day=1))
+        if _quota_blocked.get(block_key) == period:
+            logger.info(f"🚫 BLOCKED {action} | user={ctx.user_id[:8]} | plan={ctx.plan} (cached)")
+            _raise_quota_error(action, max_allowed, max_allowed, ctx.plan, ctx.user_id)
         try:
             store.check_and_increment(ctx.user_id, action, max_allowed, count)
         except ValueError as e:
@@ -438,10 +446,17 @@ Be strict — only include entities that directly answer or relate to the query.
             if parts[0] == "quota_exceeded":
                 current = int(parts[2]) if len(parts) > 2 else 0
                 limit = int(parts[3]) if len(parts) > 3 else max_allowed
-                _raise_quota_error(action, limit, current, ctx.plan)
+                _raise_quota_error(action, limit, current, ctx.plan, ctx.user_id)
             raise
 
-    def _raise_quota_error(action, max_allowed, current, plan):
+    # In-memory set of blocked user:action pairs (reset on restart / period change)
+    _quota_blocked: dict[str, str] = {}  # "user_id:action" -> period_start
+
+    def _raise_quota_error(action, max_allowed, current, plan, user_id=None):
+        if user_id:
+            period = str(datetime.date.today().replace(day=1))
+            _quota_blocked[f"{user_id}:{action}"] = period
+            logger.warning(f"🚫 QUOTA {action} | user={user_id[:8]} | {current}/{max_allowed} | plan={plan}")
         raise HTTPException(
             status_code=402,
             detail={
