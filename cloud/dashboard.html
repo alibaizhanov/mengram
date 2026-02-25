@@ -78,8 +78,13 @@
         .nav-item:hover { background: var(--bg-elevated); color: var(--text); }
         .nav-item.active { background: var(--accent-dim); color: var(--accent); }
         .nav-item .icon { font-size: 16px; width: 20px; text-align: center; }
-        .sidebar-footer { padding: 12px 20px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-3); }
-        .sidebar-footer a { color: var(--text-2); text-decoration: none; }
+        .sidebar-account { padding: 12px 16px; border-top: 1px solid var(--border); }
+        .sidebar-account .account-email { font-size: 13px; color: var(--text); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .sidebar-account .account-plan { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+        .sidebar-account .account-plan span { color: var(--accent); font-weight: 600; }
+        .sidebar-actions { padding: 8px 16px 12px; display: flex; align-items: center; gap: 12px; font-size: 11px; color: var(--text-3); }
+        .sidebar-actions a, .sidebar-actions div { color: var(--text-3); text-decoration: none; cursor: pointer; transition: color 0.15s; }
+        .sidebar-actions a:hover, .sidebar-actions div:hover { color: var(--text); }
 
         .main { flex: 1; margin-left: 220px; padding: 28px 32px; overflow-y: auto; }
 
@@ -391,14 +396,15 @@
             <div class="nav-item" onclick="switchTab('billing')"><span class="icon">💳</span> Billing</div>
             <div class="nav-item" onclick="switchTab('settings')"><span class="icon">⚙️</span> Settings</div>
         </div>
-        <div class="sidebar-footer">
-            <div id="account-info" style="margin-bottom:8px;font-size:12px;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title=""></div>
-            <a href="/">← Home</a>
-            <div style="margin-top:8px;display:flex;gap:12px;align-items:center;">
-                <div style="cursor:pointer;color:var(--text-3);font-size:11px;" onclick="openCmdPalette()">⌘K Search</div>
-                <div id="theme-toggle" style="cursor:pointer;color:var(--text-3);font-size:13px;" onclick="toggleTheme()" title="Toggle theme">🌙</div>
-                <div style="cursor:pointer;color:var(--text-3);font-size:11px;" onclick="logout()" title="Logout">Logout</div>
-            </div>
+        <div class="sidebar-account" id="sidebar-account" style="display:none;">
+            <div class="account-email" id="account-email"></div>
+            <div class="account-plan" id="account-plan"></div>
+        </div>
+        <div class="sidebar-actions">
+            <a href="/">Home</a>
+            <div onclick="openCmdPalette()">⌘K</div>
+            <div id="theme-toggle" onclick="toggleTheme()" title="Toggle theme" style="font-size:13px;">🌙</div>
+            <div onclick="logout()">Logout</div>
         </div>
     </div>
 
@@ -925,10 +931,12 @@ async function loadAccount() {
         const r = await fetch(`${API}/v1/me`, { headers: {'Authorization':`Bearer ${KEY}`} });
         if (r.ok) {
             const d = await r.json();
-            const el = document.getElementById('account-info');
-            const plan = d.plan === 'free' ? '' : ` · <span style="color:var(--accent)">${d.plan}</span>`;
-            el.innerHTML = `${esc(d.email)}${plan}`;
-            el.title = d.email;
+            document.getElementById('account-email').textContent = d.email;
+            document.getElementById('account-email').title = d.email;
+            const planEl = document.getElementById('account-plan');
+            const planLabel = d.plan.charAt(0).toUpperCase() + d.plan.slice(1);
+            planEl.innerHTML = d.plan === 'free' ? 'Free plan' : `<span>${planLabel}</span> plan`;
+            document.getElementById('sidebar-account').style.display = 'block';
         }
     } catch(e) {}
 }
