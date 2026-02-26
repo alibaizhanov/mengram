@@ -61,18 +61,18 @@
             z-index: 9999;
         }
 
-        /* Ambient glow */
-        .glow-orb {
+        /* Grid pattern background */
+        body::after {
+            content: '';
             position: fixed;
-            width: 600px; height: 600px;
-            border-radius: 50%;
-            filter: blur(120px);
-            opacity: 0.07;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(168, 85, 247, 0.06) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(168, 85, 247, 0.06) 1px, transparent 1px);
+            background-size: 60px 60px;
             pointer-events: none;
             z-index: 0;
         }
-        .glow-orb.purple { background: #a855f7; top: -200px; right: -100px; }
-        .glow-orb.blue { background: #3b82f6; bottom: -200px; left: -100px; }
 
         .container {
             max-width: 1080px;
@@ -156,6 +156,19 @@
         .hero {
             text-align: center;
             padding: 100px 0 60px;
+            position: relative;
+        }
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: -100px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 800px;
+            height: 600px;
+            background: radial-gradient(ellipse, rgba(168, 85, 247, 0.08) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: -1;
         }
         .hero-badge {
             display: inline-flex;
@@ -773,14 +786,137 @@
         }
         .cl-more a:hover { color: var(--text-2); }
 
-        /* ---- Animations ---- */
-        .anim { opacity: 0; transform: translateY(16px); animation: fadeUp 0.6s ease forwards; }
-        .d1 { animation-delay: 0.1s; }
-        .d2 { animation-delay: 0.2s; }
-        .d3 { animation-delay: 0.3s; }
-        .d4 { animation-delay: 0.4s; }
-        @keyframes fadeUp {
-            to { opacity: 1; transform: translateY(0); }
+        /* ---- Hero Terminal ---- */
+        .terminal {
+            max-width: 600px;
+            margin: 32px auto 0;
+            background: #0d0d18;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            overflow: hidden;
+            text-align: left;
+        }
+        .terminal-header {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 14px;
+            background: #111120;
+            border-bottom: 1px solid var(--border);
+        }
+        .terminal-dot { width: 10px; height: 10px; border-radius: 50%; }
+        .terminal-dot.red { background: #ff5f57; }
+        .terminal-dot.yellow { background: #febc2e; }
+        .terminal-dot.green { background: #28c840; }
+        .terminal-title {
+            flex: 1;
+            text-align: center;
+            font-size: 11px;
+            color: var(--text-3);
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .terminal-body {
+            padding: 16px 18px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            line-height: 1.7;
+            min-height: 220px;
+            color: var(--text-2);
+        }
+        .terminal-body .t-prompt { color: var(--text-3); }
+        .terminal-body .t-kw { color: var(--accent); }
+        .terminal-body .t-fn { color: var(--blue); }
+        .terminal-body .t-str { color: var(--green); }
+        .terminal-body .t-ok { color: var(--green); }
+        .terminal-body .t-result { color: var(--blue); }
+        .terminal-line { opacity: 0; white-space: pre; }
+        .terminal-line.visible { opacity: 1; }
+        .terminal-cursor {
+            display: inline-block;
+            width: 8px;
+            height: 15px;
+            background: var(--accent);
+            vertical-align: text-bottom;
+            animation: cursorBlink 1s step-end infinite;
+        }
+        @keyframes cursorBlink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+        @media (max-width: 768px) {
+            .terminal-body { font-size: 11px; min-height: 180px; padding: 12px 14px; }
+        }
+
+        /* ---- Gradient-Border Cards ---- */
+        @property --gradient-angle {
+            syntax: "<angle>";
+            initial-value: 0deg;
+            inherits: false;
+        }
+        .feat-card-gradient {
+            position: relative;
+            border-color: transparent !important;
+            box-shadow: none !important;
+            overflow: visible;
+        }
+        .feat-card-gradient::before {
+            content: '';
+            position: absolute;
+            inset: -1px;
+            border-radius: inherit;
+            padding: 1px;
+            background: conic-gradient(
+                from var(--gradient-angle),
+                var(--accent), #7c3aed, var(--blue), var(--green), var(--accent)
+            );
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            animation: rotateGradient 6s linear infinite;
+            pointer-events: none;
+        }
+        @keyframes rotateGradient {
+            to { --gradient-angle: 360deg; }
+        }
+        .feat-badge-unique {
+            display: inline-block;
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            padding: 3px 10px;
+            border-radius: 20px;
+            background: linear-gradient(135deg, var(--accent), #7c3aed);
+            color: #fff;
+            margin-bottom: 8px;
+        }
+
+        /* ---- Scroll Animations ---- */
+        .reveal {
+            opacity: 0;
+            transform: translateY(24px);
+            transition: opacity 0.6s ease, transform 0.6s ease;
+        }
+        .reveal.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .stagger > .reveal:nth-child(1) { transition-delay: 0s; }
+        .stagger > .reveal:nth-child(2) { transition-delay: 0.1s; }
+        .stagger > .reveal:nth-child(3) { transition-delay: 0.15s; }
+        .stagger > .reveal:nth-child(4) { transition-delay: 0.2s; }
+        .stagger > .reveal:nth-child(5) { transition-delay: 0.25s; }
+        .stagger > .reveal:nth-child(6) { transition-delay: 0.3s; }
+        .stagger > .reveal:nth-child(7) { transition-delay: 0.35s; }
+        .stagger > .reveal:nth-child(8) { transition-delay: 0.4s; }
+        .stagger > .reveal:nth-child(9) { transition-delay: 0.45s; }
+        .stagger > .reveal:nth-child(10) { transition-delay: 0.5s; }
+        .stagger > .reveal:nth-child(11) { transition-delay: 0.55s; }
+        .stagger > .reveal:nth-child(12) { transition-delay: 0.6s; }
+        .stagger > .reveal:nth-child(13) { transition-delay: 0.65s; }
+        .stagger > .reveal:nth-child(14) { transition-delay: 0.7s; }
+        @media (prefers-reduced-motion: reduce) {
+            .reveal { opacity: 1; transform: none; transition: none; }
         }
 
         /* ---- Responsive ---- */
@@ -796,13 +932,10 @@
     </style>
 </head>
 <body>
-    <div class="glow-orb purple"></div>
-    <div class="glow-orb blue"></div>
-
     <div class="container">
 
         <!-- Nav -->
-        <nav class="anim">
+        <nav class="reveal">
             <div class="logo">
                 <svg width="24" height="24" viewBox="0 0 120 120" style="vertical-align:middle;margin-right:2px;">
                     <defs><linearGradient id="nav-eg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#c084fc"/><stop offset="100%" stop-color="#7c3aed"/></linearGradient></defs>
@@ -824,20 +957,30 @@
 
         <!-- Hero -->
         <section class="hero">
-            <div class="hero-badge anim">
+            <div class="hero-badge reveal">
                 <span class="pulse"></span>
                 Open Source · 3 Memory Types · Cognitive Profile · Agents · Python & JS SDK · Free
             </div>
-            <h1 class="anim d1">Memory like a<br>human brain.</h1>
-            <p class="anim d2">The only AI memory API with human-like architecture: semantic, episodic, and procedural memory. Your AI remembers facts, events, and learned workflows. Replace your RAG pipeline with one API call.</p>
-            <div class="hero-cta anim d3">
+            <h1 class="reveal" style="transition-delay:0.1s">Memory like a<br>human brain.</h1>
+            <p class="reveal" style="transition-delay:0.2s">The only AI memory API with human-like architecture: semantic, episodic, and procedural memory. Your AI remembers facts, events, and learned workflows. Replace your RAG pipeline with one API call.</p>
+            <div class="terminal reveal" style="transition-delay:0.3s">
+                <div class="terminal-header">
+                    <span class="terminal-dot red"></span>
+                    <span class="terminal-dot yellow"></span>
+                    <span class="terminal-dot green"></span>
+                    <span class="terminal-title">mengram-demo</span>
+                    <span style="width:36px"></span>
+                </div>
+                <div class="terminal-body" id="terminal-body"></div>
+            </div>
+            <div class="hero-cta reveal" style="transition-delay:0.4s">
                 <a href="#install" class="btn btn-primary">⚡ Get Started Free</a>
                 <a href="https://github.com/alibaizhanov/mengram" class="btn btn-secondary">GitHub →</a>
             </div>
         </section>
 
         <!-- Works with -->
-        <div class="platforms anim d4">
+        <div class="platforms reveal" style="transition-delay:0.5s">
             Works with
             <div class="platforms-icons">
                 <span><svg viewBox="0 0 24 24"><path d="M17.3041 3.541h-3.6718l6.696 16.918H24Zm-10.6082 0L0 20.459h3.7442l1.3693-3.5527h7.0052l1.3693 3.5528h3.7442L10.5363 3.5409Zm-.3712 10.2232 2.2914-5.9456 2.2914 5.9456Z"/></svg> Claude</span>
@@ -853,19 +996,19 @@
 
         <!-- How it works -->
         <section class="how-section" id="how">
-            <h2>How it works</h2>
-            <div class="how-grid">
-                <div class="how-card">
+            <h2 class="reveal">How it works</h2>
+            <div class="how-grid stagger">
+                <div class="how-card reveal">
                     <div class="how-num n1">1</div>
                     <h3>You chat with any AI</h3>
                     <p>Use ChatGPT, Claude Desktop, Cursor, Perplexity — any AI you prefer. Mengram connects via MCP or API.</p>
                 </div>
-                <div class="how-card">
+                <div class="how-card reveal">
                     <div class="how-num n2">2</div>
                     <h3>Mengram extracts 3 memory types</h3>
                     <p><strong>Semantic</strong> — facts, preferences, skills. <strong>Episodic</strong> — events, discussions, decisions. <strong>Procedural</strong> — workflows, processes, habits.</p>
                 </div>
-                <div class="how-card">
+                <div class="how-card reveal">
                     <div class="how-num n3">3</div>
                     <h3>Every AI knows you deeply</h3>
                     <p>One API call returns a Cognitive Profile — a ready-to-use system prompt from all 3 memory types. Zero effort personalization.</p>
@@ -875,8 +1018,8 @@
 
         <!-- Install -->
         <section class="install-section" id="install">
-            <h2>Get started in 60 seconds</h2>
-            <p>Connect Mengram to your AI tools via MCP, Python, or JavaScript SDK.</p>
+            <h2 class="reveal">Get started in 60 seconds</h2>
+            <p class="reveal">Connect Mengram to your AI tools via MCP, Python, or JavaScript SDK.</p>
 
             <div class="install-tabs">
                 <button class="install-tab active" onclick="showInstall('claude')">🟣 Claude Desktop / MCP</button>
@@ -1175,75 +1318,79 @@ crew = Crew(agents=[agent], tasks=[...])</pre>
             </div>
         </section>
         <section class="features-section" id="features">
-            <h2>What makes Mengram different</h2>
-            <p>Others store facts. Mengram remembers like a human brain.</p>
-            <div class="features-grid">
-                <div class="feat-card" style="border-color: var(--accent); box-shadow: 0 0 20px var(--accent-dim);">
+            <h2 class="reveal">What makes Mengram different</h2>
+            <p class="reveal">Others store facts. Mengram remembers like a human brain.</p>
+            <div class="features-grid stagger">
+                <div class="feat-card feat-card-gradient reveal">
+                    <span class="feat-badge-unique">Only in Mengram</span>
                     <div class="feat-icon">🧠</div>
                     <h3>3 Memory Types</h3>
                     <p><strong>Semantic</strong> — facts & preferences. <strong>Episodic</strong> — events & decisions. <strong>Procedural</strong> — learned workflows. Just like a human brain. No competitor has this.</p>
                 </div>
-                <div class="feat-card" style="border-color: var(--accent); box-shadow: 0 0 20px var(--accent-dim);">
+                <div class="feat-card feat-card-gradient reveal">
+                    <span class="feat-badge-unique">Only in Mengram</span>
                     <div class="feat-icon">👤</div>
                     <h3>Cognitive Profile</h3>
                     <p>One API call generates a ready-to-use system prompt from all memories. Insert into any LLM for instant personalization. Replace RAG with a single endpoint.</p>
                 </div>
-                <div class="feat-card">
+                <div class="feat-card reveal">
                     <div class="feat-icon">🤖</div>
                     <h3>Memory Agents</h3>
                     <p>Curator cleans contradictions. Connector finds hidden patterns. Digest gives weekly briefs. Runs autonomously.</p>
                 </div>
-                <div class="feat-card">
+                <div class="feat-card reveal">
                     <div class="feat-icon">🔍</div>
                     <h3>Unified Search</h3>
                     <p>Search across all 3 memory types at once. Vector + BM25 + graph expansion + LLM re-ranking. One call returns facts, events, and workflows.</p>
                 </div>
-                <div class="feat-card">
+                <div class="feat-card reveal">
                     <div class="feat-icon">⚙️</div>
                     <h3>Procedure Feedback</h3>
                     <p>Your AI learns which workflows succeed. Track success/fail counts per procedure. Proven patterns surface first.</p>
                 </div>
-                <div class="feat-card" style="border-color: var(--green); box-shadow: 0 0 20px rgba(52,211,153,0.15);">
+                <div class="feat-card reveal" style="border-color: var(--green); box-shadow: 0 0 20px rgba(52,211,153,0.15);">
                     <div class="feat-icon">👥</div>
                     <h3>Multi-User Isolation</h3>
                     <p>One API key, many users. Pass <code>user_id</code> to scope memories per end-user. Each user gets their own isolated facts, events, workflows, and cognitive profile.</p>
                 </div>
-                <div class="feat-card">
+                <div class="feat-card reveal">
                     <div class="feat-icon">🤝</div>
                     <h3>Team Memory</h3>
                     <p>Share knowledge with your team. Everyone's AI sees the shared context. Invite code to join — 10 seconds.</p>
                 </div>
-                <div class="feat-card">
+                <div class="feat-card reveal">
                     <div class="feat-icon">🔔</div>
                     <h3>Webhooks</h3>
                     <p>Get notified when memories change. Connect to Slack, Zapier, Notion — any HTTP endpoint.</p>
                 </div>
-                <div class="feat-card">
+                <div class="feat-card reveal">
                     <div class="feat-icon">🕸️</div>
                     <h3>Knowledge Graph</h3>
                     <p>Entities, relations, facts — not just text. "Ali works_at Uzum Bank", not "the user mentioned a bank".</p>
                 </div>
-                <div class="feat-card">
+                <div class="feat-card reveal">
                     <div class="feat-icon">✨</div>
                     <h3>AI Reflections</h3>
                     <p>Generates insights from your facts — behavioral patterns, skill clusters, strategic observations.</p>
                 </div>
-                <div class="feat-card">
+                <div class="feat-card reveal">
                     <div class="feat-icon">🦜</div>
                     <h3>LangChain, CrewAI & OpenClaw</h3>
                     <p>Drop-in integrations everywhere. LangChain memory, CrewAI tools, OpenClaw plugin with auto-recall/capture hooks — one install to add 3 memory types to any framework.</p>
                 </div>
-                <div class="feat-card" style="border-color: var(--accent); box-shadow: 0 0 20px var(--accent-dim);">
+                <div class="feat-card feat-card-gradient reveal">
+                    <span class="feat-badge-unique">Only in Mengram</span>
                     <div class="feat-icon">⚡</div>
                     <h3>Smart Triggers</h3>
                     <p>Memory that raises its hand. Reminders from conversations, contradiction alerts, workflow pattern detection. Your AI proactively tells you what it remembers.</p>
                 </div>
-                <div class="feat-card" style="border-color: var(--green); box-shadow: 0 0 20px rgba(52,211,153,0.15);">
+                <div class="feat-card reveal" style="border-color: var(--green); box-shadow: 0 0 20px rgba(52,211,153,0.15);">
                     <div class="feat-icon">📥</div>
                     <h3>Import Existing Data</h3>
                     <p>One command to import ChatGPT exports, Obsidian vaults, or text files. No cold start — your memory is useful from day 1. CLI + Python + JS SDK.</p>
                 </div>
-                <div class="feat-card" style="border-color: var(--green); box-shadow: 0 0 20px rgba(52,211,153,0.15);">
+                <div class="feat-card feat-card-gradient reveal">
+                    <span class="feat-badge-unique">Only in Mengram</span>
                     <div class="feat-icon">🧬</div>
                     <h3>Experience-Driven Procedures</h3>
                     <p>Self-improving workflows. Failures auto-evolve procedures to new versions. 3+ similar successes auto-create new workflows. Version history + evolution log.</p>
@@ -1257,7 +1404,7 @@ crew = Crew(agents=[agent], tasks=[...])</pre>
             <p>Clone, set API key, run in 5 minutes. See Mengram in action.</p>
             <div class="features-grid" style="grid-template-columns: repeat(3, 1fr); margin-top: 30px;">
                 <a href="https://github.com/alibaizhanov/mengram/tree/main/examples/devops-agent" target="_blank" style="text-decoration:none;">
-                    <div class="feat-card" style="cursor:pointer; border-color: var(--green); box-shadow: 0 0 20px rgba(52,211,153,0.15);">
+                    <div class="feat-card reveal" style="cursor:pointer; border-color: var(--green); box-shadow: 0 0 20px rgba(52,211,153,0.15);">
                         <div class="feat-icon">🚀</div>
                         <h3>DevOps Agent</h3>
                         <p><strong>CloudMemory SDK</strong> — Learns deployment procedures from conversations. Reports failure → procedure auto-evolves. Version history tracks improvements.</p>
@@ -1265,7 +1412,7 @@ crew = Crew(agents=[agent], tasks=[...])</pre>
                     </div>
                 </a>
                 <a href="https://github.com/alibaizhanov/mengram/tree/main/examples/customer-support-agent" target="_blank" style="text-decoration:none;">
-                    <div class="feat-card" style="cursor:pointer;">
+                    <div class="feat-card reveal" style="cursor:pointer;">
                         <div class="feat-icon">💬</div>
                         <h3>Customer Support</h3>
                         <p><strong>CrewAI + Mengram</strong> — 5 memory tools. Agent searches history, loads cognitive profile, saves new info. Run twice to see "returning customer" effect.</p>
@@ -1273,7 +1420,7 @@ crew = Crew(agents=[agent], tasks=[...])</pre>
                     </div>
                 </a>
                 <a href="https://github.com/alibaizhanov/mengram/tree/main/examples/personal-assistant" target="_blank" style="text-decoration:none;">
-                    <div class="feat-card" style="cursor:pointer;">
+                    <div class="feat-card reveal" style="cursor:pointer;">
                         <div class="feat-icon">🧑‍💼</div>
                         <h3>Personal Assistant</h3>
                         <p><strong>LangChain + Mengram</strong> — Cognitive profile as system prompt, retriever for RAG, auto-saving history. Gets smarter with every conversation.</p>
@@ -1285,8 +1432,8 @@ crew = Crew(agents=[agent], tasks=[...])</pre>
 
         <!-- Comparison -->
         <section class="features-section" style="padding-top: 0;">
-            <h2>Mengram vs Mem0 vs Supermemory</h2>
-            <p>Others store facts. Mengram remembers experiences and learns workflows.</p>
+            <h2 class="reveal">Mengram vs Mem0 vs Supermemory</h2>
+            <p class="reveal">Others store facts. Mengram remembers experiences and learns workflows.</p>
             <div style="max-width: 820px; margin: 30px auto 0; overflow-x: auto;">
                 <table style="width:100%;border-collapse:collapse;font-size:14px;">
                     <thead>
@@ -1425,11 +1572,11 @@ crew = Crew(agents=[agent], tasks=[...])</pre>
 
         <!-- Pricing -->
         <section class="pricing-section" id="pricing">
-            <h2>Simple, predictable pricing</h2>
-            <p>Start free. Upgrade when you need more.</p>
-            <div class="pricing-grid">
+            <h2 class="reveal">Simple, predictable pricing</h2>
+            <p class="reveal">Start free. Upgrade when you need more.</p>
+            <div class="pricing-grid stagger">
                 <!-- Free -->
-                <div class="price-card">
+                <div class="price-card reveal">
                     <h3>Free</h3>
                     <div class="price-amount">$0</div>
                     <div class="price-desc">For personal projects and getting started.</div>
@@ -1444,7 +1591,7 @@ crew = Crew(agents=[agent], tasks=[...])</pre>
                     <a href="#signup" class="price-btn">Get started free</a>
                 </div>
                 <!-- Pro -->
-                <div class="price-card featured">
+                <div class="price-card featured reveal">
                     <div class="price-badge">Most Popular</div>
                     <h3>Pro</h3>
                     <div class="price-amount">$19 <span>/ month</span></div>
@@ -1462,7 +1609,7 @@ crew = Crew(agents=[agent], tasks=[...])</pre>
                     <a href="/dashboard" class="price-btn primary">Upgrade to Pro</a>
                 </div>
                 <!-- Business -->
-                <div class="price-card">
+                <div class="price-card reveal">
                     <h3>Business</h3>
                     <div class="price-amount">$99 <span>/ month</span></div>
                     <div class="price-desc">For teams and high-volume applications.</div>
@@ -1483,8 +1630,8 @@ crew = Crew(agents=[agent], tasks=[...])</pre>
 
         <!-- Changelog -->
         <section class="changelog-section" id="changelog">
-            <h2>What's New</h2>
-            <p>Mengram ships improvements every week. Here's what's latest.</p>
+            <h2 class="reveal">What's New</h2>
+            <p class="reveal">Mengram ships improvements every week. Here's what's latest.</p>
             <div class="changelog-list" id="changelog-list"></div>
             <div class="cl-more">
                 <a href="https://github.com/alibaizhanov/mengram/commits/main">View full history on GitHub &rarr;</a>
@@ -1493,7 +1640,7 @@ crew = Crew(agents=[agent], tasks=[...])</pre>
 
         <!-- Signup -->
         <section class="signup-section" id="signup">
-            <div class="signup-box">
+            <div class="signup-box reveal">
                 <h2>Get your free API key</h2>
                 <p>No credit card. Start in 30 seconds.</p>
                 <a href="/auth/github" class="signup-btn" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;margin-bottom:12px;background:#24292f;">
@@ -1542,6 +1689,102 @@ crew = Crew(agents=[agent], tasks=[...])</pre>
 
     <script>
         const API_URL = "https://mengram.io";
+
+        // ---- Scroll Reveal (Intersection Observer) ----
+        (function initScrollReveal() {
+            var observer = new IntersectionObserver(function(entries) {
+                entries.forEach(function(entry) {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('visible');
+                        observer.unobserve(entry.target);
+                    }
+                });
+            }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+            document.querySelectorAll('.reveal').forEach(function(el) {
+                observer.observe(el);
+            });
+        })();
+
+        // ---- Hero Terminal Typewriter ----
+        (function initTerminal() {
+            var body = document.getElementById('terminal-body');
+            if (!body) return;
+            // Check reduced motion preference
+            if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                body.innerHTML =
+                    '<span class="t-prompt">$ </span>pip install mengram-ai\n' +
+                    '<span class="t-ok">✓ Successfully installed mengram-ai</span>\n\n' +
+                    '<span class="t-prompt">>>> </span><span class="t-kw">from</span> mengram <span class="t-kw">import</span> Mengram\n' +
+                    '<span class="t-prompt">>>> </span>m = <span class="t-fn">Mengram</span>(<span class="t-str">"om-..."</span>)\n' +
+                    '<span class="t-prompt">>>> </span>m.<span class="t-fn">add</span>(<span class="t-str">"Ali is a developer in Almaty"</span>)\n' +
+                    '<span class="t-ok">✓ extracted: 1 entity, 2 facts</span>\n\n' +
+                    '<span class="t-prompt">>>> </span>m.<span class="t-fn">search</span>(<span class="t-str">"where does Ali live?"</span>)\n' +
+                    '<span class="t-result">→ Ali: based in Almaty, Kazakhstan</span>';
+                return;
+            }
+            var lines = [
+                { type: 'type', text: '$ pip install mengram-ai', delay: 600 },
+                { type: 'fade', html: '<span class="t-ok">✓ Successfully installed mengram-ai</span>', delay: 400 },
+                { type: 'blank', delay: 300 },
+                { type: 'type', text: '>>> from mengram import Mengram', markup: '<span class="t-prompt">>>> </span><span class="t-kw">from</span> mengram <span class="t-kw">import</span> Mengram', delay: 300 },
+                { type: 'type', text: '>>> m = Mengram("om-...")', markup: '<span class="t-prompt">>>> </span>m = <span class="t-fn">Mengram</span>(<span class="t-str">"om-..."</span>)', delay: 300 },
+                { type: 'type', text: '>>> m.add("Ali is a developer in Almaty")', markup: '<span class="t-prompt">>>> </span>m.<span class="t-fn">add</span>(<span class="t-str">"Ali is a developer in Almaty"</span>)', delay: 300 },
+                { type: 'fade', html: '<span class="t-ok">✓ extracted: 1 entity, 2 facts</span>', delay: 400 },
+                { type: 'blank', delay: 300 },
+                { type: 'type', text: '>>> m.search("where does Ali live?")', markup: '<span class="t-prompt">>>> </span>m.<span class="t-fn">search</span>(<span class="t-str">"where does Ali live?"</span>)', delay: 300 },
+                { type: 'fade', html: '<span class="t-result">→ Ali: based in Almaty, Kazakhstan</span>', delay: 0 },
+            ];
+            var charDelay = 30;
+            var startDelay = 1200;
+
+            function typeText(el, text, markup, cb) {
+                var i = 0;
+                el.innerHTML = '';
+                var cursor = document.createElement('span');
+                cursor.className = 'terminal-cursor';
+                el.appendChild(cursor);
+                function next() {
+                    if (i < text.length) {
+                        cursor.insertAdjacentText('beforebegin', text[i]);
+                        i++;
+                        setTimeout(next, charDelay);
+                    } else {
+                        // Replace with markup version for syntax highlighting
+                        if (markup) el.innerHTML = markup;
+                        else el.removeChild(cursor);
+                        el.classList.add('visible');
+                        cb();
+                    }
+                }
+                el.classList.add('visible');
+                next();
+            }
+
+            function runSequence(idx) {
+                if (idx >= lines.length) return;
+                var line = lines[idx];
+                var el = document.createElement('div');
+                el.className = 'terminal-line';
+                body.appendChild(el);
+                if (line.type === 'blank') {
+                    el.innerHTML = '&nbsp;';
+                    el.classList.add('visible');
+                    setTimeout(function() { runSequence(idx + 1); }, line.delay);
+                } else if (line.type === 'fade') {
+                    el.innerHTML = line.html;
+                    setTimeout(function() {
+                        el.classList.add('visible');
+                        setTimeout(function() { runSequence(idx + 1); }, line.delay);
+                    }, 200);
+                } else if (line.type === 'type') {
+                    typeText(el, line.text, line.markup, function() {
+                        setTimeout(function() { runSequence(idx + 1); }, line.delay);
+                    });
+                }
+            }
+
+            setTimeout(function() { runSequence(0); }, startDelay);
+        })();
 
         // ---- Changelog entries ----
         // To add a new entry: just add an object to the top of this array.
