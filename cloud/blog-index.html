@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mengram Blog — AI Memory Guides, Tutorials & Comparisons</title>
+    <meta name="description" content="Learn about AI memory for LLMs and AI agents. Guides on semantic, episodic, and procedural memory, MCP servers, framework integrations, and more.">
+    <meta name="keywords" content="AI memory blog, LLM memory tutorials, AI agent memory guides, Mengram blog, MCP server guides">
+    <meta name="author" content="Ali Baizhanov">
+    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
+    <link rel="canonical" href="https://mengram.io/blog">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://mengram.io/blog">
+    <meta property="og:title" content="Mengram Blog — AI Memory Guides & Tutorials">
+    <meta property="og:description" content="Learn about AI memory for LLMs and AI agents. Guides, tutorials, and comparisons.">
+    <meta property="og:site_name" content="Mengram">
+    <meta property="og:image" content="https://opengraph.githubassets.com/1/alibaizhanov/mengram">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Mengram Blog — AI Memory Guides & Tutorials">
+    <meta name="twitter:description" content="Learn about AI memory for LLMs and AI agents. Guides, tutorials, and comparisons.">
+    <meta name="twitter:image" content="https://opengraph.githubassets.com/1/alibaizhanov/mengram">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Cpath d='M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68' fill='none' stroke='%23a855f7' stroke-width='10' stroke-linecap='round'/%3E%3Ccircle cx='62' cy='68' r='10' fill='%23a855f7'/%3E%3Ccircle cx='62' cy='68' r='4.5' fill='%23fff'/%3E%3C/svg%3E">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Sora:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #05050a;
+            --bg-card: #0a0a14;
+            --bg-elevated: #0f0f1a;
+            --border: #1a1a2e;
+            --border-hover: #2a2a44;
+            --text: #e8e8f0;
+            --text-2: #9898b0;
+            --text-3: #5a5a78;
+            --accent: #a855f7;
+            --accent-dim: rgba(168, 85, 247, 0.12);
+            --accent-glow: rgba(168, 85, 247, 0.25);
+            --green: #34d399;
+            --green-dim: rgba(52, 211, 153, 0.1);
+            --blue: #60a5fa;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Sora', sans-serif;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 9999;
+        }
+
+        .glow-orb {
+            position: fixed;
+            width: 600px; height: 600px;
+            border-radius: 50%;
+            filter: blur(120px);
+            opacity: 0.07;
+            pointer-events: none;
+            z-index: 0;
+        }
+        .glow-orb.purple { background: #a855f7; top: -200px; right: -100px; }
+        .glow-orb.blue { background: #3b82f6; bottom: -200px; left: -100px; }
+
+        .container {
+            max-width: 820px;
+            margin: 0 auto;
+            padding: 0 24px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Nav */
+        nav {
+            padding: 20px 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .logo {
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text);
+            text-decoration: none;
+        }
+        .nav-links { display: flex; gap: 28px; align-items: center; }
+        .nav-links a {
+            color: var(--text-2);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 400;
+            transition: color 0.2s;
+        }
+        .nav-links a:hover { color: var(--text); }
+        .nav-links a.active { color: var(--accent); }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 24px;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s;
+            cursor: pointer;
+            border: none;
+            font-family: 'Sora', sans-serif;
+        }
+        .btn-ghost {
+            background: var(--accent-dim);
+            color: var(--accent);
+            border: 1px solid rgba(168, 85, 247, 0.2);
+        }
+        .btn-ghost:hover {
+            background: rgba(168, 85, 247, 0.18);
+            border-color: rgba(168, 85, 247, 0.4);
+        }
+
+        /* Hero */
+        .page-header {
+            text-align: center;
+            padding: 60px 0 40px;
+        }
+        .page-header h1 {
+            font-size: clamp(32px, 5vw, 48px);
+            font-weight: 800;
+            line-height: 1.1;
+            letter-spacing: -2px;
+            margin-bottom: 12px;
+            background: linear-gradient(135deg, #fff 0%, #c4b5fd 50%, #a855f7 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .page-header p {
+            font-size: 16px;
+            color: var(--text-2);
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        /* Posts grid */
+        .posts-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 16px;
+            padding-bottom: 60px;
+        }
+        .post-card {
+            display: block;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 28px;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+        .post-card:hover {
+            border-color: var(--border-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+        }
+        .post-card h2 {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 8px;
+            letter-spacing: -0.3px;
+        }
+        .post-card p {
+            font-size: 14px;
+            color: var(--text-2);
+            line-height: 1.6;
+            margin-bottom: 12px;
+        }
+        .post-card .post-meta {
+            font-size: 13px;
+            color: var(--text-3);
+            display: flex;
+            gap: 16px;
+        }
+        .post-card .tag {
+            display: inline-block;
+            font-size: 11px;
+            padding: 3px 10px;
+            border-radius: 100px;
+            background: var(--accent-dim);
+            color: var(--accent);
+            margin-right: 6px;
+            margin-bottom: 10px;
+        }
+
+        /* Footer */
+        footer {
+            padding: 40px 0;
+            text-align: center;
+            color: var(--text-3);
+            font-size: 13px;
+            border-top: 1px solid var(--border);
+        }
+        footer a {
+            color: var(--text-3);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        footer a:hover { color: var(--text-2); }
+
+        @media (max-width: 640px) {
+            .nav-links { gap: 16px; }
+            .nav-links .hide-mobile { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="glow-orb purple"></div>
+    <div class="glow-orb blue"></div>
+
+    <div class="container">
+
+        <nav>
+            <a class="logo" href="/">
+                <svg width="24" height="24" viewBox="0 0 120 120" style="vertical-align:middle;">
+                    <defs><linearGradient id="nav-eg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#c084fc"/><stop offset="100%" stop-color="#7c3aed"/></linearGradient></defs>
+                    <path d="M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68" fill="none" stroke="url(#nav-eg)" stroke-width="8" stroke-linecap="round"/>
+                    <circle cx="62" cy="68" r="8" fill="#a855f7"/><circle cx="62" cy="68" r="3.5" fill="#fff"/>
+                </svg> Mengram
+            </a>
+            <div class="nav-links">
+                <a href="/" class="hide-mobile">Home</a>
+                <a href="/blog" class="active hide-mobile">Blog</a>
+                <a href="https://mengram.io/docs" class="hide-mobile">Docs</a>
+                <a href="/dashboard">Console</a>
+                <a href="/#signup" class="btn btn-ghost" style="padding:8px 18px; font-size:13px;">Get API Key</a>
+            </div>
+        </nav>
+
+        <header class="page-header">
+            <h1>Mengram Blog</h1>
+            <p>Guides, tutorials, and deep dives on AI memory for LLMs and agents.</p>
+        </header>
+
+        <div class="posts-grid">
+            {posts_html}
+        </div>
+
+        <footer>
+            <p>
+                Mengram &mdash; AI memory for LLMs and AI agents
+                &nbsp;&middot;&nbsp; <a href="/">Home</a>
+                &nbsp;&middot;&nbsp; <a href="/blog">Blog</a>
+                &nbsp;&middot;&nbsp; <a href="/vs/mem0">vs Mem0</a>
+                &nbsp;&middot;&nbsp; <a href="/vs/zep">vs Zep</a>
+                &nbsp;&middot;&nbsp; <a href="/vs/letta">vs Letta</a>
+                &nbsp;&middot;&nbsp; <a href="https://github.com/alibaizhanov/mengram">GitHub</a>
+                &nbsp;&middot;&nbsp; <a href="https://mengram.io/docs">Docs</a>
+                &nbsp;&middot;&nbsp; <a href="/terms">Terms</a>
+                &nbsp;&middot;&nbsp; <a href="/privacy">Privacy</a>
+            </p>
+        </footer>
+
+    </div>
+</body>
+</html>

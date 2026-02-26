@@ -653,27 +653,52 @@ Be strict — only include entities that directly answer or relate to the query.
     async def robots():
         return "User-agent: *\nAllow: /\nSitemap: https://mengram.io/sitemap.xml"
 
-    @app.get("/sitemap.xml", response_class=PlainTextResponse)
+    @app.get("/sitemap.xml")
     async def sitemap():
         """XML sitemap for search engines."""
+        from starlette.responses import Response
         urls = [
-            "https://mengram.io/",
-            "https://mengram.io/docs",
+            # Core pages
+            "https://mengram.io",
             "https://mengram.io/pricing",
+            # VS comparison pages
             "https://mengram.io/vs/mem0",
             "https://mengram.io/vs/zep",
             "https://mengram.io/vs/letta",
+            "https://mengram.io/vs/langmem",
+            "https://mengram.io/vs/supermemory",
+            # Blog
+            "https://mengram.io/blog",
+            "https://mengram.io/blog/what-is-ai-memory",
+            "https://mengram.io/blog/ai-memory-vs-rag",
+            "https://mengram.io/blog/semantic-episodic-procedural-memory",
+            "https://mengram.io/blog/how-to-add-memory-to-ai-agents",
+            "https://mengram.io/blog/cognitive-profile-system-prompts",
+            "https://mengram.io/blog/mcp-memory-server-setup",
+            "https://mengram.io/blog/mem0-vs-mengram-benchmark",
+            "https://mengram.io/blog/ai-memory-for-crewai-langchain",
+            # Use cases
+            "https://mengram.io/usecase/customer-support",
+            "https://mengram.io/usecase/personal-assistant",
+            "https://mengram.io/usecase/education",
+            "https://mengram.io/usecase/healthcare",
+            "https://mengram.io/usecase/sales",
+            # Legal
+            "https://mengram.io/terms",
+            "https://mengram.io/privacy",
+            "https://mengram.io/refund",
         ]
         entries = "\n".join(
             f"  <url><loc>{u}</loc><changefreq>weekly</changefreq></url>"
             for u in urls
         )
-        return (
+        xml = (
             '<?xml version="1.0" encoding="UTF-8"?>\n'
             '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
             f"{entries}\n"
             "</urlset>"
         )
+        return Response(content=xml, media_type="application/xml")
 
     @app.get("/dashboard", response_class=HTMLResponse)
     async def dashboard():
@@ -800,11 +825,82 @@ Be strict — only include entities that directly answer or relate to the query.
             "seo_description": "Compare Mengram and Letta (MemGPT) for AI agent memory. Mengram offers semantic + episodic + procedural memory with self-improving workflows. Free alternative.",
             "seo_keywords": "Letta alternative, MemGPT alternative, Mengram vs Letta, AI memory comparison, best AI memory tool 2026",
         },
+        "langmem": {
+            "slug": "langmem",
+            "name": "LangMem",
+            "tagline": "LangMem extends LangGraph. Mengram works with everything.",
+            "description": "LangMem is LangChain's memory module for LangGraph agents. Mengram is a standalone memory API that works with any framework — LangChain, CrewAI, OpenAI, or direct API calls.",
+            "their_good": [
+                "Native LangGraph integration — first-class LangChain support",
+                "Thread-scoped and cross-thread memory",
+                "Backed by LangChain team — strong ecosystem alignment",
+                "Memory formed via background processing",
+            ],
+            "their_missing": [
+                "Tightly coupled to LangGraph — harder to use outside LangChain",
+                "No episodic memory (events, decisions)",
+                "No procedural memory (workflows)",
+                "No Cognitive Profile",
+                "No standalone MCP server",
+                "No knowledge graph visualization",
+            ],
+            "has_semantic": "&#x2705;",
+            "has_episodic": "&#x274C;",
+            "has_multiuser": "&#x2705;",
+            "has_graph": "&#x274C;",
+            "has_mcp": "&#x274C;",
+            "has_selfhost": "&#x2705;",
+            "their_price": "Via LangSmith plans",
+            "best_for_them": "Teams already using LangGraph and LangSmith who want memory deeply integrated into their LangChain workflow.",
+            "best_for_us": "Framework-agnostic memory with 3 types. Works with any LLM, any framework, any client. Free cloud API + MCP + Cognitive Profile.",
+            "website": "https://langchain-ai.github.io/long-term-memory/",
+            "seo_title": "Mengram vs LangMem — AI Memory Comparison (2026)",
+            "seo_description": "Compare Mengram and LangMem for AI agent memory. Mengram offers 3 memory types, Cognitive Profile, and framework-agnostic API. Works beyond LangChain.",
+            "seo_keywords": "LangMem alternative, Mengram vs LangMem, LangChain memory alternative, AI memory comparison, LangGraph memory",
+        },
+        "supermemory": {
+            "slug": "supermemory",
+            "name": "Supermemory",
+            "tagline": "Supermemory bookmarks the web. Mengram remembers conversations.",
+            "description": "Supermemory is a personal knowledge manager that saves and searches bookmarks, tweets, and web content. Mengram is an AI memory API that extracts and stores memories from conversations.",
+            "their_good": [
+                "Great browser extension for saving web content",
+                "ChatGPT-style interface for querying saved content",
+                "Good for personal knowledge management",
+                "Open source and self-hostable",
+            ],
+            "their_missing": [
+                "Not designed for AI agent memory — it's a bookmark tool",
+                "No conversation memory extraction",
+                "No episodic memory",
+                "No procedural memory",
+                "No Cognitive Profile",
+                "No multi-user isolation for agent use cases",
+                "No MCP server",
+            ],
+            "has_semantic": "Partial",
+            "has_episodic": "&#x274C;",
+            "has_multiuser": "&#x274C;",
+            "has_graph": "&#x274C;",
+            "has_mcp": "&#x274C;",
+            "has_selfhost": "&#x2705;",
+            "their_price": "Free (self-host)",
+            "best_for_them": "Personal knowledge management — saving bookmarks, tweets, and web articles for later retrieval and search.",
+            "best_for_us": "AI agent memory that learns from conversations. 3 memory types, Cognitive Profile, MCP server, and multi-user isolation for production apps.",
+            "website": "https://supermemory.ai",
+            "seo_title": "Mengram vs Supermemory — AI Memory Comparison (2026)",
+            "seo_description": "Compare Mengram and Supermemory. Supermemory is a bookmark manager. Mengram is an AI memory API with semantic, episodic, and procedural memory for agents.",
+            "seo_keywords": "Supermemory alternative, Mengram vs Supermemory, AI memory comparison, best AI memory 2026, Supermemory vs Mengram",
+        },
     }
 
     @app.get("/vs/{competitor}", response_class=HTMLResponse)
     async def vs_page(competitor: str):
         """SEO comparison page: Mengram vs competitor."""
+        # MemGPT redirects to Letta (rebranded)
+        if competitor == "memgpt":
+            from starlette.responses import RedirectResponse
+            return RedirectResponse(url="/vs/letta", status_code=301)
         data = VS_PAGES.get(competitor)
         if not data:
             raise HTTPException(404, "Comparison page not found")
@@ -813,6 +909,982 @@ Be strict — only include entities that directly answer or relate to the query.
         data["their_good_html"] = "".join(f"<li>{x}</li>" for x in data["their_good"])
         data["their_missing_html"] = "".join(f"<li>{x}</li>" for x in data["their_missing"])
         return html.format(**data)
+
+    # ---- Blog posts (SEO content) ----
+    BLOG_POSTS = {
+        "what-is-ai-memory": {
+            "slug": "what-is-ai-memory",
+            "title": "What is AI Memory? A Developer's Guide to Persistent Memory for LLMs",
+            "date": "February 20, 2026",
+            "date_iso": "2026-02-20",
+            "read_time": "7",
+            "tags": ["Guide", "Fundamentals"],
+            "excerpt": "Learn what AI memory is, why LLMs need it, and how persistent memory transforms stateless chatbots into context-aware agents.",
+            "seo_title": "What is AI Memory? A Developer's Guide to Persistent Memory for LLMs",
+            "seo_description": "Learn what AI memory is, why LLMs need it, and how persistent memory with semantic, episodic, and procedural types transforms AI agents. Developer guide with code examples.",
+            "seo_keywords": "what is AI memory, AI memory explained, LLM memory, persistent memory for AI, AI agent memory",
+            "content_html": """
+<h2>Why LLMs forget everything</h2>
+<p>Large language models like GPT-4, Claude, and Gemini are stateless by default. Every conversation starts from scratch. Ask the same question twice, and the model has no idea you asked before. This is a fundamental limitation — the <strong>context window is temporary storage</strong>, not memory.</p>
+<p>Context windows have grown (128K+ tokens), but they still reset between sessions. RAG (Retrieval-Augmented Generation) helps by fetching relevant documents, but it only retrieves static information — it doesn't learn from interactions.</p>
+
+<h2>What is AI memory?</h2>
+<p><strong>AI memory</strong> is a persistent storage layer that lets LLMs and AI agents remember information across conversations. Instead of resetting every session, AI memory continuously extracts, stores, and retrieves knowledge from past interactions.</p>
+<p>Think of it like the difference between a goldfish and a human. Without memory, every conversation is new. With memory, your AI builds a cumulative understanding of users, projects, and context over time.</p>
+
+<h2>Three types of AI memory</h2>
+<p>Human memory isn't one thing — it's three distinct systems. The most effective AI memory systems mirror this structure:</p>
+
+<h3>1. Semantic memory (facts)</h3>
+<p>What the user knows, prefers, and believes. Examples: "User prefers Python over JavaScript", "User is a senior engineer at Acme Corp", "User is allergic to peanuts."</p>
+<p>Most AI memory tools only implement this type. <a href="/vs/mem0">Mem0</a>, for instance, is primarily a semantic memory store.</p>
+
+<h3>2. Episodic memory (events)</h3>
+<p>What happened, when, and in what context. Examples: "User debugged a Redis connection error on Feb 12", "User decided to migrate from AWS to GCP last week."</p>
+<p>Episodic memory captures the narrative of interactions — not just facts, but the <em>story</em> of what happened.</p>
+
+<h3>3. Procedural memory (workflows)</h3>
+<p>How to do things, step by step. Examples: "When deploying, run tests first, then build, then push to staging." Procedural memory captures learned workflows that evolve from experience.</p>
+<p>This is the rarest type — <a href="/blog/semantic-episodic-procedural-memory">learn more about all three types</a>.</p>
+
+<h2>How AI memory works in practice</h2>
+<p>Here's how you add AI memory to any LLM application with Mengram:</p>
+
+<pre><code>from mengram import Mengram
+
+m = Mengram(api_key="your-key")
+
+# After each conversation, add to memory
+m.add("I prefer dark mode and use VS Code", user_id="alice")
+
+# Before generating a response, search memory
+results = m.search("What IDE does Alice use?", user_id="alice")
+
+# Or generate a full Cognitive Profile
+profile = m.profile(user_id="alice")
+# Returns a ready-to-use system prompt with everything known about Alice</code></pre>
+
+<p>The <code>profile()</code> call is unique to Mengram — it generates a complete system prompt from all stored memories, making any LLM instantly personalized. <a href="/blog/cognitive-profile-system-prompts">Read more about Cognitive Profile</a>.</p>
+
+<h2>AI memory vs RAG</h2>
+<p>RAG and AI memory solve different problems. RAG retrieves from static document collections. AI memory learns from dynamic conversations. You often need both — <a href="/blog/ai-memory-vs-rag">read our detailed comparison</a>.</p>
+
+<h2>Getting started</h2>
+<p>The fastest way to add AI memory to your application:</p>
+<pre><code>pip install mengram-ai</code></pre>
+<p>Get a free API key at <a href="/#signup">mengram.io</a> and start building. Works with any LLM — OpenAI, Anthropic, Google, open-source models. Also available as an <a href="/blog/mcp-memory-server-setup">MCP server for Claude Desktop</a>.</p>
+""",
+            "related": ["ai-memory-vs-rag", "semantic-episodic-procedural-memory"],
+        },
+        "ai-memory-vs-rag": {
+            "slug": "ai-memory-vs-rag",
+            "title": "AI Memory vs RAG: Why Context Windows Aren't Enough",
+            "date": "February 18, 2026",
+            "date_iso": "2026-02-18",
+            "read_time": "6",
+            "tags": ["Comparison", "Architecture"],
+            "excerpt": "RAG retrieves documents. AI memory learns from interactions. Understand when to use each and why the best agents use both.",
+            "seo_title": "AI Memory vs RAG: Why Context Windows Aren't Enough | Mengram",
+            "seo_description": "Compare AI memory and RAG (Retrieval-Augmented Generation). Learn why context windows aren't enough, when to use each approach, and how to combine them for smarter AI agents.",
+            "seo_keywords": "AI memory vs RAG, RAG alternative, context window limitations, persistent AI memory, retrieval augmented generation vs memory",
+            "content_html": """
+<h2>The context window problem</h2>
+<p>Every LLM has a context window — a fixed-size buffer that holds the current conversation plus any injected context. When the window fills up, old messages get dropped. When the session ends, everything is lost.</p>
+<p>Developers have tried two approaches to solve this: <strong>RAG</strong> (Retrieval-Augmented Generation) and <strong>AI memory</strong>. They're complementary but fundamentally different.</p>
+
+<h2>How RAG works</h2>
+<p>RAG retrieves relevant documents from a static knowledge base and injects them into the prompt:</p>
+<pre><code># Traditional RAG pipeline
+chunks = vector_db.search("How to deploy?", top_k=5)
+context = "\\n".join([c.text for c in chunks])
+prompt = f"Context: {{context}}\\n\\nQuestion: How to deploy?"
+response = llm.generate(prompt)</code></pre>
+<p><strong>RAG is great for:</strong> Documentation search, knowledge bases, FAQ bots, question-answering over static documents.</p>
+<p><strong>RAG falls short when:</strong> You need to remember past interactions, learn user preferences, or track decisions made across sessions.</p>
+
+<h2>How AI memory works</h2>
+<p>AI memory <em>learns from conversations</em> and builds a cumulative understanding over time:</p>
+<pre><code># AI memory with Mengram
+from mengram import Mengram
+m = Mengram(api_key="key")
+
+# Each conversation enriches the memory
+m.add("User prefers concise answers with code examples", user_id="bob")
+m.add("Bob debugged CORS issue on staging server today", user_id="bob")
+
+# Next session: the AI knows Bob's history
+profile = m.profile(user_id="bob")
+# "Bob is a developer who prefers concise answers with code examples.
+#  Recently debugged a CORS issue on staging..."</code></pre>
+
+<h2>Key differences</h2>
+<p><strong>Source of truth:</strong> RAG draws from documents you upload. AI memory draws from conversations that happen naturally.</p>
+<p><strong>Static vs dynamic:</strong> RAG knowledge is fixed until you re-index. AI memory continuously evolves with every interaction.</p>
+<p><strong>What vs who:</strong> RAG answers "what does the documentation say?" AI memory answers "what does this user need?"</p>
+<p><strong>Types:</strong> RAG stores chunks of text. AI memory stores structured knowledge — <a href="/blog/semantic-episodic-procedural-memory">facts (semantic), events (episodic), and workflows (procedural)</a>.</p>
+
+<h2>When to use both</h2>
+<p>The best AI agents combine RAG and memory. RAG provides domain knowledge. Memory provides user context. Together, you get an agent that knows your product <em>and</em> knows your user.</p>
+<pre><code># Combine RAG + AI memory
+docs = rag.search(user_query)
+memories = mengram.search(user_query, user_id=user_id)
+profile = mengram.profile(user_id=user_id)
+
+prompt = f\"\"\"System: {{profile}}
+Relevant docs: {{docs}}
+User memories: {{memories}}
+Question: {{user_query}}\"\"\"</code></pre>
+
+<h2>Getting started</h2>
+<p>Replace your pure-RAG setup with Mengram in 3 lines: <code>pip install mengram-ai</code>, get a <a href="/#signup">free API key</a>, and call <code>m.add()</code> after each conversation. Your AI will start learning from every interaction.</p>
+""",
+            "related": ["what-is-ai-memory", "how-to-add-memory-to-ai-agents"],
+        },
+        "semantic-episodic-procedural-memory": {
+            "slug": "semantic-episodic-procedural-memory",
+            "title": "3 Types of AI Memory: Semantic, Episodic & Procedural Explained",
+            "date": "February 15, 2026",
+            "date_iso": "2026-02-15",
+            "read_time": "8",
+            "tags": ["Deep Dive", "Fundamentals"],
+            "excerpt": "Understand the three types of memory that make AI agents truly intelligent: semantic (facts), episodic (events), and procedural (workflows).",
+            "seo_title": "3 Types of AI Memory: Semantic, Episodic & Procedural Explained",
+            "seo_description": "Deep dive into the 3 types of AI memory: semantic (facts), episodic (events), and procedural (workflows). Learn how each type works and why agents need all three.",
+            "seo_keywords": "types of AI memory, semantic memory AI, episodic memory AI, procedural memory AI, AI agent memory types, memory-augmented LLMs",
+            "content_html": """
+<h2>Why one type of memory isn't enough</h2>
+<p>Most AI memory tools store only facts — "user likes Python", "user lives in San Francisco." This is semantic memory, and it's useful but incomplete. Humans don't just remember facts. We remember <em>experiences</em> and <em>skills</em> too.</p>
+<p>Mengram implements all three types of human memory for AI agents. Here's how each works and why it matters.</p>
+
+<h2>Semantic memory: facts and knowledge</h2>
+<p>Semantic memory stores <strong>what the AI knows</strong> about a user, project, or domain. It's context-free — the facts exist independent of when or how they were learned.</p>
+<pre><code># Semantic memories extracted automatically:
+"User prefers TypeScript over JavaScript"
+"User works at Acme Corp as a senior engineer"
+"User's project uses PostgreSQL with pgvector"
+"User prefers dark mode in all tools"</code></pre>
+<p>This is the baseline. Tools like <a href="/vs/mem0">Mem0</a> and <a href="/vs/zep">Zep</a> implement semantic memory well. But it's only the foundation.</p>
+
+<h2>Episodic memory: events and experiences</h2>
+<p>Episodic memory stores <strong>what happened</strong> — specific events, decisions, and interactions with full context: when, where, and why.</p>
+<pre><code># Episodic memories:
+"On Feb 12, user spent 2 hours debugging a Redis connection timeout.
+ Root cause was pool_max=2 under concurrent load. Fixed by increasing to 5."
+
+"On Feb 10, user decided to migrate from REST to GraphQL
+ after discovering N+1 query problems in the dashboard API."
+
+"On Feb 8, user paired with Sarah on the auth refactor.
+ They chose JWT over sessions for stateless scaling."</code></pre>
+<p>Episodic memory enables the AI to reference past events: "Last time you had a Redis issue, it was a pool size problem — want me to check that first?" This is the difference between a tool and a colleague.</p>
+
+<h2>Procedural memory: workflows and skills</h2>
+<p>Procedural memory stores <strong>how to do things</strong> — step-by-step workflows that the AI learns from observing the user's patterns.</p>
+<pre><code># Procedural memories:
+"Deploy workflow: run tests → build Docker image → push to staging →
+ smoke test → promote to production → notify #eng-deploys"
+
+"Code review process: check for security issues first →
+ verify test coverage → review naming conventions →
+ suggest performance improvements last"
+
+"Bug triage: reproduce locally → check error logs →
+ identify affected users → create ticket → assign priority"</code></pre>
+<p>The critical feature of procedural memory is that it <strong>evolves from failures</strong>. When a deployment fails because the user forgot to run migrations, Mengram updates the procedure to include that step. The AI gets better over time.</p>
+
+<h2>How all three work together</h2>
+<p>Consider a customer support agent with all three memory types:</p>
+<ul>
+<li><strong>Semantic:</strong> "This customer is on the Pro plan, uses the React SDK, and prefers email over chat."</li>
+<li><strong>Episodic:</strong> "Last week, this customer reported a billing issue that was resolved by applying a promo code."</li>
+<li><strong>Procedural:</strong> "For billing issues: check subscription status → verify payment method → check for failed charges → escalate to billing team if unresolved."</li>
+</ul>
+<p>With all three, the agent doesn't just have facts — it has <em>experience</em> and <em>skills</em>. It knows the customer, remembers their history, and follows a proven resolution workflow.</p>
+
+<h2>Using all three types with Mengram</h2>
+<pre><code>from mengram import Mengram
+m = Mengram(api_key="key")
+
+# Add any conversation — Mengram auto-extracts all 3 types
+m.add("Deployed to staging, but migrations failed. Had to rollback, run migrations manually, then redeploy.", user_id="alice")
+
+# Search across all types
+m.search("deployment process", user_id="alice")
+
+# Cognitive Profile merges all types into one system prompt
+profile = m.profile(user_id="alice")
+</code></pre>
+<p>Mengram automatically classifies and extracts all three memory types from natural conversation. No manual tagging required. <a href="/blog/how-to-add-memory-to-ai-agents">Get started in 5 minutes</a>.</p>
+""",
+            "related": ["what-is-ai-memory", "cognitive-profile-system-prompts"],
+        },
+        "how-to-add-memory-to-ai-agents": {
+            "slug": "how-to-add-memory-to-ai-agents",
+            "title": "How to Add Memory to AI Agents in 5 Minutes (Python & JS)",
+            "date": "February 12, 2026",
+            "date_iso": "2026-02-12",
+            "read_time": "5",
+            "tags": ["Tutorial", "Quick Start"],
+            "excerpt": "Step-by-step tutorial to add persistent memory to any AI agent using Python or JavaScript. Works with OpenAI, Anthropic, and any LLM.",
+            "seo_title": "How to Add Memory to AI Agents in 5 Minutes (Python & JS) | Mengram",
+            "seo_description": "Step-by-step tutorial: add persistent memory to AI agents in Python or JavaScript. Works with OpenAI, Anthropic, and any LLM. Free API, 5-minute setup.",
+            "seo_keywords": "add memory to AI agents, AI agent memory tutorial, Python AI memory, JavaScript AI memory, persistent memory for LLMs, Mengram tutorial",
+            "content_html": """
+<h2>Prerequisites</h2>
+<ul>
+<li>Python 3.8+ or Node.js 18+</li>
+<li>A free Mengram API key — <a href="/#signup">get one here</a></li>
+<li>Any LLM API (OpenAI, Anthropic, etc.) or a local model</li>
+</ul>
+
+<h2>Step 1: Install</h2>
+
+<h3>Python</h3>
+<pre><code>pip install mengram-ai</code></pre>
+
+<h3>JavaScript</h3>
+<pre><code>npm install mengram</code></pre>
+
+<h2>Step 2: Initialize</h2>
+
+<h3>Python</h3>
+<pre><code>from mengram import Mengram
+
+m = Mengram(api_key="mg-...")  # or set MENGRAM_API_KEY env var</code></pre>
+
+<h3>JavaScript</h3>
+<pre><code>import Mengram from 'mengram';
+
+const m = new Mengram({{ apiKey: 'mg-...' }});</code></pre>
+
+<h2>Step 3: Store memories after each conversation</h2>
+<p>After your agent finishes a conversation turn, pass the exchange to Mengram. It automatically extracts <a href="/blog/semantic-episodic-procedural-memory">all three memory types</a>.</p>
+
+<h3>Python</h3>
+<pre><code># Store the conversation — Mengram extracts facts, events, and workflows
+m.add(
+    "User asked how to deploy to production. I walked them through "
+    "the CI/CD pipeline: push to main, GitHub Actions runs tests, "
+    "builds Docker image, deploys to staging, then promotes to prod.",
+    user_id="user-123"
+)</code></pre>
+
+<h3>JavaScript</h3>
+<pre><code>await m.add(
+  "User asked how to deploy to production. I walked them through " +
+  "the CI/CD pipeline: push to main, GitHub Actions runs tests, " +
+  "builds Docker image, deploys to staging, then promotes to prod.",
+  {{ userId: 'user-123' }}
+);</code></pre>
+
+<h2>Step 4: Search memories before responding</h2>
+<pre><code># Python
+results = m.search("deployment process", user_id="user-123")
+for r in results:
+    print(r.memory, r.type, r.score)</code></pre>
+
+<pre><code>// JavaScript
+const results = await m.search('deployment process', {{ userId: 'user-123' }});
+results.forEach(r => console.log(r.memory, r.type, r.score));</code></pre>
+
+<h2>Step 5: Use Cognitive Profile for instant personalization</h2>
+<p>Instead of searching for specific memories, generate a complete system prompt:</p>
+<pre><code># Python — one API call returns a ready-to-use system prompt
+profile = m.profile(user_id="user-123")
+print(profile)
+# "You are assisting user-123, a developer who works with CI/CD pipelines..."
+
+# Use it with any LLM
+response = openai.chat.completions.create(
+    model="gpt-4o",
+    messages=[
+        {{"role": "system", "content": profile}},
+        {{"role": "user", "content": user_message}}
+    ]
+)</code></pre>
+<p><a href="/blog/cognitive-profile-system-prompts">Learn more about Cognitive Profile</a>.</p>
+
+<h2>Full example: OpenAI agent with memory</h2>
+<pre><code>from openai import OpenAI
+from mengram import Mengram
+
+openai = OpenAI()
+m = Mengram()
+
+def chat(user_id: str, message: str) -> str:
+    # Get personalized system prompt from memory
+    profile = m.profile(user_id=user_id)
+
+    response = openai.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {{"role": "system", "content": profile}},
+            {{"role": "user", "content": message}}
+        ]
+    )
+    reply = response.choices[0].message.content
+
+    # Store the exchange in memory
+    m.add(f"User: {{message}}\\nAssistant: {{reply}}", user_id=user_id)
+    return reply</code></pre>
+
+<p>That's it. Your agent now remembers every conversation and gets smarter over time. Also works with <a href="/blog/ai-memory-for-crewai-langchain">CrewAI and LangChain</a>, or as an <a href="/blog/mcp-memory-server-setup">MCP server for Claude Desktop</a>.</p>
+""",
+            "related": ["cognitive-profile-system-prompts", "mcp-memory-server-setup"],
+        },
+        "cognitive-profile-system-prompts": {
+            "slug": "cognitive-profile-system-prompts",
+            "title": "Cognitive Profile: Auto-Generate System Prompts from User Memory",
+            "date": "February 10, 2026",
+            "date_iso": "2026-02-10",
+            "read_time": "6",
+            "tags": ["Feature", "Deep Dive"],
+            "excerpt": "Cognitive Profile generates a complete system prompt from a user's memory history. One API call turns scattered memories into a personalized context block.",
+            "seo_title": "Cognitive Profile: Auto-Generate System Prompts from User Memory | Mengram",
+            "seo_description": "Learn how Cognitive Profile auto-generates system prompts from stored AI memory. One API call turns user facts, events, and workflows into a personalized context block for any LLM.",
+            "seo_keywords": "cognitive profile AI, auto generate system prompt, AI personalization, system prompt from memory, Mengram cognitive profile, LLM personalization",
+            "content_html": """
+<h2>The system prompt problem</h2>
+<p>Every personalized AI application faces the same challenge: how do you build a system prompt that captures everything the AI should know about a user?</p>
+<p>Most developers manually craft system prompts or stitch together search results. This is fragile, incomplete, and doesn't scale. As you accumulate hundreds or thousands of memories per user, you can't fit them all in a prompt.</p>
+
+<h2>What is Cognitive Profile?</h2>
+<p><strong>Cognitive Profile</strong> is a Mengram feature that generates a complete, ready-to-use system prompt from a user's entire memory history. One API call distills all semantic memories (facts), episodic memories (events), and procedural memories (workflows) into a coherent personality snapshot.</p>
+
+<pre><code>from mengram import Mengram
+m = Mengram(api_key="mg-...")
+
+# One call — returns a complete system prompt
+profile = m.profile(user_id="alice")</code></pre>
+
+<p>The output looks like this:</p>
+<pre><code># Example Cognitive Profile output:
+"You are assisting Alice, a senior backend engineer at Acme Corp.
+
+Key facts:
+- Prefers Python, uses FastAPI and PostgreSQL
+- Works on the payments team
+- Prefers concise answers with code examples
+
+Recent context:
+- Debugged a Redis connection timeout last week (pool size issue)
+- Currently migrating the auth system from sessions to JWT
+- Deployed v2.3 to production yesterday with zero downtime
+
+Learned workflows:
+- Deploy process: run tests → build → push staging → smoke test → promote
+- Code review: security first → test coverage → naming → performance
+- When Alice asks about deployment, reference the established workflow above."</code></pre>
+
+<h2>How it works internally</h2>
+<ol>
+<li><strong>Retrieval:</strong> Fetches all memory types for the user (semantic, episodic, procedural)</li>
+<li><strong>Ranking:</strong> Prioritizes recent and frequently-accessed memories</li>
+<li><strong>Synthesis:</strong> An LLM compresses and organizes the memories into a structured prompt</li>
+<li><strong>Caching:</strong> The profile is cached and incrementally updated as new memories arrive</li>
+</ol>
+
+<h2>Why not just use search?</h2>
+<p><code>search()</code> returns individual memories matching a query. It's great for specific questions. But for <em>general context</em> — "who is this user and what should I know about them?" — search requires you to guess the right queries.</p>
+<p>Cognitive Profile answers the general question automatically. Use <code>search()</code> for specific retrieval and <code>profile()</code> for global context. They're complementary.</p>
+
+<h2>Using Cognitive Profile with any LLM</h2>
+<pre><code># Works with OpenAI
+import openai
+profile = m.profile(user_id="alice")
+response = openai.chat.completions.create(
+    model="gpt-4o",
+    messages=[
+        {{"role": "system", "content": profile}},
+        {{"role": "user", "content": "How should I deploy the new feature?"}}
+    ]
+)
+
+# Works with Anthropic
+import anthropic
+client = anthropic.Anthropic()
+response = client.messages.create(
+    model="claude-sonnet-4-20250514",
+    system=profile,
+    messages=[{{"role": "user", "content": "How should I deploy?"}}]
+)
+
+# Works with any LLM that accepts a system prompt</code></pre>
+
+<h2>When to use Cognitive Profile</h2>
+<ul>
+<li><strong>Chatbots and assistants:</strong> Start every conversation with full user context</li>
+<li><strong>Customer support:</strong> Agents instantly know the customer's history and preferences</li>
+<li><strong>Personal AI:</strong> Build companions that truly know the user</li>
+<li><strong>Multi-agent systems:</strong> Share user context across agents without manual prompt engineering</li>
+</ul>
+
+<p>Get started: <code>pip install mengram-ai</code>, grab a <a href="/#signup">free API key</a>, and call <code>m.profile(user_id)</code>. <a href="/blog/how-to-add-memory-to-ai-agents">Full quickstart tutorial here</a>.</p>
+""",
+            "related": ["how-to-add-memory-to-ai-agents", "semantic-episodic-procedural-memory"],
+        },
+        "mcp-memory-server-setup": {
+            "slug": "mcp-memory-server-setup",
+            "title": "Set Up an AI Memory MCP Server for Claude Desktop",
+            "date": "February 8, 2026",
+            "date_iso": "2026-02-08",
+            "read_time": "5",
+            "tags": ["Tutorial", "MCP"],
+            "excerpt": "Connect Mengram's AI memory to Claude Desktop via MCP. 12 tools for search, add, profile, and more — setup in under 3 minutes.",
+            "seo_title": "Set Up an AI Memory MCP Server for Claude Desktop | Mengram",
+            "seo_description": "Step-by-step guide to set up Mengram's MCP server for Claude Desktop. 12 memory tools including search, add, profile, knowledge graph, and smart triggers.",
+            "seo_keywords": "MCP memory server, Claude Desktop memory, MCP server setup, AI memory MCP, Model Context Protocol memory, Claude Desktop persistent memory",
+            "content_html": """
+<h2>What is MCP?</h2>
+<p>The <strong>Model Context Protocol (MCP)</strong> is an open standard that lets AI applications like Claude Desktop, Cursor, and Windsurf connect to external tools and data sources. An MCP server provides tools that the AI can call during conversations.</p>
+<p>Mengram's MCP server gives Claude Desktop 12 memory tools — search, add, profile, knowledge graph, triggers, and more — turning it into an AI that remembers everything across sessions.</p>
+
+<h2>Installation</h2>
+<p>You need a Mengram API key (<a href="/#signup">get one free</a>) and Claude Desktop installed.</p>
+
+<h3>Option 1: npx (recommended)</h3>
+<p>Add this to your Claude Desktop config file (<code>claude_desktop_config.json</code>):</p>
+<pre><code>{{
+  "mcpServers": {{
+    "mengram": {{
+      "command": "npx",
+      "args": ["-y", "mengram"],
+      "env": {{
+        "MENGRAM_API_KEY": "mg-your-api-key"
+      }}
+    }}
+  }}
+}}</code></pre>
+
+<h3>Option 2: pip</h3>
+<pre><code>pip install mengram-ai</code></pre>
+<pre><code>{{
+  "mcpServers": {{
+    "mengram": {{
+      "command": "python",
+      "args": ["-m", "mengram", "mcp"],
+      "env": {{
+        "MENGRAM_API_KEY": "mg-your-api-key"
+      }}
+    }}
+  }}
+}}</code></pre>
+
+<h2>Available tools (12 total)</h2>
+<p>Once connected, Claude Desktop gains these tools:</p>
+<ul>
+<li><strong>memory_add</strong> — Store new memories from the conversation</li>
+<li><strong>memory_search</strong> — Search across all memory types with semantic matching</li>
+<li><strong>memory_profile</strong> — Generate a <a href="/blog/cognitive-profile-system-prompts">Cognitive Profile</a> system prompt</li>
+<li><strong>memory_list</strong> — List all memories for a user</li>
+<li><strong>memory_delete</strong> — Remove specific memories</li>
+<li><strong>memory_graph</strong> — Query the knowledge graph for entity relationships</li>
+<li><strong>memory_triggers</strong> — Set up smart triggers that fire on memory events</li>
+<li><strong>memory_import</strong> — Import from ChatGPT exports, Obsidian vaults, or text files</li>
+<li><strong>memory_export</strong> — Export all memories as JSON</li>
+<li><strong>memory_stats</strong> — View memory usage statistics</li>
+<li><strong>memory_reflect</strong> — Trigger AI reflection on stored memories</li>
+<li><strong>memory_deduplicate</strong> — Clean up duplicate or conflicting memories</li>
+</ul>
+
+<h2>How Claude uses memory</h2>
+<p>After setup, Claude Desktop automatically:</p>
+<ol>
+<li>Searches your memory at the start of conversations for relevant context</li>
+<li>Stores important information from your conversations</li>
+<li>Uses your Cognitive Profile to personalize responses</li>
+<li>Builds a knowledge graph of entities and relationships from your interactions</li>
+</ol>
+
+<h2>Example conversation</h2>
+<pre><code>You: "Remember that I prefer using Railway for deployments and my project uses FastAPI"
+
+Claude: I've stored that in your memory. Next time you ask about deployment,
+I'll know you use Railway with FastAPI.
+
+--- (next session) ---
+
+You: "How should I set up CI/CD?"
+
+Claude: Since you use Railway with FastAPI, here's how I'd set up your CI/CD...
+[Uses memory context to give a personalized answer]</code></pre>
+
+<h2>Also works with</h2>
+<p>The same MCP server works with Cursor, Windsurf, VS Code Copilot, and any other MCP-compatible client. The configuration is the same — just add the <code>mengram</code> server to your MCP config.</p>
+
+<p><a href="/blog/how-to-add-memory-to-ai-agents">Also available as a Python/JS SDK</a> for custom integrations.</p>
+""",
+            "related": ["how-to-add-memory-to-ai-agents", "what-is-ai-memory"],
+        },
+        "mem0-vs-mengram-benchmark": {
+            "slug": "mem0-vs-mengram-benchmark",
+            "title": "Mem0 vs Mengram: Feature Comparison & Benchmark (2026)",
+            "date": "February 5, 2026",
+            "date_iso": "2026-02-05",
+            "read_time": "7",
+            "tags": ["Comparison", "Benchmark"],
+            "excerpt": "Detailed feature-by-feature comparison of Mem0 and Mengram for AI agent memory. Pricing, memory types, API design, and performance benchmarks.",
+            "seo_title": "Mem0 vs Mengram: Feature Comparison & Benchmark (2026)",
+            "seo_description": "Detailed comparison of Mem0 vs Mengram for AI memory. Compare memory types, pricing, API design, MCP support, and performance. Free Mem0 alternative with 3 memory types.",
+            "seo_keywords": "Mem0 vs Mengram, Mem0 alternative, best AI memory tool 2026, Mem0 comparison, AI memory benchmark, free Mem0 alternative",
+            "content_html": """
+<h2>Overview</h2>
+<p><a href="/vs/mem0">Mem0</a> and Mengram are both AI memory solutions, but they take fundamentally different approaches. Mem0 focuses on semantic fact storage with a large community. Mengram adds episodic and procedural memory types plus Cognitive Profile.</p>
+
+<h2>Feature comparison</h2>
+
+<table style="width:100%; border-collapse:collapse; font-size:14px; margin:20px 0;">
+<thead>
+<tr style="border-bottom:1px solid #1a1a2e;">
+<th style="padding:10px; text-align:left; color:#9898b0;">Feature</th>
+<th style="padding:10px; text-align:center; color:#a855f7; font-weight:600;">Mengram</th>
+<th style="padding:10px; text-align:center; color:#9898b0;">Mem0</th>
+</tr>
+</thead>
+<tbody>
+<tr style="border-bottom:1px solid #1a1a2e;"><td style="padding:10px;">Semantic memory (facts)</td><td style="text-align:center;">&#x2705;</td><td style="text-align:center;">&#x2705;</td></tr>
+<tr style="border-bottom:1px solid #1a1a2e; background:rgba(168,85,247,0.05);"><td style="padding:10px;font-weight:600;">Episodic memory (events)</td><td style="text-align:center;">&#x2705;</td><td style="text-align:center;">&#x274C;</td></tr>
+<tr style="border-bottom:1px solid #1a1a2e; background:rgba(168,85,247,0.05);"><td style="padding:10px;font-weight:600;">Procedural memory (workflows)</td><td style="text-align:center;">&#x2705;</td><td style="text-align:center;">&#x274C;</td></tr>
+<tr style="border-bottom:1px solid #1a1a2e; background:rgba(168,85,247,0.05);"><td style="padding:10px;font-weight:600;">Self-improving procedures</td><td style="text-align:center;">&#x2705;</td><td style="text-align:center;">&#x274C;</td></tr>
+<tr style="border-bottom:1px solid #1a1a2e; background:rgba(168,85,247,0.05);"><td style="padding:10px;font-weight:600;">Cognitive Profile</td><td style="text-align:center;">&#x2705;</td><td style="text-align:center;">&#x274C;</td></tr>
+<tr style="border-bottom:1px solid #1a1a2e;"><td style="padding:10px;">Knowledge graph</td><td style="text-align:center;">&#x2705;</td><td style="text-align:center;">&#x2705;</td></tr>
+<tr style="border-bottom:1px solid #1a1a2e;"><td style="padding:10px;">Multi-user isolation</td><td style="text-align:center;">&#x2705;</td><td style="text-align:center;">&#x2705;</td></tr>
+<tr style="border-bottom:1px solid #1a1a2e;"><td style="padding:10px;">MCP server</td><td style="text-align:center;">&#x2705;</td><td style="text-align:center;">&#x2705;</td></tr>
+<tr style="border-bottom:1px solid #1a1a2e;"><td style="padding:10px;">Self-hostable</td><td style="text-align:center;">&#x2705;</td><td style="text-align:center;">&#x2705;</td></tr>
+<tr style="border-bottom:1px solid #1a1a2e;"><td style="padding:10px;">Open source</td><td style="text-align:center;">MIT</td><td style="text-align:center;">Apache 2.0</td></tr>
+<tr style="border-bottom:1px solid #1a1a2e;"><td style="padding:10px;">Free tier</td><td style="text-align:center; color:#34d399; font-weight:600;">100 adds / 500 searches</td><td style="text-align:center;">10K memories</td></tr>
+<tr><td style="padding:10px;">Paid plans</td><td style="text-align:center;">$19–99/mo</td><td style="text-align:center;">$19–249/mo</td></tr>
+</tbody>
+</table>
+
+<h2>Memory types: the key difference</h2>
+<p>Mem0 stores facts (semantic memory) and has recently added graph memory for entity relationships. It does this well with a mature SDK and large community (40K+ GitHub stars).</p>
+<p>Mengram stores <a href="/blog/semantic-episodic-procedural-memory">three distinct types</a>: semantic (facts), episodic (events with context), and procedural (workflows that evolve). This means Mengram agents don't just remember <em>what</em> you told them — they remember <em>what happened</em> and <em>how to do things</em>.</p>
+
+<h2>Cognitive Profile</h2>
+<p>Mengram's unique feature is <a href="/blog/cognitive-profile-system-prompts">Cognitive Profile</a> — one API call generates a complete system prompt from a user's entire memory. Mem0 requires you to manually search and assemble context.</p>
+
+<h2>API comparison</h2>
+<pre><code># Mengram
+from mengram import Mengram
+m = Mengram(api_key="key")
+m.add("conversation text", user_id="u1")
+results = m.search("query", user_id="u1")
+profile = m.profile(user_id="u1")  # unique to Mengram</code></pre>
+
+<pre><code># Mem0
+from mem0 import MemoryClient
+client = MemoryClient(api_key="key")
+client.add("conversation text", user_id="u1")
+results = client.search("query", user_id="u1")
+# No equivalent to profile()</code></pre>
+
+<h2>When to choose Mem0</h2>
+<p>Mem0 is a strong choice if you need: the largest community and ecosystem, SOC2-compliant enterprise deployment, graph-based fact storage, or are already invested in their tooling.</p>
+
+<h2>When to choose Mengram</h2>
+<p>Mengram is better if you need: episodic and procedural memory, self-improving workflows, Cognitive Profile for instant personalization, or a free tier with all features. See the <a href="/vs/mem0">full comparison page</a>.</p>
+""",
+            "related": ["what-is-ai-memory", "ai-memory-vs-rag"],
+        },
+        "ai-memory-for-crewai-langchain": {
+            "slug": "ai-memory-for-crewai-langchain",
+            "title": "Add Persistent Memory to CrewAI & LangChain Agents",
+            "date": "February 2, 2026",
+            "date_iso": "2026-02-02",
+            "read_time": "6",
+            "tags": ["Tutorial", "Integration"],
+            "excerpt": "Add long-term memory to CrewAI and LangChain agents with Mengram. Code examples for both frameworks with semantic, episodic, and procedural memory.",
+            "seo_title": "Add Persistent Memory to CrewAI & LangChain Agents | Mengram",
+            "seo_description": "Tutorial: add persistent AI memory to CrewAI and LangChain agents. Code examples for semantic, episodic, and procedural memory integration. Works with any LLM.",
+            "seo_keywords": "CrewAI memory, LangChain memory, persistent memory CrewAI, LangChain persistent memory, AI agent memory integration, CrewAI Mengram",
+            "content_html": """
+<h2>Why agent frameworks need external memory</h2>
+<p>CrewAI and LangChain are excellent frameworks for building multi-agent systems. But their built-in memory is limited to the current session. When the script ends, everything is forgotten.</p>
+<p>Adding Mengram gives your agents persistent <a href="/blog/semantic-episodic-procedural-memory">semantic, episodic, and procedural memory</a> that survives across sessions and improves over time.</p>
+
+<h2>CrewAI integration</h2>
+<p>CrewAI has native Mengram support via the <code>mengram</code> extra:</p>
+<pre><code>pip install 'crewai[mengram]'</code></pre>
+
+<p>Configure in your crew:</p>
+<pre><code>from crewai import Crew, Agent, Task
+
+# Set your Mengram API key
+import os
+os.environ["MENGRAM_API_KEY"] = "mg-your-key"
+
+researcher = Agent(
+    role="Senior Researcher",
+    goal="Find relevant information on the topic",
+    backstory="You are an experienced researcher.",
+    memory=True  # Enables CrewAI's memory system
+)
+
+crew = Crew(
+    agents=[researcher],
+    tasks=[...],
+    memory=True,
+    memory_config={{
+        "provider": "mengram",
+    }}
+)
+
+result = crew.kickoff()
+# Memories persist across crew runs!</code></pre>
+
+<h2>LangChain integration</h2>
+<p>Use Mengram as a memory backend for LangChain agents:</p>
+<pre><code>from langchain_openai import ChatOpenAI
+from mengram import Mengram
+
+llm = ChatOpenAI(model="gpt-4o")
+m = Mengram(api_key="mg-your-key")
+
+def agent_with_memory(user_id: str, query: str):
+    # Get user context from memory
+    profile = m.profile(user_id=user_id)
+    memories = m.search(query, user_id=user_id)
+
+    # Build context-aware prompt
+    context = "\\n".join([r.memory for r in memories])
+
+    messages = [
+        {{"role": "system", "content": profile}},
+        {{"role": "user", "content": f"Relevant memories:\\n{{context}}\\n\\nQuery: {{query}}"}}
+    ]
+
+    response = llm.invoke(messages)
+
+    # Store the interaction
+    m.add(f"User: {{query}}\\nAgent: {{response.content}}", user_id=user_id)
+    return response.content</code></pre>
+
+<h2>What this enables</h2>
+<ul>
+<li><strong>Cross-session learning:</strong> Agents remember past research, decisions, and outcomes</li>
+<li><strong>User-specific behavior:</strong> Each user gets personalized responses based on their history</li>
+<li><strong>Workflow improvement:</strong> Procedural memory captures successful task patterns that evolve from failures</li>
+<li><strong>Team memory:</strong> Multiple agents share a common memory space for collaborative knowledge</li>
+</ul>
+
+<h2>Multi-agent memory sharing</h2>
+<pre><code># CrewAI agents sharing memory via the same user_id
+researcher = Agent(role="Researcher", memory=True)
+writer = Agent(role="Writer", memory=True)
+reviewer = Agent(role="Reviewer", memory=True)
+
+# All agents in the same crew share memory
+# The researcher's findings are available to the writer
+# The reviewer's feedback improves future workflows</code></pre>
+
+<p>This is the power of <a href="/blog/semantic-episodic-procedural-memory">three memory types</a> — the researcher stores facts (semantic), the writer references past articles (episodic), and the reviewer's feedback updates the writing process (procedural).</p>
+
+<p>Get started: <code>pip install mengram-ai</code> and grab a <a href="/#signup">free API key</a>. Full <a href="/blog/how-to-add-memory-to-ai-agents">quickstart tutorial here</a>.</p>
+""",
+            "related": ["how-to-add-memory-to-ai-agents", "mcp-memory-server-setup"],
+        },
+    }
+
+    @app.get("/blog", response_class=HTMLResponse)
+    async def blog_index():
+        """Blog listing page."""
+        template_path = Path(__file__).parent / "blog-index.html"
+        html = template_path.read_text(encoding="utf-8")
+        # Build posts HTML sorted by date (newest first)
+        sorted_posts = sorted(BLOG_POSTS.values(), key=lambda p: p["date_iso"], reverse=True)
+        posts_html = ""
+        for p in sorted_posts:
+            tags_html = "".join(f'<span class="tag">{t}</span>' for t in p.get("tags", []))
+            posts_html += f'''<a href="/blog/{p["slug"]}" class="post-card">
+                {tags_html}
+                <h2>{p["title"]}</h2>
+                <p>{p["excerpt"]}</p>
+                <div class="post-meta"><span>{p["date"]}</span><span>{p["read_time"]} min read</span></div>
+            </a>'''
+        return html.replace("{posts_html}", posts_html)
+
+    @app.get("/blog/{slug}", response_class=HTMLResponse)
+    async def blog_post(slug: str):
+        """Blog post page."""
+        data = BLOG_POSTS.get(slug)
+        if not data:
+            raise HTTPException(404, "Blog post not found")
+        template_path = Path(__file__).parent / "blog.html"
+        html = template_path.read_text(encoding="utf-8")
+        # Build related posts HTML
+        related_html = ""
+        for rs in data.get("related", []):
+            rp = BLOG_POSTS.get(rs)
+            if rp:
+                related_html += f'<a href="/blog/{rp["slug"]}" class="related-card"><h3>{rp["title"]}</h3><p>{rp["excerpt"][:100]}...</p></a>'
+        data_copy = {**data, "related_posts_html": related_html}
+        return html.format(**data_copy)
+
+    # ---- Use case pages (SEO) ----
+    USECASE_PAGES = {
+        "customer-support": {
+            "slug": "customer-support",
+            "industry": "customer support",
+            "icon": "🎧",
+            "title": "AI Memory for Customer Support Agents",
+            "hero_description": "Support agents that remember every customer interaction. No more asking customers to repeat themselves.",
+            "seo_title": "AI Memory for Customer Support Agents | Mengram",
+            "seo_description": "Give your customer support AI agents persistent memory. Remember customer history, preferences, and past issues across every interaction. Reduce resolution time by 40%.",
+            "seo_keywords": "AI memory customer support, AI customer service memory, support agent memory, customer context AI, persistent memory support bot",
+            "pain_points": [
+                ("Customers repeat themselves", "Every new session starts from zero. Customers explain their issue again and again across channels and agents."),
+                ("No context between sessions", "When a customer returns, the AI has no idea about previous interactions, resolutions, or preferences."),
+                ("Generic responses", "Without history, the AI gives cookie-cutter answers instead of personalized solutions based on the customer's product usage."),
+                ("Slow resolution times", "Agents spend time gathering context instead of solving problems. Each ticket starts from scratch."),
+            ],
+            "solutions": [
+                ("Full customer history", "Semantic memory stores customer preferences, plan details, and product usage. Episodic memory recalls past issues and resolutions."),
+                ("Cross-session continuity", "Every interaction enriches the customer's memory. Next time they reach out, the AI already knows their history."),
+                ("Personalized resolution", "Cognitive Profile generates a system prompt with everything known about the customer — preferences, history, and escalation patterns."),
+                ("Workflow learning", "Procedural memory captures resolution workflows that improve from failures. The AI learns the best process for each issue type."),
+            ],
+            "code_example": """from mengram import Mengram
+from openai import OpenAI
+
+m = Mengram(api_key="mg-...")
+openai = OpenAI()
+
+def handle_ticket(customer_id: str, message: str):
+    # Get full customer context in one call
+    profile = m.profile(user_id=customer_id)
+    past_issues = m.search(message, user_id=customer_id, top_k=3)
+
+    context = "\\n".join([r.memory for r in past_issues])
+
+    response = openai.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": profile},
+            {"role": "user", "content": f"Past issues:\\n{context}\\n\\nNew message: {message}"}
+        ]
+    )
+
+    # Store this interaction for future context
+    m.add(f"Customer: {message}\\nAgent: {response.choices[0].message.content}",
+          user_id=customer_id)
+    return response.choices[0].message.content""",
+            "benefits": [
+                ("40%", "Faster resolution"),
+                ("3x", "Customer satisfaction"),
+                ("Zero", "Context switching"),
+            ],
+        },
+        "personal-assistant": {
+            "slug": "personal-assistant",
+            "industry": "personal assistant",
+            "icon": "🤖",
+            "title": "AI Memory for Personal Assistants",
+            "hero_description": "Build AI assistants that truly know their users. Remember preferences, habits, and context across every conversation.",
+            "seo_title": "AI Memory for Personal Assistants | Mengram",
+            "seo_description": "Build AI personal assistants with persistent memory. Remember user preferences, habits, schedules, and context. Cognitive Profile for instant personalization.",
+            "seo_keywords": "AI personal assistant memory, persistent memory assistant, AI companion memory, personalized AI assistant, Mengram personal assistant",
+            "pain_points": [
+                ("Every day is day one", "Personal assistants forget everything between sessions. Users re-explain preferences, projects, and context every time."),
+                ("No personalization", "Without memory, the assistant gives generic responses that don't reflect the user's unique needs and style."),
+                ("Can't learn habits", "The assistant can't recognize patterns in the user's behavior — daily routines, recurring tasks, or preferred workflows."),
+                ("No relationship building", "AI companions feel shallow because they don't accumulate shared experiences or inside references."),
+            ],
+            "solutions": [
+                ("Deep personalization", "Semantic memory stores preferences, interests, and personal details. The AI knows the user inside and out."),
+                ("Shared history", "Episodic memory remembers conversations, decisions, and events. The AI references past interactions naturally."),
+                ("Learned routines", "Procedural memory captures daily workflows, recurring tasks, and preferred processes that evolve over time."),
+                ("Cognitive Profile", "One API call generates a system prompt with the user's full context — making every LLM instantly personalized."),
+            ],
+            "code_example": """from mengram import Mengram
+
+m = Mengram(api_key="mg-...")
+
+# Morning check-in — AI remembers everything
+profile = m.profile(user_id="alice")
+# "Alice is a product manager at Acme Corp. She prefers morning standup
+#  summaries with bullet points. She's working on the Q1 launch...
+#  Yesterday she reviewed the design specs and had feedback on the nav..."
+
+# After each conversation, memory grows
+m.add("Alice asked me to remind her about the design review on Friday. "
+      "She also mentioned she prefers Figma links over screenshots.",
+      user_id="alice")
+
+# Next session: the AI remembers the reminder and preference
+memories = m.search("design review", user_id="alice")""",
+            "benefits": [
+                ("100%", "Context retention"),
+                ("∞", "Session continuity"),
+                ("3 types", "Memory depth"),
+            ],
+        },
+        "education": {
+            "slug": "education",
+            "industry": "education",
+            "icon": "📚",
+            "title": "AI Memory for Education & Adaptive Tutoring",
+            "hero_description": "AI tutors that remember what each student knows, where they struggle, and how they learn best.",
+            "seo_title": "AI Memory for Education & Adaptive Tutoring | Mengram",
+            "seo_description": "Build AI tutors with persistent memory. Track student knowledge, learning style, and progress. Adaptive tutoring that gets smarter with every session.",
+            "seo_keywords": "AI memory education, AI tutoring memory, adaptive learning AI, personalized education AI, AI tutor memory, Mengram education",
+            "pain_points": [
+                ("No student model", "AI tutors don't track what the student knows vs. doesn't know. They can't adapt difficulty or skip mastered topics."),
+                ("Repeated explanations", "Students get the same explanation style even when it didn't work before. No adaptation to individual learning patterns."),
+                ("Lost progress", "Each tutoring session starts fresh. Past mistakes, breakthroughs, and learning trajectory are forgotten."),
+                ("One-size-fits-all", "Without memory, every student gets the same experience regardless of their level, goals, or learning speed."),
+            ],
+            "solutions": [
+                ("Knowledge tracking", "Semantic memory stores what each student knows, their knowledge gaps, and mastery levels per topic."),
+                ("Learning history", "Episodic memory records tutoring sessions — which explanations worked, what confused the student, key breakthroughs."),
+                ("Teaching strategies", "Procedural memory captures effective tutoring approaches per student that improve over time."),
+                ("Adaptive profiles", "Cognitive Profile generates a tutor system prompt with the student's full context — level, preferences, and history."),
+            ],
+            "code_example": """from mengram import Mengram
+
+m = Mengram(api_key="mg-...")
+
+def tutor_session(student_id: str, topic: str):
+    # Get student's full learning profile
+    profile = m.profile(user_id=student_id)
+    # "Student is a 10th grader studying calculus. Strong in algebra,
+    #  struggles with limits. Learns best with visual examples.
+    #  Last session: practiced chain rule, got 7/10 correct."
+
+    past = m.search(topic, user_id=student_id)
+    # Returns past interactions with this topic
+
+    # After the session, store progress
+    m.add(f"Tutored {topic}. Student understood the concept after "
+          f"visual explanation with graphs. Scored 8/10 on practice.",
+          user_id=student_id)""",
+            "benefits": [
+                ("2x", "Learning speed"),
+                ("85%", "Retention rate"),
+                ("Per-student", "Adaptation"),
+            ],
+        },
+        "healthcare": {
+            "slug": "healthcare",
+            "industry": "healthcare",
+            "icon": "🏥",
+            "title": "AI Memory for Healthcare Agents",
+            "hero_description": "Healthcare AI that remembers patient context, medical history, and care preferences across every interaction.",
+            "seo_title": "AI Memory for Healthcare Agents | Mengram",
+            "seo_description": "Build healthcare AI agents with persistent memory. Track patient context, medical preferences, and care history. Self-hostable for data sovereignty.",
+            "seo_keywords": "AI memory healthcare, healthcare AI memory, patient context AI, medical AI memory, healthcare agent memory, Mengram healthcare",
+            "pain_points": [
+                ("Repeated intake questions", "Patients describe their history, medications, and symptoms every time they interact with the AI assistant."),
+                ("No care continuity", "AI health assistants don't track conversations over time — missing patterns in symptoms, mood, or behavior."),
+                ("Generic health advice", "Without patient context, AI gives generic recommendations instead of personalized guidance based on history."),
+                ("Data sovereignty concerns", "Healthcare data must stay within controlled environments. Cloud-only solutions don't meet compliance needs."),
+            ],
+            "solutions": [
+                ("Patient context", "Semantic memory stores patient preferences, conditions, and care notes. Always available for personalized interactions."),
+                ("Interaction history", "Episodic memory tracks symptom reports, mood changes, and care interactions over time — surfacing patterns."),
+                ("Care workflows", "Procedural memory captures proven care pathways and follow-up procedures that improve with each patient interaction."),
+                ("Self-hostable", "Deploy Mengram on your own infrastructure. All memory stays within your data boundary. MIT licensed."),
+            ],
+            "code_example": """from mengram import Mengram
+
+# Self-hosted for data sovereignty
+m = Mengram(base_url="https://your-mengram.internal.com")
+
+def patient_interaction(patient_id: str, message: str):
+    # Full patient context in one call
+    profile = m.profile(user_id=patient_id)
+    # "Patient is managing Type 2 diabetes. Prefers morning check-ins.
+    #  Last reported A1C: 7.2%. Current medications: metformin.
+    #  Last visit: discussed increasing exercise routine."
+
+    # Search for relevant history
+    history = m.search(message, user_id=patient_id)
+
+    # After interaction, store for continuity
+    m.add(f"Patient reported: {message}", user_id=patient_id)""",
+            "benefits": [
+                ("100%", "Context retention"),
+                ("Self-host", "Data sovereignty"),
+                ("HIPAA", "Ready architecture"),
+            ],
+        },
+        "sales": {
+            "slug": "sales",
+            "industry": "sales",
+            "icon": "💼",
+            "title": "AI Memory for Sales & SDR Agents",
+            "hero_description": "Sales AI that remembers every prospect interaction, objection, and follow-up across the entire pipeline.",
+            "seo_title": "AI Memory for Sales & SDR Agents | Mengram",
+            "seo_description": "Build sales AI agents with persistent memory. Track prospect interactions, objections, pain points, and follow-ups. AI SDR that gets smarter with every call.",
+            "seo_keywords": "AI memory sales, AI SDR memory, sales agent memory, prospect context AI, AI sales assistant, Mengram sales",
+            "pain_points": [
+                ("Cold outreach feels cold", "AI SDRs send generic messages because they don't remember past interactions or prospect context."),
+                ("Lost follow-up context", "Between calls, the AI forgets what was discussed — objections raised, interests expressed, next steps agreed."),
+                ("No objection learning", "Every objection is handled from scratch. The AI doesn't learn which responses work best for each prospect type."),
+                ("Pipeline blind spots", "Without memory, AI can't track where each prospect is in the journey or what triggered their interest."),
+            ],
+            "solutions": [
+                ("Prospect intelligence", "Semantic memory stores company info, role, pain points, and interests discovered across interactions."),
+                ("Full interaction history", "Episodic memory records every call, email, and meeting — what was discussed, what resonated, what fell flat."),
+                ("Objection playbooks", "Procedural memory captures winning responses to common objections that improve from successful closes."),
+                ("Pipeline context", "Cognitive Profile generates a briefing for each prospect — full history, next steps, and recommended approach."),
+            ],
+            "code_example": """from mengram import Mengram
+
+m = Mengram(api_key="mg-...")
+
+def prep_for_call(prospect_id: str):
+    # Get full prospect briefing
+    profile = m.profile(user_id=prospect_id)
+    # "Prospect is VP Engineering at TechCo (Series B, 50 engineers).
+    #  Pain point: context switching between tools.
+    #  Last call: interested in the API, asked about pricing.
+    #  Objection: concerned about vendor lock-in.
+    #  Next step: send case study from similar company."
+
+    return profile
+
+def after_call(prospect_id: str, notes: str):
+    # Store call outcome for next interaction
+    m.add(notes, user_id=prospect_id)
+    # "Called prospect. Addressed vendor lock-in concern with MIT license
+    #  and self-hosting option. They want a demo next Tuesday."
+""",
+            "benefits": [
+                ("3x", "Response rate"),
+                ("60%", "Faster pipeline"),
+                ("Zero", "Context loss"),
+            ],
+        },
+    }
+
+    @app.get("/usecase/{slug}", response_class=HTMLResponse)
+    async def usecase_page(slug: str):
+        """Use case page for specific industry."""
+        data = USECASE_PAGES.get(slug)
+        if not data:
+            raise HTTPException(404, "Use case page not found")
+        template_path = Path(__file__).parent / "usecase.html"
+        html = template_path.read_text(encoding="utf-8")
+        # Build pain points HTML
+        pain_html = ""
+        for title, desc in data["pain_points"]:
+            pain_html += f'<div class="pain-card problem"><h3>{title}</h3><p>{desc}</p></div>'
+        # Build solutions HTML
+        sol_html = ""
+        for title, desc in data["solutions"]:
+            sol_html += f'<div class="pain-card solution"><h3>{title}</h3><p>{desc}</p></div>'
+        # Build benefits HTML
+        ben_html = ""
+        for num, label in data["benefits"]:
+            ben_html += f'<div class="benefit"><div class="num">{num}</div><p>{label}</p></div>'
+        data_copy = {
+            **data,
+            "pain_points_html": pain_html,
+            "solution_html": sol_html,
+            "benefits_html": ben_html,
+        }
+        return html.format(**data_copy)
 
     @app.get("/extension/download")
     async def download_extension():

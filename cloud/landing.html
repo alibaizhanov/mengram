@@ -3,22 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mengram — Human-Like Memory for AI (Semantic + Episodic + Procedural)</title>
-    <meta name="description" content="The only AI memory API with 3 memory types: semantic, episodic, and procedural. Cognitive Profile generates instant system prompts. Replace RAG with one API call. Free open-source alternative to Mem0.">
+    <title>Mengram — AI Memory API: Semantic, Episodic & Procedural Memory for LLMs</title>
+    <meta name="description" content="The only AI memory API with 3 memory types: semantic (facts), episodic (events), and procedural (workflows). One API call generates a Cognitive Profile system prompt. Free open-source Mem0 alternative. Python, JS, MCP.">
     <meta name="keywords" content="AI memory, LLM memory, Mem0 alternative, episodic memory, procedural memory, cognitive profile, MCP server, Claude Desktop memory, knowledge graph, AI agents, contextual memory, RAG alternative">
     <meta name="google-site-verification" content="AgH6oyB88LhyyfEqVQn9XnT1mPiFpgCX5GFVJMC5yEs">
     <meta name="author" content="Ali Baizhanov">
+    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
     <link rel="canonical" href="https://mengram.io">
     <!-- Open Graph -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://mengram.io">
-    <meta property="og:title" content="Mengram — Human-Like Memory for AI">
+    <meta property="og:title" content="Mengram — AI Memory API for LLMs and AI Agents">
     <meta property="og:description" content="3 memory types like a human brain: semantic (facts), episodic (events), procedural (workflows). Cognitive Profile for instant personalization. Free & open-source.">
     <meta property="og:site_name" content="Mengram">
+    <meta property="og:image" content="https://opengraph.githubassets.com/1/alibaizhanov/mengram">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="600">
+    <meta property="og:image:alt" content="Mengram — AI Memory API with semantic, episodic, and procedural memory">
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Mengram — Human-Like Memory for AI">
+    <meta name="twitter:title" content="Mengram — AI Memory API for LLMs and AI Agents">
     <meta name="twitter:description" content="The only AI memory API with semantic, episodic & procedural memory. Replace RAG with one API call. Free open-source Mem0 alternative.">
+    <meta name="twitter:image" content="https://opengraph.githubassets.com/1/alibaizhanov/mengram">
+    <meta name="twitter:image:alt" content="Mengram — AI Memory API with semantic, episodic, and procedural memory">
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Cpath d='M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68' fill='none' stroke='%23a855f7' stroke-width='10' stroke-linecap='round'/%3E%3Ccircle cx='62' cy='68' r='10' fill='%23a855f7'/%3E%3Ccircle cx='62' cy='68' r='4.5' fill='%23fff'/%3E%3C/svg%3E">
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Sora:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -1294,6 +1301,76 @@
             .floating-cta p { font-size: 13px; }
         }
     </style>
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@graph": [
+            {
+                "@type": "SoftwareApplication",
+                "name": "Mengram",
+                "applicationCategory": "DeveloperApplication",
+                "operatingSystem": "Any",
+                "description": "AI memory API with 3 memory types: semantic, episodic, and procedural. Cognitive Profile generates instant system prompts. Replace RAG with one API call.",
+                "url": "https://mengram.io",
+                "offers": [
+                    { "@type": "Offer", "price": "0", "priceCurrency": "USD", "name": "Free" },
+                    { "@type": "Offer", "price": "19", "priceCurrency": "USD", "name": "Pro" },
+                    { "@type": "Offer", "price": "99", "priceCurrency": "USD", "name": "Business" }
+                ],
+                "featureList": "Semantic Memory, Episodic Memory, Procedural Memory, Cognitive Profile, Memory Agents, Knowledge Graph, MCP Server, LangChain Integration, CrewAI Integration",
+                "softwareVersion": "2.15.0",
+                "author": { "@type": "Person", "name": "Ali Baizhanov" },
+                "license": "https://opensource.org/licenses/MIT",
+                "codeRepository": "https://github.com/alibaizhanov/mengram"
+            },
+            {
+                "@type": "Organization",
+                "name": "Mengram",
+                "url": "https://mengram.io",
+                "sameAs": [
+                    "https://github.com/alibaizhanov/mengram",
+                    "https://pypi.org/project/mengram-ai/",
+                    "https://www.npmjs.com/package/mengram"
+                ]
+            },
+            {
+                "@type": "WebSite",
+                "name": "Mengram",
+                "url": "https://mengram.io"
+            },
+            {
+                "@type": "FAQPage",
+                "mainEntity": [
+                    {
+                        "@type": "Question",
+                        "name": "What is AI memory?",
+                        "acceptedAnswer": {
+                            "@type": "Answer",
+                            "text": "AI memory is persistent storage that lets large language models (LLMs) and AI agents remember information across conversations. Unlike context windows that reset each session, AI memory stores facts (semantic), events (episodic), and learned workflows (procedural) for long-term personalization."
+                        }
+                    },
+                    {
+                        "@type": "Question",
+                        "name": "How does Mengram's AI memory work?",
+                        "acceptedAnswer": {
+                            "@type": "Answer",
+                            "text": "Mengram automatically extracts 3 types of memory from conversations: semantic memory (facts and preferences), episodic memory (events and decisions), and procedural memory (workflows and processes). One API call returns a Cognitive Profile — a ready-to-use system prompt that makes any AI deeply personalized."
+                        }
+                    },
+                    {
+                        "@type": "Question",
+                        "name": "Is Mengram a free alternative to Mem0?",
+                        "acceptedAnswer": {
+                            "@type": "Answer",
+                            "text": "Yes. Mengram offers a free tier with 100 memory adds and 500 searches per month. Unlike Mem0, Mengram includes episodic memory, procedural memory that evolves from failures, and Cognitive Profile — all at no cost. It is also fully open-source under the MIT license."
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+    </script>
 </head>
 <body>
     <!-- Announcement Banner -->
@@ -1334,7 +1411,7 @@
                 <span class="pulse"></span>
                 Open Source · 3 Memory Types · Cognitive Profile · Agents · Python & JS SDK · Free
             </div>
-            <h1 class="reveal" style="transition-delay:0.1s">Memory like a<br>human brain.</h1>
+            <h1 class="reveal" style="transition-delay:0.1s">AI Memory Like a<br>Human Brain.</h1>
             <p class="reveal" style="transition-delay:0.2s">The only AI memory API with human-like architecture: semantic, episodic, and procedural memory. Your AI remembers facts, events, and learned workflows. Replace your RAG pipeline with one API call.</p>
             <div class="terminal reveal" style="transition-delay:0.3s">
                 <div class="terminal-header">
