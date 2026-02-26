@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "langchain-mengram"
+version = "0.1.0"
+description = "LangChain integration for Mengram — AI memory with semantic, episodic, and procedural memory types."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.9"
+authors = [
+    { name = "Ali Baizhanov", email = "ali@mengram.io" },
+]
+keywords = [
+    "langchain",
+    "mengram",
+    "ai-memory",
+    "retriever",
+    "semantic-memory",
+    "episodic-memory",
+    "procedural-memory",
+    "llm",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "langchain-core>=0.2",
+    "mengram-ai>=2.15",
+]
+
+[project.urls]
+Homepage = "https://mengram.io"
+Documentation = "https://mengram.io/docs"
+Repository = "https://github.com/alibaizhanov/mengram"
+Issues = "https://github.com/alibaizhanov/mengram/issues"
+
+[tool.setuptools.packages.find]
+include = ["langchain_mengram*"]
