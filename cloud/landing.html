@@ -975,7 +975,10 @@
             </div>
             <div class="hero-cta reveal" style="transition-delay:0.4s">
                 <a href="#install" class="btn btn-primary">⚡ Get Started Free</a>
-                <a href="https://github.com/alibaizhanov/mengram" class="btn btn-secondary">GitHub →</a>
+                <a href="https://github.com/alibaizhanov/mengram" class="btn btn-secondary">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:-2px;margin-right:4px;"><path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.75.75 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25z"/></svg>
+                    <span id="gh-stars">GitHub</span> →
+                </a>
             </div>
         </section>
 
@@ -1989,6 +1992,19 @@ crew = Crew(agents=[agent], tasks=[...])</pre>
         document.getElementById("code-input").addEventListener("keydown", e => {
             if (e.key === "Enter") verifyCode();
         });
+
+        // ---- GitHub Stars ----
+        (function fetchStars() {
+            fetch('https://api.github.com/repos/alibaizhanov/mengram')
+                .then(function(r) { return r.json(); })
+                .then(function(d) {
+                    if (d.stargazers_count != null) {
+                        var el = document.getElementById('gh-stars');
+                        if (el) el.textContent = d.stargazers_count + ' stars';
+                    }
+                })
+                .catch(function() {});
+        })();
     </script>
 </body>
 </html>
