@@ -1904,6 +1904,7 @@ def after_call(prospect_id: str, notes: str):
             ("langchain", "LangChain"),
             ("crewai", "CrewAI"),
             ("mcp", "MCP Server"),
+            ("n8n", "n8n"),
         ]),
         ("Reference", [
             ("api-reference", "API Reference"),
@@ -2527,6 +2528,71 @@ results = tools[0].run("how to deploy to Railway")
 <p>For remote/cloud MCP clients, Mengram also supports SSE transport:</p>
 <pre><code>SSE endpoint: https://mengram.io/mcp/sse
 Messages: https://mengram.io/mcp/messages/</code></pre>
+""",
+        },
+        "n8n": {
+            "title": "n8n Integration",
+            "description": "Add persistent memory to any n8n AI agent workflow with a ready-to-import template.",
+            "content": """
+<h2>Overview</h2>
+<p>Add long-term memory to any n8n AI workflow. Your agent remembers users across sessions &mdash; preferences, past conversations, resolved issues. No custom code needed, just HTTP Request nodes.</p>
+
+<h2>Quick start</h2>
+<ol>
+<li><a href="https://github.com/alibaizhanov/mengram/tree/main/examples/n8n" target="_blank">Download the workflow</a> from GitHub</li>
+<li>In n8n, go to <strong>Workflows &rarr; Import from File</strong></li>
+<li>Add your Mengram API key as a Header Auth credential</li>
+<li>Activate and test</li>
+</ol>
+
+<h2>How it works</h2>
+<pre><code>Webhook &rarr; Search Memories &rarr; Build Prompt &rarr; AI Response &rarr; Save to Memory &rarr; Respond</code></pre>
+
+<p>The workflow adds 3 HTTP Request nodes to any AI agent:</p>
+<ol>
+<li><strong>Search memories</strong> &mdash; POST to <code>/v1/search</code> with the user's message to find relevant past context</li>
+<li><strong>AI Agent responds</strong> &mdash; system prompt includes retrieved memories, agent responds with full context</li>
+<li><strong>Save new memories</strong> &mdash; POST to <code>/v1/add</code> to store the conversation. Mengram auto-extracts facts and deduplicates</li>
+</ol>
+
+<h2>Credential setup</h2>
+<p>Create a <strong>Header Auth</strong> credential in n8n:</p>
+<pre><code>Name: Mengram API Key
+Header Name: Authorization
+Header Value: Bearer om-your-api-key</code></pre>
+
+<h2>API endpoints used</h2>
+<table>
+<tr><th>Node</th><th>Method</th><th>URL</th><th>Body</th></tr>
+<tr><td>Search Memories</td><td>POST</td><td><code>https://mengram.io/v1/search</code></td><td><code>{{"query": "...", "user_id": "...", "limit": 5}}</code></td></tr>
+<tr><td>Save to Memory</td><td>POST</td><td><code>https://mengram.io/v1/add</code></td><td><code>{{"messages": [...], "user_id": "..."}}</code></td></tr>
+</table>
+
+<h2>Swap the LLM</h2>
+<p>The workflow uses OpenAI <code>gpt-4o-mini</code> by default. To use a different LLM, change the URL and body in the AI Response node:</p>
+<ul>
+<li><strong>Anthropic</strong>: <code>https://api.anthropic.com/v1/messages</code></li>
+<li><strong>Ollama</strong> (local): <code>http://localhost:11434/api/chat</code></li>
+<li><strong>Any OpenAI-compatible API</strong>: just change the URL and model name</li>
+</ul>
+
+<h2>Example</h2>
+<pre><code>curl -X POST http://localhost:5678/webhook/chat \\
+  -H "Content-Type: application/json" \\
+  -d '{{"message": "I prefer Python and use Railway for hosting", "user_id": "user-123"}}'
+
+# Later...
+curl -X POST http://localhost:5678/webhook/chat \\
+  -H "Content-Type: application/json" \\
+  -d '{{"message": "What hosting should I deploy to?", "user_id": "user-123"}}'
+
+# Agent remembers Railway preference and responds accordingly</code></pre>
+
+<h2>Links</h2>
+<ul>
+<li><a href="https://github.com/alibaizhanov/mengram/tree/main/examples/n8n" target="_blank">Workflow on GitHub</a></li>
+<li><a href="/docs/api-reference">API Reference</a></li>
+</ul>
 """,
         },
         "api-reference": {

@@ -1,0 +1,196 @@
+{
+  "name": "AI Agent with Persistent Memory (Mengram)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "chat",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "mengram-chat"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://mengram.io/v1/search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ query: $json.body.message, user_id: $json.body.user_id || 'default', limit: 5 }) }}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0002-4000-8000-000000000002",
+      "name": "Search Memories",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "MENGRAM_CREDENTIAL_ID",
+          "name": "Mengram API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst userMessage = $('Webhook').first().json.body.message;\nconst userId = $('Webhook').first().json.body.user_id || 'default';\n\n// Format retrieved memories into context\nlet memoryContext = '';\nif (input.results && input.results.length > 0) {\n  const memories = input.results.map(r => {\n    let parts = [r.entity];\n    if (r.facts && r.facts.length) parts.push(r.facts.join('; '));\n    return parts.join(': ');\n  });\n  memoryContext = 'What you know about this user:\\n' + memories.join('\\n');\n}\n\nconst systemPrompt = `You are a helpful assistant with persistent memory.\n\n${memoryContext ? memoryContext + '\\n\\nUse this context to personalize your response. Reference past interactions naturally.' : 'No prior memories found for this user.'}`;\n\nreturn [{\n  json: {\n    systemPrompt,\n    userMessage,\n    userId,\n    memoryContext\n  }\n}];"
+      },
+      "id": "a1b2c3d4-0003-4000-8000-000000000003",
+      "name": "Build Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'gpt-4o-mini', messages: [ { role: 'system', content: $json.systemPrompt }, { role: 'user', content: $json.userMessage } ], temperature: 0.7 }) }}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0004-4000-8000-000000000004",
+      "name": "AI Response",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [960, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const aiResponse = $input.first().json;\nconst userMessage = $('Build Prompt').first().json.userMessage;\nconst userId = $('Build Prompt').first().json.userId;\n\nconst assistantMessage = aiResponse.choices[0].message.content;\n\nreturn [{\n  json: {\n    assistantMessage,\n    userMessage,\n    userId\n  }\n}];"
+      },
+      "id": "a1b2c3d4-0005-4000-8000-000000000005",
+      "name": "Extract Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://mengram.io/v1/add",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ messages: [ { role: 'user', content: $json.userMessage }, { role: 'assistant', content: $json.assistantMessage } ], user_id: $json.userId }) }}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0006-4000-8000-000000000006",
+      "name": "Save to Memory",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1440, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "MENGRAM_CREDENTIAL_ID",
+          "name": "Mengram API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ response: $('Extract Response').first().json.assistantMessage, user_id: $('Extract Response').first().json.userId, memory_saved: true }) }}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0007-4000-8000-000000000007",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1680, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Search Memories",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Memories": {
+      "main": [
+        [
+          {
+            "node": "Build Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Prompt": {
+      "main": [
+        [
+          {
+            "node": "AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Response": {
+      "main": [
+        [
+          {
+            "node": "Extract Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Response": {
+      "main": [
+        [
+          {
+            "node": "Save to Memory",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Memory": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2026-02-27T00:00:00.000Z",
+  "versionId": "1"
+}
