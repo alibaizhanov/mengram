@@ -21,8 +21,8 @@ pip install mengram-ai   # or: npm install mengram-ai
 ```
 
 ```python
-from cloud.client import CloudMemory
-m = CloudMemory(api_key="om-...")       # Free key → mengram.io
+from mengram import Mengram
+m = Mengram(api_key="om-...")           # Free key → mengram.io
 
 m.add([{"role": "user", "content": "I use Python and deploy to Railway"}])
 m.search("tech stack")                  # → facts
@@ -62,9 +62,9 @@ pip install mengram-ai
 **3. Use**
 
 ```python
-from cloud.client import CloudMemory
+from mengram import Mengram
 
-m = CloudMemory(api_key="om-...")
+m = Mengram(api_key="om-...")
 
 # Add a conversation — auto-extracts facts, events, and workflows
 m.add([
@@ -201,18 +201,16 @@ mengram import files notes/*.md --cloud                          # Any text/mark
 </td>
 <td width="50%">
 
-**LangChain**
+**LangChain** — `pip install langchain-mengram`
 
 ```python
-from integrations.langchain import (
-    MengramChatMessageHistory,
+from langchain_mengram import (
     MengramRetriever,
+    MengramChatMessageHistory,
 )
 
-history = MengramChatMessageHistory(
-    api_key="om-...", user_id="user-1"
-)
 retriever = MengramRetriever(api_key="om-...")
+docs = retriever.invoke("deployment issues")
 ```
 
 </td>
@@ -259,6 +257,40 @@ m.add([...], user_id="bob")
 
 m.search_all("preferences", user_id="alice")  # Only Alice's memories
 m.get_profile(user_id="alice")                 # Alice's cognitive profile
+```
+
+## Async Client
+
+Non-blocking Python client built on httpx:
+
+```python
+from mengram import AsyncMengram
+
+async with AsyncMengram() as m:
+    await m.add([{"role": "user", "content": "I use async/await"}])
+    results = await m.search("async")
+    profile = await m.get_profile()
+```
+
+Install with `pip install mengram-ai[async]`.
+
+## Metadata Filters
+
+Filter search results by metadata:
+
+```python
+results = m.search("config", filters={"agent_id": "support-bot", "app_id": "prod"})
+```
+
+## Webhooks
+
+Get notified when memories change:
+
+```python
+m.create_webhook(
+    url="https://your-app.com/hook",
+    event_types=["memory_add", "memory_update"],
+)
 ```
 
 ## Agent Templates

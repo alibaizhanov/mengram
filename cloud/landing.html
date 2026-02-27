@@ -1321,7 +1321,7 @@
                 "featureList": "Semantic Memory, Episodic Memory, Procedural Memory, Cognitive Profile, Memory Agents, Knowledge Graph, MCP Server, LangChain Integration, CrewAI Integration",
                 "softwareVersion": "2.15.0",
                 "author": { "@type": "Person", "name": "Ali Baizhanov" },
-                "license": "https://opensource.org/licenses/MIT",
+                "license": "https://opensource.org/licenses/Apache-2.0",
                 "codeRepository": "https://github.com/alibaizhanov/mengram"
             },
             {
@@ -1331,7 +1331,7 @@
                 "sameAs": [
                     "https://github.com/alibaizhanov/mengram",
                     "https://pypi.org/project/mengram-ai/",
-                    "https://www.npmjs.com/package/mengram"
+                    "https://www.npmjs.com/package/mengram-ai"
                 ]
             },
             {
@@ -1363,7 +1363,7 @@
                         "name": "Is Mengram a free alternative to Mem0?",
                         "acceptedAnswer": {
                             "@type": "Answer",
-                            "text": "Yes. Mengram offers a free tier with 100 memory adds and 500 searches per month. Unlike Mem0, Mengram includes episodic memory, procedural memory that evolves from failures, and Cognitive Profile — all at no cost. It is also fully open-source under the MIT license."
+                            "text": "Yes. Mengram offers a free tier with 100 memory adds and 500 searches per month. Unlike Mem0, Mengram includes episodic memory, procedural memory that evolves from failures, and Cognitive Profile — all at no cost. It is also fully open-source under the Apache 2.0 license."
                         }
                     }
                 ]
@@ -1458,7 +1458,7 @@
             </span>
             <span class="trust-badge">
                 <svg viewBox="0 0 16 16"><path d="M8 0L0 3v5c0 4.25 3.4 8.25 8 9 4.6-.75 8-4.75 8-9V3L8 0zm0 1.5l6 2.3V8c0 3.5-2.5 6.5-6 7.4C4.5 14.5 2 11.5 2 8V3.8l6-2.3z"/><path d="M6.5 10.5l-2-2 1-1 1 1 3.5-3.5 1 1z"/></svg>
-                MIT License
+                Apache-2.0
             </span>
             <span class="trust-badge">
                 <svg viewBox="0 0 16 16"><path d="M3 1h10a2 2 0 012 2v2H1V3a2 2 0 012-2zm-2 5h14v7a2 2 0 01-2 2H3a2 2 0 01-2-2V6zm3 2v1h2V8H4zm4 0v1h2V8H8zm4 0v1h2V8h-2zM4 11v1h2v-1H4zm4 0v1h2v-1H8z"/></svg>
@@ -1477,7 +1477,7 @@
                 <div class="metric-label">Memory Types</div>
             </div>
             <div class="metric-item">
-                <div class="metric-value"><span data-count="12">0</span><span class="metric-suffix">+</span></div>
+                <div class="metric-value"><span data-count="21">0</span><span class="metric-suffix">+</span></div>
                 <div class="metric-label">MCP Tools</div>
             </div>
             <div class="metric-item">
@@ -1614,9 +1614,9 @@
                             <h4>Use in your app</h4>
                             <div class="code-box">
                                 <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-<pre><span class="c-kw">from</span> <span class="c-fn">cloud.client</span> <span class="c-kw">import</span> CloudMemory
+<pre><span class="c-kw">from</span> <span class="c-fn">mengram</span> <span class="c-kw">import</span> Mengram
 
-m = CloudMemory(api_key=<span class="c-str">"om-..."</span>)
+m = Mengram(api_key=<span class="c-str">"om-..."</span>)
 
 <span class="c-cmt"># Save — auto-extracts facts, events, workflows</span>
 m.add([
@@ -1692,7 +1692,7 @@ m.search_all(<span class="c-str">"prefs"</span>, user_id=<span class="c-str">"al
                             <h4>Install</h4>
                             <div class="code-box">
                                 <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-                                <code>pip install mengram-ai[langchain]</code>
+                                <code>pip install langchain-mengram</code>
                             </div>
                         </div>
                     </div>
@@ -1703,21 +1703,23 @@ m.search_all(<span class="c-str">"prefs"</span>, user_id=<span class="c-str">"al
                             <p>Drop-in replacement — returns relevant knowledge from all 3 memory types instead of raw messages.</p>
                             <div class="code-box">
                                 <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-<pre><span class="c-kw">from</span> <span class="c-fn">integrations.langchain</span> <span class="c-kw">import</span> MengramMemory
+<pre><span class="c-kw">from</span> <span class="c-fn">langchain_mengram</span> <span class="c-kw">import</span> MengramRetriever
 
-<span class="c-cmt"># Replaces ConversationBufferMemory</span>
-memory = MengramMemory(
+retriever = MengramRetriever(
     api_key=<span class="c-str">"om-..."</span>,
-    use_profile=<span class="c-fn">True</span>,  <span class="c-cmt"># Cognitive Profile</span>
+    user_id=<span class="c-str">"alice"</span>,
+    top_k=<span class="c-fn">5</span>,
 )
 
-chain = ConversationChain(llm=llm, memory=memory)
-chain.predict(input=<span class="c-str">"I deployed on Railway"</span>)
+<span class="c-cmt"># Use in any LangChain chain</span>
+docs = retriever.invoke(<span class="c-str">"deployment issues"</span>)
+<span class="c-cmt"># → Documents from semantic + episodic + procedural memory</span>
 
-<span class="c-cmt"># Next call — Mengram provides relevant context</span>
-<span class="c-cmt"># from semantic + episodic + procedural memory</span>
-chain.predict(input=<span class="c-str">"How did my deploy go?"</span>)
-<span class="c-cmt"># → Memory: facts, the deployment event, deploy workflow</span></pre>
+<span class="c-cmt"># Or in an LCEL chain</span>
+chain = (
+    {<span class="c-str">"context"</span>: retriever, <span class="c-str">"question"</span>: RunnablePassthrough()}
+    | prompt | llm | StrOutputParser()
+)</pre>
                             </div>
                         </div>
                     </div>
@@ -1727,7 +1729,7 @@ chain.predict(input=<span class="c-str">"How did my deploy go?"</span>)
                             <h4>Or use with LCEL (recommended)</h4>
                             <div class="code-box">
                                 <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-<pre><span class="c-kw">from</span> <span class="c-fn">integrations.langchain</span> <span class="c-kw">import</span> MengramChatMessageHistory
+<pre><span class="c-kw">from</span> <span class="c-fn">langchain_mengram</span> <span class="c-kw">import</span> MengramChatMessageHistory
 <span class="c-kw">from</span> <span class="c-fn">langchain_core.runnables.history</span> <span class="c-kw">import</span> RunnableWithMessageHistory
 
 chain_with_memory = RunnableWithMessageHistory(

@@ -55,6 +55,7 @@ all = [
     "uvicorn>=0.20",
     "langchain-core>=0.2",
     "crewai>=0.80",
+    "httpx>=0.25",
 ]
 dev = ["pytest>=7.0", "pytest-asyncio>=0.21"]
 

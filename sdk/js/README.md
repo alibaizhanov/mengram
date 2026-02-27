@@ -90,27 +90,68 @@ await m.importChatgpt('export.zip', {
 
 | Method | Description |
 |--------|-------------|
+| **Core** | |
 | `add(messages, options?)` | Add memories (extracts all 3 types) |
 | `addText(text, options?)` | Add memories from plain text |
 | `search(query, options?)` | Semantic search |
-| `searchAll(query, options?)` | **Unified search (all 3 types)** |
-| `episodes(options?)` | **Search/list episodic memories** |
-| `procedures(options?)` | **Search/list procedural memories** |
-| `procedureFeedback(id, options?)` | **Record success/failure (triggers evolution on failure)** |
-| `procedureHistory(id)` | **Version history + evolution log** |
-| `procedureEvolution(id)` | **Evolution log (what changed and why)** |
-| `getProfile(userId?, options?)` | **Cognitive Profile** |
+| `searchAll(query, options?)` | Unified search (all 3 types) |
 | `getAll(options?)` | List all memories |
+| `getAllFull(options?)` | List all memories with full details |
 | `get(name)` | Get specific entity |
 | `delete(name)` | Delete entity |
-| `runAgents(options?)` | Run memory agents |
-| `importChatgpt(zipPath, options?)` | **Import ChatGPT export ZIP** |
-| `importObsidian(vaultPath, options?)` | **Import Obsidian vault** |
-| `importFiles(paths, options?)` | **Import text/markdown files** |
-| `insights()` | AI reflections |
+| `stats(options?)` | Usage statistics |
+| **Memory Types** | |
+| `episodes(options?)` | Search/list episodic memories |
+| `procedures(options?)` | Search/list procedural memories |
+| `procedureFeedback(id, options?)` | Record success/failure (triggers evolution) |
+| `procedureHistory(id)` | Version history + evolution log |
+| `procedureEvolution(id)` | Evolution log (what changed and why) |
+| `getProfile(userId?, options?)` | Cognitive Profile |
+| **Memory Management** | |
+| `dedup(options?)` | Find and merge duplicate entities |
+| `dedupAll(options?)` | Deduplicate facts across all entities |
+| `dedupEntity(name, options?)` | Deduplicate facts on specific entity |
+| `merge(source, target, options?)` | Merge two entities |
+| `archiveFact(entity, fact, options?)` | Archive a specific fact |
+| `reindex(options?)` | Re-embed all entities |
+| `fixEntityType(name, type, options?)` | Fix entity type classification |
+| **Search & Discovery** | |
+| `graph(options?)` | Get knowledge graph (nodes + edges) |
+| `timeline(options?)` | Search facts by time range |
+| `feed(options?)` | Activity feed |
+| **Agents & Insights** | |
+| `runAgents(options?)` | Run memory agents (curator, connector, digest) |
+| `agentHistory(options?)` | Agent run history |
+| `agentStatus(options?)` | Check which agents are due |
+| `insights(options?)` | AI reflections |
+| `reflect(options?)` | Trigger memory reflection |
+| **Triggers** | |
+| `getTriggers(options?)` | List smart triggers |
+| `detectTriggers(userId, options?)` | Detect triggers for a user |
+| `processTriggers()` | Fire all pending triggers |
+| `dismissTrigger(id)` | Dismiss a trigger |
+| **Webhooks** | |
+| `createWebhook(url, options?)` | Create a webhook |
+| `listWebhooks()` | List all webhooks |
+| `updateWebhook(id, options?)` | Update a webhook |
+| `deleteWebhook(id)` | Delete a webhook |
+| **Teams** | |
 | `createTeam(name)` | Create shared team |
 | `joinTeam(code)` | Join team |
+| `listTeams()` | List your teams |
 | `shareMemory(entity, teamId)` | Share with team |
+| `unshareMemory(entity, teamId)` | Make memory personal again |
+| `teamMembers(teamId)` | List team members |
+| `leaveTeam(teamId)` | Leave a team |
+| `deleteTeam(teamId)` | Delete a team (owner only) |
+| **Import** | |
+| `importChatgpt(zipPath, options?)` | Import ChatGPT export ZIP |
+| `importObsidian(vaultPath, options?)` | Import Obsidian vault |
+| `importFiles(paths, options?)` | Import text/markdown files |
+| **Billing** | |
+| `getBilling()` | Current plan and usage |
+| `createCheckout(plan)` | Create checkout session |
+| `createPortal()` | Manage subscription |
 
 ## Multi-User Isolation
 

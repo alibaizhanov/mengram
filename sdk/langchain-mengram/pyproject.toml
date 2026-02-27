@@ -7,8 +7,8 @@ name = "langchain-mengram"
 version = "0.2.0"
 description = "LangChain integration for Mengram — AI memory with semantic, episodic, and procedural memory types."
 readme = "README.md"
-license = "MIT"
-requires-python = ">=3.9"
+license = "Apache-2.0"
+requires-python = ">=3.10"
 authors = [
     { name = "Ali Baizhanov", email = "ali@mengram.io" },
 ]
@@ -27,7 +27,6 @@ classifiers = [
     "Intended Audience :: Developers",
 
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",

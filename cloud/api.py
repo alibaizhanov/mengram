@@ -184,15 +184,15 @@ The only AI memory API with 3 memory types. Your AI remembers facts, events, and
 - **Team Sharing** — shared memory across team members
 - **LangChain** — drop-in replacement for ConversationBufferMemory
 - **CrewAI** — 5 tools with procedural learning (agents learn optimal workflows)
-- **OpenClaw** — plugin with auto-recall/capture hooks, 6 tools, and Graph RAG across all channels
+- **OpenClaw** — plugin with auto-recall/capture hooks, 12 tools, and Graph RAG across all channels
 
 ### Authentication
 All endpoints require `Authorization: Bearer YOUR_API_KEY` header.
 
 ### Quick Start
 ```python
-from cloud.client import CloudMemory
-m = CloudMemory(api_key="om-...")
+from mengram import Mengram
+m = Mengram(api_key="om-...")
 m.add([{"role": "user", "content": "I use Python and Railway"}])
 results = m.search_all("deployment")  # semantic + episodic + procedural
 profile = m.get_profile()             # instant system prompt
@@ -2420,10 +2420,10 @@ prompt = get_mengram_profile(api_key="om-...", user_id="alice")</code></pre>
             "description": "Give your CrewAI agents persistent memory with procedural learning.",
             "content": """
 <h2>Installation</h2>
-<pre><code>pip install mengram-ai crewai</code></pre>
+<pre><code>pip install mengram-ai[crewai]</code></pre>
 
 <h2>Quick start</h2>
-<pre><code>from integrations.crewai import create_mengram_tools
+<pre><code>from integrations.crewai import create_mengram_tools  # included in mengram-ai
 from crewai import Agent, Task, Crew
 
 # Create memory tools
@@ -2497,21 +2497,30 @@ results = tools[0].run("how to deploy to Railway")
 }}</code></pre>
 
 <h2>Available tools</h2>
-<p>The MCP server exposes 12 tools:</p>
+<p>The MCP server exposes 21 tools:</p>
 <table>
 <tr><th>Tool</th><th>Description</th></tr>
-<tr><td><code>mengram_add</code></td><td>Add memories from text</td></tr>
-<tr><td><code>mengram_search</code></td><td>Search semantic memory</td></tr>
-<tr><td><code>mengram_search_all</code></td><td>Unified search (all 3 types)</td></tr>
-<tr><td><code>mengram_get_profile</code></td><td>Get Cognitive Profile</td></tr>
-<tr><td><code>mengram_episodes</code></td><td>Search episodic memory</td></tr>
-<tr><td><code>mengram_procedures</code></td><td>Search procedural memory</td></tr>
-<tr><td><code>mengram_get_all</code></td><td>List all memories</td></tr>
-<tr><td><code>mengram_get</code></td><td>Get specific entity</td></tr>
-<tr><td><code>mengram_delete</code></td><td>Delete entity</td></tr>
-<tr><td><code>mengram_dedup</code></td><td>Deduplicate entities</td></tr>
-<tr><td><code>mengram_stats</code></td><td>Usage statistics</td></tr>
-<tr><td><code>mengram_run_agents</code></td><td>Run memory agents</td></tr>
+<tr><td><code>remember</code></td><td>Save knowledge from conversation to memory</td></tr>
+<tr><td><code>remember_text</code></td><td>Save knowledge from plain text</td></tr>
+<tr><td><code>recall</code></td><td>Semantic search through memory</td></tr>
+<tr><td><code>search</code></td><td>Structured search with scores and facts</td></tr>
+<tr><td><code>search_all</code></td><td>Unified search across all 3 memory types</td></tr>
+<tr><td><code>timeline</code></td><td>Search memory by time range</td></tr>
+<tr><td><code>vault_stats</code></td><td>Memory statistics</td></tr>
+<tr><td><code>run_agents</code></td><td>Run memory agents (curator, connector, digest)</td></tr>
+<tr><td><code>get_insights</code></td><td>AI-generated insights and patterns</td></tr>
+<tr><td><code>list_procedures</code></td><td>List learned workflows/procedures</td></tr>
+<tr><td><code>procedure_feedback</code></td><td>Record success/failure for a procedure</td></tr>
+<tr><td><code>procedure_history</code></td><td>Version history of a procedure</td></tr>
+<tr><td><code>get_entity</code></td><td>Get details of a specific entity</td></tr>
+<tr><td><code>delete_entity</code></td><td>Delete an entity and all its data</td></tr>
+<tr><td><code>list_episodes</code></td><td>List or search episodic memories</td></tr>
+<tr><td><code>get_graph</code></td><td>Get the knowledge graph</td></tr>
+<tr><td><code>get_triggers</code></td><td>List smart triggers and reminders</td></tr>
+<tr><td><code>get_feed</code></td><td>Activity feed — recent memory changes</td></tr>
+<tr><td><code>archive_fact</code></td><td>Archive a specific fact on an entity</td></tr>
+<tr><td><code>merge_entities</code></td><td>Merge two entities into one</td></tr>
+<tr><td><code>reflect</code></td><td>Trigger AI reflection on memories</td></tr>
 </table>
 
 <h2>HTTP transport</h2>

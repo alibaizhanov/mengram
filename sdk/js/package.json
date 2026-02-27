@@ -10,7 +10,7 @@
     "url": "https://github.com/alibaizhanov/mengram"
   },
   "homepage": "https://mengram.io",
-  "keywords": ["ai", "memory", "llm", "agents", "knowledge-graph", "mcp", "mengram"],
+  "keywords": ["ai", "memory", "llm", "agents", "knowledge-graph", "mcp", "mengram", "semantic-search", "episodic-memory", "procedural-memory", "cognitive-profile", "rag", "embeddings", "mem0-alternative", "webhooks", "second-brain"],
   "author": "Ali Baizhanov",
   "files": ["index.js", "index.d.ts", "README.md"]
 }

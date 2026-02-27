@@ -192,22 +192,22 @@ export declare class MengramClient {
   stats(options?: { userId?: string }): Promise<Stats>;
   graph(options?: { userId?: string }): Promise<{ nodes: any[]; edges: any[] }>;
   getProfile(userId?: string, options?: { force?: boolean }): Promise<CognitiveProfile>;
-  timeline(options?: { after?: string; before?: string; limit?: number }): Promise<any[]>;
+  timeline(options?: { after?: string; before?: string; limit?: number; userId?: string }): Promise<any[]>;
 
   // Episodic Memory
-  episodes(options?: { query?: string; limit?: number; after?: string; before?: string }): Promise<Episode[]>;
+  episodes(options?: { query?: string; limit?: number; after?: string; before?: string; userId?: string }): Promise<Episode[]>;
 
   // Procedural Memory
-  procedures(options?: { query?: string; limit?: number }): Promise<Procedure[]>;
+  procedures(options?: { query?: string; limit?: number; userId?: string }): Promise<Procedure[]>;
   procedureFeedback(procedureId: string, options?: { success?: boolean; context?: string; failedAtStep?: number }): Promise<FeedbackResult>;
   procedureHistory(procedureId: string, options?: { userId?: string }): Promise<ProcedureHistoryResult>;
   procedureEvolution(procedureId: string, options?: { userId?: string }): Promise<{ evolution: ProcedureEvolutionEntry[] }>;
 
   // Unified Search
-  searchAll(query: string, options?: { limit?: number; graphDepth?: number }): Promise<UnifiedSearchResult>;
+  searchAll(query: string, options?: { limit?: number; graphDepth?: number; userId?: string }): Promise<UnifiedSearchResult>;
 
   // Agents
-  runAgents(options?: { agent?: string; autoFix?: boolean }): Promise<any>;
+  runAgents(options?: { agent?: string; autoFix?: boolean; userId?: string }): Promise<any>;
   agentHistory(options?: { agent?: string; limit?: number }): Promise<any[]>;
   agentStatus(options?: { userId?: string }): Promise<any>;
 
