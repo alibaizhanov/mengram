@@ -949,18 +949,42 @@ async function runAgent(type) {
     agentRunning = true;
     const resultsBox = document.getElementById('agent-results');
     resultsBox.style.display = 'block';
-    resultsBox.innerHTML = `<div class="loading" style="text-align:center;padding:30px;color:var(--text-2);"><div style="font-size:32px;margin-bottom:12px;">⏳</div>Running ${type === 'all' ? 'all agents' : type + ' agent'}... (10-30 sec)</div>`;
+    resultsBox.innerHTML = `<div class="loading" style="text-align:center;padding:30px;color:var(--text-2);"><div style="font-size:32px;margin-bottom:12px;">⏳</div>Running ${type === 'all' ? 'all agents' : type + ' agent'}...</div>`;
 
     try {
         const autoFix = type === 'curator' || type === 'all' ? '&auto_fix=true' : '';
         const res = await fetch(`${API}/v1/agents/run?agent=${type}${autoFix}`, {method:'POST', headers:H()});
         const data = await res.json();
-        renderAgentResults(type, data);
+
+        if (data.job_id) {
+            // Poll job until done
+            const jobResult = await pollJob(data.job_id);
+            if (jobResult) {
+                renderAgentResults(type, jobResult);
+            } else {
+                resultsBox.innerHTML = `<div style="color:var(--red);padding:20px;">Agent job timed out. Check /v1/jobs/${data.job_id}</div>`;
+            }
+        } else {
+            renderAgentResults(type, data);
+        }
         loadAgentHistory();
     } catch(e) {
         resultsBox.innerHTML = `<div style="color:var(--red);padding:20px;">Error: ${e.message}</div>`;
     }
     agentRunning = false;
+}
+
+async function pollJob(jobId, maxAttempts = 60) {
+    for (let i = 0; i < maxAttempts; i++) {
+        await new Promise(r => setTimeout(r, 3000));
+        try {
+            const res = await fetch(`${API}/v1/jobs/${jobId}`, {headers:H()});
+            const job = await res.json();
+            if (job.status === 'completed') return job.result || job;
+            if (job.status === 'failed') return null;
+        } catch(e) {}
+    }
+    return null;
 }
 
 function renderAgentResults(type, data) {
