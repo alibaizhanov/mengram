@@ -658,40 +658,62 @@ Be strict — only include entities that directly answer or relate to the query.
     async def sitemap():
         """XML sitemap for search engines."""
         from starlette.responses import Response
-        urls = [
-            # Core pages
-            "https://mengram.io",
-            "https://mengram.io/pricing",
-            # VS comparison pages
-            "https://mengram.io/vs/mem0",
-            "https://mengram.io/vs/zep",
-            "https://mengram.io/vs/letta",
-            "https://mengram.io/vs/langmem",
-            "https://mengram.io/vs/supermemory",
-            # Blog
-            "https://mengram.io/blog",
-            "https://mengram.io/blog/what-is-ai-memory",
-            "https://mengram.io/blog/ai-memory-vs-rag",
-            "https://mengram.io/blog/semantic-episodic-procedural-memory",
-            "https://mengram.io/blog/how-to-add-memory-to-ai-agents",
-            "https://mengram.io/blog/cognitive-profile-system-prompts",
-            "https://mengram.io/blog/mcp-memory-server-setup",
-            "https://mengram.io/blog/mem0-vs-mengram-benchmark",
-            "https://mengram.io/blog/ai-memory-for-crewai-langchain",
+        # (url, priority, changefreq)
+        pages = [
+            # Core — highest priority
+            ("https://mengram.io", "1.0", "weekly"),
+            ("https://mengram.io/pricing", "0.8", "monthly"),
+            # Docs — high priority, key for dev discovery
+            ("https://mengram.io/docs", "0.9", "weekly"),
+            ("https://mengram.io/docs/quickstart", "0.9", "weekly"),
+            ("https://mengram.io/docs/python-sdk", "0.8", "weekly"),
+            ("https://mengram.io/docs/javascript-sdk", "0.8", "weekly"),
+            ("https://mengram.io/docs/async-client", "0.7", "monthly"),
+            ("https://mengram.io/docs/api-reference", "0.8", "weekly"),
+            ("https://mengram.io/docs/memory-types", "0.8", "monthly"),
+            ("https://mengram.io/docs/cognitive-profile", "0.7", "monthly"),
+            ("https://mengram.io/docs/search-filters", "0.7", "monthly"),
+            ("https://mengram.io/docs/webhooks", "0.7", "monthly"),
+            ("https://mengram.io/docs/langchain", "0.8", "weekly"),
+            ("https://mengram.io/docs/crewai", "0.8", "weekly"),
+            ("https://mengram.io/docs/mcp", "0.8", "weekly"),
+            ("https://mengram.io/docs/n8n", "0.8", "weekly"),
+            # VS comparison — high SEO value
+            ("https://mengram.io/vs/mem0", "0.9", "weekly"),
+            ("https://mengram.io/vs/zep", "0.8", "weekly"),
+            ("https://mengram.io/vs/letta", "0.8", "weekly"),
+            ("https://mengram.io/vs/langmem", "0.8", "weekly"),
+            ("https://mengram.io/vs/supermemory", "0.8", "weekly"),
+            # Blog — high SEO value
+            ("https://mengram.io/blog", "0.8", "weekly"),
+            ("https://mengram.io/blog/what-is-ai-memory", "0.8", "monthly"),
+            ("https://mengram.io/blog/ai-memory-vs-rag", "0.8", "monthly"),
+            ("https://mengram.io/blog/semantic-episodic-procedural-memory", "0.8", "monthly"),
+            ("https://mengram.io/blog/how-to-add-memory-to-ai-agents", "0.8", "monthly"),
+            ("https://mengram.io/blog/cognitive-profile-system-prompts", "0.7", "monthly"),
+            ("https://mengram.io/blog/mcp-memory-server-setup", "0.8", "monthly"),
+            ("https://mengram.io/blog/mem0-vs-mengram-benchmark", "0.8", "monthly"),
+            ("https://mengram.io/blog/ai-memory-for-crewai-langchain", "0.7", "monthly"),
             # Use cases
-            "https://mengram.io/usecase/customer-support",
-            "https://mengram.io/usecase/personal-assistant",
-            "https://mengram.io/usecase/education",
-            "https://mengram.io/usecase/healthcare",
-            "https://mengram.io/usecase/sales",
+            ("https://mengram.io/usecase/customer-support", "0.7", "monthly"),
+            ("https://mengram.io/usecase/personal-assistant", "0.7", "monthly"),
+            ("https://mengram.io/usecase/education", "0.6", "monthly"),
+            ("https://mengram.io/usecase/healthcare", "0.6", "monthly"),
+            ("https://mengram.io/usecase/sales", "0.7", "monthly"),
             # Legal
-            "https://mengram.io/terms",
-            "https://mengram.io/privacy",
-            "https://mengram.io/refund",
+            ("https://mengram.io/terms", "0.3", "yearly"),
+            ("https://mengram.io/privacy", "0.3", "yearly"),
+            ("https://mengram.io/refund", "0.3", "yearly"),
         ]
+        today = "2026-02-27"
         entries = "\n".join(
-            f"  <url><loc>{u}</loc><changefreq>weekly</changefreq></url>"
-            for u in urls
+            f"  <url>\n"
+            f"    <loc>{url}</loc>\n"
+            f"    <lastmod>{today}</lastmod>\n"
+            f"    <changefreq>{freq}</changefreq>\n"
+            f"    <priority>{prio}</priority>\n"
+            f"  </url>"
+            for url, prio, freq in pages
         )
         xml = (
             '<?xml version="1.0" encoding="UTF-8"?>\n'
