@@ -199,7 +199,7 @@ profile = m.get_profile()             # instant system prompt
 ```
         """,
         version="2.15.0",
-        docs_url="/docs",
+        docs_url="/swagger",
         redoc_url="/redoc",
         openapi_tags=[
             {"name": "Memory", "description": "Store and retrieve semantic memories"},
@@ -589,7 +589,7 @@ Be strict — only include entities that directly answer or relate to the query.
                 <hr style="border:none;border-top:1px solid #1a1a2e;margin:28px 0">
                 <p style="font-size:12px;color:#55556a;text-align:center">
                     <a href="https://mengram.io/dashboard" style="color:#7c3aed;text-decoration:none">Console</a> ·
-                    <a href="https://mengram.io/docs" style="color:#7c3aed;text-decoration:none">API Docs</a> ·
+                    <a href="https://mengram.io/docs" style="color:#7c3aed;text-decoration:none">Docs</a> ·
                     <a href="https://github.com/alibaizhanov/mengram" style="color:#7c3aed;text-decoration:none">GitHub</a>
                 </p>
             </div>
@@ -1886,6 +1886,891 @@ def after_call(prospect_id: str, notes: str):
             "benefits_html": ben_html,
         }
         return html.format(**data_copy)
+
+    # ---- Documentation Pages ----
+
+    DOCS_SIDEBAR = [
+        ("Getting Started", [
+            ("quickstart", "Quickstart"),
+            ("memory-types", "Memory Types"),
+            ("cognitive-profile", "Cognitive Profile"),
+        ]),
+        ("SDKs", [
+            ("python-sdk", "Python SDK"),
+            ("async-client", "Async Client"),
+            ("javascript-sdk", "JavaScript SDK"),
+        ]),
+        ("Integrations", [
+            ("langchain", "LangChain"),
+            ("crewai", "CrewAI"),
+            ("mcp", "MCP Server"),
+        ]),
+        ("Reference", [
+            ("api-reference", "API Reference"),
+            ("search-filters", "Search & Filters"),
+            ("webhooks", "Webhooks"),
+        ]),
+    ]
+
+    def _build_sidebar(active_slug: str) -> str:
+        html = ""
+        for section, pages in DOCS_SIDEBAR:
+            html += f'<div class="sidebar-section"><h4>{section}</h4>'
+            for slug, title in pages:
+                cls = ' class="active"' if slug == active_slug else ""
+                html += f'<a href="/docs/{slug}"{cls}>{title}</a>'
+            html += "</div>"
+        return html
+
+    DOCS_PAGES = {
+        "quickstart": {
+            "title": "Quickstart",
+            "description": "Get your API key and add your first memory in under 2 minutes.",
+            "content": """
+<h2>1. Get an API key</h2>
+<p>Sign up at <a href="/#signup">mengram.io</a> to get your free API key. It starts with <code>om-</code>.</p>
+
+<h2>2. Install the SDK</h2>
+<h3>Python</h3>
+<pre><code>pip install mengram-ai</code></pre>
+<h3>JavaScript</h3>
+<pre><code>npm install mengram-ai</code></pre>
+
+<h2>3. Add your first memory</h2>
+<h3>Python</h3>
+<pre><code>from mengram import Mengram
+
+m = Mengram(api_key="om-your-key")
+
+# Add memories from a conversation
+result = m.add([
+    {{"role": "user", "content": "I deployed the app on Railway. Using PostgreSQL."}},
+    {{"role": "assistant", "content": "Got it, noted the Railway + PostgreSQL stack."}},
+])
+
+# result contains a job_id for background processing
+print(result)  # {{"status": "accepted", "job_id": "job-..."}}</code></pre>
+
+<h3>JavaScript</h3>
+<pre><code>const {{ MengramClient }} = require('mengram-ai');
+const m = new MengramClient('om-your-key');
+
+await m.add([
+    {{ role: 'user', content: 'I deployed the app on Railway. Using PostgreSQL.' }},
+]);</code></pre>
+
+<h2>4. Search your memories</h2>
+<pre><code># Semantic search
+results = m.search("deployment stack")
+for r in results:
+    print(f"{{r['entity']}} (score={{r['score']:.2f}})")
+    for fact in r.get("facts", []):
+        print(f"  - {{fact}}")
+
+# Unified search — all 3 memory types at once
+all_results = m.search_all("deployment issues")
+print(all_results["semantic"])    # knowledge graph results
+print(all_results["episodic"])    # events and experiences
+print(all_results["procedural"]) # learned workflows</code></pre>
+
+<h2>5. Get a Cognitive Profile</h2>
+<p>Generate a ready-to-use system prompt that captures who a user is:</p>
+<pre><code>profile = m.get_profile()
+system_prompt = profile["system_prompt"]
+
+# Use in any LLM call
+response = openai.chat.completions.create(
+    model="gpt-4o",
+    messages=[
+        {{"role": "system", "content": system_prompt}},
+        {{"role": "user", "content": "What should I work on next?"}},
+    ]
+)</code></pre>
+
+<div class="tip"><strong>Tip:</strong> Use the environment variable <code>MENGRAM_API_KEY</code> so you don't have to pass the key every time: <code>m = Mengram()</code></div>
+""",
+        },
+        "memory-types": {
+            "title": "Memory Types",
+            "description": "Understand semantic, episodic, and procedural memory — the three pillars of human-like AI memory.",
+            "content": """
+<h2>Overview</h2>
+<p>Mengram gives your AI three distinct memory types, inspired by how human memory works:</p>
+<table>
+<tr><th>Type</th><th>Stores</th><th>Example</th></tr>
+<tr><td><strong>Semantic</strong></td><td>Facts, knowledge, preferences</td><td>"User prefers dark mode and uses Python 3.12"</td></tr>
+<tr><td><strong>Episodic</strong></td><td>Events, experiences, interactions</td><td>"Fixed an OOM bug on Jan 15 by reducing pool size"</td></tr>
+<tr><td><strong>Procedural</strong></td><td>Workflows, processes, skills</td><td>"How to deploy: 1) run tests, 2) build, 3) push to main"</td></tr>
+</table>
+<p>When you call <code>m.add(messages)</code>, all three types are extracted automatically from the conversation.</p>
+
+<h2>Semantic Memory</h2>
+<p>The knowledge graph. Entities with facts, types, and relationships. This is the core memory layer.</p>
+<pre><code># Search semantic memory
+results = m.search("user preferences")
+# Returns entities with facts and scores
+
+# Get a specific entity
+entity = m.get("PostgreSQL")
+# {{"name": "PostgreSQL", "type": "technology", "facts": [...]}}</code></pre>
+
+<h2>Episodic Memory</h2>
+<p>Autobiographical events — what happened, when, with whom, and what the outcome was. Each episode has a summary, context, outcome, and participant list.</p>
+<pre><code># Search episodes
+events = m.episodes(query="deployment issues")
+# [{{"summary": "Fixed OOM on Railway", "outcome": "Resolved by reducing pool", ...}}]
+
+# List recent episodes
+recent = m.episodes(limit=10)
+
+# Time-range filter
+jan_events = m.episodes(after="2026-01-01", before="2026-02-01")</code></pre>
+
+<h2>Procedural Memory</h2>
+<p>Learned workflows and processes. Mengram extracts step-by-step procedures from conversations and tracks which ones work and which fail.</p>
+<pre><code># Search procedures
+procs = m.procedures(query="deploy")
+# [{{"name": "Deploy to Railway", "steps": [...], "success_count": 5}}]
+
+# Report success/failure — triggers experience-driven evolution
+m.procedure_feedback(proc_id, success=True)
+
+# On failure with context, the procedure evolves automatically
+m.procedure_feedback(proc_id, success=False,
+    context="Step 3 failed: OOM on build",
+    failed_at_step=3)
+
+# View how a procedure evolved over time
+history = m.procedure_history(proc_id)
+# {{"versions": [v1, v2, v3], "evolution_log": [...]}}</code></pre>
+
+<h2>Unified Search</h2>
+<p>Search all three types at once with a single call:</p>
+<pre><code>results = m.search_all("deployment problems")
+# {{
+#     "semantic": [...],    # knowledge graph entities
+#     "episodic": [...],    # related events
+#     "procedural": [...]   # relevant workflows
+# }}</code></pre>
+""",
+        },
+        "cognitive-profile": {
+            "title": "Cognitive Profile",
+            "description": "Generate a ready-to-use system prompt from memory that captures who a user is, their preferences, and current focus.",
+            "content": """
+<h2>What is a Cognitive Profile?</h2>
+<p>A Cognitive Profile is an AI-generated system prompt that summarizes everything Mengram knows about a user: identity, preferences, communication style, current projects, and key relationships. Insert it into any LLM's system prompt for instant personalization.</p>
+
+<h2>Generate a profile</h2>
+<pre><code>from mengram import Mengram
+
+m = Mengram()
+profile = m.get_profile()
+
+print(profile["system_prompt"])
+# "You are talking to Ali, a software engineer based in ...
+#  He prefers concise responses, uses Python and Railway..."
+
+print(profile["facts_used"])  # 47 — number of facts used</code></pre>
+
+<h2>Use in an LLM call</h2>
+<pre><code>import openai
+
+profile = m.get_profile(user_id="alice")
+
+response = openai.chat.completions.create(
+    model="gpt-4o",
+    messages=[
+        {{"role": "system", "content": profile["system_prompt"]}},
+        {{"role": "user", "content": "What should I focus on this week?"}},
+    ]
+)</code></pre>
+
+<h2>Force regeneration</h2>
+<p>Profiles are cached for performance. Force a fresh one with:</p>
+<pre><code>profile = m.get_profile(force=True)</code></pre>
+
+<h2>Multi-user profiles</h2>
+<p>Generate profiles for different end-users in your app:</p>
+<pre><code>alice_profile = m.get_profile(user_id="alice")
+bob_profile = m.get_profile(user_id="bob")</code></pre>
+
+<h2>LangChain integration</h2>
+<pre><code>from langchain_mengram import get_mengram_profile
+
+# Returns a string you can use as system prompt
+prompt = get_mengram_profile(api_key="om-...", user_id="alice")</code></pre>
+""",
+        },
+        "python-sdk": {
+            "title": "Python SDK",
+            "description": "Full reference for the Mengram Python client — zero external dependencies, works everywhere.",
+            "content": """
+<h2>Installation</h2>
+<pre><code>pip install mengram-ai</code></pre>
+
+<h2>Initialize</h2>
+<pre><code>from mengram import Mengram
+
+# Pass API key directly
+m = Mengram(api_key="om-your-key")
+
+# Or use environment variable
+# export MENGRAM_API_KEY=om-your-key
+m = Mengram()</code></pre>
+
+<h2>Core methods</h2>
+
+<h3>add(messages, ...)</h3>
+<p>Add memories from a conversation. Automatically extracts entities, facts, episodes, and procedures.</p>
+<pre><code>result = m.add([
+    {{"role": "user", "content": "We fixed the OOM with Redis cache"}},
+    {{"role": "assistant", "content": "Noted the Redis cache fix."}},
+])
+# Returns: {{"status": "accepted", "job_id": "job-..."}}</code></pre>
+<table>
+<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+<tr><td><code>messages</code></td><td>list[dict]</td><td>required</td><td>Chat messages with role and content</td></tr>
+<tr><td><code>user_id</code></td><td>str</td><td>"default"</td><td>User identifier for multi-user isolation</td></tr>
+<tr><td><code>agent_id</code></td><td>str</td><td>None</td><td>Agent identifier</td></tr>
+<tr><td><code>run_id</code></td><td>str</td><td>None</td><td>Session/run identifier</td></tr>
+<tr><td><code>app_id</code></td><td>str</td><td>None</td><td>Application identifier</td></tr>
+<tr><td><code>expiration_date</code></td><td>str</td><td>None</td><td>ISO datetime — facts auto-expire</td></tr>
+</table>
+
+<h3>add_text(text, ...)</h3>
+<p>Add memories from plain text instead of chat messages.</p>
+<pre><code>m.add_text("Meeting notes: decided to migrate to PostgreSQL 16")</code></pre>
+
+<h3>search(query, ...)</h3>
+<p>Semantic search across the knowledge graph.</p>
+<pre><code>results = m.search("database preferences", limit=10)
+for r in results:
+    print(f"{{r['entity']}} — score: {{r['score']:.2f}}")
+    for fact in r.get("facts", []):
+        print(f"  • {{fact}}")</code></pre>
+<table>
+<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+<tr><td><code>query</code></td><td>str</td><td>required</td><td>Natural language search query</td></tr>
+<tr><td><code>limit</code></td><td>int</td><td>5</td><td>Max results</td></tr>
+<tr><td><code>graph_depth</code></td><td>int</td><td>2</td><td>Knowledge graph traversal depth</td></tr>
+<tr><td><code>filters</code></td><td>dict</td><td>None</td><td>Metadata filters</td></tr>
+</table>
+
+<h3>search_all(query, ...)</h3>
+<p>Unified search across all 3 memory types.</p>
+<pre><code>results = m.search_all("deployment")
+print(results["semantic"])     # entities
+print(results["episodic"])     # events
+print(results["procedural"])   # workflows</code></pre>
+
+<h3>get_all() / get(name) / delete(name)</h3>
+<pre><code>memories = m.get_all()           # list all entities
+entity = m.get("PostgreSQL")     # get specific entity
+m.delete("PostgreSQL")           # delete entity</code></pre>
+
+<h3>get_profile(...)</h3>
+<p>Generate a Cognitive Profile. See <a href="/docs/cognitive-profile">Cognitive Profile docs</a>.</p>
+
+<h3>episodes(...)</h3>
+<p>Search or list episodic memories.</p>
+<pre><code>events = m.episodes(query="auth bug", limit=5)
+recent = m.episodes(limit=20)
+jan = m.episodes(after="2026-01-01", before="2026-02-01")</code></pre>
+
+<h3>procedures(...)</h3>
+<p>Search or list procedural memories.</p>
+<pre><code>procs = m.procedures(query="deploy")
+all_procs = m.procedures(limit=50)</code></pre>
+
+<h3>procedure_feedback(id, ...)</h3>
+<p>Report success/failure. Triggers experience-driven evolution on failure with context.</p>
+<pre><code>m.procedure_feedback(proc_id, success=True)
+m.procedure_feedback(proc_id, success=False,
+    context="Build OOM", failed_at_step=3)</code></pre>
+
+<h2>Memory management</h2>
+<pre><code>m.dedup()                    # find and merge duplicates
+m.merge("src", "target")    # merge two entities
+m.archive_fact("Entity", "old fact")  # archive a fact
+m.run_agents()               # run curator, connector, digest agents
+m.stats()                    # usage statistics</code></pre>
+
+<h2>Webhooks</h2>
+<pre><code>m.create_webhook(url="https://example.com/hook",
+    event_types=["memory_add", "memory_update"])
+hooks = m.get_webhooks()</code></pre>
+
+<h2>Import data</h2>
+<pre><code># Import ChatGPT export
+m.import_chatgpt("~/Downloads/chatgpt-export.zip")
+
+# Import Obsidian vault
+m.import_obsidian("~/Documents/MyVault")
+
+# Import text/markdown files
+m.import_files(["notes.md", "journal.txt"])</code></pre>
+""",
+        },
+        "async-client": {
+            "title": "Async Client",
+            "description": "Non-blocking Python client built on httpx for async/await workflows.",
+            "content": """
+<h2>Installation</h2>
+<pre><code>pip install mengram-ai[async]</code></pre>
+<p>This installs <code>httpx</code> for non-blocking HTTP.</p>
+
+<h2>Initialize</h2>
+<pre><code>from mengram import AsyncMengram
+
+m = AsyncMengram(api_key="om-your-key")
+
+# Or use environment variable
+m = AsyncMengram()</code></pre>
+
+<h2>Context manager</h2>
+<pre><code>async with AsyncMengram() as m:
+    results = await m.search("deployment")
+    profile = await m.get_profile()
+# Client automatically closed</code></pre>
+
+<h2>All methods are async</h2>
+<p>Every method from the sync client has an async equivalent:</p>
+<pre><code>import asyncio
+from mengram import AsyncMengram
+
+async def main():
+    m = AsyncMengram()
+
+    # Add memories
+    result = await m.add([
+        {{"role": "user", "content": "Deployed on Railway with PostgreSQL"}},
+    ])
+
+    # Search
+    results = await m.search("deployment")
+
+    # Unified search
+    all_results = await m.search_all("issues")
+
+    # Profile
+    profile = await m.get_profile()
+
+    # Episodes & procedures
+    events = await m.episodes(query="deployment")
+    procs = await m.procedures(query="deploy")
+
+    # Close when done
+    await m.close()
+
+asyncio.run(main())</code></pre>
+
+<h2>API parity</h2>
+<p>The async client has the same methods as the sync client. Just add <code>await</code> before each call.</p>
+<table>
+<tr><th>Sync</th><th>Async</th></tr>
+<tr><td><code>m.add(msgs)</code></td><td><code>await m.add(msgs)</code></td></tr>
+<tr><td><code>m.search(q)</code></td><td><code>await m.search(q)</code></td></tr>
+<tr><td><code>m.search_all(q)</code></td><td><code>await m.search_all(q)</code></td></tr>
+<tr><td><code>m.get_profile()</code></td><td><code>await m.get_profile()</code></td></tr>
+<tr><td><code>m.episodes()</code></td><td><code>await m.episodes()</code></td></tr>
+</table>
+
+<h2>Retry &amp; error handling</h2>
+<p>The async client automatically retries on transient errors (429, 502, 503, 504) and network failures, with exponential backoff up to 3 attempts.</p>
+""",
+        },
+        "javascript-sdk": {
+            "title": "JavaScript SDK",
+            "description": "Node.js and browser SDK for Mengram with full TypeScript support.",
+            "content": """
+<h2>Installation</h2>
+<pre><code>npm install mengram-ai</code></pre>
+
+<h2>Quick start</h2>
+<pre><code>const {{ MengramClient }} = require('mengram-ai');
+const m = new MengramClient('om-your-api-key');
+
+// Add memories
+await m.add([
+    {{ role: 'user', content: 'Fixed the auth bug using rate limiting.' }},
+]);
+
+// Semantic search
+const results = await m.search('auth issues');
+
+// Unified search — all 3 types
+const all = await m.searchAll('deployment issues');
+// {{ semantic: [...], episodic: [...], procedural: [...] }}
+
+// Cognitive Profile
+const profile = await m.getProfile('alice');
+// {{ system_prompt: "You are talking to Alice..." }}</code></pre>
+
+<h2>TypeScript</h2>
+<pre><code>import {{ MengramClient, SearchResult, Episode, Procedure }} from 'mengram-ai';
+
+const m = new MengramClient('om-...');
+
+const results: SearchResult[] = await m.search('preferences');
+const events: Episode[] = await m.episodes({{ query: 'deployment' }});
+const procs: Procedure[] = await m.procedures({{ query: 'release' }});</code></pre>
+
+<h2>All methods</h2>
+<table>
+<tr><th>Method</th><th>Description</th></tr>
+<tr><td><code>add(messages, options?)</code></td><td>Add memories (extracts all 3 types)</td></tr>
+<tr><td><code>addText(text, options?)</code></td><td>Add from plain text</td></tr>
+<tr><td><code>search(query, options?)</code></td><td>Semantic search</td></tr>
+<tr><td><code>searchAll(query, options?)</code></td><td>Unified search (all 3 types)</td></tr>
+<tr><td><code>episodes(options?)</code></td><td>Search/list episodic memories</td></tr>
+<tr><td><code>procedures(options?)</code></td><td>Search/list procedural memories</td></tr>
+<tr><td><code>procedureFeedback(id, opts)</code></td><td>Record success/failure</td></tr>
+<tr><td><code>procedureHistory(id)</code></td><td>Version history</td></tr>
+<tr><td><code>getProfile(userId?, opts?)</code></td><td>Cognitive Profile</td></tr>
+<tr><td><code>getAll(options?)</code></td><td>List all memories</td></tr>
+<tr><td><code>get(name)</code></td><td>Get specific entity</td></tr>
+<tr><td><code>delete(name)</code></td><td>Delete entity</td></tr>
+<tr><td><code>runAgents(options?)</code></td><td>Run memory agents</td></tr>
+</table>
+
+<h2>Multi-user isolation</h2>
+<pre><code>// Each userId gets its own memory space
+await m.add([{{ role: 'user', content: 'I prefer dark mode' }}], {{ userId: 'alice' }});
+await m.add([{{ role: 'user', content: 'I prefer light mode' }}], {{ userId: 'bob' }});
+
+const alice = await m.searchAll('preferences', {{ userId: 'alice' }});
+// Only Alice's memories</code></pre>
+
+<h2>Import data</h2>
+<pre><code>// ChatGPT export (requires jszip)
+await m.importChatgpt('~/Downloads/chatgpt-export.zip');
+
+// Obsidian vault
+await m.importObsidian('~/Documents/MyVault');
+
+// Text/markdown files
+await m.importFiles(['notes.md', 'journal.txt']);</code></pre>
+""",
+        },
+        "langchain": {
+            "title": "LangChain",
+            "description": "Use MengramRetriever in LangChain RAG pipelines and chains for persistent memory.",
+            "content": """
+<h2>Installation</h2>
+<pre><code>pip install langchain-mengram</code></pre>
+
+<h2>MengramRetriever</h2>
+<p>Subclasses <code>BaseRetriever</code> from LangChain. Searches across all 3 memory types and returns <code>Document</code> objects.</p>
+<pre><code>from langchain_mengram import MengramRetriever
+
+retriever = MengramRetriever(
+    api_key="om-your-key",
+    user_id="alice",
+    top_k=5,
+    memory_types=["semantic", "episodic", "procedural"],
+)
+
+# Use as any LangChain retriever
+docs = retriever.invoke("deployment issues")
+for doc in docs:
+    print(doc.page_content)
+    print(doc.metadata)  # {{"source": "mengram", "memory_type": "semantic", ...}}</code></pre>
+
+<h2>Use in a chain</h2>
+<pre><code>from langchain_openai import ChatOpenAI
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnablePassthrough
+
+retriever = MengramRetriever(api_key="om-...")
+
+prompt = ChatPromptTemplate.from_template(
+    "Context from memory:\\n{{context}}\\n\\nQuestion: {{question}}"
+)
+
+chain = (
+    {{"context": retriever, "question": RunnablePassthrough()}}
+    | prompt
+    | ChatOpenAI(model="gpt-4o")
+    | StrOutputParser()
+)
+
+answer = chain.invoke("What deployment stack am I using?")</code></pre>
+
+<h2>Cognitive Profile</h2>
+<pre><code>from langchain_mengram import get_mengram_profile
+
+# Get a system prompt string
+prompt = get_mengram_profile(api_key="om-...", user_id="alice")</code></pre>
+
+<h2>Parameters</h2>
+<table>
+<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+<tr><td><code>api_key</code></td><td>str</td><td>required</td><td>Mengram API key</td></tr>
+<tr><td><code>user_id</code></td><td>str</td><td>"default"</td><td>User to search</td></tr>
+<tr><td><code>api_url</code></td><td>str</td><td>"https://mengram.io"</td><td>API base URL</td></tr>
+<tr><td><code>top_k</code></td><td>int</td><td>5</td><td>Max results per type</td></tr>
+<tr><td><code>memory_types</code></td><td>list</td><td>all 3</td><td>Which types to search</td></tr>
+</table>
+""",
+        },
+        "crewai": {
+            "title": "CrewAI",
+            "description": "Give your CrewAI agents persistent memory with procedural learning.",
+            "content": """
+<h2>Installation</h2>
+<pre><code>pip install mengram-ai crewai</code></pre>
+
+<h2>Quick start</h2>
+<pre><code>from integrations.crewai import create_mengram_tools
+from crewai import Agent, Task, Crew
+
+# Create memory tools
+tools = create_mengram_tools(api_key="om-your-key")
+
+agent = Agent(
+    role="Support Engineer",
+    goal="Help users with technical issues using past context",
+    tools=tools,
+)
+
+task = Task(
+    description="Help the user debug their deployment issue",
+    agent=agent,
+)
+
+crew = Crew(agents=[agent], tasks=[task])
+result = crew.kickoff()</code></pre>
+
+<h2>Available tools</h2>
+<table>
+<tr><th>Tool</th><th>Description</th></tr>
+<tr><td><code>mengram_search</code></td><td>Search all 3 memory types (semantic, episodic, procedural)</td></tr>
+<tr><td><code>mengram_remember</code></td><td>Save information to memory (auto-extracts all 3 types)</td></tr>
+<tr><td><code>mengram_profile</code></td><td>Get full user context via Cognitive Profile</td></tr>
+<tr><td><code>mengram_save_workflow</code></td><td>Save a completed workflow as a procedure</td></tr>
+<tr><td><code>mengram_workflow_feedback</code></td><td>Report success/failure of a workflow</td></tr>
+</table>
+
+<h2>Procedural learning</h2>
+<p>When a CrewAI agent completes a multi-step task, Mengram automatically saves it as a procedure. Next time a similar task comes up, the agent already knows the optimal path — with success/failure tracking.</p>
+<pre><code># Agent workflow is automatically extracted as a procedure
+# On next similar task, the agent retrieves the procedure
+results = tools[0].run("how to deploy to Railway")
+# Returns the learned procedure with steps</code></pre>
+""",
+        },
+        "mcp": {
+            "title": "MCP Server",
+            "description": "Use Mengram as a Model Context Protocol server with Claude Desktop, Cursor, and other MCP clients.",
+            "content": """
+<h2>What is MCP?</h2>
+<p>Model Context Protocol (MCP) lets AI clients like Claude Desktop and Cursor connect to external tools. Mengram's MCP server gives these clients persistent memory.</p>
+
+<h2>Setup with Claude Desktop</h2>
+<p>Add to your Claude Desktop config (<code>claude_desktop_config.json</code>):</p>
+<pre><code>{{
+  "mcpServers": {{
+    "mengram": {{
+      "command": "uvx",
+      "args": ["mengram-ai"],
+      "env": {{
+        "MENGRAM_API_KEY": "om-your-key"
+      }}
+    }}
+  }}
+}}</code></pre>
+
+<h2>Setup with Cursor</h2>
+<p>Add to Cursor's MCP settings:</p>
+<pre><code>{{
+  "mcpServers": {{
+    "mengram": {{
+      "command": "uvx",
+      "args": ["mengram-ai"],
+      "env": {{
+        "MENGRAM_API_KEY": "om-your-key"
+      }}
+    }}
+  }}
+}}</code></pre>
+
+<h2>Available tools</h2>
+<p>The MCP server exposes 12 tools:</p>
+<table>
+<tr><th>Tool</th><th>Description</th></tr>
+<tr><td><code>mengram_add</code></td><td>Add memories from text</td></tr>
+<tr><td><code>mengram_search</code></td><td>Search semantic memory</td></tr>
+<tr><td><code>mengram_search_all</code></td><td>Unified search (all 3 types)</td></tr>
+<tr><td><code>mengram_get_profile</code></td><td>Get Cognitive Profile</td></tr>
+<tr><td><code>mengram_episodes</code></td><td>Search episodic memory</td></tr>
+<tr><td><code>mengram_procedures</code></td><td>Search procedural memory</td></tr>
+<tr><td><code>mengram_get_all</code></td><td>List all memories</td></tr>
+<tr><td><code>mengram_get</code></td><td>Get specific entity</td></tr>
+<tr><td><code>mengram_delete</code></td><td>Delete entity</td></tr>
+<tr><td><code>mengram_dedup</code></td><td>Deduplicate entities</td></tr>
+<tr><td><code>mengram_stats</code></td><td>Usage statistics</td></tr>
+<tr><td><code>mengram_run_agents</code></td><td>Run memory agents</td></tr>
+</table>
+
+<h2>HTTP transport</h2>
+<p>For remote/cloud MCP clients, Mengram also supports SSE transport:</p>
+<pre><code>SSE endpoint: https://mengram.io/mcp/sse
+Messages: https://mengram.io/mcp/messages/</code></pre>
+""",
+        },
+        "api-reference": {
+            "title": "API Reference",
+            "description": "Complete REST API documentation for Mengram with all endpoints, parameters, and response formats.",
+            "content": """
+<h2>Base URL</h2>
+<pre><code>https://mengram.io</code></pre>
+
+<h2>Authentication</h2>
+<p>All requests require a Bearer token in the Authorization header:</p>
+<pre><code>Authorization: Bearer om-your-api-key</code></pre>
+
+<h2>Core endpoints</h2>
+
+<h3>POST /v1/add</h3>
+<p>Add memories from a conversation.</p>
+<pre><code>curl -X POST https://mengram.io/v1/add \\
+  -H "Authorization: Bearer om-..." \\
+  -H "Content-Type: application/json" \\
+  -d '{{
+    "messages": [
+      {{"role": "user", "content": "I use Python and Railway"}},
+      {{"role": "assistant", "content": "Noted."}}
+    ],
+    "user_id": "default"
+  }}'</code></pre>
+<p>Response: <code>{{"status": "accepted", "job_id": "job-..."}}</code></p>
+
+<h3>POST /v1/add_text</h3>
+<p>Add memories from plain text.</p>
+<pre><code>{{"text": "Meeting notes: migrating to PostgreSQL 16", "user_id": "default"}}</code></pre>
+
+<h3>POST /v1/search</h3>
+<p>Semantic search across the knowledge graph.</p>
+<pre><code>{{"query": "database preferences", "user_id": "default", "limit": 5, "graph_depth": 2}}</code></pre>
+
+<h3>POST /v1/search/all</h3>
+<p>Unified search across all 3 memory types.</p>
+<pre><code>{{"query": "deployment", "user_id": "default", "limit": 5}}</code></pre>
+<p>Response: <code>{{"semantic": [...], "episodic": [...], "procedural": [...]}}</code></p>
+
+<h3>GET /v1/memories</h3>
+<p>List all entities for a user.</p>
+
+<h3>GET /v1/memory/:name</h3>
+<p>Get details for a specific entity.</p>
+
+<h3>DELETE /v1/memory/:name</h3>
+<p>Delete an entity.</p>
+
+<h2>Cognitive Profile</h2>
+
+<h3>GET /v1/profile</h3>
+<p>Generate a Cognitive Profile system prompt.</p>
+<p>Query params: <code>force=true</code> to regenerate, <code>sub_user_id</code> for multi-user.</p>
+
+<h2>Episodic Memory</h2>
+
+<h3>GET /v1/episodes</h3>
+<p>List recent episodes. Params: <code>limit</code>, <code>after</code>, <code>before</code>.</p>
+
+<h3>GET /v1/episodes/search</h3>
+<p>Search episodes. Params: <code>query</code>, <code>limit</code>, <code>after</code>, <code>before</code>.</p>
+
+<h2>Procedural Memory</h2>
+
+<h3>GET /v1/procedures</h3>
+<p>List procedures. Params: <code>limit</code>.</p>
+
+<h3>GET /v1/procedures/search</h3>
+<p>Search procedures. Params: <code>query</code>, <code>limit</code>.</p>
+
+<h3>PATCH /v1/procedures/:id/feedback</h3>
+<p>Record success/failure. Params: <code>success=true|false</code>. Body: <code>{{"context": "...", "failed_at_step": 3}}</code></p>
+
+<h3>GET /v1/procedures/:id/history</h3>
+<p>Get version history for a procedure.</p>
+
+<h2>Memory Management</h2>
+
+<h3>POST /v1/dedup</h3>
+<p>Find and merge duplicate entities.</p>
+
+<h3>POST /v1/merge</h3>
+<p>Merge two entities. Params: <code>source</code>, <code>target</code>.</p>
+
+<h3>POST /v1/archive_fact</h3>
+<p>Archive a specific fact. Body: <code>{{"entity_name": "...", "fact_content": "..."}}</code></p>
+
+<h3>POST /v1/agents/run</h3>
+<p>Run memory agents. Params: <code>agent=all|curator|connector|digest</code>, <code>auto_fix=true|false</code>.</p>
+
+<h2>Jobs</h2>
+
+<h3>GET /v1/jobs/:id</h3>
+<p>Check status of a background job. Response: <code>{{"status": "completed|processing|failed", ...}}</code></p>
+
+<h2>Webhooks</h2>
+
+<h3>POST /v1/webhooks</h3>
+<p>Create a webhook. Body: <code>{{"url": "...", "event_types": ["memory_add"]}}</code></p>
+
+<h3>GET /v1/webhooks</h3>
+<p>List all webhooks.</p>
+
+<p>For interactive API docs, see <a href="/swagger">Swagger UI</a> or <a href="/redoc">ReDoc</a>.</p>
+""",
+        },
+        "search-filters": {
+            "title": "Search & Filters",
+            "description": "Semantic search, metadata filters, graph traversal depth, and unified search across all memory types.",
+            "content": """
+<h2>Basic search</h2>
+<pre><code>results = m.search("deployment stack")
+# Returns top 5 entities by relevance</code></pre>
+
+<h2>Parameters</h2>
+<table>
+<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+<tr><td><code>query</code></td><td>str</td><td>required</td><td>Natural language search query</td></tr>
+<tr><td><code>limit</code></td><td>int</td><td>5</td><td>Maximum results to return</td></tr>
+<tr><td><code>graph_depth</code></td><td>int</td><td>2</td><td>How many hops to traverse in the knowledge graph</td></tr>
+<tr><td><code>user_id</code></td><td>str</td><td>"default"</td><td>User whose memories to search</td></tr>
+<tr><td><code>filters</code></td><td>dict</td><td>None</td><td>Metadata key-value filters</td></tr>
+</table>
+
+<h2>Metadata filters</h2>
+<p>Filter search results by metadata stored on entities. Uses PostgreSQL JSONB containment (<code>@&gt;</code>) for fast filtering with GIN indexes.</p>
+<pre><code># Filter by agent
+results = m.search("config", filters={{"agent_id": "support-bot"}})
+
+# Filter by app
+results = m.search("preferences", filters={{"app_id": "prod"}})
+
+# Multiple filters (AND logic)
+results = m.search("issues", filters={{
+    "agent_id": "support-bot",
+    "app_id": "production",
+}})
+
+# Also works with shorthand parameters
+results = m.search("config", agent_id="support-bot", app_id="prod")</code></pre>
+
+<h2>Graph depth</h2>
+<p>Controls how many relationship hops the search traverses. Higher values find more related context but take longer.</p>
+<pre><code># Shallow — just direct matches
+results = m.search("Python", graph_depth=0)
+
+# Default — 2 hops (entity → related → related)
+results = m.search("Python", graph_depth=2)
+
+# Deep — traverse far connections
+results = m.search("Python", graph_depth=4)</code></pre>
+
+<h2>Unified search</h2>
+<p>Search all 3 memory types in a single call:</p>
+<pre><code>results = m.search_all("deployment problems")
+
+# Semantic — knowledge graph entities with facts
+for entity in results["semantic"]:
+    print(entity["entity"], entity["facts"])
+
+# Episodic — events and experiences
+for event in results["episodic"]:
+    print(event["summary"], event["outcome"])
+
+# Procedural — workflows and processes
+for proc in results["procedural"]:
+    print(proc["name"], proc["steps"])</code></pre>
+
+<h2>Timeline search</h2>
+<p>Search facts by time range:</p>
+<pre><code>facts = m.timeline(after="2026-01-01", before="2026-02-01")
+for f in facts:
+    print(f["created_at"], f["entity"], f["fact"])</code></pre>
+""",
+        },
+        "webhooks": {
+            "title": "Webhooks",
+            "description": "Real-time notifications when memories are created, updated, or deleted.",
+            "content": """
+<h2>Overview</h2>
+<p>Webhooks send HTTP POST requests to your server when memory events occur. Use them to sync memories with your app, trigger workflows, or build real-time features.</p>
+
+<h2>Create a webhook</h2>
+<pre><code>hook = m.create_webhook(
+    url="https://your-app.com/webhooks/mengram",
+    name="Production webhook",
+    event_types=["memory_add", "memory_update", "memory_delete"],
+    secret="your-hmac-secret",  # optional, for signature verification
+)
+print(hook)  # {{"id": 1, "url": "...", "active": true}}</code></pre>
+
+<h2>Event types</h2>
+<table>
+<tr><th>Event</th><th>Description</th></tr>
+<tr><td><code>memory_add</code></td><td>New entity or facts added</td></tr>
+<tr><td><code>memory_update</code></td><td>Entity facts updated</td></tr>
+<tr><td><code>memory_delete</code></td><td>Entity deleted</td></tr>
+</table>
+
+<h2>Webhook payload</h2>
+<pre><code>{{
+  "event": "memory_add",
+  "timestamp": "2026-02-27T10:30:00Z",
+  "data": {{
+    "entity": "PostgreSQL",
+    "type": "technology",
+    "facts": ["Uses PostgreSQL 16", "Deployed on Railway"],
+    "user_id": "default"
+  }}
+}}</code></pre>
+
+<h2>Signature verification</h2>
+<p>If you provided a <code>secret</code>, each request includes an <code>X-Mengram-Signature</code> header with an HMAC-SHA256 signature of the request body.</p>
+<pre><code>import hmac, hashlib
+
+def verify_webhook(body: bytes, signature: str, secret: str) -> bool:
+    expected = hmac.new(
+        secret.encode(), body, hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(f"sha256={{expected}}", signature)</code></pre>
+
+<h2>Manage webhooks</h2>
+<pre><code># List all
+hooks = m.get_webhooks()
+
+# Update
+m.update_webhook(webhook_id=1, active=False)
+
+# Delete
+m.delete_webhook(webhook_id=1)</code></pre>
+""",
+        },
+    }
+
+    @app.get("/docs", response_class=HTMLResponse)
+    async def docs_index():
+        """Documentation landing page."""
+        template_path = Path(__file__).parent / "docs-index.html"
+        return template_path.read_text(encoding="utf-8")
+
+    @app.get("/docs/{slug}", response_class=HTMLResponse)
+    async def docs_page(slug: str):
+        """Documentation page."""
+        data = DOCS_PAGES.get(slug)
+        if not data:
+            raise HTTPException(404, "Documentation page not found")
+        template_path = Path(__file__).parent / "docs.html"
+        html = template_path.read_text(encoding="utf-8")
+        sidebar_html = _build_sidebar(slug)
+        return html.format(**data, sidebar_html=sidebar_html, slug=slug)
 
     @app.get("/extension/download")
     async def download_extension():
@@ -4376,6 +5261,7 @@ def main():
     logger.info(f"🧠 Mengram Cloud API")
     logger.info(f"   http://0.0.0.0:{port}")
     logger.info(f"   Docs: http://localhost:{port}/docs")
+    logger.info(f"   Swagger: http://localhost:{port}/swagger")
 
     uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
 
