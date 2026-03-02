@@ -34,14 +34,10 @@ export class MengramSettingTab extends PluginSettingTab {
         containerEl.empty();
 
         new Setting(containerEl)
-            .setName('Mengram')
-            .setHeading();
-
-        new Setting(containerEl)
             .setName('API key')
-            .setDesc('Your Mengram API key (starts with om-). Get one at mengram.io/dashboard.')
+            .setDesc('Your API key (starts with `om-`). Get one at mengram.io/dashboard.')
             .addText(text => {
-                text.setPlaceholder('om-...');
+                text.setPlaceholder('Enter API key');
                 text.setValue(this.plugin.settings.apiKey);
                 text.inputEl.type = 'password';
                 text.onChange(async (value) => {
@@ -53,7 +49,7 @@ export class MengramSettingTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName('Auto-sync on save')
-            .setDesc('Automatically sync notes to Mengram when you save them.')
+            .setDesc('Sync notes automatically when you save them.')
             .addToggle(toggle => toggle
                 .setValue(this.plugin.settings.autoSync)
                 .onChange(async (value) => {
@@ -65,7 +61,7 @@ export class MengramSettingTab extends PluginSettingTab {
             .setName('Sync folders')
             .setDesc('Only sync notes in these folders (comma-separated). Leave empty to sync all.')
             .addText(text => text
-                .setPlaceholder('notes,projects,journal')
+                .setPlaceholder('Notes, projects, journal')
                 .setValue(this.plugin.settings.syncFolders)
                 .onChange(async (value) => {
                     this.plugin.settings.syncFolders = value;
@@ -99,7 +95,7 @@ export class MengramSettingTab extends PluginSettingTab {
             .setName('User ID')
             .setDesc('Isolate memories per user (for multi-user setups).')
             .addText(text => text
-                .setPlaceholder('default')
+                .setPlaceholder('Default')
                 .setValue(this.plugin.settings.userId)
                 .onChange(async (value) => {
                     this.plugin.settings.userId = value.trim() || 'default';
