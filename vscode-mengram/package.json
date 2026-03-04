@@ -1,8 +1,8 @@
 {
   "name": "mengram",
   "displayName": "Mengram",
-  "description": "AI memory for developers — search and save knowledge from VS Code",
-  "version": "0.1.0",
+  "description": "AI memory for developers — error recall, session tracking, and contextual code hints",
+  "version": "0.2.0",
   "publisher": "mengram",
   "license": "MIT",
   "icon": "resources/icon.png",
@@ -11,10 +11,22 @@
     "theme": "dark"
   },
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "^1.93.0"
   },
-  "categories": ["Machine Learning", "Other"],
-  "keywords": ["memory", "AI", "knowledge", "mengram", "search", "context"],
+  "categories": [
+    "Machine Learning",
+    "Other"
+  ],
+  "keywords": [
+    "memory",
+    "AI",
+    "knowledge",
+    "mengram",
+    "search",
+    "context",
+    "error",
+    "terminal"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/alibaizhanov/vscode-mengram"
@@ -65,6 +77,11 @@
         "command": "mengram.showStats",
         "title": "Show stats",
         "category": "Mengram"
+      },
+      {
+        "command": "mengram.codeLensSearch",
+        "title": "Search memory for symbol",
+        "category": "Mengram"
       }
     ],
     "menus": {
@@ -96,6 +113,38 @@
           "default": "default",
           "description": "User ID for memory isolation.",
           "order": 3
+        },
+        "mengram.errorMemory.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically search Mengram when terminal commands fail.",
+          "order": 10
+        },
+        "mengram.errorMemory.scoreThreshold": {
+          "type": "number",
+          "default": 0.5,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Minimum relevance score (0-1) to show past solution notifications.",
+          "order": 11
+        },
+        "mengram.contextTracking.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Track editing sessions and show a summary when you return after a break.",
+          "order": 20
+        },
+        "mengram.contextTracking.saveToMengram": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically save session summaries to your Mengram memory.",
+          "order": 21
+        },
+        "mengram.codeLens.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show Mengram memory hints as CodeLens annotations and hover tooltips.",
+          "order": 30
         }
       }
     }
@@ -108,8 +157,8 @@
     "vscode:prepublish": "npm run package"
   },
   "devDependencies": {
-    "@types/vscode": "^1.85.0",
     "@types/node": "^20.0.0",
+    "@types/vscode": "^1.93.0",
     "esbuild": "^0.24.0",
     "mengram-ai": "^2.15.0",
     "typescript": "^5.4.0"

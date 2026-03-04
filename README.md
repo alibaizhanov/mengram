@@ -196,7 +196,7 @@ mengram import files notes/*.md --cloud                          # Any text/mark
 }
 ```
 
-21 tools for memory management.
+26 tools for memory management.
 
 </td>
 <td width="50%">

@@ -261,7 +261,7 @@ def create_cloud_mcp_server(mem: CloudMemory, user_id: str = "default") -> "Serv
         return [
             Tool(
                 name="remember",
-                description="Save knowledge from conversation to cloud memory.",
+                description="Save knowledge from a conversation to memory — pass message pairs and the AI extracts entities, facts, relations, episodes, and procedures. Use after meaningful exchanges where the user shares personal info, preferences, decisions, or technical context worth remembering.",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -282,11 +282,11 @@ def create_cloud_mcp_server(mem: CloudMemory, user_id: str = "default") -> "Serv
             ),
             Tool(
                 name="remember_text",
-                description="Remember knowledge from text.",
+                description="Save plain text to memory — the AI extracts entities, facts, and relations automatically. Use when user shares a note, snippet, URL content, or any freeform text to remember.",
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "text": {"type": "string"},
+                        "text": {"type": "string", "description": "Text to extract knowledge from and store in memory"},
                     },
                     "required": ["text"],
                 },
@@ -304,12 +304,12 @@ def create_cloud_mcp_server(mem: CloudMemory, user_id: str = "default") -> "Serv
             ),
             Tool(
                 name="search",
-                description="Structured search — returns JSON with scores, facts, knowledge.",
+                description="Advanced structured search — returns entities with relevance scores, facts, and knowledge snippets. Use instead of 'recall' when you need detailed results with scores for comparison or analysis.",
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "query": {"type": "string"},
-                        "top_k": {"type": "integer", "default": 5},
+                        "query": {"type": "string", "description": "Search query — names, topics, technologies, or natural language questions"},
+                        "top_k": {"type": "integer", "default": 5, "description": "Number of results to return (default 5)"},
                     },
                     "required": ["query"],
                 },
@@ -327,7 +327,7 @@ def create_cloud_mcp_server(mem: CloudMemory, user_id: str = "default") -> "Serv
             ),
             Tool(
                 name="vault_stats",
-                description="Memory statistics.",
+                description="Get memory vault statistics — total entities, facts, relations, knowledge items, and storage usage. Use when user asks 'how much do you remember', 'memory stats', or 'how big is my vault'.",
                 inputSchema={"type": "object", "properties": {}},
             ),
             Tool(
@@ -492,6 +492,69 @@ def create_cloud_mcp_server(mem: CloudMemory, user_id: str = "default") -> "Serv
             Tool(
                 name="reflect",
                 description="Trigger AI reflection on memories — analyzes facts to find patterns, insights, and connections. Use when user asks 'analyze my memory', 'find patterns', 'what can you learn from my data?'.",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "user_id": {"type": "string", "description": "Optional user ID override"},
+                    },
+                },
+            ),
+            Tool(
+                name="dismiss_trigger",
+                description="Dismiss a smart trigger without firing its webhook. Use when user wants to ignore or snooze a trigger notification.",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "trigger_id": {"type": "integer", "description": "ID of the trigger to dismiss"},
+                    },
+                    "required": ["trigger_id"],
+                },
+            ),
+            Tool(
+                name="fix_entity_type",
+                description="Fix an entity's type classification. Use when an entity was auto-classified incorrectly (e.g. a technology labeled as 'person'). Valid types: person, project, technology, company, concept, unknown.",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string", "description": "Entity name to reclassify"},
+                        "new_type": {
+                            "type": "string",
+                            "description": "Correct type",
+                            "enum": ["person", "project", "technology", "company", "concept", "unknown"],
+                        },
+                        "user_id": {"type": "string", "description": "Optional user ID override"},
+                    },
+                    "required": ["name", "new_type"],
+                },
+            ),
+            Tool(
+                name="list_memories",
+                description="List all stored memory entities with their types and fact counts. Use when user asks 'what do you remember?', 'show all memories', or 'list everything you know'.",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "user_id": {"type": "string", "description": "Optional user ID override"},
+                    },
+                },
+            ),
+            Tool(
+                name="get_reflections",
+                description="Get AI-generated reflections (insights and patterns found across memories). Optional scope filter: 'entity' (per-entity insights), 'cross' (cross-entity connections), 'temporal' (time-based patterns).",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "scope": {
+                            "type": "string",
+                            "description": "Filter by scope",
+                            "enum": ["entity", "cross", "temporal"],
+                        },
+                        "user_id": {"type": "string", "description": "Optional user ID override"},
+                    },
+                },
+            ),
+            Tool(
+                name="dedup",
+                description="Find and automatically merge duplicate entities. Scans all entities and merges near-duplicates (e.g. 'React' and 'React framework'). Use when user says 'clean up duplicates' or memory feels cluttered.",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -946,6 +1009,70 @@ def create_cloud_mcp_server(mem: CloudMemory, user_id: str = "default") -> "Serv
                     lines.append(result["message"])
                 else:
                     lines.append(json.dumps(result, ensure_ascii=False, indent=2)[:2000])
+
+                return [TextContent(type="text", text="\n".join(lines))]
+
+            elif name == "dismiss_trigger":
+                trigger_id = arguments["trigger_id"]
+                result = mem.dismiss_trigger(trigger_id)
+                return [TextContent(type="text", text=f"✅ Trigger {trigger_id} dismissed.")]
+
+            elif name == "fix_entity_type":
+                entity_name = arguments["name"]
+                new_type = arguments["new_type"]
+                uid = arguments.get("user_id", user_id)
+                mem.fix_entity_type(entity_name, new_type, user_id=uid)
+                return [TextContent(type="text", text=f"✅ Entity **{entity_name}** type changed to **{new_type}**.")]
+
+            elif name == "list_memories":
+                uid = arguments.get("user_id", user_id)
+                memories = mem.get_all(user_id=uid)
+
+                if not memories:
+                    return [TextContent(type="text", text="No memories stored yet.")]
+
+                lines = [f"📋 **{len(memories)} memories**\n"]
+                for m in memories:
+                    name_str = m.get("name", m.get("entity", "?"))
+                    type_str = m.get("type", "unknown")
+                    facts = m.get("facts", [])
+                    lines.append(f"- **{name_str}** ({type_str}) — {len(facts)} facts")
+
+                return [TextContent(type="text", text="\n".join(lines))]
+
+            elif name == "get_reflections":
+                uid = arguments.get("user_id", user_id)
+                scope = arguments.get("scope")
+                reflections = mem.reflections(scope=scope, user_id=uid)
+
+                if not reflections:
+                    return [TextContent(type="text", text="No reflections yet. Use the `reflect` tool first to generate insights.")]
+
+                lines = [f"🔮 **{len(reflections)} reflections**\n"]
+                for r in reflections:
+                    title = r.get("title", "Insight")
+                    content = r.get("content", "")
+                    scope_str = r.get("scope", "")
+                    lines.append(f"### {title}")
+                    lines.append(content)
+                    if scope_str:
+                        lines.append(f"*Scope: {scope_str}*")
+                    lines.append("")
+
+                return [TextContent(type="text", text="\n".join(lines))]
+
+            elif name == "dedup":
+                uid = arguments.get("user_id", user_id)
+                result = mem.dedup(user_id=uid)
+                merged = result.get("merged", [])
+                count = result.get("count", 0)
+
+                if count == 0:
+                    return [TextContent(type="text", text="✅ No duplicates found — memory is clean.")]
+
+                lines = [f"🔀 **Merged {count} duplicate(s)**\n"]
+                for m in merged:
+                    lines.append(f"- {m}")
 
                 return [TextContent(type="text", text="\n".join(lines))]
 

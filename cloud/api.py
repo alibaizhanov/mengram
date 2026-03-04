@@ -1450,14 +1450,14 @@ response = client.messages.create(
             "date_iso": "2026-02-08",
             "read_time": "5",
             "tags": ["Tutorial", "MCP"],
-            "excerpt": "Connect Mengram's AI memory to Claude Desktop via MCP. 12 tools for search, add, profile, and more — setup in under 3 minutes.",
+            "excerpt": "Connect Mengram's AI memory to Claude Desktop via MCP. 26 tools for search, add, profile, and more — setup in under 3 minutes.",
             "seo_title": "Set Up an AI Memory MCP Server for Claude Desktop | Mengram",
-            "seo_description": "Step-by-step guide to set up Mengram's MCP server for Claude Desktop. 12 memory tools including search, add, profile, knowledge graph, and smart triggers.",
+            "seo_description": "Step-by-step guide to set up Mengram's MCP server for Claude Desktop. 26 memory tools including search, add, profile, knowledge graph, and smart triggers.",
             "seo_keywords": "MCP memory server, Claude Desktop memory, MCP server setup, AI memory MCP, Model Context Protocol memory, Claude Desktop persistent memory",
             "content_html": """
 <h2>What is MCP?</h2>
 <p>The <strong>Model Context Protocol (MCP)</strong> is an open standard that lets AI applications like Claude Desktop, Cursor, and Windsurf connect to external tools and data sources. An MCP server provides tools that the AI can call during conversations.</p>
-<p>Mengram's MCP server gives Claude Desktop 12 memory tools — search, add, profile, knowledge graph, triggers, and more — turning it into an AI that remembers everything across sessions.</p>
+<p>Mengram's MCP server gives Claude Desktop 26 memory tools — search, add, profile, knowledge graph, triggers, dedup, reflections, and more — turning it into an AI that remembers everything across sessions.</p>
 
 <h2>Installation</h2>
 <p>You need a Mengram API key (<a href="/#signup">get one free</a>) and Claude Desktop installed.</p>
@@ -2617,7 +2617,7 @@ results = tools[0].run("how to deploy to Railway")
 }}</code></pre>
 
 <h2>Available tools</h2>
-<p>The MCP server exposes 21 tools:</p>
+<p>The MCP server exposes 26 tools:</p>
 <table>
 <tr><th>Tool</th><th>Description</th></tr>
 <tr><td><code>remember</code></td><td>Save knowledge from conversation to memory</td></tr>
@@ -2641,6 +2641,11 @@ results = tools[0].run("how to deploy to Railway")
 <tr><td><code>archive_fact</code></td><td>Archive a specific fact on an entity</td></tr>
 <tr><td><code>merge_entities</code></td><td>Merge two entities into one</td></tr>
 <tr><td><code>reflect</code></td><td>Trigger AI reflection on memories</td></tr>
+<tr><td><code>dismiss_trigger</code></td><td>Dismiss a smart trigger without firing webhook</td></tr>
+<tr><td><code>fix_entity_type</code></td><td>Fix entity type classification</td></tr>
+<tr><td><code>list_memories</code></td><td>List all memory entities with types and fact counts</td></tr>
+<tr><td><code>get_reflections</code></td><td>Get AI-generated reflections and insights</td></tr>
+<tr><td><code>dedup</code></td><td>Find and merge duplicate entities automatically</td></tr>
 </table>
 
 <h2>HTTP transport</h2>
@@ -5430,6 +5435,21 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                  "inputSchema": {"type": "object", "properties": {"source": {"type": "string", "description": "Entity to merge FROM (will be deleted)"}, "target": {"type": "string", "description": "Entity to merge INTO (will be kept)"}}, "required": ["source", "target"]}},
                 {"name": "reflect", "description": "Trigger AI reflection on all memories — analyzes facts to find patterns, insights, and hidden connections.",
                  "annotations": {"title": "Reflect", "readOnlyHint": False, "destructiveHint": False, "openWorldHint": False},
+                 "inputSchema": {"type": "object", "properties": {}}},
+                {"name": "dismiss_trigger", "description": "Dismiss a smart trigger without firing its webhook.",
+                 "annotations": {"title": "Dismiss Trigger", "readOnlyHint": False, "destructiveHint": False, "openWorldHint": False},
+                 "inputSchema": {"type": "object", "properties": {"trigger_id": {"type": "integer", "description": "ID of the trigger to dismiss"}}, "required": ["trigger_id"]}},
+                {"name": "fix_entity_type", "description": "Fix an entity's type classification (person, project, technology, company, concept, unknown).",
+                 "annotations": {"title": "Fix Entity Type", "readOnlyHint": False, "destructiveHint": False, "openWorldHint": False},
+                 "inputSchema": {"type": "object", "properties": {"name": {"type": "string", "description": "Entity name to reclassify"}, "new_type": {"type": "string", "enum": ["person", "project", "technology", "company", "concept", "unknown"], "description": "Correct entity type"}}, "required": ["name", "new_type"]}},
+                {"name": "list_memories", "description": "List all stored memory entities with their types and fact counts.",
+                 "annotations": {"title": "List Memories", "readOnlyHint": True, "destructiveHint": False, "openWorldHint": False},
+                 "inputSchema": {"type": "object", "properties": {}}},
+                {"name": "get_reflections", "description": "Get AI-generated reflections — insights and patterns found across memories. Optional scope: entity, cross, temporal.",
+                 "annotations": {"title": "Get Reflections", "readOnlyHint": True, "destructiveHint": False, "openWorldHint": False},
+                 "inputSchema": {"type": "object", "properties": {"scope": {"type": "string", "enum": ["entity", "cross", "temporal"], "description": "Filter reflections by scope"}}}},
+                {"name": "dedup", "description": "Find and automatically merge duplicate entities.",
+                 "annotations": {"title": "Deduplicate", "readOnlyHint": False, "destructiveHint": False, "openWorldHint": False},
                  "inputSchema": {"type": "object", "properties": {}}},
             ],
             "resources": [

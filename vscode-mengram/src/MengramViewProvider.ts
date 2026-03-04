@@ -1,18 +1,15 @@
 import * as vscode from 'vscode';
 import * as crypto from 'crypto';
-import MengramClient from 'mengram-ai';
+import { MengramClientManager } from './MengramClientManager';
 
 export class MengramViewProvider implements vscode.WebviewViewProvider {
     public static readonly viewType = 'mengram.panel';
 
     private view?: vscode.WebviewView;
-    private client: MengramClient | null = null;
-    private clientApiKey = '';
-    private clientBaseUrl = '';
 
     constructor(
         private readonly extensionUri: vscode.Uri,
-        private readonly secrets: vscode.SecretStorage,
+        private readonly clientManager: MengramClientManager,
     ) {}
 
     public resolveWebviewView(
@@ -53,10 +50,16 @@ export class MengramViewProvider implements vscode.WebviewViewProvider {
         webviewView.onDidDispose(() => messageDisposable.dispose());
     }
 
-    public focusSearch() {
+    public async focusSearch(query?: string) {
+        // Ensure sidebar is visible even if never opened
+        await vscode.commands.executeCommand('workbench.view.extension.mengram-sidebar');
         if (this.view) {
             this.view.show?.(true);
-            this.view.webview.postMessage({ type: 'focusSearch' });
+            if (query) {
+                this.view.webview.postMessage({ type: 'searchWithQuery', query });
+            } else {
+                this.view.webview.postMessage({ type: 'focusSearch' });
+            }
         }
     }
 
@@ -73,12 +76,11 @@ export class MengramViewProvider implements vscode.WebviewViewProvider {
     }
 
     public async saveText(text: string) {
-        const client = await this.getClient();
+        const client = await this.clientManager.getClient();
         if (!client) return;
 
         try {
-            const config = vscode.workspace.getConfiguration('mengram');
-            const userId = config.get<string>('userId', 'default');
+            const userId = this.clientManager.getUserId();
             await client.addText(text, { userId });
             vscode.window.showInformationMessage('Saved to Mengram.');
         } catch (err: unknown) {
@@ -94,37 +96,11 @@ export class MengramViewProvider implements vscode.WebviewViewProvider {
         await this.handleStats();
     }
 
-    private async getClient(): Promise<MengramClient | null> {
-        const config = vscode.workspace.getConfiguration('mengram');
-        const baseUrl = config.get<string>('baseUrl', 'https://mengram.io');
-
-        // Prefer SecretStorage, fall back to settings
-        let apiKey = await this.secrets.get('mengram.apiKey');
-        if (!apiKey) {
-            apiKey = config.get<string>('apiKey', '');
-        }
-
-        if (!apiKey) {
-            vscode.window.showWarningMessage(
-                'Mengram: set your API key via "Mengram: Set API key" command.',
-            );
-            return null;
-        }
-
-        if (!this.client || this.clientApiKey !== apiKey || this.clientBaseUrl !== baseUrl) {
-            this.client = new MengramClient(apiKey, { baseUrl });
-            this.clientApiKey = apiKey;
-            this.clientBaseUrl = baseUrl;
-        }
-        return this.client;
-    }
-
     private async handleSearch(query: string) {
-        const client = await this.getClient();
+        const client = await this.clientManager.getClient();
         if (!client) return;
 
-        const config = vscode.workspace.getConfiguration('mengram');
-        const userId = config.get<string>('userId', 'default');
+        const userId = this.clientManager.getUserId();
 
         try {
             const results = await client.searchAll(query, { limit: 10, userId });
@@ -144,11 +120,10 @@ export class MengramViewProvider implements vscode.WebviewViewProvider {
     }
 
     private async handleSave(text: string) {
-        const client = await this.getClient();
+        const client = await this.clientManager.getClient();
         if (!client) return;
 
-        const config = vscode.workspace.getConfiguration('mengram');
-        const userId = config.get<string>('userId', 'default');
+        const userId = this.clientManager.getUserId();
 
         try {
             const result = await client.addText(text, { userId });
@@ -166,11 +141,10 @@ export class MengramViewProvider implements vscode.WebviewViewProvider {
     }
 
     private async handleStats() {
-        const client = await this.getClient();
+        const client = await this.clientManager.getClient();
         if (!client) return;
 
-        const config = vscode.workspace.getConfiguration('mengram');
-        const userId = config.get<string>('userId', 'default');
+        const userId = this.clientManager.getUserId();
 
         try {
             const stats = await client.stats({ userId });

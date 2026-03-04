@@ -1,10 +1,20 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import { MengramClientManager } from './MengramClientManager';
 import { MengramViewProvider } from './MengramViewProvider';
+import { ErrorMemory } from './ErrorMemory';
+import { SessionTracker } from './SessionTracker';
+import { MengramCodeLensProvider } from './MengramCodeLensProvider';
+import { MengramHoverProvider } from './MengramHoverProvider';
+
+let sessionTracker: SessionTracker | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
-    const provider = new MengramViewProvider(context.extensionUri, context.secrets);
+    // Shared client manager
+    const clientManager = new MengramClientManager(context.secrets);
 
+    // Sidebar webview
+    const provider = new MengramViewProvider(context.extensionUri, clientManager);
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider(
             MengramViewProvider.viewType,
@@ -12,6 +22,7 @@ export function activate(context: vscode.ExtensionContext) {
         ),
     );
 
+    // Commands
     context.subscriptions.push(
         vscode.commands.registerCommand('mengram.setApiKey', async () => {
             const key = await vscode.window.showInputBox({
@@ -29,8 +40,8 @@ export function activate(context: vscode.ExtensionContext) {
     );
 
     context.subscriptions.push(
-        vscode.commands.registerCommand('mengram.searchMemories', () => {
-            provider.focusSearch();
+        vscode.commands.registerCommand('mengram.searchMemories', (query?: string) => {
+            provider.focusSearch(query);
         }),
     );
 
@@ -73,6 +84,29 @@ export function activate(context: vscode.ExtensionContext) {
         }),
     );
 
+    // Feature 1: Error Memory
+    const errorMemory = new ErrorMemory(clientManager);
+    errorMemory.activate();
+    context.subscriptions.push(errorMemory);
+
+    // Feature 2: Context Tracking
+    sessionTracker = new SessionTracker(
+        clientManager,
+        context.workspaceState,
+    );
+    sessionTracker.activate();
+    context.subscriptions.push(sessionTracker);
+
+    // Feature 3: CodeLens + Hover
+    const codeLensProvider = new MengramCodeLensProvider(clientManager);
+    codeLensProvider.activate();
+    context.subscriptions.push(codeLensProvider);
+
+    const hoverProvider = new MengramHoverProvider(clientManager);
+    hoverProvider.activate();
+    context.subscriptions.push(hoverProvider);
+
+    // Status bar
     const statusBarItem = vscode.window.createStatusBarItem(
         vscode.StatusBarAlignment.Right,
         100,
@@ -84,4 +118,8 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(statusBarItem);
 }
 
-export function deactivate() {}
+export async function deactivate() {
+    if (sessionTracker) {
+        await sessionTracker.onDeactivate();
+    }
+}

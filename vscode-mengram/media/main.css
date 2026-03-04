@@ -298,6 +298,57 @@ body {
     font-size: 12px;
 }
 
+/* --- Expand/collapse --- */
+.expandable {
+    display: none;
+    margin-top: 2px;
+}
+.expanded .expandable {
+    display: block;
+}
+.expand-hint {
+    font-size: 10px;
+    color: var(--vscode-textLink-foreground);
+    margin-top: 4px;
+    cursor: pointer;
+}
+.expanded .expand-hint {
+    display: none;
+}
+
+/* --- Card actions --- */
+.card-actions {
+    display: none;
+    margin-top: 6px;
+    padding-top: 4px;
+    border-top: 1px solid var(--vscode-widget-border, rgba(255,255,255,0.06));
+}
+.expanded .card-actions {
+    display: flex;
+    gap: 6px;
+}
+.insert-btn {
+    padding: 2px 10px;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-family: var(--vscode-font-family);
+    font-size: 11px;
+    background: var(--vscode-button-secondaryBackground, rgba(255,255,255,0.1));
+    color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+}
+.insert-btn:hover {
+    background: var(--vscode-button-secondaryHoverBackground, rgba(255,255,255,0.15));
+}
+
+/* --- Episode detail --- */
+.episode-detail {
+    font-size: 11px;
+    color: var(--vscode-foreground);
+    line-height: 1.5;
+    margin-top: 4px;
+}
+
 /* --- Utility --- */
 .hidden { display: none; }
 .episode-outcome { margin-top: 4px; opacity: 0.8; }
