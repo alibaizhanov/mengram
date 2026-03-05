@@ -32,6 +32,33 @@ m.procedures(query="deploy")            # → workflows that evolve from failure
 
 ---
 
+## Claude Code — Zero-Config Memory
+
+One command. Claude Code remembers everything across sessions automatically.
+
+```bash
+pip install mengram-ai
+export MENGRAM_API_KEY=om-...    # Free key → mengram.io
+mengram hook install
+```
+
+What happens:
+
+```
+Session Start  →  Loads your cognitive profile (who you are, preferences, tech stack)
+Every Prompt   →  Searches past sessions for relevant context (auto-recall)
+After Response →  Saves new knowledge in background (auto-save)
+```
+
+No manual saves. No tool calls. Claude just knows what you worked on yesterday.
+
+```bash
+mengram hook status     # check what's installed
+mengram hook uninstall  # remove all hooks
+```
+
+---
+
 ## Why Mengram?
 
 Every AI memory tool stores facts. Mengram stores **3 types of memory** — and procedures **evolve when they fail**.
@@ -45,6 +72,7 @@ Every AI memory tool stores facts. Mengram stores **3 types of memory** — and 
 | **Cognitive Profile** | **Yes** | No | No | No |
 | Multi-user isolation | **Yes** | Yes | Yes | No |
 | Knowledge graph | **Yes** | Yes | Yes | Yes |
+| **Claude Code hooks (auto-save/recall)** | **Yes** | No | No | No |
 | LangChain + CrewAI + MCP | **Yes** | Partial | Partial | Partial |
 | **Import ChatGPT / Obsidian** | **Yes** | No | No | No |
 | Pricing | **Free tier** | $19-249/mo | Enterprise | Self-host |
@@ -182,6 +210,19 @@ mengram import files notes/*.md --cloud                          # Any text/mark
 <tr>
 <td width="50%">
 
+**Claude Code** — Auto-memory hooks
+
+```bash
+mengram hook install
+```
+
+3 hooks: profile on start, recall on every prompt, save after responses. Zero manual effort.
+
+[Docs](https://mengram.io/docs/claude-code)
+
+</td>
+<td width="50%">
+
 **MCP Server** — Claude Desktop, Cursor, Windsurf
 
 ```json
@@ -199,6 +240,8 @@ mengram import files notes/*.md --cloud                          # Any text/mark
 29 tools for memory management.
 
 </td>
+</tr>
+<tr>
 <td width="50%">
 
 **LangChain** — `pip install langchain-mengram`
@@ -214,9 +257,7 @@ docs = retriever.invoke("deployment issues")
 ```
 
 </td>
-</tr>
-<tr>
-<td>
+<td width="50%">
 
 **CrewAI**
 
@@ -231,7 +272,9 @@ agent = Agent(role="Support", tools=tools)
 ```
 
 </td>
-<td>
+</tr>
+<tr>
+<td width="50%">
 
 **OpenClaw**
 
@@ -242,6 +285,20 @@ openclaw plugins install openclaw-mengram
 Auto-recall before every turn, auto-capture after. 12 tools, slash commands, Graph RAG.
 
 [GitHub](https://github.com/alibaizhanov/openclaw-mengram) · [npm](https://www.npmjs.com/package/openclaw-mengram)
+
+</td>
+<td width="50%">
+
+**CLI** — Full command-line interface
+
+```bash
+mengram search "deployment" --cloud
+mengram profile --cloud
+mengram import chatgpt export.zip --cloud
+mengram hook install
+```
+
+[Docs](https://mengram.io/docs/cli)
 
 </td>
 </tr>
