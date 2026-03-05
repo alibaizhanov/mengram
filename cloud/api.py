@@ -776,6 +776,8 @@ m.add("I love hiking in the mountains")</code></pre>
             # Core — highest priority
             ("https://mengram.io", "1.0", "weekly"),
             ("https://mengram.io/pricing", "0.8", "monthly"),
+            # Claude Code — high SEO value
+            ("https://mengram.io/vs/claude-mem", "0.9", "weekly"),
             # VS comparison — high SEO value
             ("https://mengram.io/vs/mem0", "0.9", "weekly"),
             ("https://mengram.io/vs/zep", "0.8", "weekly"),
@@ -792,6 +794,7 @@ m.add("I love hiking in the mountains")</code></pre>
             ("https://mengram.io/blog/mcp-memory-server-setup", "0.8", "monthly"),
             ("https://mengram.io/blog/mem0-vs-mengram-benchmark", "0.8", "monthly"),
             ("https://mengram.io/blog/ai-memory-for-crewai-langchain", "0.7", "monthly"),
+            ("https://mengram.io/blog/claude-code-memory-hooks", "0.9", "weekly"),
             # Use cases
             ("https://mengram.io/usecase/customer-support", "0.7", "monthly"),
             ("https://mengram.io/usecase/personal-assistant", "0.7", "monthly"),
@@ -803,7 +806,7 @@ m.add("I love hiking in the mountains")</code></pre>
             ("https://mengram.io/privacy", "0.3", "yearly"),
             ("https://mengram.io/refund", "0.3", "yearly"),
         ]
-        today = "2026-02-27"
+        today = "2026-03-05"
         entries = "\n".join(
             f"  <url>\n"
             f"    <loc>{url}</loc>\n"
@@ -1012,6 +1015,41 @@ m.add("I love hiking in the mountains")</code></pre>
             "seo_title": "Mengram vs Supermemory — AI Memory Comparison (2026)",
             "seo_description": "Compare Mengram and Supermemory. Supermemory is a bookmark manager. Mengram is an AI memory API with semantic, episodic, and procedural memory for agents.",
             "seo_keywords": "Supermemory alternative, Mengram vs Supermemory, AI memory comparison, best AI memory 2026, Supermemory vs Mengram",
+        },
+        "claude-mem": {
+            "slug": "claude-mem",
+            "name": "claude-mem",
+            "tagline": "claude-mem saves conversations. Mengram builds a full memory loop.",
+            "description": "claude-mem is a simple Claude Code hook that saves conversations to Markdown files. Mengram provides a complete memory system: auto-save, auto-recall on every prompt, cognitive profile on session start, and 3 memory types.",
+            "their_good": [
+                "Simple and easy to understand",
+                "Works as a Claude Code hook",
+                "Saves conversations to local Markdown files",
+                "No API key or account needed",
+            ],
+            "their_missing": [
+                "No auto-recall — saves but never retrieves",
+                "No cognitive profile loading on session start",
+                "No semantic search across memories",
+                "No episodic or procedural memory",
+                "No cross-tool support (only Claude Code)",
+                "No MCP server, no LangChain/CrewAI integration",
+                "No knowledge graph or entity extraction",
+                "Local-only — no cloud sync or multi-device",
+            ],
+            "has_semantic": "&#x274C;",
+            "has_episodic": "&#x274C;",
+            "has_multiuser": "&#x274C;",
+            "has_graph": "&#x274C;",
+            "has_mcp": "&#x274C;",
+            "has_selfhost": "&#x2705;",
+            "their_price": "Free (local)",
+            "best_for_them": "Simple conversation logging to local files. Good if you just want a text record of past Claude Code sessions.",
+            "best_for_us": "Full memory loop — auto-save, auto-recall, cognitive profile. Claude knows who you are, what you worked on, and brings relevant context on every prompt. Works across Claude Code, MCP, LangChain, CrewAI, and REST API.",
+            "website": "https://github.com/anthropics/claude-code",
+            "seo_title": "Mengram vs claude-mem — Claude Code Memory Comparison (2026)",
+            "seo_description": "Compare Mengram and claude-mem for Claude Code memory. claude-mem saves conversations. Mengram adds auto-recall, cognitive profile, 3 memory types, and cross-tool support. Free alternative.",
+            "seo_keywords": "claude-mem alternative, Mengram vs claude-mem, Claude Code memory, Claude Code persistent memory, Claude Code hooks memory, best Claude Code memory tool, claude code auto save, claude code auto recall",
         },
     }
 
@@ -1704,6 +1742,93 @@ reviewer = Agent(role="Reviewer", memory=True)
 <p>Get started: <code>pip install mengram-ai</code> and grab a <a href="/#signup">free API key</a>. Full <a href="/blog/how-to-add-memory-to-ai-agents">quickstart tutorial here</a>.</p>
 """,
             "related": ["how-to-add-memory-to-ai-agents", "mcp-memory-server-setup"],
+        },
+        "claude-code-memory-hooks": {
+            "slug": "claude-code-memory-hooks",
+            "title": "How to Add Persistent Memory to Claude Code (Auto-Save, Auto-Recall, Profile)",
+            "date": "March 5, 2026",
+            "date_iso": "2026-03-05",
+            "read_time": "5",
+            "tags": ["Tutorial", "Claude Code"],
+            "excerpt": "Give Claude Code persistent memory with one command. Auto-save conversations, auto-recall context on every prompt, and load your cognitive profile on session start.",
+            "seo_title": "How to Add Persistent Memory to Claude Code — Auto-Save & Auto-Recall Hooks | Mengram",
+            "seo_description": "Step-by-step guide to adding persistent memory to Claude Code. Install auto-save, auto-recall, and cognitive profile hooks with one command. Free, open-source.",
+            "seo_keywords": "Claude Code memory, Claude Code persistent memory, Claude Code hooks, Claude Code auto-save, Claude Code auto-recall, Claude Code cognitive profile, claude-mem alternative, Claude Code plugins, Claude Code remember, add memory to Claude Code",
+            "content_html": """
+<p>Claude Code is powerful, but it forgets everything when you start a new session. Your tech stack, your project structure, yesterday's debugging session — all gone. Let's fix that.</p>
+
+<h2>The problem</h2>
+<p>Every Claude Code session starts from zero. Claude doesn't know:</p>
+<ul>
+<li>Who you are or what you're working on</li>
+<li>What you discussed yesterday</li>
+<li>What bugs you fixed last week</li>
+<li>Your preferred tools, frameworks, and patterns</li>
+</ul>
+<p>Some tools like claude-mem save conversations to files, but they never <em>recall</em> that information. Saving without retrieval is like a brain that records but never remembers.</p>
+
+<h2>The solution: Full memory loop</h2>
+<p>Mengram installs 3 Claude Code hooks that create a complete memory loop:</p>
+
+<pre><code>pip install mengram-ai
+export MENGRAM_API_KEY=om-...    # Free key at mengram.io
+mengram hook install</code></pre>
+
+<p>That's it. Here's what happens automatically:</p>
+
+<pre><code>Session Start  →  Loads your cognitive profile
+                  (who you are, preferences, tech stack)
+
+Every Prompt   →  Searches past sessions for relevant context
+                  (auto-recall via UserPromptSubmit hook)
+
+After Response →  Saves new knowledge in background
+                  (auto-save via Stop hook, async)</code></pre>
+
+<h2>How it works under the hood</h2>
+
+<h3>1. Session Context (SessionStart hook)</h3>
+<p>When you start Claude Code, the <code>mengram auto-context</code> hook fires. It calls the Mengram API to load your <a href="/blog/cognitive-profile-system-prompts">Cognitive Profile</a> — a system prompt generated from everything Mengram knows about you. Claude sees this as context before your first message.</p>
+
+<h3>2. Auto-Recall (UserPromptSubmit hook)</h3>
+<p>On every prompt you type, <code>mengram auto-recall</code> searches your memory for relevant context. If you ask about "deployment issues," it finds facts about your deployment setup, past incidents, and relevant procedures. This context is injected via Claude Code's <code>additionalContext</code> mechanism — Claude sees it and uses it naturally.</p>
+
+<h3>3. Auto-Save (Stop hook)</h3>
+<p>After Claude responds, <code>mengram auto-save</code> runs in the background (async). It sends the conversation to Mengram's API, which extracts entities, facts, events, and workflows. By default it saves every 3rd response to avoid noise — configurable with <code>mengram hook install --every 5</code>.</p>
+
+<h2>Managing hooks</h2>
+<pre><code>mengram hook status      # Check what's installed
+mengram hook uninstall   # Remove all hooks
+mengram hook install --every 5  # Save every 5th response</code></pre>
+
+<h2>Why not just use claude-mem?</h2>
+<p>claude-mem saves conversations to local Markdown files. That's useful for logging, but:</p>
+<ul>
+<li><strong>No recall</strong> — it never searches past sessions or injects context</li>
+<li><strong>No profile</strong> — Claude doesn't know who you are on session start</li>
+<li><strong>No semantic search</strong> — you can't find relevant memories by meaning</li>
+<li><strong>No structure</strong> — raw conversation dumps vs. extracted entities, facts, and workflows</li>
+<li><strong>Local only</strong> — no sync across devices or tools</li>
+</ul>
+<p>See the <a href="/vs/claude-mem">full comparison</a>.</p>
+
+<h2>Works beyond Claude Code</h2>
+<p>The same memory is accessible via:</p>
+<ul>
+<li><a href="/blog/mcp-memory-server-setup">MCP Server</a> (29 tools) — Claude Desktop, Cursor, Windsurf</li>
+<li><a href="/blog/ai-memory-for-crewai-langchain">LangChain & CrewAI</a> integrations</li>
+<li>Python & JavaScript SDKs</li>
+<li>REST API (90+ endpoints)</li>
+</ul>
+<p>Your memory follows you across every tool.</p>
+
+<h2>Get started</h2>
+<pre><code>pip install mengram-ai
+export MENGRAM_API_KEY=om-...    # Free at mengram.io
+mengram hook install</code></pre>
+<p>Restart Claude Code. That's it — Claude remembers now.</p>
+""",
+            "related": ["cognitive-profile-system-prompts", "mcp-memory-server-setup"],
         },
     }
 

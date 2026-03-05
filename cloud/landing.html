@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mengram — AI Memory API: Semantic, Episodic & Procedural Memory for LLMs</title>
-    <meta name="description" content="The only AI memory API with 3 memory types: semantic (facts), episodic (events), and procedural (workflows). One API call generates a Cognitive Profile system prompt. Free open-source Mem0 alternative. Python, JS, MCP.">
-    <meta name="keywords" content="AI memory, LLM memory, Mem0 alternative, episodic memory, procedural memory, cognitive profile, MCP server, Claude Desktop memory, knowledge graph, AI agents, contextual memory, RAG alternative">
+    <title>Mengram — AI Memory for Claude Code, MCP & AI Agents | Auto-Save & Auto-Recall</title>
+    <meta name="description" content="Give Claude Code persistent memory with one command. Auto-save conversations, auto-recall context on every prompt, load cognitive profile on session start. 3 memory types: semantic, episodic, procedural. MCP server (29 tools), Python & JS SDKs. Free open-source Mem0 alternative.">
+    <meta name="keywords" content="Claude Code memory, Claude Code hooks, Claude Code auto-save, Claude Code persistent memory, AI memory API, LLM memory, Mem0 alternative, MCP memory server, Claude Desktop memory, episodic memory, procedural memory, cognitive profile, knowledge graph, AI agents, auto-recall, claude-mem alternative, AI agent memory, Claude Code plugins, MCP server Claude, Cursor memory, Windsurf memory, RAG alternative, AI memory open source">
     <meta name="google-site-verification" content="AgH6oyB88LhyyfEqVQn9XnT1mPiFpgCX5GFVJMC5yEs">
     <meta name="author" content="Ali Baizhanov">
     <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
@@ -13,8 +13,8 @@
     <!-- Open Graph -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://mengram.io">
-    <meta property="og:title" content="Mengram — AI Memory API for LLMs and AI Agents">
-    <meta property="og:description" content="3 memory types like a human brain: semantic (facts), episodic (events), procedural (workflows). Cognitive Profile for instant personalization. Free & open-source.">
+    <meta property="og:title" content="Mengram — Auto-Memory for Claude Code & AI Agents">
+    <meta property="og:description" content="One command: mengram hook install. Claude Code auto-saves conversations, auto-recalls context on every prompt, loads your profile on start. 3 memory types, MCP server, free tier.">
     <meta property="og:site_name" content="Mengram">
     <meta property="og:image" content="https://opengraph.githubassets.com/1/alibaizhanov/mengram">
     <meta property="og:image:width" content="1200">
@@ -22,8 +22,8 @@
     <meta property="og:image:alt" content="Mengram — AI Memory API with semantic, episodic, and procedural memory">
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Mengram — AI Memory API for LLMs and AI Agents">
-    <meta name="twitter:description" content="The only AI memory API with semantic, episodic & procedural memory. Replace RAG with one API call. Free open-source Mem0 alternative.">
+    <meta name="twitter:title" content="Mengram — Auto-Memory for Claude Code & AI Agents">
+    <meta name="twitter:description" content="One command: mengram hook install. Auto-save, auto-recall, cognitive profile. 3 memory types, 29 MCP tools, Python & JS SDKs. Free Mem0 alternative.">
     <meta name="twitter:image" content="https://opengraph.githubassets.com/1/alibaizhanov/mengram">
     <meta name="twitter:image:alt" content="Mengram — AI Memory API with semantic, episodic, and procedural memory">
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Cpath d='M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68' fill='none' stroke='%23a855f7' stroke-width='10' stroke-linecap='round'/%3E%3Ccircle cx='62' cy='68' r='10' fill='%23a855f7'/%3E%3Ccircle cx='62' cy='68' r='4.5' fill='%23fff'/%3E%3C/svg%3E">
@@ -1311,15 +1311,15 @@
                 "name": "Mengram",
                 "applicationCategory": "DeveloperApplication",
                 "operatingSystem": "Any",
-                "description": "AI memory API with 3 memory types: semantic, episodic, and procedural. Cognitive Profile generates instant system prompts. Replace RAG with one API call.",
+                "description": "AI memory for Claude Code and AI agents. Auto-save conversations, auto-recall context, cognitive profile. 3 memory types: semantic, episodic, procedural. MCP server with 29 tools. Free open-source Mem0 alternative.",
                 "url": "https://mengram.io",
                 "offers": [
                     { "@type": "Offer", "price": "0", "priceCurrency": "USD", "name": "Free" },
                     { "@type": "Offer", "price": "19", "priceCurrency": "USD", "name": "Pro" },
                     { "@type": "Offer", "price": "99", "priceCurrency": "USD", "name": "Business" }
                 ],
-                "featureList": "Semantic Memory, Episodic Memory, Procedural Memory, Cognitive Profile, Memory Agents, Knowledge Graph, MCP Server, LangChain Integration, CrewAI Integration",
-                "softwareVersion": "2.15.0",
+                "featureList": "Claude Code Auto-Save Hooks, Claude Code Auto-Recall, Cognitive Profile, Semantic Memory, Episodic Memory, Procedural Memory, Memory Agents, Knowledge Graph, MCP Server (29 tools), LangChain Integration, CrewAI Integration, Python SDK, JavaScript SDK, REST API",
+                "softwareVersion": "2.16.0",
                 "author": { "@type": "Person", "name": "Ali Baizhanov" },
                 "license": "https://opensource.org/licenses/Apache-2.0",
                 "codeRepository": "https://github.com/alibaizhanov/mengram"
@@ -1365,6 +1365,22 @@
                             "@type": "Answer",
                             "text": "Yes. Mengram offers a free tier with 100 memory adds and 500 searches per month. Unlike Mem0, Mengram includes episodic memory, procedural memory that evolves from failures, and Cognitive Profile — all at no cost. It is also fully open-source under the Apache 2.0 license."
                         }
+                    },
+                    {
+                        "@type": "Question",
+                        "name": "How do I add memory to Claude Code?",
+                        "acceptedAnswer": {
+                            "@type": "Answer",
+                            "text": "Install Mengram (pip install mengram-ai), set your API key (export MENGRAM_API_KEY=om-...), and run 'mengram hook install'. This installs 3 Claude Code hooks: auto-save (saves conversations after responses), auto-recall (searches memory on every prompt), and session context (loads your cognitive profile on start). Zero manual effort — Claude just remembers."
+                        }
+                    },
+                    {
+                        "@type": "Question",
+                        "name": "What is the difference between Mengram and claude-mem?",
+                        "acceptedAnswer": {
+                            "@type": "Answer",
+                            "text": "claude-mem only saves conversations. Mengram provides a full memory loop: auto-save, auto-recall (searches past sessions on every prompt and injects context), and cognitive profile loading on session start. Mengram also stores 3 memory types (semantic, episodic, procedural), works across MCP, LangChain, CrewAI, and any tool — not just Claude Code."
+                        }
                     }
                 ]
             }
@@ -1376,8 +1392,8 @@
     <!-- Announcement Banner -->
     <div class="announce-bar" id="announce-bar">
         <span class="announce-new">NEW</span>
-        Experience-Driven Procedures: workflows that self-improve
-        <a href="#features">Read more &rarr;</a>
+        Claude Code Auto-Memory: one command, Claude remembers everything
+        <a href="https://docs.mengram.io/claude-code">Set up in 30s &rarr;</a>
         <button class="announce-close" onclick="dismissBanner()" aria-label="Dismiss">&times;</button>
     </div>
 
