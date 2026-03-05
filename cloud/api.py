@@ -372,7 +372,7 @@ Be strict — only include entities that directly answer or relate to the query.
             resp = client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[{"role": "user", "content": prompt}],
-                max_tokens=100,
+                max_completion_tokens=100,
                 temperature=0,
             )
 

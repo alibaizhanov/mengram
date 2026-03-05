@@ -356,6 +356,94 @@ def output_hook_success():
     sys.exit(0)
 
 
+def cmd_auto_recall(args):
+    """Hook handler — called by Claude Code on UserPromptSubmit. Searches Mengram for relevant context."""
+    try:
+        api_key = os.environ.get("MENGRAM_API_KEY", "")
+        if not api_key:
+            output_hook_success()
+
+        # Read hook input from stdin
+        try:
+            input_data = json.loads(sys.stdin.read())
+        except Exception:
+            output_hook_success()
+
+        prompt = input_data.get("prompt", "")
+        if not prompt or len(prompt) < 10:
+            output_hook_success()
+
+        # Skip common non-question prompts
+        skip_prefixes = ["/", "yes", "no", "ok", "y", "n", "da", "нет", "да"]
+        prompt_lower = prompt.strip().lower()
+        if any(prompt_lower == p or prompt_lower.startswith(p + " ") for p in skip_prefixes):
+            output_hook_success()
+
+        from cloud.client import CloudMemory
+        base_url = os.environ.get("MENGRAM_URL", "https://mengram.io")
+        user_id = getattr(args, "user_id", None) or os.environ.get("MENGRAM_USER_ID", "default")
+
+        mem = CloudMemory(api_key=api_key, base_url=base_url)
+        results = mem.search(prompt, user_id=user_id, limit=3, graph_depth=1)
+
+        if not results:
+            output_hook_success()
+
+        # Format context
+        lines = ["[Mengram Memory — relevant context from past sessions]"]
+        for r in results:
+            entity = r.get("entity", "")
+            facts = r.get("facts", [])
+            if entity and facts:
+                lines.append(f"\n{entity}:")
+                for fact in facts[:5]:
+                    lines.append(f"  - {fact}")
+
+        context = "\n".join(lines)
+
+        # Return additionalContext for Claude to see
+        print(json.dumps({
+            "hookSpecificOutput": {
+                "hookEventName": "UserPromptSubmit",
+                "additionalContext": context,
+            }
+        }))
+        sys.exit(0)
+
+    except SystemExit:
+        raise
+    except Exception:
+        output_hook_success()
+
+
+def cmd_auto_context(args):
+    """Hook handler — called by Claude Code on SessionStart. Loads cognitive profile as context."""
+    try:
+        api_key = os.environ.get("MENGRAM_API_KEY", "")
+        if not api_key:
+            sys.exit(0)
+
+        from cloud.client import CloudMemory
+        base_url = os.environ.get("MENGRAM_URL", "https://mengram.io")
+        user_id = getattr(args, "user_id", None) or os.environ.get("MENGRAM_USER_ID", "default")
+
+        mem = CloudMemory(api_key=api_key, base_url=base_url)
+        profile = mem.get_profile(user_id=user_id)
+
+        system_prompt = profile.get("system_prompt", "")
+        if not system_prompt:
+            sys.exit(0)
+
+        # For SessionStart, plain text stdout is added as context Claude sees
+        print(f"[Mengram Memory — user context loaded from past sessions]\n{system_prompt}")
+        sys.exit(0)
+
+    except SystemExit:
+        raise
+    except Exception:
+        sys.exit(0)
+
+
 def cmd_auto_save(args):
     """Hook handler — called by Claude Code on Stop event. Reads stdin, saves to Mengram."""
     try:
@@ -483,8 +571,58 @@ def cmd_hook(args):
         sys.exit(1)
 
 
+def _upsert_hook(settings, event_name, command_marker, hook_def):
+    """Insert or update a hook in settings[hooks][event_name] matching command_marker."""
+    if "hooks" not in settings:
+        settings["hooks"] = {}
+    if event_name not in settings["hooks"]:
+        settings["hooks"][event_name] = []
+
+    found = False
+    for group in settings["hooks"][event_name]:
+        hooks_list = group.get("hooks", [])
+        for i, hook in enumerate(hooks_list):
+            if command_marker in hook.get("command", ""):
+                hooks_list[i] = hook_def
+                found = True
+                break
+        if found:
+            break
+
+    if not found:
+        settings["hooks"][event_name].append({"hooks": [hook_def]})
+
+    return found
+
+
+def _remove_hook(settings, event_name, command_marker):
+    """Remove hooks matching command_marker from settings[hooks][event_name]."""
+    hooks_list = settings.get("hooks", {}).get(event_name, [])
+    if not hooks_list:
+        return False
+
+    new_list = []
+    removed = False
+    for group in hooks_list:
+        hl = group.get("hooks", [])
+        filtered = [h for h in hl if command_marker not in h.get("command", "")]
+        if len(filtered) < len(hl):
+            removed = True
+        if filtered:
+            group["hooks"] = filtered
+            new_list.append(group)
+
+    settings["hooks"][event_name] = new_list
+    if not settings["hooks"][event_name]:
+        del settings["hooks"][event_name]
+    if not settings["hooks"]:
+        del settings["hooks"]
+
+    return removed
+
+
 def cmd_hook_install(args):
-    """Install Claude Code auto-save hook"""
+    """Install Claude Code memory hooks (auto-save + auto-recall + session context)"""
     api_key = os.environ.get("MENGRAM_API_KEY", "")
     if not api_key:
         print("Set MENGRAM_API_KEY environment variable first", file=sys.stderr)
@@ -494,10 +632,14 @@ def cmd_hook_install(args):
     every = getattr(args, "every", 3) or 3
     user_id = getattr(args, "user_id", None)
 
-    # Build the hook command
-    hook_cmd = f"mengram auto-save --every {every}"
+    # Build hook commands
+    save_cmd = f"mengram auto-save --every {every}"
+    recall_cmd = "mengram auto-recall"
+    context_cmd = "mengram auto-context"
     if user_id:
-        hook_cmd += f" --user-id {user_id}"
+        save_cmd += f" --user-id {user_id}"
+        recall_cmd += f" --user-id {user_id}"
+        context_cmd += f" --user-id {user_id}"
 
     # Read existing settings
     settings_path = get_claude_code_settings_path()
@@ -509,55 +651,43 @@ def cmd_hook_install(args):
         except (json.JSONDecodeError, Exception):
             settings = {}
 
-    # Ensure hooks.Stop exists
-    if "hooks" not in settings:
-        settings["hooks"] = {}
-    if "Stop" not in settings["hooks"]:
-        settings["hooks"]["Stop"] = []
+    # 1. Stop hook — auto-save conversations (async, background)
+    _upsert_hook(settings, "Stop", "mengram auto-save", {
+        "type": "command",
+        "command": save_cmd,
+        "timeout": 30,
+        "async": True,
+    })
 
-    # Check if mengram hook already exists
-    found = False
-    for group in settings["hooks"]["Stop"]:
-        hooks_list = group.get("hooks", [])
-        for i, hook in enumerate(hooks_list):
-            if "mengram auto-save" in hook.get("command", ""):
-                # Update existing hook
-                hooks_list[i] = {
-                    "type": "command",
-                    "command": hook_cmd,
-                    "timeout": 30,
-                    "async": True,
-                }
-                found = True
-                break
-        if found:
-            break
+    # 2. UserPromptSubmit hook — recall relevant memories per prompt
+    _upsert_hook(settings, "UserPromptSubmit", "mengram auto-recall", {
+        "type": "command",
+        "command": recall_cmd,
+        "timeout": 10,
+    })
 
-    if not found:
-        # Add new hook
-        settings["hooks"]["Stop"].append({
-            "hooks": [{
-                "type": "command",
-                "command": hook_cmd,
-                "timeout": 30,
-                "async": True,
-            }]
-        })
+    # 3. SessionStart hook — load cognitive profile on session start + after compaction
+    _upsert_hook(settings, "SessionStart", "mengram auto-context", {
+        "type": "command",
+        "command": context_cmd,
+        "timeout": 15,
+    })
 
     # Write settings
     settings_path.parent.mkdir(parents=True, exist_ok=True)
     with open(settings_path, "w") as f:
         json.dump(settings, f, indent=2)
 
-    action = "Updated" if found else "Installed"
-    print(f"Mengram auto-save hook {action.lower()}")
-    print(f"  Saving every {every} response(s)")
+    print("Mengram hooks installed:")
+    print(f"  Auto-save:    every {every} response(s) (background)")
+    print(f"  Auto-recall:  search memory on each prompt")
+    print(f"  Session context: load profile on session start")
     print(f"  Settings: {settings_path}")
-    print(f"\nRestart Claude Code for the hook to take effect.")
+    print(f"\nRestart Claude Code for hooks to take effect.")
 
 
 def cmd_hook_uninstall(args):
-    """Remove Claude Code auto-save hook"""
+    """Remove all Mengram hooks from Claude Code"""
     settings_path = get_claude_code_settings_path()
 
     if not settings_path.exists():
@@ -571,92 +701,77 @@ def cmd_hook_uninstall(args):
         print("Could not read settings file.")
         return
 
-    stop_hooks = settings.get("hooks", {}).get("Stop", [])
-    if not stop_hooks:
-        print("No hook installed. Nothing to uninstall.")
-        return
-
-    # Filter out mengram hooks
-    new_stop = []
+    # Remove all 3 mengram hooks
     removed = False
-    for group in stop_hooks:
-        hooks_list = group.get("hooks", [])
-        filtered = [h for h in hooks_list if "mengram auto-save" not in h.get("command", "")]
-        if len(filtered) < len(hooks_list):
-            removed = True
-        if filtered:
-            group["hooks"] = filtered
-            new_stop.append(group)
+    removed |= _remove_hook(settings, "Stop", "mengram auto-save")
+    removed |= _remove_hook(settings, "UserPromptSubmit", "mengram auto-recall")
+    removed |= _remove_hook(settings, "SessionStart", "mengram auto-context")
 
     if not removed:
-        print("No Mengram hook found. Nothing to uninstall.")
+        print("No Mengram hooks found. Nothing to uninstall.")
         return
-
-    # Update settings
-    settings["hooks"]["Stop"] = new_stop
-    if not settings["hooks"]["Stop"]:
-        del settings["hooks"]["Stop"]
-    if not settings["hooks"]:
-        del settings["hooks"]
 
     with open(settings_path, "w") as f:
         json.dump(settings, f, indent=2)
 
     # Clean up counter files
-    import tempfile, glob
-    for f in glob.glob(str(Path(tempfile.gettempdir()) / "mengram-hook-*.count")):
+    import tempfile, glob as glob_mod
+    for f in glob_mod.glob(str(Path(tempfile.gettempdir()) / "mengram-hook-*.count")):
         try:
             os.remove(f)
         except Exception:
             pass
 
-    print("Mengram auto-save hook removed.")
+    print("All Mengram hooks removed.")
     print("Restart Claude Code for the change to take effect.")
 
 
 def cmd_hook_status(args):
-    """Check Claude Code auto-save hook status"""
-    print("Mengram Auto-Save Hook\n")
+    """Check Claude Code hook status"""
+    print("Mengram Hooks\n")
 
-    # Check settings file
     settings_path = get_claude_code_settings_path()
-    hook_installed = False
-    every_n = None
-
+    settings = {}
     if settings_path.exists():
         try:
             with open(settings_path) as f:
                 settings = json.load(f)
-            for group in settings.get("hooks", {}).get("Stop", []):
-                for hook in group.get("hooks", []):
-                    cmd = hook.get("command", "")
-                    if "mengram auto-save" in cmd:
-                        hook_installed = True
-                        # Parse --every value
-                        parts = cmd.split()
-                        for i, p in enumerate(parts):
-                            if p == "--every" and i + 1 < len(parts):
-                                try:
-                                    every_n = int(parts[i + 1])
-                                except ValueError:
-                                    pass
-                        break
         except Exception:
             pass
 
-    if hook_installed:
-        every_str = f" (every {every_n} responses)" if every_n else ""
-        print(f"  Hook:     installed{every_str}")
+    def _find_hook(event_name, marker):
+        for group in settings.get("hooks", {}).get(event_name, []):
+            for hook in group.get("hooks", []):
+                if marker in hook.get("command", ""):
+                    return hook.get("command", "")
+        return None
+
+    # Check all 3 hooks
+    save_cmd = _find_hook("Stop", "mengram auto-save")
+    recall_cmd = _find_hook("UserPromptSubmit", "mengram auto-recall")
+    context_cmd = _find_hook("SessionStart", "mengram auto-context")
+
+    if save_cmd:
+        every_n = 3
+        parts = save_cmd.split()
+        for i, p in enumerate(parts):
+            if p == "--every" and i + 1 < len(parts):
+                try: every_n = int(parts[i + 1])
+                except ValueError: pass
+        print(f"  Auto-save:      installed (every {every_n} responses)")
     else:
-        print("  Hook:     not installed")
+        print("  Auto-save:      not installed")
+
+    print(f"  Auto-recall:    {'installed' if recall_cmd else 'not installed'}")
+    print(f"  Session context: {'installed' if context_cmd else 'not installed'}")
 
     # Check API key
     api_key = os.environ.get("MENGRAM_API_KEY", "")
     if api_key:
         masked = api_key[:6] + "..." + api_key[-4:]
-        print(f"  API Key:  {masked} (set)")
+        print(f"  API Key:        {masked} (set)")
     else:
-        print("  API Key:  not set")
+        print("  API Key:        not set")
 
     # Check API connectivity
     if api_key:
@@ -666,16 +781,17 @@ def cmd_hook_status(args):
             mem = CloudMemory(api_key=api_key, base_url=base_url)
             info = mem._request("GET", "/v1/me")
             plan = info.get("plan", "?")
-            print(f"  API:      connected ({plan} plan)")
+            print(f"  API:            connected ({plan} plan)")
         except Exception as e:
-            print(f"  API:      error ({e})")
+            print(f"  API:            error ({e})")
     else:
-        print("  API:      skipped (no key)")
+        print("  API:            skipped (no key)")
 
-    print(f"  Settings: {settings_path}")
+    print(f"  Settings:       {settings_path}")
 
-    if not hook_installed:
-        print("\nRun 'mengram hook install' to enable auto-save.")
+    any_installed = save_cmd or recall_cmd or context_cmd
+    if not any_installed:
+        print("\nRun 'mengram hook install' to enable memory hooks.")
 
 
 def cmd_api(args):
@@ -897,10 +1013,18 @@ def main():
     hook_sub.add_parser("uninstall", help="Remove auto-save hook")
     hook_sub.add_parser("status", help="Check hook status")
 
-    # auto-save (internal, called by Claude Code hook)
+    # auto-save (internal, called by Claude Code Stop hook)
     p_autosave = sub.add_parser("auto-save", help=argparse.SUPPRESS)
     p_autosave.add_argument("--every", type=int, default=3)
     p_autosave.add_argument("--user-id", default=None)
+
+    # auto-recall (internal, called by Claude Code UserPromptSubmit hook)
+    p_autorecall = sub.add_parser("auto-recall", help=argparse.SUPPRESS)
+    p_autorecall.add_argument("--user-id", default=None)
+
+    # auto-context (internal, called by Claude Code SessionStart hook)
+    p_autocontext = sub.add_parser("auto-context", help=argparse.SUPPRESS)
+    p_autocontext.add_argument("--user-id", default=None)
 
     # web
     p_web = sub.add_parser("web", help="Start Web UI (chat + knowledge graph)")
@@ -928,6 +1052,10 @@ def main():
         cmd_hook(args)
     elif args.command == "auto-save":
         cmd_auto_save(args)
+    elif args.command == "auto-recall":
+        cmd_auto_recall(args)
+    elif args.command == "auto-context":
+        cmd_auto_context(args)
     elif args.command == "web":
         cmd_web(args)
     else:

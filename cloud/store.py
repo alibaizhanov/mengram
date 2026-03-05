@@ -2834,7 +2834,7 @@ SEMANTIC MEMORY (facts about the user):
             resp = client.chat.completions.create(
                 model=os.environ.get("LLM_MODEL", "gpt-4o-mini"),
                 messages=[{"role": "user", "content": prompt}],
-                max_tokens=500,
+                max_completion_tokens=500,
                 temperature=0.3,
             )
 
@@ -2958,7 +2958,7 @@ REFLECTIONS/PATTERNS:
             resp = client.chat.completions.create(
                 model=os.environ.get("LLM_MODEL", "gpt-4o-mini"),
                 messages=[{"role": "user", "content": prompt}],
-                max_tokens=2000,
+                max_completion_tokens=2000,
                 temperature=0.3,
             )
             content = resp.choices[0].message.content.strip()
