@@ -568,25 +568,19 @@ Be strict — only include entities that directly answer or relate to the query.
             action = "reset" if is_reset else "created"
             subject = f"Your new Mengram API key" if is_reset else "Welcome to Mengram"
 
-            html = f"""
+            if is_reset:
+                html = f"""
             <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:0 auto;padding:40px 24px;color:#e8e8f0;background:#0a0a12;border-radius:16px">
                 <div style="text-align:center;margin-bottom:32px">
                     <svg width="36" height="36" viewBox="0 0 120 120"><path d="M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68" fill="none" stroke="#a855f7" stroke-width="8" stroke-linecap="round"/><circle cx="62" cy="68" r="8" fill="#a855f7"/><circle cx="62" cy="68" r="3.5" fill="white"/></svg>
                     <h1 style="font-size:22px;font-weight:700;margin:8px 0 4px;color:#e8e8f0">Mengram</h1>
-                    <p style="color:#8888a8;font-size:14px;margin:0">AI memory layer for apps</p>
                 </div>
-                <p style="font-size:15px;color:#c8c8d8;line-height:1.6">
-                    {"Your API key has been reset. Old keys are now deactivated." if is_reset else "Welcome! Your account has been created."}
-                </p>
+                <p style="font-size:15px;color:#c8c8d8;line-height:1.6">Your API key has been reset. Old keys are now deactivated.</p>
                 <div style="background:#12121e;border:1px solid #1a1a2e;border-radius:10px;padding:18px;margin:20px 0;text-align:center">
-                    <p style="color:#8888a8;font-size:12px;margin:0 0 8px;text-transform:uppercase;letter-spacing:1px">Your API Key</p>
+                    <p style="color:#8888a8;font-size:12px;margin:0 0 8px;text-transform:uppercase;letter-spacing:1px">Your New API Key</p>
                     <code style="font-size:14px;color:#a78bfa;word-break:break-all">{api_key}</code>
                 </div>
-                <p style="font-size:13px;color:#ef4444;font-weight:600">⚠️ Save this key — it won't be shown again.</p>
-                <p style="font-size:14px;color:#8888a8;margin-top:24px">
-                    Quick start:<br>
-                    <code style="color:#22c55e;font-size:13px">pip install mengram-ai</code>
-                </p>
+                <p style="font-size:13px;color:#ef4444;font-weight:600">Save this key — it won't be shown again.</p>
                 <hr style="border:none;border-top:1px solid #1a1a2e;margin:28px 0">
                 <p style="font-size:12px;color:#55556a;text-align:center">
                     <a href="https://mengram.io/dashboard" style="color:#7c3aed;text-decoration:none">Console</a> ·
@@ -594,11 +588,76 @@ Be strict — only include entities that directly answer or relate to the query.
                     <a href="https://github.com/alibaizhanov/mengram" style="color:#7c3aed;text-decoration:none">GitHub</a>
                 </p>
             </div>
-            """
+                """
+            else:
+                html = f"""
+            <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:0 auto;padding:40px 24px;color:#e8e8f0;background:#0a0a12;border-radius:16px">
+                <div style="text-align:center;margin-bottom:32px">
+                    <svg width="36" height="36" viewBox="0 0 120 120"><path d="M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68" fill="none" stroke="#a855f7" stroke-width="8" stroke-linecap="round"/><circle cx="62" cy="68" r="8" fill="#a855f7"/><circle cx="62" cy="68" r="3.5" fill="white"/></svg>
+                    <h1 style="font-size:22px;font-weight:700;margin:8px 0 4px;color:#e8e8f0">Welcome to Mengram</h1>
+                    <p style="color:#8888a8;font-size:14px;margin:0">Claude Code will remember everything now.</p>
+                </div>
+
+                <div style="background:#12121e;border:1px solid #1a1a2e;border-radius:10px;padding:18px;margin:20px 0;text-align:center">
+                    <p style="color:#8888a8;font-size:12px;margin:0 0 8px;text-transform:uppercase;letter-spacing:1px">Your API Key</p>
+                    <code style="font-size:14px;color:#a78bfa;word-break:break-all">{api_key}</code>
+                </div>
+                <p style="font-size:13px;color:#ef4444;font-weight:600">Save this key — it won't be shown again.</p>
+
+                <div style="margin:28px 0">
+                    <p style="font-size:16px;font-weight:600;color:#e8e8f0;margin:0 0 16px">Set up in 30 seconds:</p>
+
+                    <div style="background:#12121e;border:1px solid #1a1a2e;border-radius:10px;padding:16px;margin:0 0 12px">
+                        <p style="color:#8888a8;font-size:12px;margin:0 0 6px">Step 1 — Install</p>
+                        <code style="color:#22c55e;font-size:13px">pip install mengram-ai</code>
+                    </div>
+
+                    <div style="background:#12121e;border:1px solid #1a1a2e;border-radius:10px;padding:16px;margin:0 0 12px">
+                        <p style="color:#8888a8;font-size:12px;margin:0 0 6px">Step 2 — Set your key</p>
+                        <code style="color:#22c55e;font-size:13px">export MENGRAM_API_KEY={api_key}</code>
+                    </div>
+
+                    <div style="background:#12121e;border:1px solid #1a1a2e;border-radius:10px;padding:16px;margin:0 0 12px">
+                        <p style="color:#8888a8;font-size:12px;margin:0 0 6px">Step 3 — Install hooks</p>
+                        <code style="color:#22c55e;font-size:13px">mengram hook install</code>
+                    </div>
+
+                    <div style="background:#12121e;border:1px solid #1a1a2e;border-radius:10px;padding:16px">
+                        <p style="color:#8888a8;font-size:12px;margin:0 0 6px">Step 4 — Restart Claude Code</p>
+                        <code style="color:#22c55e;font-size:13px">claude</code>
+                    </div>
+                </div>
+
+                <div style="background:rgba(168,85,247,0.08);border:1px solid rgba(168,85,247,0.2);border-radius:10px;padding:16px;margin:20px 0">
+                    <p style="font-size:14px;color:#c8c8d8;margin:0;line-height:1.6">
+                        <strong style="color:#a855f7">What happens next:</strong><br>
+                        Session start — loads your profile (Claude knows who you are)<br>
+                        Every prompt — searches past sessions for relevant context<br>
+                        After response — saves new knowledge in background
+                    </p>
+                </div>
+
+                <p style="font-size:13px;color:#8888a8;line-height:1.6;margin-top:20px">
+                    Add <code style="color:#a78bfa">export MENGRAM_API_KEY={api_key}</code> to your <code style="color:#a78bfa">~/.zshrc</code> or <code style="color:#a78bfa">~/.bashrc</code> so it persists across terminal sessions.
+                </p>
+
+                <hr style="border:none;border-top:1px solid #1a1a2e;margin:28px 0">
+                <p style="font-size:13px;color:#8888a8;text-align:center;margin:0 0 12px">
+                    Need help? Just reply to this email.
+                </p>
+                <p style="font-size:12px;color:#55556a;text-align:center">
+                    <a href="https://mengram.io/dashboard" style="color:#7c3aed;text-decoration:none">Console</a> ·
+                    <a href="https://docs.mengram.io/claude-code" style="color:#7c3aed;text-decoration:none">Full Guide</a> ·
+                    <a href="https://docs.mengram.io" style="color:#7c3aed;text-decoration:none">Docs</a> ·
+                    <a href="https://github.com/alibaizhanov/mengram" style="color:#7c3aed;text-decoration:none">GitHub</a>
+                </p>
+            </div>
+                """
 
             resend.Emails.send({
                 "from": EMAIL_FROM,
                 "to": [email],
+                "reply_to": "the.baizhanov@gmail.com",
                 "subject": subject,
                 "html": html,
             })
