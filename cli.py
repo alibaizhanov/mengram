@@ -621,6 +621,151 @@ def _remove_hook(settings, event_name, command_marker):
     return removed
 
 
+def _api_request_unauth(method, path, body=None):
+    """Unauthenticated HTTP request to Mengram API (for signup/verify)."""
+    import urllib.request
+    import urllib.error
+    base = os.environ.get("MENGRAM_URL", "https://mengram.io").rstrip("/")
+    url = base + path
+    data = json.dumps(body).encode() if body else None
+    req = urllib.request.Request(
+        url, data=data, method=method,
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return json.loads(resp.read()), resp.status
+    except urllib.error.HTTPError as e:
+        try:
+            return json.loads(e.read()), e.code
+        except Exception:
+            return {"detail": str(e)}, e.code
+    except Exception as e:
+        return {"detail": f"Cannot connect to mengram.io: {e}"}, 0
+
+
+def _save_api_key(api_key):
+    """Save API key to shell profile (~/.zshrc or ~/.bashrc)."""
+    shell = os.environ.get("SHELL", "/bin/bash")
+    if "zsh" in shell:
+        profile = Path.home() / ".zshrc"
+    else:
+        profile = Path.home() / ".bashrc"
+
+    export_line = f'export MENGRAM_API_KEY="{api_key}"'
+
+    try:
+        content = profile.read_text() if profile.exists() else ""
+
+        if "MENGRAM_API_KEY" in content:
+            import re
+            lines = content.split("\n")
+            lines = [export_line if re.match(r'^\s*export\s+MENGRAM_API_KEY=', l) else l for l in lines]
+            profile.write_text("\n".join(lines))
+        else:
+            with open(profile, "a") as f:
+                f.write(f"\n# Mengram AI memory\n{export_line}\n")
+
+        os.environ["MENGRAM_API_KEY"] = api_key
+        return profile
+    except Exception:
+        os.environ["MENGRAM_API_KEY"] = api_key
+        return None
+
+
+def cmd_setup(args):
+    """Interactive signup + API key setup + hook install."""
+    print("\n  Welcome to Mengram — AI memory for your apps\n")
+
+    # Check existing key
+    existing_key = os.environ.get("MENGRAM_API_KEY", "")
+    if existing_key:
+        answer = input("  Already configured. Reconfigure? [y/N]: ").strip().lower()
+        if answer != "y":
+            print("  Keeping existing configuration.")
+            return
+        print()
+
+    # Get email
+    email = getattr(args, "email", None)
+    if not email:
+        email = input("  Email: ").strip()
+    if not email:
+        print("  Email is required.")
+        return
+
+    # Step 1: Send verification code
+    data, status = _api_request_unauth("POST", "/v1/signup", {"email": email})
+
+    is_reset = False
+    if status == 409:
+        # Already registered — offer key reset
+        print("  Email already registered.")
+        answer = input("  Reset API key? [y/N]: ").strip().lower()
+        if answer != "y":
+            print("\n  To use your existing key:")
+            print('  export MENGRAM_API_KEY="om-your-key"')
+            print("  mengram hook install\n")
+            return
+        data, status = _api_request_unauth("POST", "/v1/reset-key", {"email": email})
+        if status != 200:
+            print(f"  Error: {data.get('detail', 'Unknown error')}")
+            return
+        is_reset = True
+        print("  Verification code sent! Check your inbox.\n")
+    elif status == 200:
+        print("  Verification code sent! Check your inbox.\n")
+    else:
+        print(f"  Error: {data.get('detail', 'Cannot connect to mengram.io')}")
+        return
+
+    # Step 2: Verify code
+    verify_path = "/v1/reset-key/verify" if is_reset else "/v1/verify"
+    for attempt in range(3):
+        code = input("  Code: ").strip()
+        if not code:
+            continue
+        data, status = _api_request_unauth("POST", verify_path, {"email": email, "code": code})
+        if status == 200:
+            break
+        print(f"  {data.get('detail', 'Invalid code.')} Try again.")
+    else:
+        print("  Too many attempts. Run 'mengram setup' to start over.")
+        return
+
+    api_key = data.get("api_key", "")
+    if not api_key:
+        print("  Error: no API key in response.")
+        return
+
+    if is_reset:
+        print("  New API key generated!\n")
+    else:
+        print("  Account created!\n")
+
+    print(f"  API key: {api_key}")
+
+    # Save key to shell profile
+    profile = _save_api_key(api_key)
+    if profile:
+        print(f"  Key saved to {profile}")
+    else:
+        print(f"  Could not write to shell profile. Add manually:")
+        print(f'  export MENGRAM_API_KEY="{api_key}"')
+
+    # Install hooks
+    no_hooks = getattr(args, "no_hooks", False)
+    if not no_hooks:
+        try:
+            cmd_hook_install(args)
+        except SystemExit:
+            pass
+    else:
+        print("\n  Skipped hook install (--no-hooks).")
+
+    print("\n  Done! Restart Claude Code — it now remembers everything.\n")
+
+
 def cmd_hook_install(args):
     """Install Claude Code memory hooks (auto-save + auto-recall + session context)"""
     api_key = os.environ.get("MENGRAM_API_KEY", "")
@@ -1032,6 +1177,11 @@ def main():
     p_web.add_argument("--port", type=int, default=8420, help="Port (default: 8420)")
     p_web.add_argument("--no-open", action="store_true", help="Don't open browser")
 
+    # setup (interactive signup + hook install)
+    p_setup = sub.add_parser("setup", help="Sign up and configure Mengram (interactive)")
+    p_setup.add_argument("--email", help="Email (skip prompt)")
+    p_setup.add_argument("--no-hooks", action="store_true", help="Skip Claude Code hook install")
+
     args = parser.parse_args()
 
     if args.command == "init":
@@ -1058,6 +1208,8 @@ def main():
         cmd_auto_context(args)
     elif args.command == "web":
         cmd_web(args)
+    elif args.command == "setup":
+        cmd_setup(args)
     else:
         parser.print_help()
 
