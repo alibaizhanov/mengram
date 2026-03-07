@@ -269,13 +269,13 @@ profile = m.get_profile()             # instant system prompt
                 _embedder = CloudEmbedder(provider="openai", api_key=openai_key)
         return _embedder
 
-    # ---- Re-ranking (Cohere Rerank → gpt-4o-mini fallback) ----
+    # ---- Re-ranking (Cohere Rerank → LLM fallback) ----
     _cohere_client = None
     _openai_rerank_client = None
 
     def rerank_results(query: str, results: list[dict], plan: str = "business") -> list[dict]:
         """Re-rank search results based on subscription plan.
-        Free: no reranking.  Pro: gpt-4o-mini.  Business: Cohere Rerank → gpt-4o-mini fallback."""
+        Free: no reranking.  Pro: LLM rerank.  Business: Cohere Rerank → LLM fallback."""
         if not results or len(results) <= 1:
             return results
 
@@ -284,7 +284,7 @@ profile = m.get_profile()             # instant system prompt
             return results
 
         # Try Cohere Rerank first — fact-level (cross-encoder, more precise)
-        # Only for Business plan (Pro skips straight to gpt-4o-mini)
+        # Only for Business plan (Pro skips straight to LLM rerank)
         cohere_key = os.environ.get("COHERE_API_KEY", "") if plan == "business" else ""
         if cohere_key:
             try:
@@ -334,7 +334,7 @@ profile = m.get_profile()             # instant system prompt
             except Exception as e:
                 logger.warning(f"⚠️ Cohere rerank failed, falling back: {e}")
 
-        # Fallback: gpt-4o-mini
+        # Fallback: LLM rerank
         openai_key = os.environ.get("OPENAI_API_KEY", "")
         if not openai_key:
             return results
@@ -370,7 +370,7 @@ If none are relevant, return [].
 Be strict — only include entities that directly answer or relate to the query."""
 
             resp = client.chat.completions.create(
-                model="gpt-4o-mini",
+                model=os.environ.get("LLM_MODEL", "gpt-4o-mini"),
                 messages=[{"role": "user", "content": prompt}],
                 max_completion_tokens=100,
                 temperature=1,
