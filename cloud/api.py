@@ -629,7 +629,7 @@ Be strict — only include entities that directly answer or relate to the query.
                 </div>
 
                 <hr style="border:none;border-top:1px solid #1a1a2e;margin:28px 0">
-                <p style="font-size:14px;color:#c8c8d8;margin:0 0 16px">Anything doesn't work? Just reply — I read every email.</p>
+                <p style="font-size:14px;color:#c8c8d8;margin:0 0 16px">Something not working? Just reply — I read every email.</p>
                 <p style="font-size:14px;color:#c8c8d8;margin:0 0 20px">— Ali</p>
                 <p style="font-size:12px;color:#55556a;text-align:center">
                     <a href="https://docs.mengram.io" style="color:#7c3aed;text-decoration:none">Docs</a> ·
