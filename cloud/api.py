@@ -622,10 +622,13 @@ Be strict — only include entities that directly answer or relate to the query.
                         <span style="color:#a855f7">→</span> <strong>Claude Code</strong> — auto-save, auto-recall, profile on every session<br>
                         <span style="color:#a855f7">→</span> <strong>Python / JS SDK</strong> — <code style="color:#a78bfa">m.search("tech stack")</code>, <code style="color:#a78bfa">m.add([...])</code><br>
                         <span style="color:#a855f7">→</span> <strong>MCP Server</strong> — Cursor, Windsurf, Claude Desktop<br>
-                        <span style="color:#a855f7">→</span> <strong>OpenClaw</strong> — auto-recall + auto-capture, 12 tools, slash commands<br>
+                        <span style="color:#a855f7">→</span> <strong>OpenClaw</strong> — auto-recall + auto-capture, 12 tools<br>
+                        <span style="color:#a855f7">→</span> <strong>LangChain / CrewAI</strong> — retrievers, tools, chat history<br>
                         <span style="color:#a855f7">→</span> <strong>3 memory types</strong> — facts, events, workflows that evolve<br>
                         <span style="color:#a855f7">→</span> <strong>Cognitive Profile</strong> — one call → system prompt for any LLM<br>
-                        <span style="color:#a855f7">→</span> <strong>Import ChatGPT</strong> — <code style="color:#a78bfa">mengram import chatgpt export.zip --cloud</code>
+                        <span style="color:#a855f7">→</span> <strong>Import</strong> — ChatGPT, Obsidian, any text/markdown files<br>
+                        <span style="color:#a855f7">→</span> <strong>Multi-user</strong> — one API key, isolated memory per user<br>
+                        <span style="color:#a855f7">→</span> <strong>REST API</strong> — 90+ endpoints for custom integrations
                     </p>
                 </div>
 
