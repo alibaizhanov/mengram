@@ -4122,8 +4122,8 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                                         summary=ep.summary,
                                         context=ep.context or "",
                                     )
-                                    if is_failure:
-                                        # Failure → trigger evolution
+                                    if is_failure and ctx.plan != "free":
+                                        # Failure → trigger evolution (Pro+ only)
                                         evo = EvolutionEngine(store, embedder, extractor.llm)
                                         evo_result = evo.evolve_on_failure(
                                             user_id, best_proc["id"], episode_id,
@@ -4225,22 +4225,23 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 except Exception as e:
                     logger.error(f"⚠️ Auto-reflection failed: {e}")
 
-                # ---- Smart Triggers: detect reminders, contradictions, patterns ----
+                # ---- Smart Triggers: detect reminders, contradictions, patterns (Pro+ only) ----
                 triggers_created = 0
-                try:
-                    triggers_created += store.detect_reminder_triggers(user_id, sub_user_id=sub_uid)
-                    for entity in all_entities:
-                        if entity.name and entity.facts:
-                            plain_facts = [f.content if hasattr(f, 'content') else str(f)
-                                           for f in entity.facts]
-                            triggers_created += store.detect_contradiction_triggers(
-                                user_id, plain_facts, entity.name, sub_user_id=sub_uid
-                            )
-                    triggers_created += store.detect_pattern_triggers(user_id, sub_user_id=sub_uid)
-                    if triggers_created > 0:
-                        logger.info(f"🧠 Smart triggers created: {triggers_created} for {user_id}")
-                except Exception as e:
-                    logger.error(f"⚠️ Smart triggers failed: {e}")
+                if ctx.plan != "free":
+                    try:
+                        triggers_created += store.detect_reminder_triggers(user_id, sub_user_id=sub_uid)
+                        for entity in all_entities:
+                            if entity.name and entity.facts:
+                                plain_facts = [f.content if hasattr(f, 'content') else str(f)
+                                               for f in entity.facts]
+                                triggers_created += store.detect_contradiction_triggers(
+                                    user_id, plain_facts, entity.name, sub_user_id=sub_uid
+                                )
+                        triggers_created += store.detect_pattern_triggers(user_id, sub_user_id=sub_uid)
+                        if triggers_created > 0:
+                            logger.info(f"🧠 Smart triggers created: {triggers_created} for {user_id}")
+                    except Exception as e:
+                        logger.error(f"⚠️ Smart triggers failed: {e}")
 
                 # ---- Experience-Driven Procedures: detect patterns in episodes ----
                 if episodes_created > 0:
@@ -5088,8 +5089,10 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         creates a linked failure episode and evolves the procedure to a new version.
         """
         user_id = ctx.user_id
-        # Evolution on failure uses LLM + embedder — count as an add operation
+        # Evolution on failure is Pro only
         if not success and body and body.context:
+            if ctx.plan == "free":
+                raise HTTPException(status_code=403, detail="Procedure evolution is a Pro feature. Upgrade at mengram.io/dashboard")
             use_quota(ctx, "add")
         result = store.procedure_feedback(user_id, procedure_id, success, sub_user_id=sub_user_id)
         if "error" in result:
@@ -5149,6 +5152,8 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     @app.get("/v1/procedures/{procedure_id}/evolution", tags=["Procedural Memory"])
     async def procedure_evolution(procedure_id: str, sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
         """Get the evolution log for a procedure — what changed and why."""
+        if ctx.plan == "free":
+            raise HTTPException(status_code=403, detail="Procedure evolution log is a Pro feature. Upgrade at mengram.io/dashboard")
         user_id = ctx.user_id
         evolution = store.get_procedure_evolution(user_id, procedure_id, sub_user_id=sub_user_id)
         return {"evolution": evolution}
@@ -5257,6 +5262,8 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                                limit: int = 50, sub_user_id: str = Query("default"),
                                ctx: AuthContext = Depends(auth)):
         """Get smart triggers for the authenticated user."""
+        if ctx.plan == "free":
+            raise HTTPException(status_code=403, detail="Smart Triggers is a Pro feature. Upgrade at mengram.io/dashboard")
         user_id = ctx.user_id
         triggers = store.get_triggers(user_id, include_fired=include_fired, limit=limit, sub_user_id=sub_user_id)
         for t in triggers:
@@ -5270,6 +5277,8 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                            limit: int = 50, sub_user_id: str = Query("default"),
                            ctx: AuthContext = Depends(auth)):
         """Get smart triggers for a specific user (must be your own user_id or a sub_user_id)."""
+        if ctx.plan == "free":
+            raise HTTPException(status_code=403, detail="Smart Triggers is a Pro feature. Upgrade at mengram.io/dashboard")
         user_id = ctx.user_id
         # Authorization: only allow accessing own triggers
         if target_user_id != user_id:
@@ -5284,6 +5293,8 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     @app.post("/v1/triggers/process", tags=["Smart Triggers"])
     async def process_triggers(ctx: AuthContext = Depends(auth)):
         """Process pending triggers for the authenticated user only."""
+        if ctx.plan == "free":
+            raise HTTPException(status_code=403, detail="Smart Triggers is a Pro feature. Upgrade at mengram.io/dashboard")
         user_id = ctx.user_id
         result = store.process_user_triggers(user_id)
         return result
