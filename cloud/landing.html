@@ -694,6 +694,111 @@
             font-family: 'JetBrains Mono', monospace;
         }
 
+        /* ---- Agent Memory Section ---- */
+        .agent-section {
+            padding: 80px 0;
+        }
+        .agent-section h2 {
+            text-align: center;
+            font-size: 32px;
+            font-weight: 700;
+            letter-spacing: -1px;
+            margin-bottom: 12px;
+        }
+        .agent-section > p {
+            text-align: center;
+            color: var(--text-2);
+            font-size: 16px;
+            margin-bottom: 40px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .agent-flow {
+            max-width: 900px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr auto 1fr auto 1fr;
+            align-items: center;
+            gap: 0;
+        }
+        .agent-step {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 28px 22px;
+            text-align: center;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+        .agent-step:hover {
+            border-color: var(--accent);
+            box-shadow: 0 0 30px var(--accent-dim);
+        }
+        .agent-step-icon {
+            font-size: 32px;
+            margin-bottom: 12px;
+        }
+        .agent-step h3 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        .agent-step p {
+            font-size: 13px;
+            color: var(--text-2);
+            line-height: 1.5;
+        }
+        .agent-step code {
+            font-size: 11px;
+            background: var(--bg);
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: var(--accent);
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .agent-arrow {
+            color: var(--text-3);
+            font-size: 24px;
+            text-align: center;
+            padding: 0 8px;
+        }
+        .agent-usecases {
+            max-width: 900px;
+            margin: 40px auto 0;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+        .agent-usecase {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+        }
+        .agent-usecase h4 {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+        .agent-usecase p {
+            font-size: 13px;
+            color: var(--text-2);
+            line-height: 1.5;
+        }
+        @media (max-width: 768px) {
+            .agent-flow {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+            .agent-arrow {
+                transform: rotate(90deg);
+                padding: 4px 0;
+            }
+            .agent-usecases {
+                grid-template-columns: 1fr;
+            }
+        }
+
         /* ---- Signup ---- */
         .signup-section {
             padding: 80px 0;
@@ -2052,6 +2157,45 @@ results = m.search(<span class="c-str">"What does Ali prefer?"</span>)</div>
             </div>
         </section>
 
+        <!-- Built for AI Agents -->
+        <section class="agent-section" id="agents">
+            <h2 class="reveal">Built for AI Agents</h2>
+            <p class="reveal">Your agents run 24/7 but forget everything between sessions. Mengram gives them persistent memory that grows smarter over time.</p>
+            <div class="agent-flow stagger">
+                <div class="agent-step reveal">
+                    <div class="agent-step-icon">🤖</div>
+                    <h3>Agent Acts</h3>
+                    <p>Your agent completes a task &mdash; applies to a job, deploys code, handles a ticket.</p>
+                </div>
+                <div class="agent-arrow reveal">&#10132;</div>
+                <div class="agent-step reveal" style="border-color: var(--accent); box-shadow: 0 0 20px var(--accent-dim);">
+                    <div class="agent-step-icon">🧠</div>
+                    <h3>Mengram Remembers</h3>
+                    <p>One <code>add()</code> call extracts facts, events, and procedures. The agent builds experience.</p>
+                </div>
+                <div class="agent-arrow reveal">&#10132;</div>
+                <div class="agent-step reveal">
+                    <div class="agent-step-icon">⚡</div>
+                    <h3>Next Run is Smarter</h3>
+                    <p>On the next task, <code>search()</code> recalls what worked and what failed. The agent improves autonomously.</p>
+                </div>
+            </div>
+            <div class="agent-usecases stagger">
+                <div class="agent-usecase reveal">
+                    <h4>Autonomous Workflows</h4>
+                    <p>Agents that apply to jobs, manage tickets, or process data &mdash; remembering outcomes and adapting strategy across runs.</p>
+                </div>
+                <div class="agent-usecase reveal">
+                    <h4>Coding Assistants</h4>
+                    <p>Claude Code, Cursor, Windsurf &mdash; your AI remembers your stack, preferences, and past solutions across sessions.</p>
+                </div>
+                <div class="agent-usecase reveal">
+                    <h4>Multi-Agent Systems</h4>
+                    <p>CrewAI, LangChain, AutoGPT &mdash; shared memory between agents. One discovers, another executes, all remember.</p>
+                </div>
+            </div>
+        </section>
+
         <section class="features-section" id="features">
             <h2 class="reveal">What makes Mengram different</h2>
             <p class="reveal">Others store facts. Mengram remembers like a human brain.</p>
@@ -2971,6 +3115,7 @@ results = m.search(<span class="c-str">"What does Ali prefer?"</span>)</div>
                 { icon: '⚙️', label: 'How it works', href: '#how', hint: 'Section' },
                 { icon: '📦', label: 'Install / Get Started', href: '#install', hint: 'Section' },
                 { icon: '🔄', label: 'Before / After', href: '#before-after', hint: 'Section' },
+                { icon: '🤖', label: 'AI Agents', href: '#agents', hint: 'Section' },
                 { icon: '✨', label: 'Features', href: '#features', hint: 'Section' },
                 { icon: '💰', label: 'Pricing', href: '#pricing', hint: 'Section' },
                 { icon: '📝', label: 'Changelog', href: '#changelog', hint: 'Section' },

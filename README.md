@@ -373,6 +373,35 @@ export MENGRAM_API_KEY=om-...
 python main.py
 ```
 
+## Use with AI Agents
+
+Mengram works as a persistent memory backend for autonomous agents. Your agent stores what it learns, and recalls it on the next run — getting smarter over time.
+
+```python
+from mengram import Mengram
+
+m = Mengram(api_key="om-...")
+
+# Agent completes a task → store what happened
+m.add([
+    {"role": "user", "content": "Apply to Acme Corp on Greenhouse"},
+    {"role": "assistant", "content": "Applied successfully. Had to use React Select workaround for dropdowns."},
+])
+# → Extracts: fact ("applied to Acme Corp"), episode ("Greenhouse application"),
+#   procedure ("React Select dropdown workaround")
+
+# Next run → agent recalls what worked before
+context = m.search_all("Greenhouse application tips")
+# → Returns past procedures, failures, and successful strategies
+
+# Report outcome → procedures evolve
+m.procedure_feedback(proc_id, success=False,
+                     context="Dropdown fix stopped working")
+# → Procedure auto-evolves to a new version
+```
+
+Works with any agent framework — CrewAI, LangChain, AutoGPT, custom loops. The agent just calls `add()` after actions and `search()` before decisions.
+
 ## API Reference
 
 | Endpoint | Description |
