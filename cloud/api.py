@@ -42,11 +42,12 @@ from cloud.store import CloudStore
 class AuthContext:
     """Auth result with plan info for quota enforcement."""
     user_id: str
-    plan: str         # free, pro, business
+    plan: str         # free, starter, pro, business
     rate_limit: int   # per-minute rate limit
 
 PLAN_QUOTAS = {
-    "free":     {"adds": 100,   "searches": 500,    "agents": 5,   "reflects": 5,   "dedups": 2,   "reindexes": 2,   "rules": 5,    "rate_limit": 30,  "webhooks": 0,  "teams": 0,  "sub_users": 3},
+    "free":     {"adds": 20,    "searches": 100,    "agents": 3,   "reflects": 3,   "dedups": 1,   "reindexes": 1,   "rules": 3,    "rate_limit": 20,  "webhooks": 0,  "teams": 0,  "sub_users": 3},
+    "starter":  {"adds": 100,   "searches": 500,    "agents": 10,  "reflects": 10,  "dedups": 5,   "reindexes": 5,   "rules": 10,   "rate_limit": 60,  "webhooks": 2,  "teams": 1,  "sub_users": 10},
     "pro":      {"adds": 1_000, "searches": 10_000, "agents": 50,  "reflects": 30,  "dedups": 20,  "reindexes": 10,  "rules": 50,   "rate_limit": 120, "webhooks": 10, "teams": 5,  "sub_users": 50},
     "business": {"adds": 5_000, "searches": 30_000, "agents": -1,  "reflects": -1,  "dedups": -1,  "reindexes": -1,  "rules": -1,   "rate_limit": 300, "webhooks": 50, "teams": -1, "sub_users": -1},
 }
@@ -300,8 +301,8 @@ profile = m.get_profile()             # instant system prompt
         if not results or len(results) <= 1:
             return results
 
-        # Free plan: no reranking — return raw vector results
-        if plan == "free":
+        # Free/Starter: no reranking — return raw vector results
+        if plan in ("free", "starter"):
             return results
 
         # Try Cohere Rerank first — fact-level (cross-encoder, more precise)
@@ -554,6 +555,13 @@ Be strict — only include entities that directly answer or relate to the query.
 
     NEXT_PLAN_INFO = {
         "free": {
+            "name": "Starter",
+            "price": "$5/mo",
+            "adds": "100",
+            "searches": "500",
+            "features": "higher rate limits, webhooks, and team collaboration",
+        },
+        "starter": {
             "name": "Pro",
             "price": "$19/mo",
             "adds": "1,000",
@@ -4399,7 +4407,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                                         summary=ep.summary,
                                         context=ep.context or "",
                                     )
-                                    if is_failure and ctx.plan != "free":
+                                    if is_failure and ctx.plan not in ("free", "starter"):
                                         # Failure → trigger evolution (Pro+ only)
                                         evo = EvolutionEngine(store, embedder, extractor.llm)
                                         evo_result = evo.evolve_on_failure(
@@ -4504,7 +4512,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
                 # ---- Smart Triggers: detect reminders, contradictions, patterns (Pro+ only) ----
                 triggers_created = 0
-                if ctx.plan != "free":
+                if ctx.plan not in ("free", "starter"):
                     try:
                         triggers_created += store.detect_reminder_triggers(user_id, sub_user_id=sub_uid)
                         for entity in all_entities:
@@ -5258,7 +5266,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             raise HTTPException(status_code=403, detail="Cannot access another user's profile")
         use_quota(ctx, "rules")  # profile uses LLM, shares quota with rules
         # force=true bypasses cache → LLM call, restrict to paid plans
-        if force and ctx.plan == "free":
+        if force and ctx.plan in ("free", "starter"):
             force = False
         return store.get_profile(target_user_id, force=force, sub_user_id=sub_user_id)
 
@@ -5267,7 +5275,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         """Cognitive Profile for the authenticated user."""
         user_id = ctx.user_id
         use_quota(ctx, "rules")  # profile uses LLM, shares quota with rules
-        if force and ctx.plan == "free":
+        if force and ctx.plan in ("free", "starter"):
             force = False
         return store.get_profile(user_id, force=force, sub_user_id=sub_user_id)
 
@@ -5284,7 +5292,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             format = "claude_md"
         user_id = ctx.user_id
         use_quota(ctx, "rules")
-        if force and ctx.plan == "free":
+        if force and ctx.plan in ("free", "starter"):
             force = False
         if force:
             store.cache.invalidate(f"rules:{user_id}:{sub_user_id}:{format}")
@@ -5368,7 +5376,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         user_id = ctx.user_id
         # Evolution on failure is Pro only
         if not success and body and body.context:
-            if ctx.plan == "free":
+            if ctx.plan in ("free", "starter"):
                 raise HTTPException(status_code=403, detail="Procedure evolution is a Pro feature. Upgrade at mengram.io/dashboard")
             use_quota(ctx, "add")
         result = store.procedure_feedback(user_id, procedure_id, success, sub_user_id=sub_user_id)
@@ -5429,7 +5437,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     @app.get("/v1/procedures/{procedure_id}/evolution", tags=["Procedural Memory"])
     async def procedure_evolution(procedure_id: str, sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
         """Get the evolution log for a procedure — what changed and why."""
-        if ctx.plan == "free":
+        if ctx.plan in ("free", "starter"):
             raise HTTPException(status_code=403, detail="Procedure evolution log is a Pro feature. Upgrade at mengram.io/dashboard")
         user_id = ctx.user_id
         evolution = store.get_procedure_evolution(user_id, procedure_id, sub_user_id=sub_user_id)
@@ -5539,7 +5547,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                                limit: int = 50, sub_user_id: str = Query("default"),
                                ctx: AuthContext = Depends(auth)):
         """Get smart triggers for the authenticated user."""
-        if ctx.plan == "free":
+        if ctx.plan in ("free", "starter"):
             raise HTTPException(status_code=403, detail="Smart Triggers is a Pro feature. Upgrade at mengram.io/dashboard")
         user_id = ctx.user_id
         triggers = store.get_triggers(user_id, include_fired=include_fired, limit=limit, sub_user_id=sub_user_id)
@@ -5554,7 +5562,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                            limit: int = 50, sub_user_id: str = Query("default"),
                            ctx: AuthContext = Depends(auth)):
         """Get smart triggers for a specific user (must be your own user_id or a sub_user_id)."""
-        if ctx.plan == "free":
+        if ctx.plan in ("free", "starter"):
             raise HTTPException(status_code=403, detail="Smart Triggers is a Pro feature. Upgrade at mengram.io/dashboard")
         user_id = ctx.user_id
         # Authorization: only allow accessing own triggers
@@ -5570,7 +5578,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     @app.post("/v1/triggers/process", tags=["Smart Triggers"])
     async def process_triggers(ctx: AuthContext = Depends(auth)):
         """Process pending triggers for the authenticated user only."""
-        if ctx.plan == "free":
+        if ctx.plan in ("free", "starter"):
             raise HTTPException(status_code=403, detail="Smart Triggers is a Pro feature. Upgrade at mengram.io/dashboard")
         user_id = ctx.user_id
         result = store.process_user_triggers(user_id)
@@ -5687,6 +5695,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     PADDLE_ENV = os.environ.get("PADDLE_ENVIRONMENT", "sandbox")
     PADDLE_API_BASE = "https://api.paddle.com" if PADDLE_ENV == "production" else "https://sandbox-api.paddle.com"
     PADDLE_PRICES = {
+        "starter": os.environ.get("PADDLE_PRICE_STARTER", ""),
         "pro": os.environ.get("PADDLE_PRICE_PRO", ""),
         "business": os.environ.get("PADDLE_PRICE_BUSINESS", ""),
     }
@@ -5728,7 +5737,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         }
 
     @app.post("/v1/billing/checkout", tags=["Billing"])
-    async def create_checkout(plan: str = Query(..., pattern="^(pro|business)$"), ctx: AuthContext = Depends(auth)):
+    async def create_checkout(plan: str = Query(..., pattern="^(starter|pro|business)$"), ctx: AuthContext = Depends(auth)):
         """Create Paddle checkout transaction for plan upgrade. Returns checkout URL."""
         user_id = ctx.user_id
         if not PADDLE_API_KEY:
@@ -5853,8 +5862,10 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                         plan = "business"
                     elif price_id == PADDLE_PRICES.get("pro"):
                         plan = "pro"
+                    elif price_id == PADDLE_PRICES.get("starter"):
+                        plan = "starter"
             if not plan:
-                plan = "pro"
+                plan = "starter"
 
             if user_id:
                 updates = {
@@ -5910,6 +5921,8 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                         updates["plan"] = "business"
                     elif price_id == PADDLE_PRICES.get("pro"):
                         updates["plan"] = "pro"
+                    elif price_id == PADDLE_PRICES.get("starter"):
+                        updates["plan"] = "starter"
                 current_period = data.get("current_billing_period", {})
                 if current_period.get("starts_at"):
                     updates["current_period_start"] = current_period["starts_at"]

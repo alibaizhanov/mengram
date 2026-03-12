@@ -1014,9 +1014,9 @@
         }
         .pricing-grid {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 20px;
-            max-width: 1200px;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 16px;
+            max-width: 1400px;
             margin: 0 auto;
         }
         .price-card {
@@ -1134,7 +1134,7 @@
             .pricing-grid { grid-template-columns: 1fr; max-width: 400px; }
         }
         @media (min-width: 769px) and (max-width: 1100px) {
-            .pricing-grid { grid-template-columns: repeat(2, 1fr); max-width: 700px; }
+            .pricing-grid { grid-template-columns: repeat(2, 1fr); max-width: 720px; }
         }
 
         /* ---- Enterprise Modal ---- */
@@ -1543,6 +1543,7 @@
                 "url": "https://mengram.io",
                 "offers": [
                     { "@type": "Offer", "price": "0", "priceCurrency": "USD", "name": "Free" },
+                    { "@type": "Offer", "price": "5", "priceCurrency": "USD", "name": "Starter" },
                     { "@type": "Offer", "price": "19", "priceCurrency": "USD", "name": "Pro" },
                     { "@type": "Offer", "price": "99", "priceCurrency": "USD", "name": "Business" },
                     { "@type": "Offer", "price": "0", "priceCurrency": "USD", "name": "Enterprise", "description": "Custom pricing — contact us" }
@@ -1592,7 +1593,7 @@
                         "name": "Is Mengram a free alternative to Mem0?",
                         "acceptedAnswer": {
                             "@type": "Answer",
-                            "text": "Yes. Mengram offers a free tier with 100 memory adds and 500 searches per month. Unlike Mem0, Mengram includes episodic memory, procedural memory that evolves from failures, and Cognitive Profile — all at no cost. It is also fully open-source under the Apache 2.0 license."
+                            "text": "Yes. Mengram offers a free tier with 20 memory adds and 100 searches per month. Unlike Mem0, Mengram includes episodic memory, procedural memory that evolves from failures, and Cognitive Profile — all at no cost. Paid plans start at $5/month. It is also fully open-source under the Apache 2.0 license."
                         }
                     },
                     {
@@ -2479,18 +2480,35 @@ results = m.search(<span class="c-str">"What does Ali prefer?"</span>)</div>
                 <div class="price-card reveal">
                     <h3>Free</h3>
                     <div class="price-amount">$0</div>
-                    <div class="price-desc">For personal projects and getting started.</div>
+                    <div class="price-desc">Try it out — no credit card needed.</div>
                     <ul class="price-features">
-                        <li>100 memory adds / month</li>
-                        <li>500 searches / month</li>
-                        <li>5 agent runs</li>
+                        <li>20 memory adds / month</li>
+                        <li>100 searches / month</li>
+                        <li>3 agent runs</li>
                         <li>3 sub-users</li>
-                        <li>30 req/min rate limit</li>
+                        <li>20 req/min rate limit</li>
                         <li>Vector search (no reranking)</li>
                         <li class="excluded">No procedure evolution</li>
                         <li class="excluded">No smart triggers</li>
                     </ul>
                     <a href="#signup" class="price-btn">Get started free</a>
+                </div>
+                <!-- Starter -->
+                <div class="price-card reveal">
+                    <h3>Starter</h3>
+                    <div class="price-amount">$5 <span>/ month</span></div>
+                    <div class="price-desc">For personal projects and indie developers.</div>
+                    <ul class="price-features">
+                        <li>100 memory adds / month</li>
+                        <li>500 searches / month</li>
+                        <li>10 agent runs</li>
+                        <li>10 sub-users</li>
+                        <li>60 req/min rate limit</li>
+                        <li>Vector search (no reranking)</li>
+                        <li>2 webhooks</li>
+                        <li>1 team</li>
+                    </ul>
+                    <a href="/dashboard" class="price-btn">Upgrade to Starter</a>
                 </div>
                 <!-- Pro -->
                 <div class="price-card featured reveal">
