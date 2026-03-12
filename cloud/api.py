@@ -532,6 +532,7 @@ Be strict — only include entities that directly answer or relate to the query.
                     ).start()
             except Exception:
                 pass
+        retry_after = _quota_month_end_ttl()
         raise HTTPException(
             status_code=402,
             detail={
@@ -542,7 +543,11 @@ Be strict — only include entities that directly answer or relate to the query.
                 "plan": plan,
                 "upgrade_url": "https://mengram.io/#pricing",
                 "message": f"Monthly {action} limit reached ({max_allowed}). Upgrade your plan at https://mengram.io/#pricing",
-            }
+                "retry_after": retry_after,
+            },
+            headers={
+                "Retry-After": str(retry_after),
+            },
         )
 
     # ---- Quota limit email notification ----
@@ -658,6 +663,7 @@ Be strict — only include entities that directly answer or relate to the query.
                 status_code=429,
                 detail=f"Rate limit exceeded ({rate_limit} requests/min). Retry in 60 seconds.",
                 headers={
+                    "Retry-After": "60",
                     "X-RateLimit-Limit": str(rate_limit),
                     "X-RateLimit-Remaining": "0",
                     "X-RateLimit-Reset": "60",
