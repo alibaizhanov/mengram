@@ -519,6 +519,19 @@ Be strict — only include entities that directly answer or relate to the query.
     def _raise_quota_error(action, max_allowed, current, plan, user_id=None):
         if user_id:
             logger.warning(f"🚫 QUOTA {action} | user={user_id[:8]} | {current}/{max_allowed} | plan={plan}")
+        # Send one-time upgrade email (non-blocking, deduped per month)
+        if user_id and action in ("add", "search"):
+            try:
+                _email = store.get_user_email(user_id)
+                if _email:
+                    import threading
+                    threading.Thread(
+                        target=_send_quota_email,
+                        args=(user_id, _email, plan, action, max_allowed),
+                        daemon=True,
+                    ).start()
+            except Exception:
+                pass
         raise HTTPException(
             status_code=402,
             detail={
@@ -531,6 +544,98 @@ Be strict — only include entities that directly answer or relate to the query.
                 "message": f"Monthly {action} limit reached ({max_allowed}). Upgrade your plan at https://mengram.io/#pricing",
             }
         )
+
+    # ---- Quota limit email notification ----
+
+    NEXT_PLAN_INFO = {
+        "free": {
+            "name": "Pro",
+            "price": "$19/mo",
+            "adds": "1,000",
+            "searches": "10,000",
+            "features": "LLM-powered reranking, procedure evolution, and smart triggers",
+        },
+        "pro": {
+            "name": "Business",
+            "price": "$99/mo",
+            "adds": "5,000",
+            "searches": "30,000",
+            "features": "unlimited agents, Cohere cross-encoder reranking, and unlimited teams",
+        },
+    }
+
+    def _send_quota_email(user_id: str, email: str, plan: str, action: str, max_allowed: int):
+        """Send one-time email when user hits quota. Shows next plan up. Deduped monthly."""
+        now = datetime.datetime.now(datetime.timezone.utc)
+        drip_type = f"quota_{action}_{now.strftime('%Y-%m')}"
+
+        if not store.try_record_drip(email, drip_type, user_id):
+            return  # already sent this month
+
+        resend_key = os.environ.get("RESEND_API_KEY")
+        if not resend_key:
+            return
+
+        next_plan = NEXT_PLAN_INFO.get(plan)
+        action_label = "memory adds" if action == "add" else "searches"
+
+        if next_plan:
+            subject = f"You've reached your monthly {action_label} limit"
+            next_limit = next_plan["adds"] if action == "add" else next_plan["searches"]
+            body_html = f"""
+            <p style="font-size:15px;color:#c8c8d8;line-height:1.6">
+                You've used all {max_allowed:,} {action_label} on your {plan} plan this month.
+            </p>
+            <p style="font-size:15px;color:#c8c8d8;line-height:1.6">
+                Upgrade to <strong style="color:#a78bfa">{next_plan['name']}</strong> ({next_plan['price']}) for
+                {next_limit} {action_label}/month, {next_plan['features']}.
+            </p>
+            <div style="text-align:center;margin:28px 0">
+                <a href="https://mengram.io/dashboard/billing"
+                   style="background:#7c3aed;color:white;padding:14px 32px;border-radius:8px;text-decoration:none;font-size:15px;font-weight:600">
+                    Upgrade to {next_plan['name']}
+                </a>
+            </div>
+            <p style="font-size:13px;color:#55556a">Your limits reset at the start of each month.</p>"""
+        else:
+            # Business plan → Enterprise (reply-based)
+            subject = f"You've hit your Business plan {action_label} limit"
+            body_html = f"""
+            <p style="font-size:15px;color:#c8c8d8;line-height:1.6">
+                You've reached your Business {action_label} limit ({max_allowed:,}/month).
+            </p>
+            <p style="font-size:15px;color:#c8c8d8;line-height:1.6">
+                Let's set up a custom Enterprise plan for your usage — just reply to this email.
+            </p>"""
+
+        html = f"""
+        <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:0 auto;padding:40px 24px;color:#e8e8f0;background:#0a0a12;border-radius:16px">
+            <div style="text-align:center;margin-bottom:32px">
+                <svg width="36" height="36" viewBox="0 0 120 120"><path d="M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68" fill="none" stroke="#a855f7" stroke-width="8" stroke-linecap="round"/><circle cx="62" cy="68" r="8" fill="#a855f7"/><circle cx="62" cy="68" r="3.5" fill="white"/></svg>
+                <h1 style="font-size:22px;font-weight:700;margin:8px 0 4px;color:#e8e8f0">Mengram</h1>
+            </div>
+            {body_html}
+            <hr style="border:none;border-top:1px solid #1a1a2e;margin:28px 0">
+            <p style="font-size:12px;color:#55556a;text-align:center">
+                <a href="https://mengram.io/dashboard" style="color:#7c3aed;text-decoration:none">Console</a> &middot;
+                <a href="https://docs.mengram.io" style="color:#7c3aed;text-decoration:none">Docs</a> &middot;
+                <a href="https://github.com/alibaizhanov/mengram" style="color:#7c3aed;text-decoration:none">GitHub</a>
+            </p>
+        </div>"""
+
+        try:
+            import resend
+            resend.api_key = resend_key
+            resend.Emails.send({
+                "from": EMAIL_FROM,
+                "to": email,
+                "reply_to": "the.baizhanov@gmail.com",
+                "subject": subject,
+                "html": html,
+            })
+            logger.info(f"📧 Quota email sent | user={user_id[:8]} | {action} | {plan} → {next_plan['name'] if next_plan else 'enterprise'}")
+        except Exception as e:
+            logger.error(f"⚠️  Quota email failed: {e}")
 
     # ---- Auth middleware ----
 
