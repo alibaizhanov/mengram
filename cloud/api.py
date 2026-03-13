@@ -967,7 +967,16 @@ m.add("I love hiking in the mountains")</code></pre>
 
     @app.get("/robots.txt", response_class=PlainTextResponse)
     async def robots():
-        return "User-agent: *\nAllow: /\nSitemap: https://mengram.io/sitemap.xml"
+        return (
+            "User-agent: *\n"
+            "Allow: /\n"
+            "Disallow: /dashboard\n"
+            "Disallow: /auth/\n"
+            "Disallow: /v1/\n"
+            "Disallow: /checkout\n"
+            "\n"
+            "Sitemap: https://mengram.io/sitemap.xml"
+        )
 
     # ---- Enterprise Inquiry ----
     @app.post("/enterprise-inquiry")
@@ -1049,7 +1058,7 @@ m.add("I love hiking in the mountains")</code></pre>
             ("https://mengram.io/privacy", "0.3", "yearly"),
             ("https://mengram.io/refund", "0.3", "yearly"),
         ]
-        today = "2026-03-05"
+        today = datetime.date.today().isoformat()
         entries = "\n".join(
             f"  <url>\n"
             f"    <loc>{url}</loc>\n"
