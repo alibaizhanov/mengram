@@ -5759,6 +5759,8 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                     "custom_data": {"mengram_user_id": user_id, "plan": plan},
                 })
                 data = result.get("data", {})
+                # Update DB immediately so dashboard reflects new plan
+                store.update_subscription(user_id, plan=plan)
                 logger.info(f"Subscription updated via API: user={user_id} plan={plan}")
                 return {"updated": True, "plan": plan, "subscription_id": subscription_id}
             except Exception as e:
