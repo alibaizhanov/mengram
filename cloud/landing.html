@@ -140,6 +140,7 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
+            position: relative;
         }
         .logo {
             font-size: 20px;
@@ -151,6 +152,8 @@
         }
         .logo-icon { font-size: 22px; }
         .nav-links { display: flex; gap: 28px; align-items: center; }
+        .hamburger { display: none; background: none; border: none; cursor: pointer; padding: 8px; color: var(--text); }
+        .hamburger svg { width: 24px; height: 24px; }
         .nav-links a {
             color: var(--text-2);
             text-decoration: none;
@@ -1523,7 +1526,9 @@
             .feat-bento-visual { border-left: none; border-top: 1px solid var(--border); }
             .install-tabs { flex-wrap: wrap; }
             .signup-form { flex-direction: column; }
-            .nav-links { display: none; }
+            .hamburger { display: block; }
+            .nav-links { display: none; flex-direction: column; position: absolute; top: 100%; right: 0; background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; gap: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); z-index: 100; }
+            .nav-links.open { display: flex; }
             .hero-cta { flex-direction: column; align-items: center; }
             .platforms-icons { flex-wrap: wrap; gap: 20px; }
             .metrics-bar { gap: 24px; }
@@ -1643,6 +1648,9 @@
                     <circle cx="62" cy="68" r="8" fill="#a855f7"/><circle cx="62" cy="68" r="3.5" fill="#fff"/>
                 </svg> Mengram
             </div>
+            <button class="hamburger" onclick="document.querySelector('.nav-links').classList.toggle('open')" aria-label="Menu">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
             <div class="nav-links">
                 <a href="#how">How it works</a>
                 <a href="#install">Install</a>
@@ -1783,13 +1791,13 @@
             <p class="reveal">Connect Mengram to your AI tools via MCP, Python, or JavaScript SDK.</p>
 
             <div class="install-tabs">
-                <button class="install-tab active" onclick="showInstall('claude')">🟣 Claude Desktop / MCP</button>
-                <button class="install-tab" onclick="showInstall('api')">🐍 Python</button>
-                <button class="install-tab" onclick="showInstall('js')">⚡ JavaScript</button>
-                <button class="install-tab" onclick="showInstall('langchain')">🦜 LangChain</button>
-                <button class="install-tab" onclick="showInstall('crewai')">🚀 CrewAI</button>
-                <button class="install-tab" onclick="showInstall('openclaw')">🦞 OpenClaw</button>
-                <button class="install-tab" onclick="showInstall('n8n')">⚙️ n8n</button>
+                <button class="install-tab active" onclick="showInstall(event,'claude')">🟣 Claude Desktop / MCP</button>
+                <button class="install-tab" onclick="showInstall(event,'api')">🐍 Python</button>
+                <button class="install-tab" onclick="showInstall(event,'js')">⚡ JavaScript</button>
+                <button class="install-tab" onclick="showInstall(event,'langchain')">🦜 LangChain</button>
+                <button class="install-tab" onclick="showInstall(event,'crewai')">🚀 CrewAI</button>
+                <button class="install-tab" onclick="showInstall(event,'openclaw')">🦞 OpenClaw</button>
+                <button class="install-tab" onclick="showInstall(event,'n8n')">⚙️ n8n</button>
             </div>
 
             <!-- Claude Desktop -->
@@ -2513,7 +2521,7 @@ results = m.search(<span class="c-str">"What does Ali prefer?"</span>)</div>
                         <li>2 webhooks</li>
                         <li>1 team</li>
                     </ul>
-                    <a href="/dashboard" class="price-btn">Upgrade to Starter</a>
+                    <a href="#signup" onclick="return pricingCTA('starter')" class="price-btn">Upgrade to Starter</a>
                 </div>
                 <!-- Pro -->
                 <div class="price-card featured reveal">
@@ -2533,7 +2541,7 @@ results = m.search(<span class="c-str">"What does Ali prefer?"</span>)</div>
                         <li>10 webhooks</li>
                         <li>5 teams</li>
                     </ul>
-                    <a href="/dashboard" class="price-btn primary">Upgrade to Pro</a>
+                    <a href="#signup" onclick="return pricingCTA('pro')" class="price-btn primary">Upgrade to Pro</a>
                 </div>
                 <!-- Business -->
                 <div class="price-card reveal">
@@ -2552,7 +2560,7 @@ results = m.search(<span class="c-str">"What does Ali prefer?"</span>)</div>
                         <li>50 webhooks</li>
                         <li>Unlimited teams</li>
                     </ul>
-                    <a href="/dashboard" class="price-btn">Upgrade to Business</a>
+                    <a href="#signup" onclick="return pricingCTA('business')" class="price-btn">Upgrade to Business</a>
                 </div>
                 <!-- Enterprise -->
                 <div class="price-card reveal">
@@ -2854,12 +2862,36 @@ results = m.search(<span class="c-str">"What does Ali prefer?"</span>)</div>
             `).join("");
         })();
 
-        function showInstall(tab) {
+        function esc(s) { if(!s)return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+        function pricingCTA(plan) {
+            if (localStorage.getItem('mengram_key')) {
+                window.location.href = '/dashboard?tab=billing';
+                return false;
+            }
+            sessionStorage.setItem('wanted_plan', plan);
+            return true; // follow href="#signup"
+        }
+
+        function showInstall(e, tab) {
             document.querySelectorAll('.install-tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.install-panel').forEach(p => p.classList.remove('active'));
             document.getElementById('panel-' + tab).classList.add('active');
-            event.target.classList.add('active');
+            e.target.classList.add('active');
         }
+
+        // Close mobile nav on link click or outside click
+        (function() {
+            var nl = document.querySelector('.nav-links');
+            nl.querySelectorAll('a').forEach(function(a) {
+                a.addEventListener('click', function() { nl.classList.remove('open'); });
+            });
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.nav-links') && !e.target.closest('.hamburger')) {
+                    nl.classList.remove('open');
+                }
+            });
+        })();
 
         function copyCode(btn) {
             var box = btn.closest('.code-box');
@@ -2914,7 +2946,7 @@ results = m.search(<span class="c-str">"What does Ali prefer?"</span>)</div>
                     _signupEmail = email;
                     document.getElementById("step-email").style.display = "none";
                     document.getElementById("step-code").style.display = "flex";
-                    document.getElementById("signup-note").innerHTML = `📧 Code sent to <strong>${email}</strong>. Check your inbox.`;
+                    document.getElementById("signup-note").innerHTML = `📧 Code sent to <strong>${esc(email)}</strong>. Check your inbox.`;
                     result.className = "signup-result";
                     result.innerHTML = "";
                     document.getElementById("code-input").focus();
@@ -2964,8 +2996,8 @@ results = m.search(<span class="c-str">"What does Ali prefer?"</span>)</div>
                             Your API key (save it — won't be shown again):
                         </p>
                         <div class="api-key-display">
-                            <span id="api-key-text">${data.api_key}</span>
-                            <button onclick="copyKey()">Copy</button>
+                            <span id="api-key-text">${esc(data.api_key)}</span>
+                            <button onclick="copyKey(event)">Copy</button>
                         </div>
 
                         <div class="setup-steps">
@@ -2988,7 +3020,7 @@ results = m.search(<span class="c-str">"What does Ali prefer?"</span>)</div>
                                         <code>mengram setup</code>
                                         <button onclick="copyCmd(this)">Copy</button>
                                     </div>
-                                    <div class="step-tip">Already have a key? Use: <code>export MENGRAM_API_KEY=${data.api_key}</code></div>
+                                    <div class="step-tip">Already have a key? Use: <code>export MENGRAM_API_KEY=${esc(data.api_key)}</code></div>
                                 </div>
                             </div>
                         </div>
@@ -3000,6 +3032,16 @@ results = m.search(<span class="c-str">"What does Ali prefer?"</span>)</div>
                             <a href="https://docs.mengram.io/claude-code" class="btn btn-secondary" style="padding:10px 18px; font-size:13px;">Full Guide</a>
                         </div>
                     `;
+                    const wp = sessionStorage.getItem('wanted_plan');
+                    if (wp && wp !== 'free') {
+                        const names = {starter:'Starter ($5/mo)',pro:'Pro ($19/mo)',business:'Business ($99/mo)'};
+                        result.innerHTML += `
+                            <div style="margin-top:16px;padding:14px 18px;background:linear-gradient(135deg,rgba(168,85,247,0.12),rgba(124,58,237,0.08));border:1px solid rgba(168,85,247,0.3);border-radius:10px;">
+                                <p style="margin:0 0 10px;font-size:14px;color:var(--text);">Ready to upgrade to <strong>${esc(names[wp] || wp)}</strong>?</p>
+                                <a href="/dashboard?tab=billing" class="btn btn-primary" style="padding:8px 18px;font-size:13px;">Upgrade Now</a>
+                            </div>`;
+                        sessionStorage.removeItem('wanted_plan');
+                    }
                 } else {
                     result.className = "signup-result show error";
                     result.innerHTML = data.detail || "Invalid code. Try again.";
@@ -3013,10 +3055,10 @@ results = m.search(<span class="c-str">"What does Ali prefer?"</span>)</div>
             btn.textContent = "Verify";
         }
 
-        function copyKey() {
+        function copyKey(e) {
             const key = document.getElementById("api-key-text").textContent;
             navigator.clipboard.writeText(key);
-            const btn = event.target;
+            const btn = e.target;
             btn.textContent = "Copied!";
             setTimeout(() => btn.textContent = "Copy", 2000);
         }

@@ -387,14 +387,14 @@
     <div class="sidebar">
         <div class="sidebar-logo"><svg width="20" height="20" viewBox="0 0 120 120" style="vertical-align:middle;margin-right:4px;"><path d="M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68" fill="none" stroke="#a855f7" stroke-width="8" stroke-linecap="round"/><circle cx="62" cy="68" r="8" fill="#a855f7"/><circle cx="62" cy="68" r="3.5" fill="#fff"/></svg> Mengram</div>
         <div class="sidebar-nav">
-            <div class="nav-item active" onclick="switchTab('feed')"><span class="icon">📋</span> Memory Feed</div>
-            <div class="nav-item" onclick="switchTab('agents')"><span class="icon">🤖</span> Agents</div>
-            <div class="nav-item" onclick="switchTab('insights')"><span class="icon">✨</span> AI Insights</div>
-            <div class="nav-item" onclick="switchTab('graph')"><span class="icon">🕸️</span> Knowledge Graph</div>
-            <div class="nav-item" onclick="switchTab('entities')"><span class="icon">📦</span> Entities</div>
-            <div class="nav-item" onclick="switchTab('procedures')"><span class="icon">🧬</span> Procedures</div>
-            <div class="nav-item" onclick="switchTab('billing')"><span class="icon">💳</span> Billing</div>
-            <div class="nav-item" onclick="switchTab('settings')"><span class="icon">⚙️</span> Settings</div>
+            <div class="nav-item active" onclick="switchTab(event,'feed')"><span class="icon">📋</span> Memory Feed</div>
+            <div class="nav-item" onclick="switchTab(event,'agents')"><span class="icon">🤖</span> Agents</div>
+            <div class="nav-item" onclick="switchTab(event,'insights')"><span class="icon">✨</span> AI Insights</div>
+            <div class="nav-item" onclick="switchTab(event,'graph')"><span class="icon">🕸️</span> Knowledge Graph</div>
+            <div class="nav-item" onclick="switchTab(event,'entities')"><span class="icon">📦</span> Entities</div>
+            <div class="nav-item" onclick="switchTab(event,'procedures')"><span class="icon">🧬</span> Procedures</div>
+            <div class="nav-item" onclick="switchTab(event,'billing')"><span class="icon">💳</span> Billing</div>
+            <div class="nav-item" onclick="switchTab(event,'settings')"><span class="icon">⚙️</span> Settings</div>
         </div>
         <div class="sidebar-account" id="sidebar-account" style="display:none;">
             <div class="account-email" id="account-email"></div>
@@ -776,7 +776,7 @@ async function searchCmdEntities(q) {
             const box = document.getElementById('cmd-entities');
             if (group) group.style.display = 'block';
             if (box) {
-                box.innerHTML = d.results.map(r => `<div class="cmd-item" onclick="closeCmdPalette();openEntity('${escA(r.entity)}')"><span class="ci-icon">📦</span><span class="ci-label">${esc(r.entity)}</span><span class="ci-hint">${r.type}</span></div>`).join('');
+                box.innerHTML = d.results.map(r => `<div class="cmd-item" onclick="closeCmdPalette();openEntity('${escA(r.entity)}')"><span class="ci-icon">📦</span><span class="ci-label">${esc(r.entity)}</span><span class="ci-hint">${esc(r.type)}</span></div>`).join('');
             }
         }
     } catch (e) {}
@@ -910,15 +910,20 @@ async function tryLogin(k) {
             document.getElementById('login-screen').style.display='none';
             document.getElementById('app').classList.add('active');
             loadAll();
+            const _tab = new URLSearchParams(location.search).get('tab');
+            if(_tab && ['feed','agents','insights','graph','entities','procedures','billing','settings'].includes(_tab)) {
+                const el = document.querySelectorAll('.nav-item')[['feed','agents','insights','graph','entities','procedures','billing','settings'].indexOf(_tab)];
+                if(el) el.click();
+            }
         } else { document.getElementById('login-error').style.display='block'; }
     } catch(e) { document.getElementById('login-error').style.display='block'; }
 }
 
-function switchTab(t) {
+function switchTab(e, t) {
     document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
     document.getElementById('tab-'+t).classList.add('active');
-    event.currentTarget.classList.add('active');
+    e.currentTarget.classList.add('active');
     // Close mobile menu on tab switch
     const sidebar = document.querySelector('.sidebar');
     if (sidebar.classList.contains('open')) toggleMobileMenu();
@@ -975,7 +980,7 @@ async function runAgent(type) {
         }
         loadAgentHistory();
     } catch(e) {
-        resultsBox.innerHTML = `<div style="color:var(--red);padding:20px;">Error: ${e.message}</div>`;
+        resultsBox.innerHTML = `<div style="color:var(--red);padding:20px;">Error: ${esc(e.message)}</div>`;
     }
     agentRunning = false;
 }
@@ -1020,11 +1025,11 @@ function renderCuratorResult(r) {
     html += `<strong style="color:var(--green);">🧹 Curator</strong>`;
     html += `<span style="font-size:12px;color:var(--text-2);">Health: <strong style="color:${(r.health_score||0)>0.7?'var(--green)':'var(--orange)'}">${Math.round((r.health_score||0)*100)}%</strong></span>`;
     html += `</div>`;
-    if (r.summary) html += `<p style="color:var(--text-2);font-size:13px;margin-bottom:12px;">${r.summary}</p>`;
+    if (r.summary) html += `<p style="color:var(--text-2);font-size:13px;margin-bottom:12px;">${esc(r.summary)}</p>`;
     if (r.contradictions?.length) {
         html += `<div style="margin-bottom:8px;"><strong style="color:var(--red);font-size:12px;">⚠️ Contradictions (${r.contradictions.length})</strong>`;
         r.contradictions.forEach(c => {
-            html += `<div style="font-size:12px;padding:6px 10px;margin:4px 0;background:rgba(255,50,50,0.1);border-radius:6px;">"${c.fact_a}" vs "${c.fact_b}" — ${c.suggestion}</div>`;
+            html += `<div style="font-size:12px;padding:6px 10px;margin:4px 0;background:rgba(255,50,50,0.1);border-radius:6px;">"${esc(c.fact_a)}" vs "${esc(c.fact_b)}" — ${esc(c.suggestion)}</div>`;
         });
         html += `</div>`;
     }
@@ -1042,14 +1047,14 @@ function renderConnectorResult(r) {
     if (r.connections?.length) {
         html += `<div style="margin-top:10px;"><strong style="font-size:12px;">Hidden Connections</strong>`;
         r.connections.forEach(c => {
-            html += `<div style="font-size:12px;padding:6px 10px;margin:4px 0;background:rgba(100,100,255,0.1);border-radius:6px;"><strong>${c.entities?.join(' ↔ ')}</strong>: ${c.insight}</div>`;
+            html += `<div style="font-size:12px;padding:6px 10px;margin:4px 0;background:rgba(100,100,255,0.1);border-radius:6px;"><strong>${esc((c.entities||[]).join(' ↔ '))}</strong>: ${esc(c.insight)}</div>`;
         });
         html += `</div>`;
     }
     if (r.patterns?.length) {
         html += `<div style="margin-top:10px;"><strong style="font-size:12px;">Behavioral Patterns</strong>`;
         r.patterns.forEach(p => {
-            html += `<div style="font-size:12px;padding:6px 10px;margin:4px 0;background:rgba(100,200,100,0.1);border-radius:6px;">${p.pattern} — <em>${p.implication}</em></div>`;
+            html += `<div style="font-size:12px;padding:6px 10px;margin:4px 0;background:rgba(100,200,100,0.1);border-radius:6px;">${esc(p.pattern)} — <em>${esc(p.implication)}</em></div>`;
         });
         html += `</div>`;
     }
@@ -1057,7 +1062,7 @@ function renderConnectorResult(r) {
         html += `<div style="margin-top:10px;"><strong style="font-size:12px;">💡 Suggestions</strong>`;
         r.suggestions.forEach(s => {
             const pc = s.priority === 'high' ? 'var(--red)' : s.priority === 'medium' ? 'var(--orange)' : 'var(--text-2)';
-            html += `<div style="font-size:12px;padding:6px 10px;margin:4px 0;background:rgba(255,200,50,0.1);border-radius:6px;"><span style="color:${pc};">[${s.priority}]</span> ${s.action}</div>`;
+            html += `<div style="font-size:12px;padding:6px 10px;margin:4px 0;background:rgba(255,200,50,0.1);border-radius:6px;"><span style="color:${pc};">[${esc(s.priority)}]</span> ${esc(s.action)}</div>`;
         });
         html += `</div>`;
     }
@@ -1069,13 +1074,13 @@ function renderDigestResult(r) {
     if (!r || r.status === 'error') return '<div style="color:var(--red)">Digest failed</div>';
     let html = `<div style="background:var(--bg-card);border-radius:12px;padding:16px;margin-bottom:12px;border-left:3px solid var(--orange);">`;
     html += `<strong style="color:var(--orange);">📰 Weekly Digest</strong>`;
-    if (r.headline) html += `<p style="font-size:15px;font-weight:600;color:var(--text);margin:8px 0;">${r.headline}</p>`;
+    if (r.headline) html += `<p style="font-size:15px;font-weight:600;color:var(--text);margin:8px 0;">${esc(r.headline)}</p>`;
     if (r.highlights?.length) {
         html += `<ul style="font-size:13px;color:var(--text-2);padding-left:20px;margin:8px 0;">`;
-        r.highlights.forEach(h => { html += `<li style="margin:4px 0;">${h}</li>`; });
+        r.highlights.forEach(h => { html += `<li style="margin:4px 0;">${esc(h)}</li>`; });
         html += `</ul>`;
     }
-    if (r.recommendation) html += `<div style="font-size:13px;padding:10px;margin-top:8px;background:rgba(130,80,255,0.1);border-radius:8px;color:var(--accent);">💡 ${r.recommendation}</div>`;
+    if (r.recommendation) html += `<div style="font-size:13px;padding:10px;margin-top:8px;background:rgba(130,80,255,0.1);border-radius:8px;color:var(--accent);">💡 ${esc(r.recommendation)}</div>`;
     html += `</div>`;
     return html;
 }
@@ -1144,7 +1149,7 @@ async function loadInsights() {
         h += '</div>';
         box.innerHTML = h;
     } catch(e) {
-        box.innerHTML = `<div class="insight-empty"><div class="ie-icon">⚠️</div><h3>Error loading insights</h3><p>${e.message}</p></div>`;
+        box.innerHTML = `<div class="insight-empty"><div class="ie-icon">⚠️</div><h3>Error loading insights</h3><p>${esc(e.message)}</p></div>`;
     }
 }
 
@@ -1159,13 +1164,13 @@ function insightCard(icon, label, r, cls) {
             <span class="ic-title">${label}</span>
             <span class="ic-scope">${scopeLabel}</span>
         </div>
-        <div class="ic-body">${r.content}</div>
+        <div class="ic-body">${esc(r.content)}</div>
         <div class="ic-meta">
             <span class="ic-conf">
                 Confidence: ${conf}%
                 <span class="conf-bar"><span class="conf-fill" style="width:${conf}%;background:${confColor}"></span></span>
             </span>
-            ${r.entity && r.entity !== '_reflections' ? `<span>📦 ${r.entity}</span>` : ''}
+            ${r.entity && r.entity !== '_reflections' ? `<span>📦 ${esc(r.entity)}</span>` : ''}
             ${time ? `<span>🕐 ${time}</span>` : ''}
         </div>
     </div>`;
@@ -1183,7 +1188,7 @@ async function triggerReflection() {
             box.innerHTML = '<div class="insight-empty"><div class="ie-icon">🤔</div><h3>Not enough data</h3><p>Add more memories through conversations first.</p></div>';
         }
     } catch(e) {
-        box.innerHTML = `<div class="insight-empty"><div class="ie-icon">⚠️</div><h3>Reflection failed</h3><p>${e.message}</p></div>`;
+        box.innerHTML = `<div class="insight-empty"><div class="ie-icon">⚠️</div><h3>Reflection failed</h3><p>${esc(e.message)}</p></div>`;
     }
 }
 
@@ -1415,7 +1420,7 @@ async function openGraphPanel(name, nodeSelection, linkSelection, linksData) {
 
     try {
         const d = await (await fetch(`${API}/v1/memory/${encodeURIComponent(name)}`,{headers:H()})).json();
-        let h = `<span class="e-tag b-${d.type}" style="font-size:11px;">${d.type}</span>`;
+        let h = `<span class="e-tag b-${esc(d.type)}" style="font-size:11px;">${esc(d.type)}</span>`;
         if(d.facts?.length) {
             h += `<div class="gp-section"><h4>Facts (${d.facts.length})</h4><ul class="gp-facts">`;
             for(const f of d.facts.slice(0,10)) h += `<li>${esc(f)}</li>`;
@@ -1453,7 +1458,7 @@ function _renderEntityCard(e) {
     const bc='b-'+(e.type||'concept');
     const facts = (e.facts||[]).slice(0,3).join(' · ');
     return `<div class="e-card" onclick="openEntity('${escA(e.name)}')">
-        <div class="e-head"><span class="e-name">${esc(e.name)}</span><span class="e-tag ${bc}">${e.type}</span></div>
+        <div class="e-head"><span class="e-name">${esc(e.name)}</span><span class="e-tag ${bc}">${esc(e.type)}</span></div>
         <div class="e-facts">${esc(facts)||'No facts yet'}</div>
         <div class="e-count">${e.facts_count||e.facts?.length||0} facts</div>
     </div>`;
@@ -1501,7 +1506,7 @@ async function openEntity(name) {
     body.innerHTML='<div class="loading">Loading...</div>'; bg.classList.add('show');
     try {
         const d = await (await fetch(`${API}/v1/memory/${encodeURIComponent(name)}`,{headers:H()})).json();
-        let h=`<div class="modal-head"><h2>${esc(d.entity)} <span class="e-tag b-${d.type}" style="font-size:12px;margin-left:8px">${d.type}</span></h2><button class="modal-x" onclick="closeModal()">✕</button></div>`;
+        let h=`<div class="modal-head"><h2>${esc(d.entity)} <span class="e-tag b-${esc(d.type)}" style="font-size:12px;margin-left:8px">${esc(d.type)}</span></h2><button class="modal-x" onclick="closeModal()">✕</button></div>`;
         if(d.facts?.length) {
             h+='<div class="modal-sec"><h3>Facts</h3>';
             for(const f of d.facts) h+=`<div class="m-fact"><span>${esc(f)}</span><button onclick="archFactM('${escA(name)}','${escA(f)}',this)">✕</button></div>`;
@@ -1509,12 +1514,12 @@ async function openEntity(name) {
         }
         if(d.relations?.length) {
             h+='<div class="modal-sec"><h3>Relations</h3>';
-            for(const r of d.relations) h+=`<div class="m-rel">${r.type} ${r.direction==='outgoing'?'→':'←'} <span>${esc(r.target)}</span></div>`;
+            for(const r of d.relations) h+=`<div class="m-rel">${esc(r.type)} ${r.direction==='outgoing'?'→':'←'} <span>${esc(r.target)}</span></div>`;
             h+='</div>';
         }
         if(d.knowledge?.length) {
             h+='<div class="modal-sec"><h3>Knowledge</h3>';
-            for(const k of d.knowledge) h+=`<div class="m-know"><span class="kt">${k.type}</span><div class="ktitle">${esc(k.title)}</div><div class="kcontent">${esc(k.content)}</div>${k.artifact?`<pre>${esc(k.artifact)}</pre>`:''}</div>`;
+            for(const k of d.knowledge) h+=`<div class="m-know"><span class="kt">${esc(k.type)}</span><div class="ktitle">${esc(k.title)}</div><div class="kcontent">${esc(k.content)}</div>${k.artifact?`<pre>${esc(k.artifact)}</pre>`:''}</div>`;
             h+='</div>';
         }
         h+=`<div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;">`;
@@ -1599,7 +1604,7 @@ async function doSearch(q) {
             dd.innerHTML=d.results.map(r=>{
                 const fs=(r.facts||[]).slice(0,2).join(' · ');
                 const teamBadge = r.team_shared ? '<span style="background:var(--green-dim);color:var(--green);padding:1px 5px;border-radius:3px;font-size:10px;margin-left:4px;">team</span>' : '';
-                return `<div class="search-item" onclick="openEntity('${escA(r.entity)}')"><div class="sname">${esc(r.entity)} <small style="color:var(--text-3)">${r.type}</small>${teamBadge}</div><div class="sfact">${esc(fs)}</div></div>`;
+                return `<div class="search-item" onclick="openEntity('${escA(r.entity)}')"><div class="sname">${esc(r.entity)} <small style="color:var(--text-3)">${esc(r.type)}</small>${teamBadge}</div><div class="sfact">${esc(fs)}</div></div>`;
             }).join('');
         } else { dd.innerHTML='<div style="padding:14px;color:var(--text-3);font-size:13px;text-align:center">No results</div>'; }
         dd.classList.add('show');
@@ -1877,9 +1882,9 @@ async function loadProcedures() {
             const fail = p.failure_count || 0;
             html += `<div onclick="showProcedureDetail('${p.id}')" style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px 20px;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
                 <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-                    <strong style="font-size:15px;">${p.name}</strong> ${vBadge}
+                    <strong style="font-size:15px;">${esc(p.name)}</strong> ${vBadge}
                 </div>
-                <div style="color:var(--text-2);font-size:13px;margin-bottom:8px;">${p.trigger_condition || p.trigger || ''}</div>
+                <div style="color:var(--text-2);font-size:13px;margin-bottom:8px;">${esc(p.trigger_condition || p.trigger || '')}</div>
                 <div style="display:flex;gap:16px;font-size:12px;color:var(--text-3);">
                     <span>📋 ${steps} steps</span>
                     <span style="color:var(--green);">✅ ${success} success</span>
@@ -1890,7 +1895,7 @@ async function loadProcedures() {
         html += '</div>';
         box.innerHTML = html;
     } catch(e) {
-        box.innerHTML = `<div style="color:var(--red);padding:20px;">Failed to load procedures: ${e.message}</div>`;
+        box.innerHTML = `<div style="color:var(--red);padding:20px;">Failed to load procedures: ${esc(e.message)}</div>`;
     }
 }
 
@@ -1917,7 +1922,7 @@ async function showProcedureDetail(id) {
         // Current steps
         html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px;">
             <h4 style="margin-bottom:4px;">Trigger</h4>
-            <p style="color:var(--text-2);font-size:13px;margin-bottom:16px;">${current.trigger_condition || current.trigger || 'N/A'}</p>
+            <p style="color:var(--text-2);font-size:13px;margin-bottom:16px;">${esc(current.trigger_condition || current.trigger || 'N/A')}</p>
             <h4 style="margin-bottom:8px;">Steps</h4>
             <ol style="padding-left:20px;color:var(--text-2);font-size:13px;line-height:1.8;">`;
         for (const step of (current.steps || [])) {
@@ -1950,7 +1955,7 @@ async function showProcedureDetail(id) {
                         <span style="color:var(--text-3);font-size:11px;">v${ev.version_before || '?'} → v${ev.version_after || '?'}</span>
                         <span style="color:var(--text-3);font-size:11px;margin-left:auto;">${new Date(ev.created_at).toLocaleDateString()}</span>
                     </div>
-                    ${diff.reason ? `<p style="color:var(--text-2);font-size:12px;">${diff.reason}</p>` : ''}
+                    ${diff.reason ? `<p style="color:var(--text-2);font-size:12px;">${esc(diff.reason)}</p>` : ''}
                 </div>`;
             }
             html += '</div>';
@@ -1989,7 +1994,7 @@ async function showProcedureDetail(id) {
 
         content.innerHTML = html;
     } catch(e) {
-        content.innerHTML = `<div style="color:var(--red);padding:20px;">Failed to load: ${e.message}</div>`;
+        content.innerHTML = `<div style="color:var(--red);padding:20px;">Failed to load: ${esc(e.message)}</div>`;
     }
 }
 
