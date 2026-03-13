@@ -2083,7 +2083,10 @@ async function upgradePlan(plan) {
             method: 'POST', headers: H()
         });
         const d = await r.json();
-        if (d.checkout_url) {
+        if (d.updated) {
+            showToast(`Upgraded to ${plan.charAt(0).toUpperCase() + plan.slice(1)}!`, 'success');
+            loadBilling();
+        } else if (d.checkout_url) {
             if (window.Paddle && d.transaction_id) {
                 Paddle.Checkout.open({ transactionId: d.transaction_id });
             } else {

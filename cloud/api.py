@@ -5738,7 +5738,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
     @app.post("/v1/billing/checkout", tags=["Billing"])
     async def create_checkout(plan: str = Query(..., pattern="^(starter|pro|business)$"), ctx: AuthContext = Depends(auth)):
-        """Create Paddle checkout transaction for plan upgrade. Returns checkout URL."""
+        """Create Paddle checkout or update existing subscription for plan change."""
         user_id = ctx.user_id
         if not PADDLE_API_KEY:
             raise HTTPException(status_code=503, detail="Billing not configured")
@@ -5746,15 +5746,30 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         if not price_id:
             raise HTTPException(status_code=400, detail=f"Unknown plan: {plan}")
 
-        # Build transaction request
+        sub = store.get_subscription(user_id)
+        subscription_id = sub.get("paddle_subscription_id")
+        customer_id = sub.get("paddle_customer_id")
+
+        # If user already has an active subscription → update it (change plan)
+        if subscription_id and sub.get("status") in ("active", "past_due"):
+            try:
+                result = _paddle_request("PATCH", f"/subscriptions/{subscription_id}", {
+                    "items": [{"price_id": price_id, "quantity": 1}],
+                    "proration_billing_mode": "prorated_immediately",
+                    "custom_data": {"mengram_user_id": user_id, "plan": plan},
+                })
+                data = result.get("data", {})
+                logger.info(f"Subscription updated via API: user={user_id} plan={plan}")
+                return {"updated": True, "plan": plan, "subscription_id": subscription_id}
+            except Exception as e:
+                logger.error(f"Paddle subscription update error: {e}")
+                raise HTTPException(status_code=502, detail=f"Paddle error: {e}")
+
+        # No existing subscription → create new checkout
         txn_body = {
             "items": [{"price_id": price_id, "quantity": 1}],
             "custom_data": {"mengram_user_id": user_id, "plan": plan},
         }
-
-        # Attach existing Paddle customer if we have one
-        sub = store.get_subscription(user_id)
-        customer_id = sub.get("paddle_customer_id")
         if customer_id:
             txn_body["customer_id"] = customer_id
 
