@@ -1406,17 +1406,30 @@ class CloudStore:
             logger.info(f"🔀 Dedup: '{name}' → '{canonical_name}' (id: {entity_id})")
         else:
             meta_json = json.dumps(metadata) if metadata else '{}'
-            with self._cursor() as cur:
-                cur.execute(
-                    """INSERT INTO entities (user_id, sub_user_id, name, type, metadata)
-                       VALUES (%s, %s, %s, %s, %s::jsonb)
-                       ON CONFLICT ON CONSTRAINT uq_entities_user_sub_name
-                       DO UPDATE SET type = EXCLUDED.type, updated_at = NOW(),
-                          metadata = entities.metadata || EXCLUDED.metadata
-                       RETURNING id""",
-                    (user_id, sub_user_id, name, type, meta_json)
-                )
-                entity_id = str(cur.fetchone()[0])
+            try:
+                with self._cursor() as cur:
+                    cur.execute(
+                        """INSERT INTO entities (user_id, sub_user_id, name, type, metadata)
+                           VALUES (%s, %s, %s, %s, %s::jsonb)
+                           ON CONFLICT ON CONSTRAINT uq_entities_user_sub_name
+                           DO UPDATE SET type = EXCLUDED.type, updated_at = NOW(),
+                              metadata = entities.metadata || EXCLUDED.metadata
+                           RETURNING id""",
+                        (user_id, sub_user_id, name, type, meta_json)
+                    )
+                    entity_id = str(cur.fetchone()[0])
+            except psycopg2.errors.UniqueViolation:
+                # Race condition: concurrent thread inserted same entity
+                with self._cursor() as cur:
+                    cur.execute(
+                        "SELECT id FROM entities WHERE user_id = %s AND sub_user_id = %s AND LOWER(name) = LOWER(%s)",
+                        (user_id, sub_user_id, name)
+                    )
+                    row = cur.fetchone()
+                    if row:
+                        entity_id = str(row[0])
+                    else:
+                        raise
 
         self._add_facts_knowledge_relations(entity_id, user_id, name, facts, relations, knowledge, expires_at=expires_at, fact_dates=fact_dates, sub_user_id=sub_user_id)
         return entity_id
