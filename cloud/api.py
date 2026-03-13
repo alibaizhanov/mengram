@@ -487,7 +487,6 @@ Be strict — only include entities that directly answer or relate to the query.
             if redis_client:
                 cached = redis_client.get(cache_key)
                 if cached is not None and int(cached) >= max_allowed:
-                    logger.info(f"🚫 BLOCKED {action} | user={ctx.user_id[:8]} | plan={ctx.plan} | {cached}/{max_allowed} (cached)")
                     _raise_quota_error(action, max_allowed, int(cached), ctx.plan, ctx.user_id)
         except Exception:
             pass  # Redis down → fall through to DB
@@ -517,9 +516,24 @@ Be strict — only include entities that directly answer or relate to the query.
         except Exception:
             pass  # Redis down → counter will be set on next request
 
+    # Log suppression for repeated quota blocks: {user_action: (last_log_time, count)}
+    _quota_log_tracker: dict = {}
+
     def _raise_quota_error(action, max_allowed, current, plan, user_id=None):
         if user_id:
-            logger.warning(f"🚫 QUOTA {action} | user={user_id[:8]} | {current}/{max_allowed} | plan={plan}")
+            import time as _time
+            tracker_key = f"{user_id[:8]}:{action}"
+            now = _time.time()
+            entry = _quota_log_tracker.get(tracker_key)
+            if entry is None or (now - entry[0]) >= 300:
+                # First block or 5 min since last log — log with suppressed count
+                suppressed = entry[1] if entry else 0
+                suffix = f" ({suppressed} blocked requests suppressed)" if suppressed > 0 else ""
+                logger.warning(f"🚫 QUOTA {action} | user={user_id[:8]} | {current}/{max_allowed} | plan={plan}{suffix}")
+                _quota_log_tracker[tracker_key] = (now, 0)
+            else:
+                # Suppress log, just count
+                _quota_log_tracker[tracker_key] = (entry[0], entry[1] + 1)
         # Send one-time upgrade email (non-blocking, deduped per month)
         if user_id and action in ("add", "search"):
             try:
