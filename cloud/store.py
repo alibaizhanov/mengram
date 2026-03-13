@@ -1418,8 +1418,9 @@ class CloudStore:
                         (user_id, sub_user_id, name, type, meta_json)
                     )
                     entity_id = str(cur.fetchone()[0])
-            except psycopg2.errors.UniqueViolation:
+            except (psycopg2.IntegrityError, psycopg2.errors.UniqueViolation):
                 # Race condition: concurrent thread inserted same entity
+                logger.info(f"🔀 Entity race condition resolved: '{name}' for user {user_id[:8]}")
                 with self._cursor() as cur:
                     cur.execute(
                         "SELECT id FROM entities WHERE user_id = %s AND sub_user_id = %s AND LOWER(name) = LOWER(%s)",
@@ -1545,14 +1546,18 @@ class CloudStore:
 
         with self._cursor() as cur:
             # Ensure target entity exists
+            try:
+                cur.execute(
+                    """INSERT INTO entities (user_id, sub_user_id, name, type)
+                       VALUES (%s, %s, %s, 'unknown')
+                       ON CONFLICT ON CONSTRAINT uq_entities_user_sub_name DO NOTHING""",
+                    (user_id, sub_user_id, target_name)
+                )
+            except (psycopg2.IntegrityError, psycopg2.errors.UniqueViolation):
+                pass  # Entity already exists, that's fine
+        with self._cursor() as cur:
             cur.execute(
-                """INSERT INTO entities (user_id, sub_user_id, name, type)
-                   VALUES (%s, %s, %s, 'unknown')
-                   ON CONFLICT ON CONSTRAINT uq_entities_user_sub_name DO NOTHING""",
-                (user_id, sub_user_id, target_name)
-            )
-            cur.execute(
-                "SELECT id FROM entities WHERE user_id = %s AND sub_user_id = %s AND name = %s",
+                "SELECT id FROM entities WHERE user_id = %s AND sub_user_id = %s AND LOWER(name) = LOWER(%s)",
                 (user_id, sub_user_id, target_name)
             )
             target_id = str(cur.fetchone()[0])
