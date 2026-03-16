@@ -17,6 +17,9 @@ Usage:
     for r in results:
         print(f"{r['entity']} (score={r['score']})")
 
+    # Upload a file (PDF, DOCX, TXT, MD)
+    m.add_file("meeting-notes.pdf")
+
     # Get all
     memories = m.get_all()
 
@@ -145,6 +148,100 @@ class CloudMemory:
         if expiration_date:
             body["expiration_date"] = expiration_date
         return self._request("POST", "/v1/add", body)
+
+    def add_file(self, file_path: str, user_id: str = "default",
+                 agent_id: str = None, run_id: str = None,
+                 app_id: str = None) -> dict:
+        """Upload a file (PDF, DOCX, TXT, MD) and extract memories.
+
+        Uses vision AI for PDFs (two-pass extraction). Each page/chunk
+        counts as 1 add from your quota. Returns immediately with job_id;
+        processing happens in background.
+
+        Args:
+            file_path: Path to file (.pdf, .docx, .txt, .md)
+            user_id: User identifier
+            agent_id: Agent identifier (for multi-agent systems)
+            run_id: Run/session identifier
+            app_id: Application identifier
+
+        Returns:
+            {"status": "accepted", "job_id": "job-...", "file_type": "pdf",
+             "page_count": 5, "quota_used": 5}
+        """
+        import os
+        import time as _time
+
+        url = f"{self.base_url}/v1/add_file"
+        boundary = f"----MengramBoundary{os.urandom(16).hex()}"
+
+        filename = os.path.basename(file_path)
+        with open(file_path, "rb") as f:
+            file_data = f.read()
+
+        # Build multipart/form-data body
+        parts = []
+
+        # File field
+        parts.append(f"--{boundary}\r\n"
+                     f'Content-Disposition: form-data; name="file"; '
+                     f'filename="{filename}"\r\n'
+                     f"Content-Type: application/octet-stream\r\n\r\n"
+                     .encode("utf-8"))
+        parts.append(file_data)
+        parts.append(b"\r\n")
+
+        # Text form fields
+        fields = {"user_id": user_id}
+        if agent_id:
+            fields["agent_id"] = agent_id
+        if run_id:
+            fields["run_id"] = run_id
+        if app_id:
+            fields["app_id"] = app_id
+
+        for key, value in fields.items():
+            parts.append(f"--{boundary}\r\n"
+                         f'Content-Disposition: form-data; name="{key}"\r\n\r\n'
+                         f"{value}\r\n".encode("utf-8"))
+
+        parts.append(f"--{boundary}--\r\n".encode("utf-8"))
+        body = b"".join(parts)
+
+        last_err = None
+        for attempt in range(3):
+            req = urllib.request.Request(
+                url,
+                data=body,
+                method="POST",
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": f"multipart/form-data; boundary={boundary}",
+                }
+            )
+            try:
+                with urllib.request.urlopen(req) as resp:
+                    return json.loads(resp.read())
+            except urllib.error.HTTPError as e:
+                resp_body = e.read().decode()
+                if e.code in (429, 502, 503, 504) and attempt < 2:
+                    _time.sleep(1 * (attempt + 1))
+                    last_err = e
+                    continue
+                try:
+                    detail = json.loads(resp_body).get("detail", resp_body)
+                except Exception:
+                    detail = resp_body
+                if e.code == 402 and isinstance(detail, dict):
+                    raise QuotaExceededError(detail)
+                raise Exception(f"API error {e.code}: {detail}")
+            except (urllib.error.URLError, ConnectionError, TimeoutError) as e:
+                if attempt < 2:
+                    _time.sleep(1 * (attempt + 1))
+                    last_err = e
+                    continue
+                raise Exception(f"Network error: {e}")
+        raise Exception(f"Request failed after 3 attempts: {last_err}")
 
     def add_text(self, text: str, user_id: str = "default",
                  agent_id: str = None, run_id: str = None,

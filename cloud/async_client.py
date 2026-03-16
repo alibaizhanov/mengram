@@ -144,6 +144,68 @@ class AsyncCloudMemory:
         if expiration_date: body["expiration_date"] = expiration_date
         return await self._request("POST", "/v1/add_text", body)
 
+    async def add_file(self, file_path: str, user_id: str = "default",
+                       agent_id: str = None, run_id: str = None,
+                       app_id: str = None) -> dict:
+        """Upload a file (PDF, DOCX, TXT, MD) and extract memories.
+
+        Uses vision AI for PDFs (two-pass extraction). Each page/chunk
+        counts as 1 add from your quota. Returns immediately with job_id.
+
+        Args:
+            file_path: Path to file (.pdf, .docx, .txt, .md)
+            user_id: User identifier
+            agent_id: Agent identifier
+            run_id: Run/session identifier
+            app_id: Application identifier
+        """
+        import asyncio
+
+        filename = os.path.basename(file_path)
+        with open(file_path, "rb") as f:
+            file_data = f.read()
+
+        fields = {"user_id": user_id}
+        if agent_id:
+            fields["agent_id"] = agent_id
+        if run_id:
+            fields["run_id"] = run_id
+        if app_id:
+            fields["app_id"] = app_id
+
+        client = self._get_client()
+        last_err = None
+        for attempt in range(3):
+            try:
+                resp = await client.post(
+                    "/v1/add_file",
+                    files={"file": (filename, file_data, "application/octet-stream")},
+                    data=fields,
+                )
+                if resp.status_code == 402:
+                    detail = resp.json().get("detail", {})
+                    if isinstance(detail, dict):
+                        raise QuotaExceededError(detail)
+                resp.raise_for_status()
+                return resp.json()
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code in (429, 502, 503, 504) and attempt < 2:
+                    await asyncio.sleep(1 * (attempt + 1))
+                    last_err = e
+                    continue
+                try:
+                    detail = e.response.json().get("detail", e.response.text)
+                except Exception:
+                    detail = e.response.text
+                raise Exception(f"API error {e.response.status_code}: {detail}")
+            except (httpx.ConnectError, httpx.TimeoutException) as e:
+                if attempt < 2:
+                    await asyncio.sleep(1 * (attempt + 1))
+                    last_err = e
+                    continue
+                raise Exception(f"Network error: {e}")
+        raise Exception(f"Request failed after 3 attempts: {last_err}")
+
     async def search(self, query: str, user_id: str = "default",
                      limit: int = 5, agent_id: str = None,
                      run_id: str = None, app_id: str = None,

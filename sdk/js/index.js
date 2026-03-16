@@ -147,6 +147,86 @@ class MengramClient {
   }
 
   /**
+   * Upload a file (PDF, DOCX, TXT, MD) and extract memories.
+   * Uses vision AI for PDFs. Each page/chunk counts as 1 add from quota.
+   * Returns immediately with job_id; processing happens in background.
+   *
+   * @param {string|File|Blob} file - File path (Node.js) or File/Blob (browser)
+   * @param {object} [options]
+   * @param {string} [options.userId] - User ID (default: 'default')
+   * @param {string} [options.agentId] - Agent ID for multi-agent systems
+   * @param {string} [options.runId] - Run/session ID
+   * @param {string} [options.appId] - Application ID
+   * @param {string} [options.filename] - Override filename (for Blob inputs)
+   * @returns {Promise<{status: string, job_id: string, file_type: string, page_count: number, quota_used: number}>}
+   */
+  async addFile(file, options = {}) {
+    const url = `${this.baseUrl}/v1/add_file`;
+    const formData = new FormData();
+
+    if (typeof file === 'string') {
+      // Node.js: file path
+      const fs = await import('fs');
+      const path = await import('path');
+      const data = fs.readFileSync(file);
+      const filename = options.filename || path.basename(file);
+      formData.append('file', new Blob([data]), filename);
+    } else {
+      // Browser: File or Blob
+      const filename = options.filename || file.name || 'upload';
+      formData.append('file', file, filename);
+    }
+
+    formData.append('user_id', options.userId || 'default');
+    if (options.agentId) formData.append('agent_id', options.agentId);
+    if (options.runId) formData.append('run_id', options.runId);
+    if (options.appId) formData.append('app_id', options.appId);
+
+    let lastErr;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.timeout);
+
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${this.apiKey}` },
+          body: formData,
+          signal: controller.signal,
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          if ([429, 502, 503, 504].includes(res.status) && attempt < 2) {
+            lastErr = new MengramError(data.detail || `HTTP ${res.status}`, res.status);
+            await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+            continue;
+          }
+          if (res.status === 402 && data.detail && typeof data.detail === 'object') {
+            throw new QuotaExceededError(data.detail);
+          }
+          throw new MengramError(data.detail || `HTTP ${res.status}`, res.status);
+        }
+        return data;
+      } catch (err) {
+        if (err instanceof MengramError) throw err;
+        if (err.name === 'AbortError') {
+          throw new MengramError(`Request timeout after ${this.timeout}ms`, 408);
+        }
+        if (attempt < 2) {
+          lastErr = err;
+          await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+          continue;
+        }
+        throw new MengramError(err.message, 0);
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    throw lastErr || new MengramError('Request failed after 3 attempts', 0);
+  }
+
+  /**
    * Semantic search across memories.
    * @param {string} query
    * @param {object} [options]

@@ -112,6 +112,36 @@ results = m.search_all("deployment issues")
 ```
 
 <details>
+<summary><b>File Upload (PDF, DOCX, TXT, MD)</b></summary>
+
+```python
+# Upload a PDF — auto-extracts memories using vision AI
+result = m.add_file("meeting-notes.pdf")
+# → {"status": "accepted", "job_id": "job-...", "page_count": 12}
+
+# Poll for completion
+m.job_status(result["job_id"])
+```
+
+```javascript
+// Node.js — pass a file path
+await m.addFile('./report.pdf');
+
+// Browser — pass a File object from <input type="file">
+await m.addFile(fileInput.files[0]);
+```
+
+```bash
+# REST API
+curl -X POST https://mengram.io/v1/add_file \
+  -H "Authorization: Bearer om-..." \
+  -F "file=@meeting-notes.pdf" \
+  -F "user_id=default"
+```
+
+</details>
+
+<details>
 <summary><b>JavaScript / TypeScript</b></summary>
 
 ```bash
@@ -407,6 +437,8 @@ Works with any agent framework — CrewAI, LangChain, AutoGPT, custom loops. The
 | Endpoint | Description |
 |---|---|
 | `POST /v1/add` | Add memories (auto-extracts all 3 types) |
+| `POST /v1/add_text` | Add memories from plain text |
+| `POST /v1/add_file` | Upload file (PDF, DOCX, TXT, MD) — vision AI extraction |
 | `POST /v1/search` | Semantic search |
 | `POST /v1/search/all` | Unified search (semantic + episodic + procedural) |
 | `GET /v1/episodes/search` | Search events and decisions |

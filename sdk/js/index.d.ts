@@ -183,6 +183,7 @@ export declare class MengramClient {
   // Memory
   add(messages: Message[], options?: MemoryOptions): Promise<AddResult>;
   addText(text: string, options?: MemoryOptions): Promise<AddResult>;
+  addFile(file: string | File | Blob, options?: MemoryOptions & { filename?: string }): Promise<AddResult & { file_type: string; page_count: number; quota_used: number }>;
   search(query: string, options?: SearchOptions): Promise<SearchResult[]>;
   getAll(options?: MemoryOptions): Promise<Entity[]>;
   getAllFull(options?: { userId?: string }): Promise<Entity[]>;
