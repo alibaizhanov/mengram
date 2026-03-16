@@ -4406,44 +4406,37 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                     except Exception:
                         pass
 
-            # ---- Batch embeddings across ALL windows (1 API call) ----
+            # ---- Collect ALL embeddings: entities + conversation + episodes + procedures ----
+            # Single batch API call instead of 4+ separate calls
             embedder = get_embedder()
+            embed_items = []  # [(save_fn, text)]
+
+            # Entity embeddings
             if embedder and embedding_queue:
-                all_chunks = []
-                chunk_map = []
                 for entity_id, chunks in embedding_queue:
                     store.delete_embeddings(entity_id)
                     for chunk in chunks:
-                        chunk_map.append((entity_id, chunk))
-                        all_chunks.append(chunk)
+                        embed_items.append(("entity", entity_id, chunk))
 
-                if all_chunks:
-                    all_embeddings = embedder.embed_batch(all_chunks)
-                    for (entity_id, chunk_text), emb in zip(chunk_map, all_embeddings):
-                        store.save_embedding(entity_id, chunk_text, emb)
-
-            store.log_usage(user_id, "add")
-            # increment_usage already done atomically in use_quota above
-
-            # ---- Raw Conversation Chunk: save for fallback retrieval ----
+            # Raw conversation chunk
+            conv_chunk_text = None
+            conv_chunk_id = None
             try:
-                chunk_text = "\n".join(
+                conv_chunk_text = "\n".join(
                     f"{m.get('role','user')}: {m.get('content','')}"
                     for m in conversation
-                )[:4000]  # cap at 4000 chars
-                chunk_id = store.save_conversation_chunk(
-                    user_id, chunk_text, sub_user_id=sub_uid)
-                if embedder:
-                    chunk_embs = embedder.embed_batch([chunk_text[:2000]])
-                    if chunk_embs:
-                        store.save_chunk_embedding(chunk_id, chunk_text[:2000], chunk_embs[0])
+                )[:4000]
+                conv_chunk_id = store.save_conversation_chunk(
+                    user_id, conv_chunk_text, sub_user_id=sub_uid)
+                if embedder and conv_chunk_text:
+                    embed_items.append(("chunk", conv_chunk_id, conv_chunk_text[:2000]))
             except Exception as e:
                 logger.error(f"⚠️ Raw chunk save failed: {e}")
 
-            # ---- Episodic Memory: save episodes ----
+            # Save episodes + collect their embedding texts
             episodes_created = 0
             episodes_linked = 0
-            embedder = get_embedder()
+            episode_embed_map = {}  # episode_id -> (ep, ep_text)
             for ep in all_episodes:
                 if not ep.summary:
                     continue
@@ -4461,98 +4454,15 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                         sub_user_id=sub_uid,
                         happened_at=getattr(ep, 'happened_at', None),
                     )
-                    # Embed episode (truncate to 2000 chars for embedder safety)
-                    ep_embedding = None
+                    ep_text = f"{ep.summary}. {ep.context or ''} {ep.outcome or ''}"[:2000]
                     if embedder:
-                        ep_text = f"{ep.summary}. {ep.context or ''} {ep.outcome or ''}"[:2000]
-                        ep_embs = embedder.embed_batch([ep_text])
-                        if ep_embs:
-                            ep_embedding = ep_embs[0]
-                            store.save_episode_embedding(episode_id, ep_text, ep_embedding)
-
-                    # ---- Auto-link episode to existing procedure ----
-                    if ep_embedding:
-                        try:
-                            from cloud.evolution import EvolutionEngine
-
-                            similar_procs = store.search_procedures_vector(
-                                user_id, ep_embedding, top_k=3, sub_user_id=sub_uid)
-
-                            # Combined scoring: vector + entity + keyword overlap
-                            ep_text = f"{ep.summary}. {ep.context or ''} {ep.outcome or ''}"
-                            best_proc = None
-                            best_score = 0.0
-
-                            for sp in (similar_procs or []):
-                                proc_text = f"{sp['name']}. {sp.get('trigger_condition') or ''}. "
-                                proc_text += "; ".join(
-                                    s.get("action", "") for s in (sp.get("steps") or [])[:10]
-                                )
-                                score = EvolutionEngine.compute_link_score(
-                                    vector_similarity=sp["score"],
-                                    episode_participants=ep.participants or [],
-                                    procedure_entity_names=sp.get("entity_names") or [],
-                                    episode_text=ep_text,
-                                    procedure_text=proc_text,
-                                )
-                                if score > best_score:
-                                    best_score = score
-                                    best_proc = sp
-
-                            if best_proc and best_score >= 0.55:
-                                # Link episode to procedure
-                                store.link_episodes_to_procedure(
-                                    [episode_id], best_proc["id"])
-
-                                is_failure = EvolutionEngine.is_failure_episode(
-                                    ep.emotional_valence,
-                                    outcome=ep.outcome or "",
-                                    summary=ep.summary,
-                                    context=ep.context or "",
-                                )
-                                if is_failure and plan not in ("free", "starter"):
-                                    # Failure → trigger evolution (Pro+ only)
-                                    evo = EvolutionEngine(store, embedder, extractor.llm)
-                                    evo_result = evo.evolve_on_failure(
-                                        user_id, best_proc["id"], episode_id,
-                                        ep.context or ep.summary,
-                                        sub_user_id=sub_uid)
-                                    if evo_result:
-                                        logger.info(
-                                            f"🔄 Auto-evolved '{best_proc['name']}' "
-                                            f"v{evo_result['old_version']}→v{evo_result['new_version']} "
-                                            f"from episode")
-                                        # Create procedure_evolved trigger
-                                        store.create_procedure_evolved_trigger(
-                                            user_id=user_id,
-                                            procedure_name=best_proc["name"],
-                                            old_version=evo_result["old_version"],
-                                            new_version=evo_result["new_version"],
-                                            change_description=evo_result.get("change_description", ""),
-                                            procedure_id=evo_result["new_procedure_id"],
-                                            sub_user_id=sub_uid,
-                                        )
-                                        # Cross-procedure learning
-                                        evo.suggest_cross_procedure_updates(
-                                            user_id,
-                                            evo_result["new_procedure_id"],
-                                            evo_result.get("change_description", ""),
-                                            sub_user_id=sub_uid,
-                                        )
-                                else:
-                                    # Success → increment success count
-                                    store.procedure_feedback(
-                                        user_id, best_proc["id"], success=True, sub_user_id=sub_uid)
-
-                                episodes_linked += 1
-                        except Exception as e:
-                            logger.error(f"⚠️ Episode auto-link failed: {e}")
-
+                        embed_items.append(("episode", episode_id, ep_text))
+                        episode_embed_map[episode_id] = (ep, ep_text)
                     episodes_created += 1
                 except Exception as e:
                     logger.error(f"⚠️ Episode save failed: {e}")
 
-            # ---- Procedural Memory: save procedures ----
+            # Save procedures + collect their embedding texts
             procedures_created = 0
             for pr in all_procedures:
                 if not pr.name or not pr.steps:
@@ -4568,19 +4478,109 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                         expires_at=expiration_date,
                         sub_user_id=sub_uid,
                     )
-                    # Embed procedure
                     if embedder:
                         steps_summary = "; ".join(
                             s.get("action", "") for s in pr.steps[:10]
                         )
                         pr_text = f"{pr.name}. {pr.trigger or ''}. Steps: {steps_summary}"
-                        pr_embs = embedder.embed_batch([pr_text])
-                        if pr_embs:
-                            store.delete_procedure_embeddings(proc_id)
-                            store.save_procedure_embedding(proc_id, pr_text, pr_embs[0])
+                        store.delete_procedure_embeddings(proc_id)
+                        embed_items.append(("procedure", proc_id, pr_text))
                     procedures_created += 1
                 except Exception as e:
                     logger.error(f"⚠️ Procedure save failed: {e}")
+
+            # ---- Single batch embed call for ALL items ----
+            episode_embeddings = {}  # episode_id -> embedding vector
+            if embedder and embed_items:
+                all_texts = [item[2] for item in embed_items]
+                all_embeddings = embedder.embed_batch(all_texts)
+                for (item_type, item_id, text), emb in zip(embed_items, all_embeddings):
+                    if item_type == "entity":
+                        store.save_embedding(item_id, text, emb)
+                    elif item_type == "chunk":
+                        store.save_chunk_embedding(item_id, text, emb)
+                    elif item_type == "episode":
+                        store.save_episode_embedding(item_id, text, emb)
+                        episode_embeddings[item_id] = emb
+                    elif item_type == "procedure":
+                        store.save_procedure_embedding(item_id, text, emb)
+
+            # ---- Episode auto-linking (uses pre-computed embeddings) ----
+            for episode_id, (ep, ep_text) in episode_embed_map.items():
+                ep_embedding = episode_embeddings.get(episode_id)
+                if not ep_embedding:
+                    continue
+                try:
+                    from cloud.evolution import EvolutionEngine
+
+                    similar_procs = store.search_procedures_vector(
+                        user_id, ep_embedding, top_k=3, sub_user_id=sub_uid)
+
+                    ep_full_text = f"{ep.summary}. {ep.context or ''} {ep.outcome or ''}"
+                    best_proc = None
+                    best_score = 0.0
+
+                    for sp in (similar_procs or []):
+                        proc_text = f"{sp['name']}. {sp.get('trigger_condition') or ''}. "
+                        proc_text += "; ".join(
+                            s.get("action", "") for s in (sp.get("steps") or [])[:10]
+                        )
+                        score = EvolutionEngine.compute_link_score(
+                            vector_similarity=sp["score"],
+                            episode_participants=ep.participants or [],
+                            procedure_entity_names=sp.get("entity_names") or [],
+                            episode_text=ep_full_text,
+                            procedure_text=proc_text,
+                        )
+                        if score > best_score:
+                            best_score = score
+                            best_proc = sp
+
+                    if best_proc and best_score >= 0.55:
+                        store.link_episodes_to_procedure(
+                            [episode_id], best_proc["id"])
+
+                        is_failure = EvolutionEngine.is_failure_episode(
+                            ep.emotional_valence,
+                            outcome=ep.outcome or "",
+                            summary=ep.summary,
+                            context=ep.context or "",
+                        )
+                        if is_failure and plan not in ("free", "starter"):
+                            evo = EvolutionEngine(store, embedder, extractor.llm)
+                            evo_result = evo.evolve_on_failure(
+                                user_id, best_proc["id"], episode_id,
+                                ep.context or ep.summary,
+                                sub_user_id=sub_uid)
+                            if evo_result:
+                                logger.info(
+                                    f"🔄 Auto-evolved '{best_proc['name']}' "
+                                    f"v{evo_result['old_version']}→v{evo_result['new_version']} "
+                                    f"from episode")
+                                store.create_procedure_evolved_trigger(
+                                    user_id=user_id,
+                                    procedure_name=best_proc["name"],
+                                    old_version=evo_result["old_version"],
+                                    new_version=evo_result["new_version"],
+                                    change_description=evo_result.get("change_description", ""),
+                                    procedure_id=evo_result["new_procedure_id"],
+                                    sub_user_id=sub_uid,
+                                )
+                                evo.suggest_cross_procedure_updates(
+                                    user_id,
+                                    evo_result["new_procedure_id"],
+                                    evo_result.get("change_description", ""),
+                                    sub_user_id=sub_uid,
+                                )
+                        else:
+                            store.procedure_feedback(
+                                user_id, best_proc["id"], success=True, sub_user_id=sub_uid)
+
+                        episodes_linked += 1
+                except Exception as e:
+                    logger.error(f"⚠️ Episode auto-link failed: {e}")
+
+            store.log_usage(user_id, "add")
 
             # Invalidate search cache — fresh data available
             store.cache.invalidate(f"search:{user_id}:{sub_uid}")
@@ -4597,78 +4597,78 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 "episodes_linked": episodes_linked,
             })
 
-            # Auto-trigger reflection if needed (respects reflect quota)
-            try:
-                if store.should_reflect(user_id, sub_user_id=sub_uid):
-                    # Check reflect quota before consuming LLM resources
-                    plan_quotas_local = PLAN_QUOTAS.get(plan, PLAN_QUOTAS["free"])
-                    max_reflects = plan_quotas_local.get("reflects", 0)
-                    try:
-                        store.check_and_increment(user_id, "reflect", max_reflects)
-                        logger.info(f"✨ Auto-reflection triggered for {user_id}")
-                        extractor2 = get_llm()
-                        store.generate_reflections(user_id, extractor2.llm, sub_user_id=sub_uid)
-                    except ValueError:
-                        logger.info(f"⏭️ Auto-reflection skipped (reflect quota reached) for {user_id}")
-            except Exception as e:
-                logger.error(f"⚠️ Auto-reflection failed: {e}")
-
-            # Auto-trigger curator + connector every 10 adds (respects agent quota)
-            try:
-                add_count = store.get_usage_count(user_id, "add")
-                if add_count > 0 and add_count % 10 == 0 and plan not in ("free", "starter"):
-                    plan_quotas_local = PLAN_QUOTAS.get(plan, PLAN_QUOTAS["free"])
-                    max_agents = plan_quotas_local.get("agents", 0)
-                    try:
-                        store.check_and_increment(user_id, "agent", max_agents)
-                        logger.info(f"🤖 Auto-agents triggered (add #{add_count}) for {user_id}")
-                        agent_llm = get_llm()
-                        store.run_curator_agent(user_id, agent_llm.llm, auto_fix=True, sub_user_id=sub_uid)
-                        store.run_connector_agent(user_id, agent_llm.llm, sub_user_id=sub_uid)
-                    except ValueError:
-                        logger.info(f"⏭️ Auto-agents skipped (agent quota reached) for {user_id}")
-            except Exception as e:
-                logger.error(f"⚠️ Auto-agents failed: {e}")
-
-            # ---- Smart Triggers: detect reminders, contradictions, patterns (Pro+ only) ----
-            triggers_created = 0
-            if plan not in ("free", "starter"):
+            # ---- Post-completion tasks (fire-and-forget, don't block job) ----
+            import threading as _thr
+            def _post_completion():
                 try:
-                    triggers_created += store.detect_reminder_triggers(user_id, sub_user_id=sub_uid)
-                    for entity in all_entities:
-                        if entity.name and entity.facts:
-                            plain_facts = [f.content if hasattr(f, 'content') else str(f)
-                                           for f in entity.facts]
-                            triggers_created += store.detect_contradiction_triggers(
-                                user_id, plain_facts, entity.name, sub_user_id=sub_uid
+                    # Auto-reflection
+                    if store.should_reflect(user_id, sub_user_id=sub_uid):
+                        plan_quotas_local = PLAN_QUOTAS.get(plan, PLAN_QUOTAS["free"])
+                        max_reflects = plan_quotas_local.get("reflects", 0)
+                        try:
+                            store.check_and_increment(user_id, "reflect", max_reflects)
+                            logger.info(f"✨ Auto-reflection triggered for {user_id}")
+                            extractor2 = get_llm()
+                            store.generate_reflections(user_id, extractor2.llm, sub_user_id=sub_uid)
+                        except ValueError:
+                            logger.info(f"⏭️ Auto-reflection skipped (reflect quota reached) for {user_id}")
+                except Exception as e:
+                    logger.error(f"⚠️ Auto-reflection failed: {e}")
+
+                try:
+                    add_count = store.get_usage_count(user_id, "add")
+                    if add_count > 0 and add_count % 10 == 0 and plan not in ("free", "starter"):
+                        plan_quotas_local = PLAN_QUOTAS.get(plan, PLAN_QUOTAS["free"])
+                        max_agents = plan_quotas_local.get("agents", 0)
+                        try:
+                            store.check_and_increment(user_id, "agent", max_agents)
+                            logger.info(f"🤖 Auto-agents triggered (add #{add_count}) for {user_id}")
+                            agent_llm = get_llm()
+                            store.run_curator_agent(user_id, agent_llm.llm, auto_fix=True, sub_user_id=sub_uid)
+                            store.run_connector_agent(user_id, agent_llm.llm, sub_user_id=sub_uid)
+                        except ValueError:
+                            logger.info(f"⏭️ Auto-agents skipped (agent quota reached) for {user_id}")
+                except Exception as e:
+                    logger.error(f"⚠️ Auto-agents failed: {e}")
+
+                if plan not in ("free", "starter"):
+                    try:
+                        tc = 0
+                        tc += store.detect_reminder_triggers(user_id, sub_user_id=sub_uid)
+                        for entity in all_entities:
+                            if entity.name and entity.facts:
+                                plain_facts = [f.content if hasattr(f, 'content') else str(f)
+                                               for f in entity.facts]
+                                tc += store.detect_contradiction_triggers(
+                                    user_id, plain_facts, entity.name, sub_user_id=sub_uid
+                                )
+                        tc += store.detect_pattern_triggers(user_id, sub_user_id=sub_uid)
+                        if tc > 0:
+                            logger.info(f"🧠 Smart triggers created: {tc} for {user_id}")
+                    except Exception as e:
+                        logger.error(f"⚠️ Smart triggers failed: {e}")
+
+                if episodes_created > 0:
+                    try:
+                        from cloud.evolution import EvolutionEngine
+                        evo_engine = EvolutionEngine(store, embedder, extractor.llm)
+                        evo_result = evo_engine.detect_and_create_from_episodes(user_id, sub_user_id=sub_uid)
+                        if evo_result:
+                            logger.info(f"🔄 Auto-created procedure '{evo_result['name']}' "
+                                       f"from {evo_result['source_episode_count']} episodes")
+                            store.create_procedure_evolved_trigger(
+                                user_id=user_id,
+                                procedure_name=evo_result["name"],
+                                old_version=0,
+                                new_version=1,
+                                change_description=f"Auto-created from {evo_result['source_episode_count']} similar episodes",
+                                procedure_id=evo_result["procedure_id"],
+                                sub_user_id=sub_uid,
                             )
-                    triggers_created += store.detect_pattern_triggers(user_id, sub_user_id=sub_uid)
-                    if triggers_created > 0:
-                        logger.info(f"🧠 Smart triggers created: {triggers_created} for {user_id}")
-                except Exception as e:
-                    logger.error(f"⚠️ Smart triggers failed: {e}")
+                    except Exception as e:
+                        logger.error(f"⚠️ Experience-driven procedure detection failed: {e}")
 
-            # ---- Experience-Driven Procedures: detect patterns in episodes ----
-            if episodes_created > 0:
-                try:
-                    from cloud.evolution import EvolutionEngine
-                    evo_engine = EvolutionEngine(store, embedder, extractor.llm)
-                    evo_result = evo_engine.detect_and_create_from_episodes(user_id, sub_user_id=sub_uid)
-                    if evo_result:
-                        logger.info(f"🔄 Auto-created procedure '{evo_result['name']}' "
-                                   f"from {evo_result['source_episode_count']} episodes")
-                        # Notify user about auto-created procedure
-                        store.create_procedure_evolved_trigger(
-                            user_id=user_id,
-                            procedure_name=evo_result["name"],
-                            old_version=0,
-                            new_version=1,
-                            change_description=f"Auto-created from {evo_result['source_episode_count']} similar episodes",
-                            procedure_id=evo_result["procedure_id"],
-                            sub_user_id=sub_uid,
-                        )
-                except Exception as e:
-                    logger.error(f"⚠️ Experience-driven procedure detection failed: {e}")
+            _thr.Thread(target=_post_completion, daemon=True).start()
         except Exception as e:
             logger.error(f"❌ Background add failed: {e}")
             store.fail_job(job_id, str(e))
