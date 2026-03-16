@@ -86,6 +86,12 @@
         .sidebar-actions a, .sidebar-actions div { color: var(--text-3); text-decoration: none; cursor: pointer; transition: color 0.15s; }
         .sidebar-actions a:hover, .sidebar-actions div:hover { color: var(--text); }
 
+        .nav-group { margin-bottom: 2px; }
+        .nav-sub-items { padding-left: 30px; overflow: hidden; transition: max-height 0.2s ease; }
+        .nav-sub { padding: 6px 14px; border-radius: 8px; color: var(--text-3); font-size: 13px; cursor: pointer; transition: all 0.15s; margin-bottom: 1px; }
+        .nav-sub:hover { color: var(--text-2); background: var(--bg-elevated); }
+        .nav-sub.active { color: var(--accent); }
+
         .main { flex: 1; margin-left: 220px; padding: 28px 32px; overflow-y: auto; }
 
         /* Stats */
@@ -97,6 +103,19 @@
         .stat-value.green { color: var(--green); }
         .stat-value.blue { color: var(--blue); }
         .stat-value.orange { color: var(--orange); }
+
+        /* Quick Add */
+        .quick-add { margin-bottom: 20px; }
+        .quick-add-bar { display: flex; align-items: center; gap: 8px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 8px 12px; transition: border-color 0.2s; }
+        .quick-add-bar:focus-within { border-color: var(--accent); }
+        .quick-add-input { flex: 1; background: none; border: none; color: var(--text); font-size: 14px; font-family: 'Sora', sans-serif; outline: none; padding: 6px 4px; }
+        .quick-add-input::placeholder { color: var(--text-3); }
+        .quick-add-file { cursor: pointer; font-size: 16px; padding: 4px 8px; border-radius: 6px; transition: background 0.15s; }
+        .quick-add-file:hover { background: var(--bg-elevated); }
+        .quick-add-btn { padding: 8px 20px; background: var(--accent); color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: 'Sora', sans-serif; transition: background 0.15s; }
+        .quick-add-btn:hover { background: #9333ea; }
+        .quick-add-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .quick-add-status { font-size: 12px; color: var(--text-2); margin-top: 6px; padding-left: 4px; }
 
         .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
         .page-header h2 { font-size: 22px; font-weight: 700; }
@@ -314,6 +333,9 @@
             .toast-container { bottom: 16px; right: 16px; left: 16px; }
             .toast { min-width: auto; }
             .cmd-bg { padding-top: 10vh; padding-left: 12px; padding-right: 12px; }
+            .nav-sub-items { padding-left: 20px; }
+            .quick-add-input { font-size: 13px; }
+            .quick-add-input::placeholder { font-size: 12px; }
         }
     </style>
 </head>
@@ -387,14 +409,31 @@
     <div class="sidebar">
         <div class="sidebar-logo"><svg width="20" height="20" viewBox="0 0 120 120" style="vertical-align:middle;margin-right:4px;"><path d="M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68" fill="none" stroke="#a855f7" stroke-width="8" stroke-linecap="round"/><circle cx="62" cy="68" r="8" fill="#a855f7"/><circle cx="62" cy="68" r="3.5" fill="#fff"/></svg> Mengram</div>
         <div class="sidebar-nav">
-            <div class="nav-item active" onclick="switchTab(event,'feed')"><span class="icon">📋</span> Memory Feed</div>
-            <div class="nav-item" onclick="switchTab(event,'agents')"><span class="icon">🤖</span> Agents</div>
-            <div class="nav-item" onclick="switchTab(event,'insights')"><span class="icon">✨</span> AI Insights</div>
-            <div class="nav-item" onclick="switchTab(event,'graph')"><span class="icon">🕸️</span> Knowledge Graph</div>
-            <div class="nav-item" onclick="switchTab(event,'entities')"><span class="icon">📦</span> Entities</div>
-            <div class="nav-item" onclick="switchTab(event,'procedures')"><span class="icon">🧬</span> Procedures</div>
-            <div class="nav-item" onclick="switchTab(event,'billing')"><span class="icon">💳</span> Billing</div>
-            <div class="nav-item" onclick="switchTab(event,'settings')"><span class="icon">⚙️</span> Settings</div>
+            <div class="nav-group active" data-group="memory">
+                <div class="nav-item active" onclick="switchGroup(event,'memory')"><span class="icon">🧠</span> Memory</div>
+                <div class="nav-sub-items">
+                    <div class="nav-sub active" data-tab="graph" onclick="switchTab(event,'graph')">Knowledge Graph</div>
+                    <div class="nav-sub" data-tab="feed" onclick="switchTab(event,'feed')">Feed</div>
+                    <div class="nav-sub" data-tab="entities" onclick="switchTab(event,'entities')">Entities</div>
+                </div>
+            </div>
+            <div class="nav-group" data-group="intelligence">
+                <div class="nav-item" onclick="switchGroup(event,'intelligence')"><span class="icon">✨</span> Intelligence</div>
+                <div class="nav-sub-items" style="display:none">
+                    <div class="nav-sub" data-tab="agents" onclick="switchTab(event,'agents')">Agents</div>
+                    <div class="nav-sub" data-tab="insights" onclick="switchTab(event,'insights')">Insights</div>
+                </div>
+            </div>
+            <div class="nav-group" data-group="procedures">
+                <div class="nav-item" onclick="switchGroup(event,'procedures')"><span class="icon">🧬</span> Procedures</div>
+            </div>
+            <div class="nav-group" data-group="account">
+                <div class="nav-item" onclick="switchGroup(event,'account')"><span class="icon">⚙️</span> Account</div>
+                <div class="nav-sub-items" style="display:none">
+                    <div class="nav-sub" data-tab="billing" onclick="switchTab(event,'billing')">Billing</div>
+                    <div class="nav-sub" data-tab="settings" onclick="switchTab(event,'settings')">Settings</div>
+                </div>
+            </div>
         </div>
         <div class="sidebar-account" id="sidebar-account" style="display:none;">
             <div class="account-email" id="account-email"></div>
@@ -410,13 +449,25 @@
 
     <div class="main">
         <div class="stats-strip">
-            <div class="stat-card"><div class="stat-label">Entities</div><div class="stat-value purple" id="s-ent">—</div></div>
-            <div class="stat-card"><div class="stat-label">Facts</div><div class="stat-value green" id="s-facts">—</div></div>
-            <div class="stat-card"><div class="stat-label">Relations</div><div class="stat-value blue" id="s-rels">—</div></div>
-            <div class="stat-card"><div class="stat-label">Knowledge</div><div class="stat-value orange" id="s-know">—</div></div>
+            <div class="stat-card" onclick="switchTabDirect('entities')" style="cursor:pointer"><div class="stat-label">Entities</div><div class="stat-value purple" id="s-ent">—</div></div>
+            <div class="stat-card" onclick="switchTabDirect('feed')" style="cursor:pointer"><div class="stat-label">Facts</div><div class="stat-value green" id="s-facts">—</div></div>
+            <div class="stat-card" onclick="switchTabDirect('graph')" style="cursor:pointer"><div class="stat-label">Relations</div><div class="stat-value blue" id="s-rels">—</div></div>
+            <div class="stat-card" onclick="switchTabDirect('entities')" style="cursor:pointer"><div class="stat-label">Knowledge</div><div class="stat-value orange" id="s-know">—</div></div>
         </div>
 
-        <div class="tab-content active" id="tab-feed">
+        <div class="quick-add" id="quick-add">
+            <div class="quick-add-bar">
+                <input type="text" id="quick-add-input" class="quick-add-input" placeholder="Add a memory... (e.g., 'John works at Google as a senior engineer')" autocomplete="off">
+                <label class="quick-add-file" title="Upload file (PDF, DOCX, TXT, MD)">
+                    📎
+                    <input type="file" id="quick-add-file" accept=".pdf,.docx,.txt,.md" style="display:none" onchange="quickAddFile(this)">
+                </label>
+                <button class="quick-add-btn" id="quick-add-btn" onclick="quickAddText()">Add</button>
+            </div>
+            <div class="quick-add-status" id="quick-add-status" style="display:none;"></div>
+        </div>
+
+        <div class="tab-content" id="tab-feed">
             <div class="page-header">
                 <h2>Memory Feed</h2>
                 <div class="search-bar"><span>🔍</span><input id="search-input" placeholder="Semantic search..." onkeydown="if(event.key==='Enter')doSearch()"><div class="search-dropdown" id="search-dd"></div></div>
@@ -470,7 +521,7 @@
             <div id="insights-box" class="loading">Analyzing your memories...</div>
         </div>
 
-        <div class="tab-content" id="tab-graph">
+        <div class="tab-content active" id="tab-graph">
             <div class="page-header"><h2>Knowledge Graph</h2></div>
             <div class="graph-box" id="graph-box">
                 <div class="graph-legend">
@@ -694,16 +745,17 @@ function toggleMobileMenu() {
 // ---- Command palette ----
 let cmdActive = -1;
 const CMD_NAV = [
-    { icon: '📋', label: 'Memory Feed', action: () => switchTabDirect('feed') },
-    { icon: '🤖', label: 'Agents', action: () => switchTabDirect('agents') },
-    { icon: '✨', label: 'AI Insights', action: () => switchTabDirect('insights') },
-    { icon: '🕸️', label: 'Knowledge Graph', action: () => switchTabDirect('graph') },
-    { icon: '📦', label: 'Entities', action: () => switchTabDirect('entities') },
+    { icon: '🧠', label: 'Memory — Graph', action: () => switchTabDirect('graph') },
+    { icon: '🧠', label: 'Memory — Feed', action: () => switchTabDirect('feed') },
+    { icon: '🧠', label: 'Memory — Entities', action: () => switchTabDirect('entities') },
+    { icon: '✨', label: 'Intelligence — Agents', action: () => switchTabDirect('agents') },
+    { icon: '✨', label: 'Intelligence — Insights', action: () => switchTabDirect('insights') },
     { icon: '🧬', label: 'Procedures', action: () => switchTabDirect('procedures') },
-    { icon: '💳', label: 'Billing', action: () => switchTabDirect('billing') },
-    { icon: '⚙️', label: 'Settings', action: () => switchTabDirect('settings') },
+    { icon: '⚙️', label: 'Account — Billing', action: () => switchTabDirect('billing') },
+    { icon: '⚙️', label: 'Account — Settings', action: () => switchTabDirect('settings') },
 ];
 const CMD_ACTIONS = [
+    { icon: '➕', label: 'Quick Add Memory', hint: 'Add text to memory', action: () => { document.getElementById('quick-add-input').focus(); } },
     { icon: '🔄', label: 'Reflect Now', hint: 'Generate insights', action: () => { switchTabDirect('insights'); triggerReflection(); } },
     { icon: '🚀', label: 'Run All Agents', hint: 'Curator + Connector + Digest', action: () => { switchTabDirect('agents'); runAgent('all'); } },
     { icon: '📥', label: 'Export JSON', hint: 'Download all data', action: () => exportData() },
@@ -791,11 +843,33 @@ function _isCached(key) {
 }
 function _invalidateCache(key) { delete _tabCache[key]; delete _tabCacheTime[key]; }
 
-function switchTabDirect(t) {
-    document.querySelectorAll('.nav-item').forEach((n, i) => {
-        const tabs = ['feed','agents','insights','graph','entities','procedures','billing','settings'];
-        n.classList.toggle('active', tabs[i] === t);
+// ---- Navigation groups (4 groups mapping to 8 tabs) ----
+const TAB_GROUPS = {
+    memory:       { tabs: ['graph', 'feed', 'entities'], default: 'graph' },
+    intelligence: { tabs: ['agents', 'insights'], default: 'agents' },
+    procedures:   { tabs: ['procedures'], default: 'procedures' },
+    account:      { tabs: ['billing', 'settings'], default: 'billing' }
+};
+const TAB_TO_GROUP = {};
+for (const [group, cfg] of Object.entries(TAB_GROUPS)) {
+    for (const t of cfg.tabs) TAB_TO_GROUP[t] = group;
+}
+
+function _updateNavHighlighting(t) {
+    const group = TAB_TO_GROUP[t];
+    document.querySelectorAll('.nav-group').forEach(g => {
+        const isTarget = g.dataset.group === group;
+        g.classList.toggle('active', isTarget);
+        const header = g.querySelector('.nav-item');
+        if (header) header.classList.toggle('active', isTarget);
+        const subs = g.querySelector('.nav-sub-items');
+        if (subs) subs.style.display = isTarget ? 'block' : 'none';
     });
+    document.querySelectorAll('.nav-sub').forEach(s => s.classList.toggle('active', s.dataset.tab === t));
+}
+
+function switchTabDirect(t) {
+    _updateNavHighlighting(t);
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
     document.getElementById('tab-' + t).classList.add('active');
     if (t === 'graph' && !_isCached('graph')) loadGraph();
@@ -805,6 +879,12 @@ function switchTabDirect(t) {
     if (t === 'procedures') loadProcedures();
     if (t === 'billing') loadBilling();
     if (t === 'settings') { loadWebhooks(); loadTeams(); loadKeys(); }
+}
+
+function switchGroup(e, group) {
+    const cfg = TAB_GROUPS[group];
+    if (!cfg) return;
+    switchTabDirect(cfg.default);
 }
 
 // ---- Keyboard shortcuts ----
@@ -822,14 +902,14 @@ document.addEventListener('keydown', e => {
         if (document.getElementById('confirm-bg').classList.contains('show')) { closeConfirm(); return; }
         if (document.getElementById('modal-bg').classList.contains('show')) { closeModal(); return; }
     }
-    // Number keys 1-8 = switch tabs (only when not in input/textarea)
+    // Number keys 1-4 = switch groups (only when not in input/textarea)
     const tag = document.activeElement?.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
-    const tabKeys = { '1':'feed', '2':'agents', '3':'insights', '4':'graph', '5':'entities', '6':'procedures', '7':'billing', '8':'settings' };
-    if (tabKeys[e.key] && document.getElementById('app').classList.contains('active')) {
+    const groupKeys = { '1':'memory', '2':'intelligence', '3':'procedures', '4':'account' };
+    if (groupKeys[e.key] && document.getElementById('app').classList.contains('active')) {
         e.preventDefault();
-        switchTabDirect(tabKeys[e.key]);
+        switchGroup(null, groupKeys[e.key]);
     }
 });
 
@@ -910,20 +990,20 @@ async function tryLogin(k) {
             document.getElementById('login-screen').style.display='none';
             document.getElementById('app').classList.add('active');
             loadAll();
-            const _tab = new URLSearchParams(location.search).get('tab');
+            let _tab = new URLSearchParams(location.search).get('tab');
+            const _groupAlias = { memory: 'graph', intelligence: 'agents', account: 'billing' };
+            if (_tab && _groupAlias[_tab]) _tab = _groupAlias[_tab];
             if(_tab && ['feed','agents','insights','graph','entities','procedures','billing','settings'].includes(_tab)) {
-                const el = document.querySelectorAll('.nav-item')[['feed','agents','insights','graph','entities','procedures','billing','settings'].indexOf(_tab)];
-                if(el) el.click();
+                switchTabDirect(_tab);
             }
         } else { document.getElementById('login-error').style.display='block'; }
     } catch(e) { document.getElementById('login-error').style.display='block'; }
 }
 
 function switchTab(e, t) {
-    document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+    _updateNavHighlighting(t);
     document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
     document.getElementById('tab-'+t).classList.add('active');
-    e.currentTarget.classList.add('active');
     // Close mobile menu on tab switch
     const sidebar = document.querySelector('.sidebar');
     if (sidebar.classList.contains('open')) toggleMobileMenu();
@@ -936,7 +1016,7 @@ function switchTab(e, t) {
     if(t==='settings') { loadWebhooks(); loadTeams(); loadKeys(); }
 }
 
-async function loadAll() { loadStats(); loadFeed(); loadAccount(); }
+async function loadAll() { loadStats(); loadGraph(); loadFeed(); loadAccount(); }
 async function loadAccount() {
     try {
         const r = await fetch(`${API}/v1/me`, { headers: {'Authorization':`Bearer ${KEY}`} });
@@ -1218,6 +1298,97 @@ async function loadStats() {
     } catch(e){}
 }
 
+// ---- Quick Add ----
+async function quickAddText() {
+    const input = document.getElementById('quick-add-input');
+    const text = input.value.trim();
+    if (!text) return;
+    const btn = document.getElementById('quick-add-btn');
+    const status = document.getElementById('quick-add-status');
+    btn.disabled = true;
+    btn.textContent = 'Adding...';
+    status.style.display = 'block';
+    status.style.color = '';
+    status.textContent = 'Processing your memory...';
+    try {
+        const r = await fetch(`${API}/v1/add_text`, {
+            method: 'POST', headers: H(),
+            body: JSON.stringify({ text })
+        });
+        const d = await r.json();
+        if (r.ok || r.status === 202) {
+            input.value = '';
+            status.textContent = 'Memory submitted! Processing in background...';
+            status.style.color = 'var(--green)';
+            showToast('Memory added! It will appear shortly.', 'success');
+            if (d.job_id) {
+                const result = await pollJob(d.job_id, 20);
+                if (result) {
+                    status.textContent = 'Memory processed successfully!';
+                    _invalidateCache('graph'); _invalidateCache('entities');
+                    loadStats(); loadFeed();
+                }
+            }
+            setTimeout(() => { status.style.display = 'none'; status.style.color = ''; }, 5000);
+        } else {
+            showToast(d.detail || 'Failed to add memory', 'error');
+            status.style.display = 'none';
+        }
+    } catch(e) {
+        showToast('Error: ' + e.message, 'error');
+        status.style.display = 'none';
+    }
+    btn.disabled = false;
+    btn.textContent = 'Add';
+}
+
+async function quickAddFile(fileInput) {
+    const file = fileInput.files?.[0];
+    if (!file) return;
+    const status = document.getElementById('quick-add-status');
+    const btn = document.getElementById('quick-add-btn');
+    btn.disabled = true;
+    status.style.display = 'block';
+    status.style.color = '';
+    status.textContent = `Uploading ${file.name}...`;
+    try {
+        const formData = new FormData();
+        formData.append('file', file);
+        const r = await fetch(`${API}/v1/add_file`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${KEY}` },
+            body: formData
+        });
+        const d = await r.json();
+        if (r.ok || r.status === 202) {
+            showToast(`File "${file.name}" submitted for processing!`, 'success');
+            status.textContent = `Processing ${file.name}...`;
+            status.style.color = 'var(--green)';
+            if (d.job_id) {
+                const result = await pollJob(d.job_id, 40);
+                if (result) {
+                    status.textContent = `${file.name} processed!`;
+                    _invalidateCache('graph'); _invalidateCache('entities');
+                    loadStats(); loadFeed();
+                }
+            }
+            setTimeout(() => { status.style.display = 'none'; status.style.color = ''; }, 5000);
+        } else {
+            showToast(d.detail || 'Failed to upload file', 'error');
+            status.style.display = 'none';
+        }
+    } catch(e) {
+        showToast('Error: ' + e.message, 'error');
+        status.style.display = 'none';
+    }
+    btn.disabled = false;
+    fileInput.value = '';
+}
+
+document.getElementById('quick-add-input')?.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); quickAddText(); }
+});
+
 // ---- Feed ----
 let _feedOffset = 0;
 const FEED_PAGE = 30;
@@ -1309,9 +1480,24 @@ async function loadGraph() {
 function renderGraph(data) {
     const box = document.getElementById('graph-box');
     box.querySelectorAll('svg').forEach(s=>s.remove());
-    // Remove old graph info badge
+    // Remove old graph info badge / empty state
     const oldInfo = box.querySelector('.graph-info');
     if(oldInfo) oldInfo.remove();
+    const oldEmpty = box.querySelector('.graph-empty');
+    if(oldEmpty) oldEmpty.remove();
+
+    // Empty state for new users
+    if (!data.nodes || data.nodes.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'graph-empty';
+        empty.style.cssText = 'position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px;z-index:5;';
+        empty.innerHTML = `<div style="font-size:56px;margin-bottom:16px;">🧠</div>
+            <h3 style="font-size:20px;font-weight:700;margin-bottom:8px;">Your knowledge graph is empty</h3>
+            <p style="color:var(--text-2);font-size:14px;max-width:400px;line-height:1.6;margin-bottom:16px;">Add memories through the input above, upload a file, or use the <a href="/" style="color:var(--accent);text-decoration:none;">API</a> to start building your knowledge graph.</p>`;
+        box.appendChild(empty);
+        return;
+    }
+
     const W=box.clientWidth, HH=box.clientHeight;
     const cs = getComputedStyle(document.documentElement);
     const tc = {person:cs.getPropertyValue('--blue').trim()||'#60a5fa',project:cs.getPropertyValue('--accent').trim()||'#a855f7',technology:cs.getPropertyValue('--green').trim()||'#34d399',company:cs.getPropertyValue('--orange').trim()||'#fb923c',concept:cs.getPropertyValue('--pink').trim()||'#f472b6'};
