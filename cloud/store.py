@@ -4577,7 +4577,7 @@ Be specific and personal, not generic. No markdown, just JSON."""
     def fire_webhooks(self, user_id: str, event_type: str, payload: dict):
         """Fire all active webhooks for this event type. Non-blocking, thread-pool limited."""
         self.ensure_webhooks_table()
-        import urllib.request
+        import urllib.request, urllib.error
 
         with self._cursor(dict_cursor=True) as cur:
             cur.execute("""
@@ -4625,7 +4625,7 @@ Be specific and personal, not generic. No markdown, just JSON."""
                     sig = _hmac.new(secret.encode(), data, hashlib.sha256).hexdigest()
                     req.add_header("X-Mengram-Signature", sig)
 
-                urllib.request.urlopen(req, timeout=10)
+                resp = urllib.request.urlopen(req, timeout=10)
 
                 with self._cursor() as cur2:
                     cur2.execute("""
@@ -4633,7 +4633,22 @@ Be specific and personal, not generic. No markdown, just JSON."""
                         trigger_count = trigger_count + 1, last_error = NULL
                         WHERE id = %s
                     """, (hook_id,))
-            except Exception as e:
+            except urllib.error.HTTPError as e:
+                if e.code == 429:
+                    # Rate limited — retry once after 1s backoff
+                    import time
+                    time.sleep(1)
+                    try:
+                        urllib.request.urlopen(req, timeout=10)
+                        with self._cursor() as cur2:
+                            cur2.execute("""
+                                UPDATE webhooks SET last_triggered = NOW(),
+                                trigger_count = trigger_count + 1, last_error = NULL
+                                WHERE id = %s
+                            """, (hook_id,))
+                        return
+                    except Exception:
+                        pass
                 logger.error(f"⚠️ Webhook {hook_id} failed: {e}")
                 try:
                     with self._cursor() as cur2:
