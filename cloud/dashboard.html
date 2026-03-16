@@ -78,26 +78,32 @@
         .nav-item:hover { background: var(--bg-elevated); color: var(--text); }
         .nav-item.active { background: var(--accent-dim); color: var(--accent); }
         .nav-item .icon { font-size: 16px; width: 20px; text-align: center; }
+        .nav-item .chevron { margin-left: auto; font-size: 10px; color: var(--text-3); transition: transform 0.25s ease; }
+        .nav-group.active .nav-item .chevron { transform: rotate(90deg); color: var(--accent); }
         .sidebar-account { padding: 12px 16px; border-top: 1px solid var(--border); }
         .sidebar-account .account-email { font-size: 13px; color: var(--text); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .sidebar-account .account-plan { font-size: 11px; color: var(--text-3); margin-top: 2px; }
         .sidebar-account .account-plan span { color: var(--accent); font-weight: 600; }
-        .sidebar-actions { padding: 8px 16px 12px; display: flex; align-items: center; gap: 12px; font-size: 11px; color: var(--text-3); }
-        .sidebar-actions a, .sidebar-actions div { color: var(--text-3); text-decoration: none; cursor: pointer; transition: color 0.15s; }
-        .sidebar-actions a:hover, .sidebar-actions div:hover { color: var(--text); }
+        .sidebar-actions { padding: 8px 16px 12px; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 11px; color: var(--text-3); }
+        .sidebar-actions a, .sidebar-actions div { color: var(--text-3); text-decoration: none; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; }
+        .sidebar-actions a:hover, .sidebar-actions div:hover { color: var(--text); background: var(--bg-elevated); }
+        .sidebar-actions svg { width: 15px; height: 15px; }
 
         .nav-group { margin-bottom: 2px; }
-        .nav-sub-items { padding-left: 30px; overflow: hidden; transition: max-height 0.2s ease; }
-        .nav-sub { padding: 6px 14px; border-radius: 8px; color: var(--text-3); font-size: 13px; cursor: pointer; transition: all 0.15s; margin-bottom: 1px; }
+        .nav-sub-items { padding-left: 30px; overflow: hidden; max-height: 0; transition: max-height 0.25s ease; }
+        .nav-sub { padding: 6px 14px; border-radius: 8px; color: var(--text-3); font-size: 13px; cursor: pointer; transition: all 0.15s; margin-bottom: 1px; position: relative; }
         .nav-sub:hover { color: var(--text-2); background: var(--bg-elevated); }
-        .nav-sub.active { color: var(--accent); }
+        .nav-sub.active { color: var(--accent); background: var(--accent-dim); }
+        .nav-sub.active::before { content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 3px; height: 16px; background: var(--accent); border-radius: 2px; }
 
         .main { flex: 1; margin-left: 220px; padding: 28px 32px; overflow-y: auto; }
 
         /* Stats */
         .stats-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 28px; }
-        .stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; }
-        .stat-label { font-size: 12px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+        .stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; transition: border-color 0.15s, transform 0.15s; }
+        .stat-card:hover { border-color: var(--border-hover); transform: translateY(-1px); }
+        .stat-label { font-size: 12px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; display: flex; align-items: center; gap: 5px; }
+        .stat-label svg { width: 13px; height: 13px; opacity: 0.7; }
         .stat-value { font-size: 28px; font-weight: 700; }
         .stat-value.purple { color: var(--accent); }
         .stat-value.green { color: var(--green); }
@@ -410,16 +416,16 @@
         <div class="sidebar-logo"><svg width="20" height="20" viewBox="0 0 120 120" style="vertical-align:middle;margin-right:4px;"><path d="M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68" fill="none" stroke="#a855f7" stroke-width="8" stroke-linecap="round"/><circle cx="62" cy="68" r="8" fill="#a855f7"/><circle cx="62" cy="68" r="3.5" fill="#fff"/></svg> Mengram</div>
         <div class="sidebar-nav">
             <div class="nav-group active" data-group="memory">
-                <div class="nav-item active" onclick="switchGroup(event,'memory')"><span class="icon">🧠</span> Memory</div>
-                <div class="nav-sub-items">
+                <div class="nav-item active" onclick="switchGroup(event,'memory')"><span class="icon">🧠</span> Memory <span class="chevron">▸</span></div>
+                <div class="nav-sub-items" style="max-height:200px">
                     <div class="nav-sub active" data-tab="graph" onclick="switchTab(event,'graph')">Knowledge Graph</div>
                     <div class="nav-sub" data-tab="feed" onclick="switchTab(event,'feed')">Feed</div>
                     <div class="nav-sub" data-tab="entities" onclick="switchTab(event,'entities')">Entities</div>
                 </div>
             </div>
             <div class="nav-group" data-group="intelligence">
-                <div class="nav-item" onclick="switchGroup(event,'intelligence')"><span class="icon">✨</span> Intelligence</div>
-                <div class="nav-sub-items" style="display:none">
+                <div class="nav-item" onclick="switchGroup(event,'intelligence')"><span class="icon">✨</span> Intelligence <span class="chevron">▸</span></div>
+                <div class="nav-sub-items">
                     <div class="nav-sub" data-tab="agents" onclick="switchTab(event,'agents')">Agents</div>
                     <div class="nav-sub" data-tab="insights" onclick="switchTab(event,'insights')">Insights</div>
                 </div>
@@ -428,8 +434,8 @@
                 <div class="nav-item" onclick="switchGroup(event,'procedures')"><span class="icon">🧬</span> Procedures</div>
             </div>
             <div class="nav-group" data-group="account">
-                <div class="nav-item" onclick="switchGroup(event,'account')"><span class="icon">⚙️</span> Account</div>
-                <div class="nav-sub-items" style="display:none">
+                <div class="nav-item" onclick="switchGroup(event,'account')"><span class="icon">⚙️</span> Account <span class="chevron">▸</span></div>
+                <div class="nav-sub-items">
                     <div class="nav-sub" data-tab="billing" onclick="switchTab(event,'billing')">Billing</div>
                     <div class="nav-sub" data-tab="settings" onclick="switchTab(event,'settings')">Settings</div>
                 </div>
@@ -440,19 +446,19 @@
             <div class="account-plan" id="account-plan"></div>
         </div>
         <div class="sidebar-actions">
-            <a href="/">Home</a>
-            <div onclick="openCmdPalette()">⌘K</div>
-            <div id="theme-toggle" onclick="toggleTheme()" title="Toggle theme" style="font-size:13px;">🌙</div>
-            <div onclick="logout()">Logout</div>
+            <a href="/" title="Home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></a>
+            <div onclick="openCmdPalette()" title="Command palette (⌘K)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
+            <div id="theme-toggle" onclick="toggleTheme()" title="Toggle theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></div>
+            <div onclick="logout()" title="Logout"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></div>
         </div>
     </div>
 
     <div class="main">
         <div class="stats-strip">
-            <div class="stat-card" onclick="switchTabDirect('entities')" style="cursor:pointer"><div class="stat-label">Entities</div><div class="stat-value purple" id="s-ent">—</div></div>
-            <div class="stat-card" onclick="switchTabDirect('feed')" style="cursor:pointer"><div class="stat-label">Facts</div><div class="stat-value green" id="s-facts">—</div></div>
-            <div class="stat-card" onclick="switchTabDirect('graph')" style="cursor:pointer"><div class="stat-label">Relations</div><div class="stat-value blue" id="s-rels">—</div></div>
-            <div class="stat-card" onclick="switchTabDirect('entities')" style="cursor:pointer"><div class="stat-label">Knowledge</div><div class="stat-value orange" id="s-know">—</div></div>
+            <div class="stat-card" onclick="switchTabDirect('entities')" style="cursor:pointer"><div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="7" r="4"/><path d="M5.5 21a6.5 6.5 0 0 1 13 0"/></svg>Entities</div><div class="stat-value purple" id="s-ent">—</div></div>
+            <div class="stat-card" onclick="switchTabDirect('feed')" style="cursor:pointer"><div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5l4 4L7 21H3v-4L16.5 3.5z"/></svg>Facts</div><div class="stat-value green" id="s-facts">—</div></div>
+            <div class="stat-card" onclick="switchTabDirect('graph')" style="cursor:pointer"><div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><path d="M8.5 8.5l7 7"/></svg>Relations</div><div class="stat-value blue" id="s-rels">—</div></div>
+            <div class="stat-card" onclick="switchTabDirect('entities')" style="cursor:pointer"><div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke="var(--orange)" stroke-width="2" stroke-linecap="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>Knowledge</div><div class="stat-value orange" id="s-know">—</div></div>
         </div>
 
         <div class="quick-add" id="quick-add">
@@ -477,7 +483,7 @@
 
         <div class="tab-content" id="tab-agents">
             <div class="page-header">
-                <h2>🤖 Memory Agents</h2>
+                <h2>Memory Agents</h2>
                 <div style="display:flex;gap:8px;">
                     <button onclick="runAgent('curator')" style="background:var(--green);color:#fff;border:none;padding:8px 14px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;">🧹 Curator</button>
                     <button onclick="runAgent('connector')" style="background:var(--blue);color:#fff;border:none;padding:8px 14px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;">🔗 Connector</button>
@@ -515,7 +521,7 @@
 
         <div class="tab-content" id="tab-insights">
             <div class="page-header">
-                <h2>✨ AI Insights</h2>
+                <h2>AI Insights</h2>
                 <button onclick="triggerReflection()" style="background:var(--accent);color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;">🔄 Reflect Now</button>
             </div>
             <div id="insights-box" class="loading">Analyzing your memories...</div>
@@ -544,7 +550,7 @@
         </div>
 
         <div class="tab-content" id="tab-procedures">
-            <div class="page-header"><h2>🧬 Procedures</h2></div>
+            <div class="page-header"><h2>Procedures</h2></div>
             <div id="procedures-box">
                 <div class="loading" style="text-align:center;padding:40px;color:var(--text-2);">Loading procedures...</div>
             </div>
@@ -677,18 +683,20 @@ let KEY = '';
 function H() { return { 'Authorization': `Bearer ${KEY}`, 'Content-Type': 'application/json' }; }
 
 // Theme toggle
+const THEME_MOON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+const THEME_SUN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>';
 function toggleTheme() {
     const isLight = document.documentElement.dataset.theme === 'light';
     document.documentElement.dataset.theme = isLight ? '' : 'light';
     localStorage.setItem('mengram_theme', isLight ? 'dark' : 'light');
-    document.getElementById('theme-toggle').textContent = isLight ? '🌙' : '☀️';
+    document.getElementById('theme-toggle').innerHTML = isLight ? THEME_MOON : THEME_SUN;
 }
 (function initTheme() {
     const saved = localStorage.getItem('mengram_theme');
     if (saved === 'light') {
         document.documentElement.dataset.theme = 'light';
         const el = document.getElementById('theme-toggle');
-        if (el) el.textContent = '☀️';
+        if (el) el.innerHTML = THEME_SUN;
     }
 })();
 function esc(s) { if(!s)return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
@@ -863,7 +871,7 @@ function _updateNavHighlighting(t) {
         const header = g.querySelector('.nav-item');
         if (header) header.classList.toggle('active', isTarget);
         const subs = g.querySelector('.nav-sub-items');
-        if (subs) subs.style.display = isTarget ? 'block' : 'none';
+        if (subs) subs.style.maxHeight = isTarget ? (subs.scrollHeight + 'px') : '0';
     });
     document.querySelectorAll('.nav-sub').forEach(s => s.classList.toggle('active', s.dataset.tab === t));
 }
@@ -872,6 +880,16 @@ function switchTabDirect(t) {
     _updateNavHighlighting(t);
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
     document.getElementById('tab-' + t).classList.add('active');
+    // Show Quick Add + Stats only on Memory group tabs
+    const isMemory = TAB_GROUPS.memory.tabs.includes(t);
+    const qa = document.getElementById('quick-add');
+    const ss = document.querySelector('.stats-strip');
+    if (qa) qa.style.display = isMemory ? '' : 'none';
+    if (ss) ss.style.display = isMemory ? '' : 'none';
+    // Update URL for bookmarkability
+    const url = new URL(window.location);
+    url.searchParams.set('tab', t);
+    history.replaceState(null, '', url);
     if (t === 'graph' && !_isCached('graph')) loadGraph();
     if (t === 'entities' && !_isCached('entities')) loadEntities();
     if (t === 'insights') loadInsights();
