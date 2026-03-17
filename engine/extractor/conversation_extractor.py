@@ -29,6 +29,27 @@ from typing import Optional
 from engine.extractor.llm_client import LLMClient
 
 
+import logging
+_logger = logging.getLogger("mengram")
+
+
+def _ensure_str(val, fallback=""):
+    """Coerce LLM output to string. Handles nested dicts gracefully."""
+    if isinstance(val, str):
+        return val
+    if isinstance(val, dict):
+        for key in ("text", "fact", "content", "value", "name", "description"):
+            if key in val and isinstance(val[key], str):
+                _logger.debug(f"Coerced dict to str via key '{key}': {val}")
+                return val[key]
+        _logger.warning(f"⚠️ LLM returned dict where str expected, using str(): {val}")
+        return str(val)
+    if val is None:
+        return fallback
+    _logger.debug(f"Coerced {type(val).__name__} to str: {val}")
+    return str(val)
+
+
 EXTRACTION_PROMPT = """You are a knowledge extraction system. Extract personal knowledge from ALL speakers in the conversation.
 
 Return ONLY valid JSON without markdown.
@@ -313,26 +334,42 @@ class ConversationExtractor:
     def _parse_response(self, raw: str) -> ExtractionResult:
         result = ExtractionResult(raw_response=raw)
 
-        # Clean markdown
+        # Parse JSON with fallback strategies
+        data = None
         clean = raw.strip()
-        if clean.startswith("```"):
-            lines = clean.split("\n")
-            clean = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
 
+        # Strategy 1: Direct parse
         try:
             data = json.loads(clean)
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+        # Strategy 2: Strip markdown fences (handles text before ```)
+        if data is None and "```" in clean:
+            start = clean.find("```")
+            end = clean.rfind("```")
+            if start != end:
+                inner = clean[start:end]
+                lines = inner.split("\n", 1)
+                if len(lines) > 1:
+                    try:
+                        data = json.loads(lines[1])
+                    except (json.JSONDecodeError, ValueError):
+                        pass
+
+        # Strategy 3: Find outermost { }
+        if data is None:
             start = raw.find("{")
-            end = raw.rfind("}") + 1
+            end = raw.rfind("}")
             if start >= 0 and end > start:
                 try:
-                    data = json.loads(raw[start:end])
-                except json.JSONDecodeError:
-                    print(f"⚠️  Failed to parse JSON from LLM", file=sys.stderr)
-                    return result
-            else:
-                print(f"⚠️  LLM returned no JSON", file=sys.stderr)
-                return result
+                    data = json.loads(raw[start:end + 1])
+                except (json.JSONDecodeError, ValueError):
+                    pass
+
+        if data is None:
+            _logger.warning(f"⚠️ Failed to parse JSON from LLM (length: {len(raw)})")
+            return result
 
         # Entities
         for e in data.get("entities", []):
@@ -343,55 +380,67 @@ class ConversationExtractor:
                     parsed_facts.append(ExtractedFact(content=f))
                 elif isinstance(f, dict):
                     parsed_facts.append(ExtractedFact(
-                        content=f.get("fact", f.get("content", "")),
+                        content=_ensure_str(f.get("fact", f.get("content", ""))),
                         event_date=f.get("when", f.get("event_date")),
                     ))
             result.entities.append(ExtractedEntity(
-                name=e.get("name", "Unknown"),
-                entity_type=e.get("type", "concept"),
+                name=_ensure_str(e.get("name", "Unknown"), "Unknown"),
+                entity_type=_ensure_str(e.get("type", "concept"), "concept"),
                 facts=parsed_facts,
             ))
 
         # Relations
         for r in data.get("relations", []):
             result.relations.append(ExtractedRelation(
-                from_entity=r.get("from", ""),
-                to_entity=r.get("to", ""),
-                relation_type=r.get("type", "related_to"),
-                description=r.get("description", ""),
+                from_entity=_ensure_str(r.get("from", "")),
+                to_entity=_ensure_str(r.get("to", "")),
+                relation_type=_ensure_str(r.get("type", "related_to"), "related_to"),
+                description=_ensure_str(r.get("description", "")),
             ))
 
         # Knowledge (NEW)
         for k in data.get("knowledge", []):
+            artifact = k.get("artifact")
+            if artifact is not None and not isinstance(artifact, str):
+                artifact = str(artifact)
             result.knowledge.append(ExtractedKnowledge(
-                entity=k.get("entity", ""),
-                knowledge_type=k.get("type", "insight"),
-                title=k.get("title", ""),
-                content=k.get("content", ""),
-                artifact=k.get("artifact"),
+                entity=_ensure_str(k.get("entity", "")),
+                knowledge_type=_ensure_str(k.get("type", "insight"), "insight"),
+                title=_ensure_str(k.get("title", "")),
+                content=_ensure_str(k.get("content", "")),
+                artifact=artifact,
             ))
 
         # Episodes (v2.5)
         for ep in data.get("episodes", []):
             happened = ep.get("happened_at")
-            if happened and str(happened).lower() in ("null", "none", "unknown", ""):
+            if happened and not isinstance(happened, str):
+                happened = str(happened)
+            if happened and happened.lower() in ("null", "none", "unknown", ""):
                 happened = None
+            try:
+                importance = float(ep.get("importance", 0.5))
+            except (ValueError, TypeError):
+                importance = 0.5
             result.episodes.append(ExtractedEpisode(
-                summary=ep.get("summary", ""),
-                context=ep.get("context", ""),
-                outcome=ep.get("outcome", ""),
+                summary=_ensure_str(ep.get("summary", "")),
+                context=_ensure_str(ep.get("context", "")),
+                outcome=_ensure_str(ep.get("outcome", "")),
                 participants=ep.get("participants", []),
-                emotional_valence=ep.get("emotional_valence", "neutral"),
-                importance=float(ep.get("importance", 0.5)),
+                emotional_valence=_ensure_str(ep.get("emotional_valence", "neutral"), "neutral"),
+                importance=importance,
                 happened_at=happened,
             ))
 
         # Procedures (v2.5)
         for pr in data.get("procedures", []):
+            steps = pr.get("steps", [])
+            if isinstance(steps, list):
+                steps = [_ensure_str(s) if not isinstance(s, str) else s for s in steps]
             result.procedures.append(ExtractedProcedure(
-                name=pr.get("name", ""),
-                trigger=pr.get("trigger", ""),
-                steps=pr.get("steps", []),
+                name=_ensure_str(pr.get("name", "")),
+                trigger=_ensure_str(pr.get("trigger", "")),
+                steps=steps,
                 entities=pr.get("entities", []),
             ))
 

@@ -33,6 +33,48 @@ except ImportError:
 
 logger = logging.getLogger("mengram")
 
+
+def _safe_parse_json(raw: str, fallback=None):
+    """Parse JSON from LLM output with multiple fallback strategies."""
+    clean = raw.strip()
+
+    # Strategy 1: Direct parse
+    try:
+        return json.loads(clean)
+    except (json.JSONDecodeError, ValueError):
+        pass
+
+    # Strategy 2: Strip markdown fences (handles text before ```)
+    if "```" in clean:
+        start = clean.find("```")
+        end = clean.rfind("```")
+        if start != end:
+            inner = clean[start:end]
+            lines = inner.split("\n", 1)
+            if len(lines) > 1:
+                try:
+                    result = json.loads(lines[1])
+                    logger.debug("JSON parsed via markdown fence stripping")
+                    return result
+                except (json.JSONDecodeError, ValueError):
+                    pass
+
+    # Strategy 3: Find outermost { } or [ ]
+    for open_ch, close_ch in [("{", "}"), ("[", "]")]:
+        start = clean.find(open_ch)
+        end = clean.rfind(close_ch)
+        if start >= 0 and end > start:
+            try:
+                result = json.loads(clean[start:end + 1])
+                logger.debug("JSON parsed via bracket extraction")
+                return result
+            except (json.JSONDecodeError, ValueError):
+                pass
+
+    logger.warning(f"⚠️ All JSON parse strategies failed, returning fallback (input length: {len(raw)})")
+    return fallback
+
+
 # ---- TTL Cache (Redis or in-memory) ----
 class TTLCache:
     """Thread-safe cache with TTL. Uses Redis if available, falls back to in-memory.
@@ -1452,6 +1494,8 @@ class CloudStore:
     @staticmethod
     def estimate_importance(fact: str) -> float:
         """Estimate fact importance 0.0-1.0 based on content patterns."""
+        if not isinstance(fact, str):
+            fact = str(fact)
         f = fact.lower().strip()
 
         # Identity / role — highest
@@ -2333,15 +2377,15 @@ Return ONLY a JSON array of the old fact strings to remove, or empty array [] if
 No markdown, no explanation."""
 
         try:
-            response = llm_client.complete(prompt)
-            clean = response.strip()
-            if clean.startswith("```"):
-                lines = clean.split("\n")
-                clean = "\n".join(lines[1:-1])
-            contradicted = json.loads(clean)
+            contradicted = None
+            for attempt in range(2):
+                response = llm_client.complete(prompt)
+                contradicted = _safe_parse_json(response, fallback=[])
+                if isinstance(contradicted, list):
+                    break
             if not isinstance(contradicted, list):
                 return []
-        except (json.JSONDecodeError, Exception) as e:
+        except Exception as e:
             logger.error(f"⚠️ Conflict resolution failed: {e}")
             return []
 
@@ -2401,15 +2445,17 @@ Return ONLY this JSON (no markdown):
 }}"""
 
         try:
-            response = llm_client.complete(prompt)
-            clean = response.strip()
-            if clean.startswith("```"):
-                lines = clean.split("\n")
-                clean = "\n".join(lines[1:-1])
-            result = json.loads(clean)
+            result = None
+            for attempt in range(2):
+                response = llm_client.complete(prompt)
+                result = _safe_parse_json(response)
+                if isinstance(result, dict) and "archive" in result:
+                    break
+                logger.warning(f"⚠️ Dedup JSON invalid (attempt {attempt + 1}/2), retrying...")
             if not isinstance(result, dict) or "archive" not in result:
+                logger.error("⚠️ Dedup failed after 2 attempts")
                 return {"kept": facts, "archived": []}
-        except (json.JSONDecodeError, Exception) as e:
+        except Exception as e:
             logger.error(f"⚠️ Dedup failed: {e}")
             return {"kept": facts, "archived": []}
 
@@ -2552,13 +2598,17 @@ Return ONLY JSON (no markdown):
         )
 
         try:
-            response = llm_client.complete(prompt)
-            clean = response.strip()
-            if clean.startswith("```"):
-                lines = clean.split("\n")
-                clean = "\n".join(lines[1:-1])
-            result = json.loads(clean)
-        except (json.JSONDecodeError, Exception) as e:
+            result = None
+            for attempt in range(2):
+                response = llm_client.complete(prompt)
+                result = _safe_parse_json(response)
+                if isinstance(result, dict):
+                    break
+                logger.warning(f"⚠️ Reflection JSON invalid (attempt {attempt + 1}/2), retrying...")
+            if not isinstance(result, dict):
+                logger.error("⚠️ Reflection generation failed after 2 attempts")
+                return {"entity_reflections": [], "cross_entity": [], "temporal": []}
+        except Exception as e:
             logger.error(f"⚠️ Reflection generation failed: {e}")
             return {"entity_reflections": [], "cross_entity": [], "temporal": []}
 
@@ -4174,13 +4224,17 @@ Be specific and personal, not generic. No markdown, just JSON."""
         prompt = self.AGENT_CURATOR_PROMPT.format(facts_text=facts_text)
 
         try:
-            response = llm_client.complete(prompt)
-            clean = response.strip()
-            if clean.startswith("```"):
-                lines = clean.split("\n")
-                clean = "\n".join(lines[1:-1])
-            result = json.loads(clean)
-        except (json.JSONDecodeError, Exception) as e:
+            result = None
+            for attempt in range(2):
+                response = llm_client.complete(prompt)
+                result = _safe_parse_json(response)
+                if isinstance(result, dict):
+                    break
+                logger.warning(f"⚠️ Curator JSON invalid (attempt {attempt + 1}/2), retrying...")
+            if not isinstance(result, dict):
+                logger.error("⚠️ Curator agent failed after 2 attempts")
+                return {"status": "error", "message": "LLM returned invalid JSON after 2 attempts"}
+        except Exception as e:
             logger.error(f"⚠️ Curator agent failed: {e}")
             return {"status": "error", "message": str(e)}
 
@@ -4271,13 +4325,17 @@ Be specific and personal, not generic. No markdown, just JSON."""
         )
 
         try:
-            response = llm_client.complete(prompt)
-            clean = response.strip()
-            if clean.startswith("```"):
-                lines = clean.split("\n")
-                clean = "\n".join(lines[1:-1])
-            result = json.loads(clean)
-        except (json.JSONDecodeError, Exception) as e:
+            result = None
+            for attempt in range(2):
+                response = llm_client.complete(prompt)
+                result = _safe_parse_json(response)
+                if isinstance(result, dict):
+                    break
+                logger.warning(f"⚠️ Connector JSON invalid (attempt {attempt + 1}/2), retrying...")
+            if not isinstance(result, dict):
+                logger.error("⚠️ Connector agent failed after 2 attempts")
+                return {"status": "error", "message": "LLM returned invalid JSON after 2 attempts"}
+        except Exception as e:
             logger.error(f"⚠️ Connector agent failed: {e}")
             return {"status": "error", "message": str(e)}
 
@@ -4362,13 +4420,17 @@ Be specific and personal, not generic. No markdown, just JSON."""
         )
 
         try:
-            response = llm_client.complete(prompt)
-            clean = response.strip()
-            if clean.startswith("```"):
-                lines = clean.split("\n")
-                clean = "\n".join(lines[1:-1])
-            result = json.loads(clean)
-        except (json.JSONDecodeError, Exception) as e:
+            result = None
+            for attempt in range(2):
+                response = llm_client.complete(prompt)
+                result = _safe_parse_json(response)
+                if isinstance(result, dict):
+                    break
+                logger.warning(f"⚠️ Digest JSON invalid (attempt {attempt + 1}/2), retrying...")
+            if not isinstance(result, dict):
+                logger.error("⚠️ Digest agent failed after 2 attempts")
+                return {"status": "error", "message": "LLM returned invalid JSON after 2 attempts"}
+        except Exception as e:
             logger.error(f"⚠️ Digest agent failed: {e}")
             return {"status": "error", "message": str(e)}
 

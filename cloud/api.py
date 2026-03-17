@@ -4302,7 +4302,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 if conflict_tasks:
                     def _check_conflicts(entity, existing_id):
                         try:
-                            plain_facts = [f.content if hasattr(f, 'content') else str(f)
+                            plain_facts = [str(f.content) if hasattr(f, 'content') else str(f)
                                            for f in entity.facts]
                             archived = store.archive_contradicted_facts(
                                 existing_id, plain_facts, extractor.llm)
@@ -4355,9 +4355,10 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                     fact_dates = {}
                     for f in entity.facts:
                         if hasattr(f, 'content'):
-                            fact_strings.append(f.content)
+                            fc = f.content if isinstance(f.content, str) else str(f.content)
+                            fact_strings.append(fc)
                             if f.event_date:
-                                fact_dates[f.content] = f.event_date
+                                fact_dates[fc] = f.event_date
                         else:
                             fact_strings.append(str(f))
 
