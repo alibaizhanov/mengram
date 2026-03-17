@@ -23,14 +23,126 @@ Knowledge is the killer feature. LLM determines the knowledge type:
 
 import sys
 import json
+import logging
 from dataclasses import dataclass, field
 from typing import Optional
 
 from engine.extractor.llm_client import LLMClient
 
-
-import logging
 _logger = logging.getLogger("mengram")
+
+# OpenAI Structured Outputs schema — guarantees valid JSON with correct types
+EXTRACTION_SCHEMA = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "memory_extraction",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "entities": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string"},
+                            "type": {"type": "string", "enum": ["person", "project", "technology", "company", "concept", "place", "activity"]},
+                            "facts": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "fact": {"type": "string"},
+                                        "when": {"type": ["string", "null"]}
+                                    },
+                                    "required": ["fact", "when"],
+                                    "additionalProperties": False
+                                }
+                            }
+                        },
+                        "required": ["name", "type", "facts"],
+                        "additionalProperties": False
+                    }
+                },
+                "relations": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "from": {"type": "string"},
+                            "to": {"type": "string"},
+                            "type": {"type": "string"},
+                            "description": {"type": "string"}
+                        },
+                        "required": ["from", "to", "type", "description"],
+                        "additionalProperties": False
+                    }
+                },
+                "knowledge": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "entity": {"type": "string"},
+                            "type": {"type": "string", "enum": ["solution", "formula", "command", "insight", "decision", "recipe", "reference"]},
+                            "title": {"type": "string"},
+                            "content": {"type": "string"},
+                            "artifact": {"type": ["string", "null"]}
+                        },
+                        "required": ["entity", "type", "title", "content", "artifact"],
+                        "additionalProperties": False
+                    }
+                },
+                "episodes": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "summary": {"type": "string"},
+                            "context": {"type": "string"},
+                            "outcome": {"type": "string"},
+                            "participants": {"type": "array", "items": {"type": "string"}},
+                            "emotional_valence": {"type": "string", "enum": ["positive", "negative", "neutral", "mixed"]},
+                            "importance": {"type": "number"},
+                            "happened_at": {"type": ["string", "null"]}
+                        },
+                        "required": ["summary", "context", "outcome", "participants", "emotional_valence", "importance", "happened_at"],
+                        "additionalProperties": False
+                    }
+                },
+                "procedures": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string"},
+                            "trigger": {"type": "string"},
+                            "steps": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "step": {"type": "integer"},
+                                        "action": {"type": "string"},
+                                        "detail": {"type": "string"}
+                                    },
+                                    "required": ["step", "action", "detail"],
+                                    "additionalProperties": False
+                                }
+                            },
+                            "entities": {"type": "array", "items": {"type": "string"}}
+                        },
+                        "required": ["name", "trigger", "steps", "entities"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            "required": ["entities", "relations", "knowledge", "episodes", "procedures"],
+            "additionalProperties": False
+        }
+    }
+}
+
 
 
 def _ensure_str(val, fallback=""):
@@ -112,7 +224,7 @@ Response format (strict JSON, no ```):
       "name": "Entity Name",
       "type": "person|project|technology|company|concept|place|activity",
       "facts": [
-        "simple fact as string",
+        {{"fact": "simple fact as string", "when": null}},
         {{"fact": "fact with date", "when": "2023-05-07"}}
       ]
     }}
@@ -169,11 +281,11 @@ Output:
   "entities": [
     {{"name": "Ali", "type": "person", "facts": [
       {{"fact": "deployed Mengram on Railway", "when": "2023-06-14"}},
-      "uses Supabase with PostgreSQL 15"
+      {{"fact": "uses Supabase with PostgreSQL 15", "when": null}}
     ]}},
     {{"name": "Mengram", "type": "project", "facts": [
       {{"fact": "deployed on Railway", "when": "2023-06-14"}},
-      "uses Supabase PostgreSQL 15"
+      {{"fact": "uses Supabase PostgreSQL 15", "when": null}}
     ]}}
   ],
   "relations": [
@@ -317,7 +429,11 @@ class ConversationExtractor:
             conversation=conv_text,
             existing_context=context_block
         )
-        raw_response = self.llm.complete(prompt)
+        try:
+            raw_response = self.llm.complete(prompt, response_format=EXTRACTION_SCHEMA)
+        except Exception as e:
+            _logger.warning(f"Structured output failed ({type(e).__name__}: {e}), falling back to plain completion")
+            raw_response = self.llm.complete(prompt)
         return self._parse_response(raw_response)
 
     def extract_from_text(self, text: str) -> ExtractionResult:

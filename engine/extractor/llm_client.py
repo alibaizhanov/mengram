@@ -16,8 +16,8 @@ class LLMClient(ABC):
     """Abstract LLM client"""
 
     @abstractmethod
-    def complete(self, prompt: str, system: str = "") -> str:
-        """Send prompt, get response"""
+    def complete(self, prompt: str, system: str = "", response_format=None) -> str:
+        """Send prompt, get response. response_format is provider-specific (OpenAI structured outputs)."""
         pass
 
     def chat(self, messages: list[dict], system: str = "") -> str:
@@ -41,7 +41,7 @@ class AnthropicClient(LLMClient):
         self.client = anthropic.Anthropic(api_key=api_key)
         self.model = model
 
-    def complete(self, prompt: str, system: str = "") -> str:
+    def complete(self, prompt: str, system: str = "", response_format=None) -> str:
         response = self.client.messages.create(
             model=self.model,
             max_tokens=4096,
@@ -71,14 +71,17 @@ class OpenAIClient(LLMClient):
         self.client = OpenAI(api_key=api_key)
         self.model = model
 
-    def complete(self, prompt: str, system: str = "") -> str:
-        response = self.client.chat.completions.create(
+    def complete(self, prompt: str, system: str = "", response_format=None) -> str:
+        kwargs = dict(
             model=self.model,
             messages=[
                 {"role": "system", "content": system or "You are a knowledge extraction assistant."},
                 {"role": "user", "content": prompt},
             ],
         )
+        if response_format:
+            kwargs["response_format"] = response_format
+        response = self.client.chat.completions.create(**kwargs)
         return response.choices[0].message.content
 
     def chat(self, messages: list[dict], system: str = "") -> str:
@@ -98,16 +101,19 @@ class OllamaClient(LLMClient):
         self.base_url = base_url.rstrip("/")
         self.model = model
 
-    def complete(self, prompt: str, system: str = "") -> str:
+    def complete(self, prompt: str, system: str = "", response_format=None) -> str:
         import urllib.request
         import json
 
-        data = json.dumps({
+        req_data = {
             "model": self.model,
             "prompt": prompt,
             "system": system or "You are a knowledge extraction assistant.",
             "stream": False,
-        }).encode()
+        }
+        if response_format:
+            req_data["format"] = "json"
+        data = json.dumps(req_data).encode()
 
         req = urllib.request.Request(
             f"{self.base_url}/api/generate",

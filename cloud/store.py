@@ -2395,7 +2395,7 @@ No markdown, no explanation."""
         try:
             contradicted = None
             for attempt in range(2):
-                response = llm_client.complete(prompt)
+                response = llm_client.complete(prompt, response_format={"type": "json_object"})
                 contradicted = _safe_parse_json(response, fallback=[])
                 if isinstance(contradicted, list):
                     break
@@ -2463,7 +2463,7 @@ Return ONLY this JSON (no markdown):
         try:
             result = None
             for attempt in range(2):
-                response = llm_client.complete(prompt)
+                response = llm_client.complete(prompt, response_format={"type": "json_object"})
                 result = _safe_parse_json(response)
                 if isinstance(result, dict) and "archive" in result:
                     break
@@ -2616,7 +2616,7 @@ Return ONLY JSON (no markdown):
         try:
             result = None
             for attempt in range(2):
-                response = llm_client.complete(prompt)
+                response = llm_client.complete(prompt, response_format={"type": "json_object"})
                 result = _safe_parse_json(response)
                 if isinstance(result, dict):
                     break
@@ -4242,7 +4242,7 @@ Be specific and personal, not generic. No markdown, just JSON."""
         try:
             result = None
             for attempt in range(2):
-                response = llm_client.complete(prompt)
+                response = llm_client.complete(prompt, response_format={"type": "json_object"})
                 result = _safe_parse_json(response)
                 if isinstance(result, dict):
                     break
@@ -4360,7 +4360,7 @@ Return ONLY JSON (no markdown):
             try:
                 result = None
                 for attempt in range(2):
-                    response = llm_client.complete(prompt)
+                    response = llm_client.complete(prompt, response_format={"type": "json_object"})
                     result = _safe_parse_json(response)
                     if isinstance(result, dict) and "classifications" in result:
                         break
@@ -4424,7 +4424,7 @@ Return ONLY JSON (no markdown):
         try:
             result = None
             for attempt in range(2):
-                response = llm_client.complete(prompt)
+                response = llm_client.complete(prompt, response_format={"type": "json_object"})
                 result = _safe_parse_json(response)
                 if isinstance(result, dict):
                     break
@@ -4519,7 +4519,7 @@ Return ONLY JSON (no markdown):
         try:
             result = None
             for attempt in range(2):
-                response = llm_client.complete(prompt)
+                response = llm_client.complete(prompt, response_format={"type": "json_object"})
                 result = _safe_parse_json(response)
                 if isinstance(result, dict):
                     break
