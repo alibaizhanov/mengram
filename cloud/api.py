@@ -1213,6 +1213,7 @@ m.add("I love hiking in the mountains")</code></pre>
             ("https://mengram.io/blog/mem0-vs-mengram-benchmark", "0.8", "monthly"),
             ("https://mengram.io/blog/ai-memory-for-crewai-langchain", "0.7", "monthly"),
             ("https://mengram.io/blog/claude-code-memory-hooks", "0.9", "weekly"),
+            ("https://mengram.io/blog/cursor-ai-memory-mcp", "0.9", "weekly"),
             # Use cases
             ("https://mengram.io/usecase/customer-support", "0.7", "monthly"),
             ("https://mengram.io/usecase/personal-assistant", "0.7", "monthly"),
@@ -2404,6 +2405,166 @@ while True:
 <p>Get a free API key at <a href="/#signup">mengram.io</a>. The recall → act → remember loop takes 10 minutes to set up and your agent starts learning from its first run.</p>
 """,
             "related": ["how-to-add-memory-to-ai-agents", "semantic-episodic-procedural-memory"],
+        },
+        "cursor-ai-memory-mcp": {
+            "slug": "cursor-ai-memory-mcp",
+            "title": "How to Add Persistent Memory to Cursor AI (MCP Setup Guide)",
+            "date": "March 18, 2026",
+            "date_iso": "2026-03-18",
+            "read_time": "6",
+            "tags": ["Tutorial", "Cursor", "MCP"],
+            "excerpt": "Give Cursor AI persistent memory across sessions. Step-by-step MCP setup so your AI assistant remembers your codebase, preferences, and decisions.",
+            "seo_title": "How to Add Persistent Memory to Cursor AI — MCP Setup Guide (2026) | Mengram",
+            "seo_description": "Give Cursor AI persistent memory that survives between sessions. Step-by-step MCP server setup guide. Your AI remembers your codebase, coding style, and past decisions.",
+            "seo_keywords": "cursor ai memory, cursor persistent memory, cursor mcp server, cursor mcp memory, add memory to cursor, cursor ai remember, cursor context between sessions, cursor long term memory, mcp server cursor setup",
+            "content_html": """
+<h2>The problem: Cursor forgets everything</h2>
+<p>You open Cursor, explain your project architecture, your coding conventions, your deployment setup. Cursor does great work. Then you close the tab.</p>
+<p>Next session — Cursor has no idea who you are. You explain everything again. And again. And again.</p>
+<p>This is the fundamental limitation of all AI coding assistants: <strong>the context window resets between sessions</strong>. Cursor's context window is large, but it's temporary storage — not memory.</p>
+
+<h2>The fix: persistent memory via MCP</h2>
+<p>Cursor supports <strong>MCP (Model Context Protocol)</strong> — a standard for connecting external tools to AI assistants. By connecting a memory MCP server, Cursor can:</p>
+<ul>
+<li><strong>Remember</strong> your codebase architecture, tech stack, and conventions</li>
+<li><strong>Recall</strong> past debugging sessions and what worked</li>
+<li><strong>Learn</strong> your coding style and preferences over time</li>
+<li><strong>Build</strong> a knowledge graph of your projects, people, and decisions</li>
+</ul>
+<p>Everything persists across sessions, across devices, forever.</p>
+
+<h2>Setup: 3 minutes</h2>
+
+<h3>Step 1: Get an API key</h3>
+<p>Sign up at <a href="/#signup">mengram.io</a> (free tier: 50 adds, 300 searches/month). Copy your API key from the dashboard.</p>
+
+<h3>Step 2: Install the MCP server</h3>
+<pre><code>pip install mengram-ai</code></pre>
+<p>Or if you prefer npm:</p>
+<pre><code>npx mengram-mcp</code></pre>
+
+<h3>Step 3: Configure Cursor</h3>
+<p>Open Cursor Settings → MCP Servers → Add new server.</p>
+<p>For the pip install method, add this configuration:</p>
+<pre><code>{
+  "mcpServers": {
+    "mengram": {
+      "command": "mengram",
+      "args": ["server", "--cloud"],
+      "env": {
+        "MENGRAM_API_KEY": "your-api-key-here"
+      }
+    }
+  }
+}</code></pre>
+
+<p>For the npx method:</p>
+<pre><code>{
+  "mcpServers": {
+    "mengram": {
+      "command": "npx",
+      "args": ["-y", "mengram-mcp"],
+      "env": {
+        "MENGRAM_API_KEY": "your-api-key-here"
+      }
+    }
+  }
+}</code></pre>
+
+<p>Restart Cursor. You should see "mengram" in the MCP tools list.</p>
+
+<h3>Step 4: Start using it</h3>
+<p>That's it. Cursor now has 12 memory tools available:</p>
+<ul>
+<li><code>memory_add</code> — store a conversation or fact</li>
+<li><code>memory_search</code> — find relevant past context</li>
+<li><code>memory_profile</code> — get a full cognitive profile (system prompt from all memories)</li>
+<li><code>memory_list</code> — browse all stored entities</li>
+<li><code>memory_graph</code> — explore the knowledge graph</li>
+<li><code>memory_stats</code> — see usage stats</li>
+<li>...and 6 more for triggers, reflection, import/export, and dedup</li>
+</ul>
+
+<h2>What Cursor remembers</h2>
+<p>Once connected, Mengram automatically extracts and organizes three types of memory from your conversations:</p>
+
+<h3>Semantic memory (facts)</h3>
+<p>Facts about you, your projects, and your preferences:</p>
+<ul>
+<li>"Uses Next.js 14 with App Router and TypeScript"</li>
+<li>"Deploys to Vercel, database on Supabase"</li>
+<li>"Prefers functional components over class components"</li>
+<li>"Team uses ESLint with Airbnb config"</li>
+</ul>
+
+<h3>Episodic memory (events)</h3>
+<p>What happened in past sessions:</p>
+<ul>
+<li>"Debugged a CORS error on March 15 — fixed by adding middleware"</li>
+<li>"Migrated from Prisma to Drizzle ORM last week"</li>
+<li>"Had a production outage caused by missing env variable"</li>
+</ul>
+
+<h3>Procedural memory (workflows)</h3>
+<p>Learned step-by-step processes:</p>
+<ul>
+<li>"To deploy: run tests → build → push to staging → verify → promote to prod"</li>
+<li>"When fixing TypeScript errors: check tsconfig first, then look at imported types"</li>
+</ul>
+<p>Procedural memory <strong>evolves automatically</strong> — when a procedure fails, Mengram updates it with what actually worked. <a href="/blog/semantic-episodic-procedural-memory">Learn more about the three memory types</a>.</p>
+
+<h2>Real example: before and after</h2>
+
+<h3>Without memory (every session)</h3>
+<pre><code>You: "Add a new API endpoint for user preferences"
+Cursor: "What framework are you using? What's your project structure?
+         Where do you put your routes? Do you use TypeScript?"</code></pre>
+
+<h3>With memory (after first session)</h3>
+<pre><code>You: "Add a new API endpoint for user preferences"
+Cursor: [recalls: Next.js App Router, TypeScript, Supabase, existing route patterns]
+        "I'll create app/api/preferences/route.ts following your existing
+         pattern with Supabase client and Zod validation..."</code></pre>
+
+<p>No re-explaining. Cursor already knows your stack, your patterns, your preferences.</p>
+
+<h2>Tips for best results</h2>
+
+<h3>1. Tell Cursor to save important context</h3>
+<p>After explaining something important, say: <em>"Remember this for future sessions."</em> Cursor will use <code>memory_add</code> to store it permanently.</p>
+
+<h3>2. Ask Cursor to recall before starting work</h3>
+<p>At the start of a session, say: <em>"Search your memory for what you know about this project."</em> Cursor will use <code>memory_search</code> to load relevant context.</p>
+
+<h3>3. Use Cognitive Profile for instant context</h3>
+<p>Say: <em>"Load my cognitive profile."</em> This generates a complete system prompt from all your stored memories — architecture, preferences, past decisions — in one call.</p>
+
+<h3>4. Let memory build naturally</h3>
+<p>You don't need to manually save everything. Over time, the memory builds automatically from your conversations. The more you use Cursor, the smarter it gets.</p>
+
+<h2>Cursor vs Claude Code memory</h2>
+<p>Both Cursor and Claude Code support MCP, so the setup is similar. The key difference:</p>
+<ul>
+<li><strong>Cursor</strong>: MCP tools are available but you manually invoke them (or ask Cursor to use them)</li>
+<li><strong>Claude Code</strong>: supports hooks that <a href="/blog/claude-code-memory-hooks">auto-save and auto-recall</a> on every message — fully automatic</li>
+</ul>
+<p>Both work with the same Mengram backend, so your memories sync across tools.</p>
+
+<h2>Pricing</h2>
+<p>The free tier includes 50 memory adds and 300 searches per month — enough for personal use. For heavier usage:</p>
+<ul>
+<li><strong>Starter</strong> ($5/mo) — 100 adds, 500 searches</li>
+<li><strong>Pro</strong> ($19/mo) — 1,000 adds, 10,000 searches, smart triggers</li>
+<li><strong>Business</strong> ($99/mo) — 5,000 adds, 30,000 searches, unlimited agents</li>
+</ul>
+<p>See <a href="/pricing">full pricing</a> or <a href="/#signup">get started free</a>.</p>
+
+<h2>Get started</h2>
+<pre><code>pip install mengram-ai</code></pre>
+<p>Get your free API key at <a href="/#signup">mengram.io</a>, add the MCP config to Cursor, and your AI assistant starts building permanent memory from the first conversation.</p>
+<p>Questions? <a href="https://github.com/alibaizhanov/mengram/issues">Open an issue</a> or reply at <a href="mailto:the.baizhanov@gmail.com">the.baizhanov@gmail.com</a>.</p>
+""",
+            "related": ["claude-code-memory-hooks", "mcp-memory-server-setup"],
         },
     }
 
