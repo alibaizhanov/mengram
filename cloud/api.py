@@ -6193,14 +6193,17 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 for user in store.get_inactive_completed_signups(24, "completed_24h"):
                     if store.try_record_drip(user["email"], "completed_24h", user["id"]):
                         _send_drip_email(user["email"], "completed_24h")
+                        _time.sleep(0.5)  # Resend rate limit: 5 req/s
 
                 for user in store.get_inactive_completed_signups(72, "completed_72h"):
                     if store.try_record_drip(user["email"], "completed_72h", user["id"]):
                         _send_drip_email(user["email"], "completed_72h")
+                        _time.sleep(0.5)
 
                 for user in store.get_inactive_completed_signups(168, "completed_7d"):
                     if store.try_record_drip(user["email"], "completed_7d", user["id"]):
                         _send_drip_email(user["email"], "completed_7d")
+                        _time.sleep(0.5)
 
                 # Incomplete signups (verification pending)
                 for row in store.get_incomplete_signups_for_drip(1, "incomplete_1h"):
@@ -6208,21 +6211,25 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                         code = f"{_secrets.randbelow(900000) + 100000}"
                         store.save_email_code(row["email"], code)
                         _send_drip_email(row["email"], "incomplete_1h", code=code)
+                        _time.sleep(0.5)
 
                 for row in store.get_incomplete_signups_for_drip(24, "incomplete_24h"):
                     if store.try_record_drip(row["email"], "incomplete_24h"):
                         code = f"{_secrets.randbelow(900000) + 100000}"
                         store.save_email_code(row["email"], code)
                         _send_drip_email(row["email"], "incomplete_24h", code=code)
+                        _time.sleep(0.5)
 
                 # Engagement drips: users who did one action but not the other
                 for user in store.get_users_added_no_search():
                     if store.try_record_drip(user["email"], "added_no_search", user["id"]):
                         _send_drip_email(user["email"], "added_no_search")
+                        _time.sleep(0.5)
 
                 for user in store.get_users_searched_no_add():
                     if store.try_record_drip(user["email"], "searched_no_add", user["id"]):
                         _send_drip_email(user["email"], "searched_no_add")
+                        _time.sleep(0.5)
 
             except Exception as e:
                 logger.error(f"⚠️ Drip email cron error: {e}")
