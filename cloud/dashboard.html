@@ -342,7 +342,82 @@
             .nav-sub-items { padding-left: 20px; }
             .quick-add-input { font-size: 13px; }
             .quick-add-input::placeholder { font-size: 12px; }
+            .onboarding-checklist { padding: 16px; }
+            .onboarding-step { padding: 10px 12px; }
+            .onboarding-step-cta { padding: 6px 10px; font-size: 11px; }
         }
+
+        /* Onboarding Checklist */
+        .onboarding-checklist {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 24px;
+            margin-bottom: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+        .onboarding-checklist::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, var(--accent), var(--blue), var(--green));
+        }
+        .onboarding-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+        .onboarding-header h3 { font-size: 16px; font-weight: 700; }
+        .onboarding-dismiss {
+            background: none; border: none; color: var(--text-3);
+            cursor: pointer; font-size: 14px; padding: 4px 8px;
+            border-radius: 6px; transition: all 0.15s;
+        }
+        .onboarding-dismiss:hover { background: var(--bg-elevated); color: var(--text); }
+        .onboarding-progress {
+            height: 4px; background: var(--bg-elevated);
+            border-radius: 2px; margin-bottom: 20px; overflow: hidden;
+        }
+        .onboarding-progress-fill {
+            height: 100%; background: var(--accent);
+            border-radius: 2px; transition: width 0.5s ease;
+        }
+        .onboarding-steps { display: flex; flex-direction: column; gap: 8px; }
+        .onboarding-step {
+            display: flex; align-items: center; gap: 12px;
+            padding: 12px 14px; border-radius: 10px; transition: all 0.15s;
+        }
+        .onboarding-step:not(.completed):not(.prechecked) { background: var(--bg); }
+        .onboarding-step.completed, .onboarding-step.prechecked { opacity: 0.55; }
+        .onboarding-check {
+            width: 22px; height: 22px; border-radius: 50%;
+            border: 2px solid var(--border); display: flex;
+            align-items: center; justify-content: center;
+            flex-shrink: 0; font-size: 11px; transition: all 0.3s;
+        }
+        .onboarding-step.completed .onboarding-check,
+        .onboarding-step.prechecked .onboarding-check {
+            background: var(--green); border-color: var(--green); color: #fff;
+        }
+        .onboarding-step-content { flex: 1; }
+        .onboarding-step-title { font-size: 14px; font-weight: 600; }
+        .onboarding-step.completed .onboarding-step-title,
+        .onboarding-step.prechecked .onboarding-step-title {
+            text-decoration: line-through; color: var(--text-3);
+        }
+        .onboarding-step-desc { font-size: 12px; color: var(--text-3); margin-top: 2px; }
+        .onboarding-step-cta {
+            padding: 6px 14px; background: var(--accent); color: #fff;
+            border: none; border-radius: 8px; font-size: 12px; font-weight: 600;
+            cursor: pointer; font-family: 'Sora', sans-serif;
+            white-space: nowrap; transition: background 0.15s; flex-shrink: 0;
+        }
+        .onboarding-step-cta:hover { background: #9333ea; }
+        .onboarding-step.completed .onboarding-step-cta { display: none; }
+        .onboarding-step.prechecked .onboarding-step-cta { display: none; }
     </style>
 </head>
 <body>
@@ -459,6 +534,50 @@
             <div class="stat-card" onclick="switchTabDirect('feed')" style="cursor:pointer"><div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5l4 4L7 21H3v-4L16.5 3.5z"/></svg>Facts</div><div class="stat-value green" id="s-facts">—</div></div>
             <div class="stat-card" onclick="switchTabDirect('graph')" style="cursor:pointer"><div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><path d="M8.5 8.5l7 7"/></svg>Relations</div><div class="stat-value blue" id="s-rels">—</div></div>
             <div class="stat-card" onclick="switchTabDirect('entities')" style="cursor:pointer"><div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke="var(--orange)" stroke-width="2" stroke-linecap="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>Knowledge</div><div class="stat-value orange" id="s-know">—</div></div>
+        </div>
+
+        <!-- Onboarding Checklist -->
+        <div class="onboarding-checklist" id="onboarding-checklist" style="display:none;">
+            <div class="onboarding-header">
+                <h3>Get started with Mengram</h3>
+                <button class="onboarding-dismiss" onclick="dismissOnboarding()" title="Dismiss">✕</button>
+            </div>
+            <div class="onboarding-progress">
+                <div class="onboarding-progress-fill" id="onboarding-progress-fill" style="width:25%"></div>
+            </div>
+            <div class="onboarding-steps">
+                <div class="onboarding-step prechecked" id="ob-step-signup">
+                    <div class="onboarding-check">✓</div>
+                    <div class="onboarding-step-content">
+                        <div class="onboarding-step-title">Create account</div>
+                        <div class="onboarding-step-desc">Sign up and get your API key</div>
+                    </div>
+                </div>
+                <div class="onboarding-step" id="ob-step-add">
+                    <div class="onboarding-check" id="ob-check-add"></div>
+                    <div class="onboarding-step-content">
+                        <div class="onboarding-step-title">Add your first memory</div>
+                        <div class="onboarding-step-desc">Type something about yourself or your work</div>
+                    </div>
+                    <button class="onboarding-step-cta" onclick="obClickAdd()">Add memory</button>
+                </div>
+                <div class="onboarding-step" id="ob-step-search">
+                    <div class="onboarding-check" id="ob-check-search"></div>
+                    <div class="onboarding-step-content">
+                        <div class="onboarding-step-title">Search your memories</div>
+                        <div class="onboarding-step-desc">Find what your AI remembers about you</div>
+                    </div>
+                    <button class="onboarding-step-cta" onclick="obClickSearch()">Try search</button>
+                </div>
+                <div class="onboarding-step" id="ob-step-graph">
+                    <div class="onboarding-check" id="ob-check-graph"></div>
+                    <div class="onboarding-step-content">
+                        <div class="onboarding-step-title">Explore your knowledge graph</div>
+                        <div class="onboarding-step-desc">See your memories as a connected network</div>
+                    </div>
+                    <button class="onboarding-step-cta" onclick="obClickGraph()">View graph</button>
+                </div>
+            </div>
         </div>
 
         <div class="quick-add" id="quick-add">
@@ -886,6 +1005,8 @@ function switchTabDirect(t) {
     const ss = document.querySelector('.stats-strip');
     if (qa) qa.style.display = isMemory ? '' : 'none';
     if (ss) ss.style.display = isMemory ? '' : 'none';
+    const ob = document.getElementById('onboarding-checklist');
+    if (ob && localStorage.getItem('mengram_ob_active') === '1') ob.style.display = isMemory ? '' : 'none';
     // Update URL for bookmarkability
     const url = new URL(window.location);
     url.searchParams.set('tab', t);
@@ -1035,6 +1156,85 @@ function switchTab(e, t) {
 }
 
 async function loadAll() { loadStats(); loadGraph(); loadFeed(); loadAccount(); }
+
+// ---- Onboarding Checklist ----
+let _obState = { add: false, search: false, graph: false };
+
+function checkOnboardingVisibility(stats) {
+    if (localStorage.getItem('mengram_onboarding_done')) return;
+    const el = document.getElementById('onboarding-checklist');
+    if (!el) return;
+    const total = (stats.entities||0) + (stats.facts||0) + (stats.relations||0) + (stats.knowledge||0);
+    const inProgress = localStorage.getItem('mengram_ob_active') === '1';
+    if (total === 0 || inProgress) {
+        // New user OR mid-onboarding (added data but hasn't finished all steps)
+        el.style.display = '';
+        localStorage.setItem('mengram_ob_active', '1');
+        // Restore step state from localStorage on page reload
+        if ((stats.entities||0) > 0) _obState.add = true;
+        if (localStorage.getItem('mengram_ob_search') === '1') _obState.search = true;
+        if (localStorage.getItem('mengram_ob_graph') === '1') _obState.graph = true;
+    } else {
+        // Existing user with data, never started onboarding — skip
+        localStorage.setItem('mengram_onboarding_done', '1');
+        el.style.display = 'none';
+        return;
+    }
+    renderObState();
+}
+
+function updateObStep(step, done) {
+    if (!done || _obState[step]) return;
+    _obState[step] = true;
+    localStorage.setItem('mengram_ob_' + step, '1');
+    renderObState();
+}
+
+function renderObState() {
+    let done = 1; // signup always checked
+    ['add', 'search', 'graph'].forEach(s => {
+        const el = document.getElementById('ob-step-' + s);
+        const chk = document.getElementById('ob-check-' + s);
+        if (!el || !chk) return;
+        if (_obState[s]) {
+            el.classList.add('completed');
+            chk.textContent = '✓';
+            done++;
+        } else {
+            el.classList.remove('completed');
+            chk.textContent = '';
+        }
+    });
+    const fill = document.getElementById('onboarding-progress-fill');
+    if (fill) fill.style.width = Math.round((done / 4) * 100) + '%';
+    if (done === 4 && !localStorage.getItem('mengram_onboarding_done')) {
+        showToast('Setup complete! Your AI memory is ready.', 'success');
+        setTimeout(() => {
+            localStorage.setItem('mengram_onboarding_done', '1');
+            localStorage.removeItem('mengram_ob_active');
+            const el = document.getElementById('onboarding-checklist');
+            if (el) el.style.display = 'none';
+        }, 2500);
+    }
+}
+
+function dismissOnboarding() {
+    localStorage.setItem('mengram_onboarding_done', '1');
+    localStorage.removeItem('mengram_ob_active');
+    const el = document.getElementById('onboarding-checklist');
+    if (el) el.style.display = 'none';
+}
+
+function obClickAdd() {
+    const inp = document.getElementById('quick-add-input');
+    if (inp) { inp.placeholder = "Try: I am a backend engineer who loves Python and PostgreSQL"; inp.focus(); }
+}
+function obClickSearch() {
+    switchTabDirect('feed');
+    setTimeout(() => { const s = document.getElementById('search-input'); if (s) { s.placeholder = 'Try: what language do I use?'; s.focus(); } }, 150);
+}
+function obClickGraph() { switchTabDirect('graph'); }
+
 async function loadAccount() {
     try {
         const r = await fetch(`${API}/v1/me`, { headers: {'Authorization':`Bearer ${KEY}`} });
@@ -1313,6 +1513,8 @@ async function loadStats() {
         countUp(document.getElementById('s-facts'), d.facts||0);
         countUp(document.getElementById('s-rels'), d.relations||0);
         countUp(document.getElementById('s-know'), d.knowledge||0);
+        checkOnboardingVisibility(d);
+        if ((d.entities||0) > 0) updateObStep('add', true);
     } catch(e){}
 }
 
@@ -1515,6 +1717,8 @@ function renderGraph(data) {
         box.appendChild(empty);
         return;
     }
+
+    updateObStep('graph', true);
 
     const W=box.clientWidth, HH=box.clientHeight;
     const cs = getComputedStyle(document.documentElement);
@@ -1812,6 +2016,7 @@ async function doSearch(q) {
             }).join('');
         } else { dd.innerHTML='<div style="padding:18px;color:var(--text-3);font-size:13px;text-align:center"><p style="margin:0 0 6px">No results found</p><p style="margin:0;font-size:12px;color:var(--text-3)">Add memories via the API or MCP server first.</p></div>'; }
         dd.classList.add('show');
+        updateObStep('search', true);
     } catch(e){}
 }
 document.addEventListener('click',e=>{if(!e.target.closest('.search-bar'))document.getElementById('search-dd')?.classList.remove('show');});

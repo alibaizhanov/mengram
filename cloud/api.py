@@ -822,31 +822,37 @@ Be strict — only include entities that directly answer or relate to the query.
                 </div>
                 <p style="font-size:13px;color:#ef4444;font-weight:600">Save this key — it won't be shown again.</p>
 
-                <div style="margin:28px 0">
-                    <p style="font-size:15px;font-weight:600;color:#e8e8f0;margin:0 0 12px">Get started:</p>
+                <div style="background:#1a0a2e;border:2px solid #7c3aed;border-radius:12px;padding:20px;margin:24px 0;text-align:center">
+                    <p style="color:#a78bfa;font-weight:700;font-size:16px;margin:0 0 10px">Try it now — 10 seconds</p>
+                    <p style="color:#8888a8;font-size:12px;margin:0 0 12px">Paste this in your terminal:</p>
+                    <div style="background:#12121e;border:1px solid #1a1a2e;border-radius:8px;padding:14px;text-align:left">
+                        <code style="font-size:12px;color:#22c55e;word-break:break-all;line-height:1.6">curl -X POST https://mengram.io/v1/add_text -H "Authorization: Bearer {api_key}" -H "Content-Type: application/json" -d '{{"text":"I am a developer who loves building things"}}'</code>
+                    </div>
+                    <p style="color:#8888a8;font-size:12px;margin:10px 0 0">Then search it back:</p>
+                    <div style="background:#12121e;border:1px solid #1a1a2e;border-radius:8px;padding:14px;margin-top:8px;text-align:left">
+                        <code style="font-size:12px;color:#22c55e;word-break:break-all;line-height:1.6">curl -X POST https://mengram.io/v1/search -H "Authorization: Bearer {api_key}" -H "Content-Type: application/json" -d '{{"query":"what do I build?"}}'</code>
+                    </div>
+                </div>
 
+                <div style="text-align:center;margin:24px 0">
+                    <a href="https://mengram.io/dashboard" style="background:#7c3aed;color:white;padding:14px 32px;border-radius:10px;text-decoration:none;font-size:15px;font-weight:700;display:inline-block">Open Dashboard</a>
+                </div>
+
+                <div style="margin:24px 0">
+                    <p style="font-size:14px;font-weight:600;color:#e8e8f0;margin:0 0 10px">Or use the Python SDK:</p>
                     <div style="background:#12121e;border:1px solid #1a1a2e;border-radius:10px;padding:16px;margin:0 0 10px">
                         <code style="color:#22c55e;font-size:13px">pip install mengram-ai</code>
                     </div>
                     <div style="background:#12121e;border:1px solid #1a1a2e;border-radius:10px;padding:16px">
                         <code style="color:#22c55e;font-size:13px">mengram setup --key {api_key}</code>
                     </div>
-                    <p style="color:#8888a8;font-size:12px;margin:8px 0 0">Saves your key to shell profile and installs Claude Code hooks. Done.</p>
                 </div>
 
                 <div style="margin:28px 0">
-                    <p style="font-size:14px;font-weight:600;color:#e8e8f0;margin:0 0 10px">What you can do:</p>
                     <p style="font-size:13px;color:#c8c8d8;margin:0;line-height:2">
-                        <span style="color:#a855f7">→</span> <strong>Claude Code</strong> — auto-save, auto-recall, profile on every session<br>
-                        <span style="color:#a855f7">→</span> <strong>Python / JS SDK</strong> — <code style="color:#a78bfa">m.search("tech stack")</code>, <code style="color:#a78bfa">m.add([...])</code><br>
-                        <span style="color:#a855f7">→</span> <strong>MCP Server</strong> — Cursor, Windsurf, Claude Desktop<br>
-                        <span style="color:#a855f7">→</span> <strong>OpenClaw</strong> — auto-recall + auto-capture, 12 tools<br>
-                        <span style="color:#a855f7">→</span> <strong>LangChain / CrewAI</strong> — retrievers, tools, chat history<br>
-                        <span style="color:#a855f7">→</span> <strong>3 memory types</strong> — facts, events, workflows that evolve<br>
-                        <span style="color:#a855f7">→</span> <strong>Cognitive Profile</strong> — one call → system prompt for any LLM<br>
-                        <span style="color:#a855f7">→</span> <strong>Import</strong> — ChatGPT, Obsidian, any text/markdown files<br>
-                        <span style="color:#a855f7">→</span> <strong>Multi-user</strong> — one API key, isolated memory per user<br>
-                        <span style="color:#a855f7">→</span> <strong>REST API</strong> — 90+ endpoints for custom integrations
+                        <span style="color:#a855f7">→</span> <strong>Claude Code / MCP Server</strong> — auto-capture, auto-recall<br>
+                        <span style="color:#a855f7">→</span> <strong>Python / JS SDK</strong> — build apps with persistent memory<br>
+                        <span style="color:#a855f7">→</span> <strong>REST API</strong> — 90+ endpoints for any integration
                     </p>
                 </div>
 
@@ -5371,7 +5377,21 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
         response = {"results": results}
         if not results:
-            response["hint"] = "No memories found. Add your first memory with POST /v1/add — then search will return results."
+            try:
+                st = store.get_stats(user_id, sub_user_id=sub_uid)
+                if (st.get("entities", 0) == 0 and st.get("facts", 0) == 0):
+                    response["hint"] = (
+                        'Your memory is empty — add something first, then search will find it. '
+                        'Example: POST /v1/add_text with {"text": "I am a Python developer who uses PostgreSQL"} '
+                        'then search for "what database do I use?"'
+                    )
+                else:
+                    response["hint"] = (
+                        f"No results matched your query. Try broader terms or different phrasing. "
+                        f"Your memory has {st.get('entities', 0)} entities and {st.get('facts', 0)} facts."
+                    )
+            except Exception:
+                response["hint"] = "No memories found. Add your first memory with POST /v1/add — then search will return results."
         return response
 
     @app.get("/v1/memories", tags=["Memory"])
@@ -6231,7 +6251,21 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         store.log_usage(user_id, "search_all")
         # increment already done in use_quota above
         if not any(result.get(k) for k in ("semantic", "episodic", "procedural", "chunks")):
-            result["hint"] = "No memories found. Add your first memory with POST /v1/add — then search will return results."
+            try:
+                st = store.get_stats(user_id, sub_user_id=sub_uid)
+                if (st.get("entities", 0) == 0 and st.get("facts", 0) == 0):
+                    result["hint"] = (
+                        'Your memory is empty — add something first, then search will find it. '
+                        'Example: POST /v1/add_text with {"text": "I am a Python developer who uses PostgreSQL"} '
+                        'then search for "what database do I use?"'
+                    )
+                else:
+                    result["hint"] = (
+                        f"No results matched your query. Try broader terms or different phrasing. "
+                        f"Your memory has {st.get('entities', 0)} entities and {st.get('facts', 0)} facts."
+                    )
+            except Exception:
+                result["hint"] = "No memories found. Add your first memory with POST /v1/add — then search will return results."
         return result
 
     # ============================================
