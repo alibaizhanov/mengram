@@ -1266,7 +1266,7 @@ class CloudStore:
             cur.execute(
                 """SELECT u.id, u.email
                    FROM users u
-                   JOIN api_calls ac ON ac.user_id = u.id
+                   JOIN usage_log ac ON ac.user_id = u.id
                    WHERE u.created_at > NOW() - INTERVAL '30 days'
                      AND NOT EXISTS (
                          SELECT 1 FROM drip_emails de
@@ -1287,7 +1287,7 @@ class CloudStore:
             cur.execute(
                 """SELECT u.id, u.email
                    FROM users u
-                   JOIN api_calls ac ON ac.user_id = u.id
+                   JOIN usage_log ac ON ac.user_id = u.id
                    WHERE u.created_at > NOW() - INTERVAL '30 days'
                      AND NOT EXISTS (
                          SELECT 1 FROM drip_emails de
