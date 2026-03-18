@@ -7,15 +7,35 @@
     <meta name="description" content="{seo_description}">
     <meta name="keywords" content="{seo_keywords}">
     <meta name="author" content="Ali Baizhanov">
+    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
     <link rel="canonical" href="https://mengram.io/vs/{slug}">
     <meta property="og:type" content="article">
     <meta property="og:url" content="https://mengram.io/vs/{slug}">
     <meta property="og:title" content="{seo_title}">
     <meta property="og:description" content="{seo_description}">
     <meta property="og:site_name" content="Mengram">
+    <meta property="og:locale" content="en_US">
+    <meta property="og:image" content="https://opengraph.githubassets.com/1/alibaizhanov/mengram">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="600">
+    <meta property="og:image:alt" content="Mengram — AI Memory for Agents">
     <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@mengram_io">
+    <meta name="twitter:creator" content="@alibaizhanov">
     <meta name="twitter:title" content="{seo_title}">
     <meta name="twitter:description" content="{seo_description}">
+    <meta name="twitter:image" content="https://opengraph.githubassets.com/1/alibaizhanov/mengram">
+    <script type="application/ld+json">
+    {{
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": "{seo_title}",
+        "description": "{seo_description}",
+        "author": {{ "@type": "Person", "name": "Ali Baizhanov" }},
+        "publisher": {{ "@type": "Organization", "name": "Mengram", "url": "https://mengram.io" }},
+        "mainEntityOfPage": "https://mengram.io/vs/{slug}"
+    }}
+    </script>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Cpath d='M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68' fill='none' stroke='%23a855f7' stroke-width='10' stroke-linecap='round'/%3E%3Ccircle cx='62' cy='68' r='10' fill='%23a855f7'/%3E%3Ccircle cx='62' cy='68' r='4.5' fill='%23fff'/%3E%3C/svg%3E">
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Sora:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -475,6 +495,7 @@
             <p>
                 Mengram &mdash; human-like memory for AI
                 &nbsp;&middot;&nbsp; <a href="/">Home</a>
+                &nbsp;&middot;&nbsp; <a href="/blog">Blog</a>
                 &nbsp;&middot;&nbsp; <a href="/vs/mem0">vs Mem0</a>
                 &nbsp;&middot;&nbsp; <a href="/vs/zep">vs Zep</a>
                 &nbsp;&middot;&nbsp; <a href="/vs/letta">vs Letta</a>

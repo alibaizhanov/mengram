@@ -1065,14 +1065,11 @@ m.add("I love hiking in the mountains")</code></pre>
         landing_path = Path(__file__).parent / "landing.html"
         return landing_path.read_text(encoding="utf-8")
 
-    @app.get("/pricing", response_class=HTMLResponse)
+    @app.get("/pricing")
     async def pricing():
-        """Pricing page — renders landing with scroll to pricing section."""
-        landing_path = Path(__file__).parent / "landing.html"
-        html = landing_path.read_text(encoding="utf-8")
-        # Inject auto-scroll to pricing section
-        html = html.replace("</body>", '<script>document.getElementById("pricing")?.scrollIntoView()</script></body>')
-        return html
+        """Pricing page — 301 redirect to landing page pricing section."""
+        from starlette.responses import RedirectResponse
+        return RedirectResponse("/#pricing", status_code=301)
 
     @app.get("/robots.txt", response_class=PlainTextResponse)
     async def robots():
@@ -1199,7 +1196,7 @@ m.add("I love hiking in the mountains")</code></pre>
         pages = [
             # Core — highest priority
             ("https://mengram.io", "1.0", "weekly"),
-            ("https://mengram.io/pricing", "0.8", "monthly"),
+            # /pricing removed — 301 redirects to /#pricing (no duplicate content)
             # Claude Code — high SEO value
             ("https://mengram.io/vs/claude-mem", "0.9", "weekly"),
             # VS comparison — high SEO value
@@ -2563,7 +2560,7 @@ Cursor: [recalls: Next.js App Router, TypeScript, Supabase, existing route patte
 <li><strong>Pro</strong> ($19/mo) — 1,000 adds, 10,000 searches, smart triggers</li>
 <li><strong>Business</strong> ($99/mo) — 5,000 adds, 30,000 searches, unlimited agents</li>
 </ul>
-<p>See <a href="/pricing">full pricing</a> or <a href="/#signup">get started free</a>.</p>
+<p>See <a href="/#pricing">full pricing</a> or <a href="/#signup">get started free</a>.</p>
 
 <h2>Get started</h2>
 <pre><code>pip install mengram-ai</code></pre>
