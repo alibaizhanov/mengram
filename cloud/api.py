@@ -586,6 +586,15 @@ Be strict — only include entities that directly answer or relate to the query.
             except Exception:
                 pass
         retry_after = _quota_month_end_ttl()
+        # Build direct one-click checkout URL (same as quota email)
+        next_plan_key = {"free": "starter", "starter": "pro", "pro": "business"}.get(plan, "starter")
+        upgrade_url = "https://mengram.io/#pricing"
+        if user_id:
+            token = _sign_checkout_token(user_id, next_plan_key)
+            if token:
+                upgrade_url = f"https://mengram.io/checkout?token={token}"
+        next_plan = NEXT_PLAN_INFO.get(plan)
+        upgrade_msg = f"Upgrade to {next_plan['name']} ({next_plan['price']})" if next_plan else "Upgrade your plan"
         raise HTTPException(
             status_code=402,
             detail={
@@ -594,8 +603,8 @@ Be strict — only include entities that directly answer or relate to the query.
                 "limit": max_allowed,
                 "used": current,
                 "plan": plan,
-                "upgrade_url": "https://mengram.io/#pricing",
-                "message": f"Monthly {action} limit reached ({max_allowed}). Upgrade your plan at https://mengram.io/#pricing",
+                "upgrade_url": upgrade_url,
+                "message": f"Monthly {action} limit reached ({max_allowed}). {upgrade_msg} at {upgrade_url}",
                 "retry_after": retry_after,
             },
             headers={
@@ -896,9 +905,15 @@ Be strict — only include entities that directly answer or relate to the query.
         resend_key = os.environ.get("RESEND_API_KEY")
         if not resend_key:
             return
+        # Check unsubscribe before sending
+        if store.is_email_unsubscribed(email):
+            return
         try:
             import resend
             resend.api_key = resend_key
+
+            import urllib.parse as _urlparse
+            unsub_url = f"https://mengram.io/unsubscribe?email={_urlparse.quote(email)}"
 
             # Common email wrapper
             def _wrap(subject: str, body_html: str):
@@ -914,6 +929,9 @@ Be strict — only include entities that directly answer or relate to the query.
                         <a href="https://mengram.io/dashboard" style="color:#7c3aed;text-decoration:none">Console</a> &middot;
                         <a href="https://docs.mengram.io" style="color:#7c3aed;text-decoration:none">Docs</a> &middot;
                         <a href="https://github.com/alibaizhanov/mengram" style="color:#7c3aed;text-decoration:none">GitHub</a>
+                    </p>
+                    <p style="font-size:11px;color:#3a3a4a;text-align:center;margin-top:8px">
+                        <a href="{unsub_url}" style="color:#3a3a4a;text-decoration:underline">Unsubscribe</a>
                     </p>
                 </div>"""
 
@@ -989,6 +1007,36 @@ m.add("I love hiking in the mountains")</code></pre>
                     </div>
                     <p style="color:#8888a8;font-size:14px">This code expires in 10 minutes. Enter it at <a href="https://mengram.io/dashboard" style="color:#7c3aed">mengram.io/dashboard</a>.</p>
                     <p style="color:#55556a;font-size:12px;margin-top:16px">This is the last reminder we'll send.</p>"""
+
+            elif drip_type == "added_no_search":
+                subject = "You added memories — now try searching them"
+                body = """
+                    <p style="font-size:15px;color:#c8c8d8;line-height:1.6">You've been adding memories to Mengram — great start! But you haven't searched yet.</p>
+                    <p style="font-size:15px;color:#c8c8d8;line-height:1.6">The real value kicks in when your AI can <strong style="color:#a78bfa">retrieve</strong> what it learned. Try it:</p>
+                    <div style="background:#12121e;border:1px solid #1a1a2e;border-radius:10px;padding:18px;margin:20px 0">
+                        <pre style="margin:0;font-size:13px;color:#22c55e;white-space:pre-wrap"><code>curl -X POST https://mengram.io/v1/search \\
+  -H "Authorization: Bearer YOUR_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"query": "what do I know about..."}'</code></pre>
+                    </div>
+                    <p style="font-size:14px;color:#8888a8">Or use the search bar in your <a href="https://mengram.io/dashboard" style="color:#7c3aed">dashboard</a>.</p>"""
+
+            elif drip_type == "searched_no_add":
+                subject = "Your search returned empty — here's why"
+                body = """
+                    <p style="font-size:15px;color:#c8c8d8;line-height:1.6">You've been searching Mengram, but your memory vault is empty — that's why you're getting no results.</p>
+                    <p style="font-size:15px;color:#c8c8d8;line-height:1.6">Add your first memory and search will start working:</p>
+                    <div style="background:#12121e;border:1px solid #1a1a2e;border-radius:10px;padding:18px;margin:20px 0">
+                        <pre style="margin:0;font-size:13px;color:#22c55e;white-space:pre-wrap"><code>curl -X POST https://mengram.io/v1/add \\
+  -H "Authorization: Bearer YOUR_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"messages":[{"role":"user","content":"I like coffee"}]}'</code></pre>
+                    </div>
+                    <p style="font-size:14px;color:#8888a8">Mengram extracts entities, facts, and relationships — then search finds them semantically.</p>
+                    <div style="text-align:center;margin:24px 0">
+                        <a href="https://docs.mengram.io/quickstart" style="background:#7c3aed;color:white;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Read quickstart guide</a>
+                    </div>"""
+
             else:
                 return
 
@@ -1217,6 +1265,24 @@ m.add("I love hiking in the mountains")</code></pre>
         """Refund Policy."""
         p = Path(__file__).parent / "refund.html"
         return p.read_text(encoding="utf-8")
+
+    @app.get("/unsubscribe", response_class=HTMLResponse)
+    async def unsubscribe(email: str = Query("")):
+        """Unsubscribe from drip emails."""
+        html = """<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+        <title>Unsubscribe — Mengram</title>
+        <style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a12;color:#e8e8f0;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0}
+        .card{background:#12121e;border:1px solid #1a1a2e;border-radius:16px;padding:48px;text-align:center;max-width:400px}
+        h1{font-size:20px;margin:0 0 12px}p{color:#8888a8;font-size:14px;line-height:1.6;margin:0}
+        a{color:#7c3aed;text-decoration:none}</style></head><body><div class="card">"""
+        if email:
+            store.unsubscribe_email(email)
+            html += f"<h1>You've been unsubscribed</h1><p>{email} will no longer receive onboarding emails from Mengram.</p>"
+            logger.info(f"📧 Unsubscribed: {email}")
+        else:
+            html += "<h1>Invalid link</h1><p>No email address provided.</p>"
+        html += '<p style="margin-top:24px"><a href="https://mengram.io">Back to Mengram</a></p></div></body></html>'
+        return html
 
     # ---- VS / Comparison pages (SEO) ----
     VS_PAGES = {
@@ -5142,7 +5208,10 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         store.log_usage(user_id, "search")
         # increment already done atomically in use_quota above
 
-        return {"results": results}
+        response = {"results": results}
+        if not results:
+            response["hint"] = "No memories found. Add your first memory with POST /v1/add — then search will return results."
+        return response
 
     @app.get("/v1/memories", tags=["Memory"])
     async def get_all(sub_user_id: str = Query("default"),
@@ -6000,6 +6069,8 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         store.cache.set(cache_key, result, ttl=30)
         store.log_usage(user_id, "search_all")
         # increment already done in use_quota above
+        if not any(result.get(k) for k in ("semantic", "episodic", "procedural", "chunks")):
+            result["hint"] = "No memories found. Add your first memory with POST /v1/add — then search will return results."
         return result
 
     # ============================================
@@ -6143,6 +6214,15 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                         code = f"{_secrets.randbelow(900000) + 100000}"
                         store.save_email_code(row["email"], code)
                         _send_drip_email(row["email"], "incomplete_24h", code=code)
+
+                # Engagement drips: users who did one action but not the other
+                for user in store.get_users_added_no_search():
+                    if store.try_record_drip(user["email"], "added_no_search", user["id"]):
+                        _send_drip_email(user["email"], "added_no_search")
+
+                for user in store.get_users_searched_no_add():
+                    if store.try_record_drip(user["email"], "searched_no_add", user["id"]):
+                        _send_drip_email(user["email"], "searched_no_add")
 
             except Exception as e:
                 logger.error(f"⚠️ Drip email cron error: {e}")

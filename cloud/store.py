@@ -1236,6 +1236,71 @@ class CloudStore:
             )
             return [{"email": r["email"]} for r in cur.fetchall()]
 
+    def is_email_unsubscribed(self, email: str) -> bool:
+        """Check if an email has unsubscribed from drip emails."""
+        with self._cursor() as cur:
+            cur.execute(
+                """SELECT 1 FROM drip_emails
+                   WHERE email = %s AND drip_type = 'unsubscribed'""",
+                (email,)
+            )
+            return cur.fetchone() is not None
+
+    def unsubscribe_email(self, email: str) -> bool:
+        """Unsubscribe an email from drip emails. Returns True if newly unsubscribed."""
+        self.ensure_drip_emails_table()
+        with self._cursor() as cur:
+            cur.execute(
+                """INSERT INTO drip_emails (email, drip_type)
+                   VALUES (%s, 'unsubscribed')
+                   ON CONFLICT (email, drip_type) DO NOTHING
+                   RETURNING id""",
+                (email,)
+            )
+            return cur.fetchone() is not None
+
+    def get_users_added_no_search(self, min_adds: int = 3, drip_type: str = "added_no_search") -> list:
+        """Find users who added memories but never searched (likely don't know search exists)."""
+        self.ensure_drip_emails_table()
+        with self._cursor(dict_cursor=True) as cur:
+            cur.execute(
+                """SELECT u.id, u.email
+                   FROM users u
+                   JOIN api_calls ac ON ac.user_id = u.id
+                   WHERE u.created_at > NOW() - INTERVAL '30 days'
+                     AND NOT EXISTS (
+                         SELECT 1 FROM drip_emails de
+                         WHERE de.email = u.email AND de.drip_type = %s
+                     )
+                   GROUP BY u.id, u.email
+                   HAVING count(*) FILTER (WHERE ac.action = 'add') >= %s
+                      AND count(*) FILTER (WHERE ac.action IN ('search', 'search_all')) = 0
+                      AND max(ac.created_at) < NOW() - INTERVAL '24 hours'""",
+                (drip_type, min_adds)
+            )
+            return [{"id": str(r["id"]), "email": r["email"]} for r in cur.fetchall()]
+
+    def get_users_searched_no_add(self, min_searches: int = 3, drip_type: str = "searched_no_add") -> list:
+        """Find users who searched but never added memories (empty search results)."""
+        self.ensure_drip_emails_table()
+        with self._cursor(dict_cursor=True) as cur:
+            cur.execute(
+                """SELECT u.id, u.email
+                   FROM users u
+                   JOIN api_calls ac ON ac.user_id = u.id
+                   WHERE u.created_at > NOW() - INTERVAL '30 days'
+                     AND NOT EXISTS (
+                         SELECT 1 FROM drip_emails de
+                         WHERE de.email = u.email AND de.drip_type = %s
+                     )
+                   GROUP BY u.id, u.email
+                   HAVING count(*) FILTER (WHERE ac.action IN ('search', 'search_all')) >= %s
+                      AND count(*) FILTER (WHERE ac.action = 'add') = 0
+                      AND max(ac.created_at) < NOW() - INTERVAL '24 hours'""",
+                (drip_type, min_searches)
+            )
+            return [{"id": str(r["id"]), "email": r["email"]} for r in cur.fetchall()]
+
     def save_oauth_code(self, code: str, user_id: str, redirect_uri: str, state: str):
         """Save OAuth authorization code (expires in 5 min)."""
         with self._cursor() as cur:

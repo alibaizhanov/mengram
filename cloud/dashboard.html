@@ -1676,7 +1676,7 @@ async function loadEntities() {
         const ents = d.memories||[];
         _entTotal = d.total || ents.length;
         _entOffset = ents.length;
-        if(!ents.length) { grid.innerHTML='<div class="empty"><div class="eicon">📦</div><h3>No entities yet</h3></div>'; return; }
+        if(!ents.length) { grid.innerHTML='<div class="empty"><div class="eicon">📦</div><h3>No entities yet</h3><p>Entities are automatically extracted when you add memories. Use the <a href="https://docs.mengram.io/quickstart" style="color:var(--accent)">API</a> or <a href="https://docs.mengram.io/mcp" style="color:var(--accent)">MCP server</a> to get started.</p></div>'; return; }
         let h = ents.map(e => _renderEntityCard(e)).join('');
         if(_entOffset < _entTotal) {
             h+=`<div id="ent-more-wrap" style="grid-column:1/-1;text-align:center;padding:12px;"><button class="btn" onclick="loadMoreEntities()" id="ent-more-btn" style="background:var(--bg-elevated);color:var(--text-2);border:1px solid var(--border);padding:8px 24px;border-radius:8px;cursor:pointer;font-size:13px;">Load more (${_entTotal - _entOffset} remaining)</button></div>`;
@@ -1810,7 +1810,7 @@ async function doSearch(q) {
                 const teamBadge = r.team_shared ? '<span style="background:var(--green-dim);color:var(--green);padding:1px 5px;border-radius:3px;font-size:10px;margin-left:4px;">team</span>' : '';
                 return `<div class="search-item" onclick="openEntity('${escA(r.entity)}')"><div class="sname">${esc(r.entity)} <small style="color:var(--text-3)">${esc(r.type)}</small>${teamBadge}</div><div class="sfact">${esc(fs)}</div></div>`;
             }).join('');
-        } else { dd.innerHTML='<div style="padding:14px;color:var(--text-3);font-size:13px;text-align:center">No results</div>'; }
+        } else { dd.innerHTML='<div style="padding:18px;color:var(--text-3);font-size:13px;text-align:center"><p style="margin:0 0 6px">No results found</p><p style="margin:0;font-size:12px;color:var(--text-3)">Add memories via the API or MCP server first.</p></div>'; }
         dd.classList.add('show');
     } catch(e){}
 }
