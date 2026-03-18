@@ -6322,12 +6322,38 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                     t[key] = t[key].isoformat()
         return results
 
-    # ---- Background trigger processing (cron) ----
+    # ---- Background cron jobs (with PG advisory lock to run on one worker only) ----
     import threading, time as _time
+
+    def _try_advisory_lock(lock_id: int):
+        """Try to acquire a PG session-level advisory lock (non-blocking).
+        Returns the dedicated connection holding the lock, or None on failure.
+        Caller must keep the connection alive — lock releases when it closes."""
+        try:
+            import psycopg2 as _pg2
+            conn = _pg2.connect(store.database_url)
+            conn.autocommit = True
+            with conn.cursor() as cur:
+                cur.execute("SELECT pg_try_advisory_lock(%s)", (lock_id,))
+                if cur.fetchone()[0]:
+                    return conn
+            conn.close()
+            return None
+        except Exception:
+            return None
+
+    # Lock IDs (arbitrary unique ints)
+    _LOCK_TRIGGER_CRON = 900001
+    _LOCK_DRIP_CRON = 900002
 
     def _trigger_cron_loop():
         """Background thread that processes triggers every 5 minutes."""
         _time.sleep(30)  # Initial delay to let server start
+        _lock_conn = _try_advisory_lock(_LOCK_TRIGGER_CRON)
+        if not _lock_conn:
+            logger.info("🧠 Trigger cron: another worker holds the lock, skipping")
+            return
+        logger.info("🧠 Smart trigger cron started (every 5 min)")
         while True:
             try:
                 result = store.process_all_triggers()
@@ -6339,13 +6365,17 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
     _cron_thread = threading.Thread(target=_trigger_cron_loop, daemon=True)
     _cron_thread.start()
-    logger.info("🧠 Smart trigger cron started (every 5 min)")
 
     # ---- Background drip email cron ----
 
     def _drip_email_cron_loop():
         """Background thread that sends onboarding drip emails every 30 minutes."""
         _time.sleep(60)  # Initial delay
+        _lock_conn = _try_advisory_lock(_LOCK_DRIP_CRON)
+        if not _lock_conn:
+            logger.info("📧 Drip email cron: another worker holds the lock, skipping")
+            return
+        logger.info("📧 Onboarding drip email cron started (every 30 min)")
         while True:
             try:
                 import secrets as _secrets
@@ -6398,7 +6428,6 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
     _drip_thread = threading.Thread(target=_drip_email_cron_loop, daemon=True)
     _drip_thread.start()
-    logger.info("📧 Onboarding drip email cron started (every 30 min)")
 
     # ---- Billing & Subscription ----
 
