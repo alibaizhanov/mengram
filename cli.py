@@ -356,6 +356,11 @@ def output_hook_success():
     sys.exit(0)
 
 
+def _is_quota_error(e: Exception) -> bool:
+    """Check if exception is a QuotaExceededError (without importing the class)."""
+    return type(e).__name__ == "QuotaExceededError"
+
+
 def cmd_auto_recall(args):
     """Hook handler — called by Claude Code on UserPromptSubmit. Searches Mengram for relevant context."""
     try:
@@ -412,7 +417,19 @@ def cmd_auto_recall(args):
 
     except SystemExit:
         raise
-    except Exception:
+    except Exception as e:
+        if _is_quota_error(e):
+            print(json.dumps({
+                "hookSpecificOutput": {
+                    "hookEventName": "UserPromptSubmit",
+                    "additionalContext": (
+                        "[Mengram] Memory search quota exceeded — recall is disabled. "
+                        f"{e} "
+                        "Upgrade at https://mengram.io/dashboard"
+                    ),
+                }
+            }))
+            sys.exit(0)
         output_hook_success()
 
 
@@ -440,7 +457,12 @@ def cmd_auto_context(args):
 
     except SystemExit:
         raise
-    except Exception:
+    except Exception as e:
+        if _is_quota_error(e):
+            print(
+                f"[Mengram] Memory profile load failed — quota exceeded. {e} "
+                "Upgrade at https://mengram.io/dashboard"
+            )
         sys.exit(0)
 
 
@@ -547,7 +569,17 @@ def cmd_auto_save(args):
 
     except SystemExit:
         raise
-    except Exception:
+    except Exception as e:
+        if _is_quota_error(e):
+            # Surface quota error to user via stderr (Stop hooks don't support additionalContext)
+            print(
+                f"\n⚠️  [Mengram] Memory save failed — quota exceeded. {e}\n"
+                "   Your conversations are NOT being saved.\n"
+                "   Upgrade at https://mengram.io/dashboard\n",
+                file=sys.stderr,
+            )
+            print(json.dumps({"continue": True}))
+            sys.exit(0)
         # Never crash, never block Claude
         print(json.dumps({"continue": True, "suppressOutput": True}))
         sys.exit(0)
