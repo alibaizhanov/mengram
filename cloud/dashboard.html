@@ -849,7 +849,7 @@ function showConfirm(title, message, onConfirm, danger=false) {
     document.getElementById('confirm-msg').textContent = message;
     const okBtn = document.getElementById('confirm-ok');
     okBtn.className = `confirm-btn confirm-ok${danger ? ' danger' : ''}`;
-    okBtn.textContent = danger ? 'Delete' : 'Confirm';
+    okBtn.textContent = danger ? (title.includes('Revoke') ? 'Revoke' : 'Delete') : 'Confirm';
     _confirmCb = onConfirm;
     document.getElementById('confirm-bg').classList.add('show');
 }
@@ -2231,7 +2231,7 @@ async function createNewKey() {
             document.getElementById('new-key-name').value = '';
             loadKeys();
             copyText(d.key, 'API key');
-            showToast('Key created and copied! Save it — it won\'t be shown again.', 'success', 6000);
+            showConfirm('Your New API Key', d.key + '\n\nCopied to clipboard. Save it — it won\'t be shown again.', () => {});
         } else {
             showToast(d.detail || 'Failed to create key', 'error');
         }
@@ -2244,7 +2244,13 @@ async function revokeKey(keyId, prefix) {
             const r = await fetch(`${API}/v1/keys/${keyId}`, {method:'DELETE', headers:H()});
             const d = await r.json();
             if (r.ok) { loadKeys(); showToast('Key revoked', 'success'); }
-            else { showToast(d.detail || 'Failed to revoke', 'error'); }
+            else {
+                if (d.detail && d.detail.includes('last active key')) {
+                    showToast('Create a new key first, then revoke the old one.', 'error', 5000);
+                } else {
+                    showToast(d.detail || 'Failed to revoke', 'error');
+                }
+            }
         } catch(e) { showToast('Failed', 'error'); }
     }, true);
 }
