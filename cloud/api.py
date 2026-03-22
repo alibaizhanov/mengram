@@ -530,8 +530,9 @@ Be strict — only include entities that directly answer or relate to the query.
             pass  # Redis down → fall through to DB
 
         # Step 2: Atomic check-and-increment in PostgreSQL
+        new_count = 0
         try:
-            store.check_and_increment(ctx.user_id, action, max_allowed, count)
+            new_count = store.check_and_increment(ctx.user_id, action, max_allowed, count)
         except ValueError as e:
             parts = str(e).split(":")
             if parts[0] == "quota_exceeded":
@@ -549,10 +550,29 @@ Be strict — only include entities that directly answer or relate to the query.
         # Step 3: Success — update Redis counter from DB value
         try:
             if redis_client:
-                new_count = store.get_usage_count(ctx.user_id, action)
-                redis_client.set(cache_key, str(new_count), ex=_quota_month_end_ttl())
+                db_count = store.get_usage_count(ctx.user_id, action)
+                redis_client.set(cache_key, str(db_count), ex=_quota_month_end_ttl())
+                if db_count > new_count:
+                    new_count = db_count
         except Exception:
             pass  # Redis down → counter will be set on next request
+
+        # Step 4: 80% quota warning email (one-time per month)
+        if action in ("add", "search") and max_allowed > 0:
+            threshold = int(max_allowed * 0.8)
+            if new_count >= threshold and (new_count - count) < threshold:
+                # Just crossed 80% — send warning
+                try:
+                    _email = store.get_user_email(ctx.user_id)
+                    if _email:
+                        import threading
+                        threading.Thread(
+                            target=_send_quota_warning_email,
+                            args=(ctx.user_id, _email, ctx.plan, action, new_count, max_allowed),
+                            daemon=True,
+                        ).start()
+                except Exception:
+                    pass
 
     # Log suppression for repeated quota blocks: {user_action: (last_log_time, count)}
     _quota_log_tracker: dict = {}
@@ -713,6 +733,77 @@ Be strict — only include entities that directly answer or relate to the query.
             logger.info(f"📧 Quota email sent | user={user_id[:8]} | {action} | {plan} → {next_plan['name'] if next_plan else 'enterprise'}")
         except Exception as e:
             logger.error(f"⚠️  Quota email failed: {e}")
+
+    def _send_quota_warning_email(user_id: str, email: str, plan: str, action: str,
+                                  current: int, max_allowed: int):
+        """Send one-time email when user hits 80% of quota. Deduped monthly."""
+        now = datetime.datetime.now(datetime.timezone.utc)
+        drip_type = f"quota_warning_{action}_{now.strftime('%Y-%m')}"
+
+        if not store.try_record_drip(email, drip_type, user_id):
+            return  # already sent this month
+
+        resend_key = os.environ.get("RESEND_API_KEY")
+        if not resend_key:
+            return
+
+        action_label = "memory adds" if action == "add" else "searches"
+        remaining = max_allowed - current
+        pct = int(current / max_allowed * 100)
+
+        next_plan = NEXT_PLAN_INFO.get(plan)
+        # Build upgrade button (only if there's a next plan)
+        upgrade_html = ""
+        if next_plan:
+            next_plan_key = {"free": "starter", "starter": "pro", "pro": "business"}.get(plan, "starter")
+            checkout_token = _sign_checkout_token(user_id, next_plan_key)
+            checkout_url = f"https://mengram.io/checkout?token={checkout_token}"
+            next_limit = next_plan["adds"] if action == "add" else next_plan["searches"]
+            upgrade_html = f"""
+            <div style="text-align:center;margin:24px 0">
+                <a href="{checkout_url}"
+                   style="background:#7c3aed;color:white;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">
+                    Upgrade to {next_plan['name']} — {next_limit} {action_label}/mo
+                </a>
+            </div>"""
+
+        html = f"""
+        <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:0 auto;padding:40px 24px;color:#e8e8f0;background:#0a0a12;border-radius:16px">
+            <div style="text-align:center;margin-bottom:32px">
+                <svg width="36" height="36" viewBox="0 0 120 120"><path d="M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68" fill="none" stroke="#a855f7" stroke-width="8" stroke-linecap="round"/><circle cx="62" cy="68" r="8" fill="#a855f7"/><circle cx="62" cy="68" r="3.5" fill="white"/></svg>
+                <h1 style="font-size:22px;font-weight:700;margin:8px 0 4px;color:#e8e8f0">Mengram</h1>
+            </div>
+            <p style="font-size:15px;color:#c8c8d8;line-height:1.6">
+                You've used <strong style="color:#f59e0b">{pct}%</strong> of your monthly {action_label}
+                — <strong>{remaining:,}</strong> remaining on your {plan} plan.
+            </p>
+            <div style="background:#12121e;border-radius:8px;padding:4px;margin:20px 0">
+                <div style="background:linear-gradient(90deg,#7c3aed,#f59e0b);height:8px;border-radius:6px;width:{pct}%"></div>
+            </div>
+            <p style="font-size:14px;color:#8888a8;text-align:center;margin:0 0 8px">{current:,} / {max_allowed:,} {action_label} used</p>
+            {upgrade_html}
+            <p style="font-size:13px;color:#55556a;margin-top:20px">Your limits reset at the start of each month.</p>
+            <hr style="border:none;border-top:1px solid #1a1a2e;margin:28px 0">
+            <p style="font-size:12px;color:#55556a;text-align:center">
+                <a href="https://mengram.io/dashboard" style="color:#7c3aed;text-decoration:none">Console</a> &middot;
+                <a href="https://docs.mengram.io" style="color:#7c3aed;text-decoration:none">Docs</a> &middot;
+                <a href="https://github.com/alibaizhanov/mengram" style="color:#7c3aed;text-decoration:none">GitHub</a>
+            </p>
+        </div>"""
+
+        try:
+            import resend
+            resend.api_key = resend_key
+            resend.Emails.send({
+                "from": EMAIL_FROM,
+                "to": email,
+                "reply_to": "the.baizhanov@gmail.com",
+                "subject": f"Heads up: {pct}% of your {action_label} used",
+                "html": html,
+            })
+            logger.info(f"📧 Quota warning sent | user={user_id[:8]} | {action} {current}/{max_allowed} ({pct}%)")
+        except Exception as e:
+            logger.error(f"⚠️  Quota warning email failed: {e}")
 
     # ---- Auth middleware ----
 
@@ -877,6 +968,87 @@ Be strict — only include entities that directly answer or relate to the query.
             logger.info(f"📧 Email sent to {email} (key {action})")
         except Exception as e:
             logger.error(f"⚠️  Email send failed: {e}")
+
+    # ---- Seed initial memory at signup ----
+
+    FREE_EMAIL_DOMAINS = {
+        "gmail.com", "googlemail.com", "yahoo.com", "yahoo.co.jp",
+        "hotmail.com", "outlook.com", "live.com", "msn.com",
+        "aol.com", "icloud.com", "me.com", "mac.com",
+        "protonmail.com", "proton.me", "pm.me",
+        "mail.com", "zoho.com", "yandex.com", "yandex.ru",
+        "tutanota.com", "tuta.io", "fastmail.com",
+        "qq.com", "163.com", "126.com", "sina.com",
+        "gmx.com", "gmx.de", "web.de", "t-online.de",
+        "mail.ru", "rambler.ru", "inbox.ru",
+    }
+
+    def _parse_name_from_email(local: str) -> str | None:
+        """Try to extract a human name from email local part.
+        Returns title-cased name or None if it looks like a username."""
+        import re
+        # Split on dots, hyphens, underscores
+        parts = re.split(r'[._\-]+', local.lower())
+        # Filter out parts that are just numbers or single chars
+        name_parts = [p for p in parts if len(p) > 1 and not p.isdigit()]
+        if len(name_parts) >= 2:
+            # Looks like first.last
+            return " ".join(p.capitalize() for p in name_parts[:3])
+        elif len(name_parts) == 1 and len(name_parts[0]) >= 2:
+            # Single word — capitalize it
+            return name_parts[0].capitalize()
+        return None
+
+    def _seed_initial_memory(user_id: str, email: str):
+        """Seed 1-2 entities from signup email so first search isn't empty.
+        Runs in background thread. Does not consume quota."""
+        import threading
+
+        def _do_seed():
+            try:
+                local, domain = email.rsplit("@", 1)
+                domain = domain.lower()
+                name = _parse_name_from_email(local)
+                is_personal = domain in FREE_EMAIL_DOMAINS
+
+                embedder = get_embedder()
+                entities_to_embed = []  # [(entity_id, chunk_text)]
+
+                # Entity 1: Person
+                person_name = name or "User"
+                person_facts = [f"Signed up for Mengram on {datetime.date.today().isoformat()}"]
+                if not is_personal and domain:
+                    person_facts.append(f"Email domain: {domain}")
+                entity_id = store.save_entity(
+                    user_id=user_id, name=person_name, type="person",
+                    facts=person_facts, sub_user_id="default",
+                )
+                chunk = f"{person_name}: " + ". ".join(person_facts)
+                entities_to_embed.append((entity_id, chunk))
+
+                # Entity 2: Company (only for work emails)
+                if not is_personal and domain:
+                    company = domain.split(".")[0].capitalize()
+                    company_facts = [f"{person_name} works at {company}"]
+                    comp_id = store.save_entity(
+                        user_id=user_id, name=company, type="company",
+                        facts=company_facts, sub_user_id="default",
+                    )
+                    comp_chunk = f"{company}: " + ". ".join(company_facts)
+                    entities_to_embed.append((comp_id, comp_chunk))
+
+                # Generate embeddings so search works
+                if embedder and entities_to_embed:
+                    texts = [chunk for _, chunk in entities_to_embed]
+                    embeddings = embedder.embed_batch(texts)
+                    for (eid, chunk_text), emb in zip(entities_to_embed, embeddings):
+                        store.save_embedding(eid, chunk_text, emb)
+
+                logger.info(f"🌱 Seeded {len(entities_to_embed)} entities for {email}")
+            except Exception as e:
+                logger.error(f"⚠️  Seed memory failed for {email}: {e}")
+
+        threading.Thread(target=_do_seed, daemon=True).start()
 
     def _send_verification_email(email: str, code: str):
         """Send 6-digit verification code via Resend."""
@@ -3910,6 +4082,7 @@ m.delete_webhook(webhook_id=1)</code></pre>
         user_id = store.create_user(email)
         api_key = store.create_api_key(user_id)
         _send_api_key_email(email, api_key, is_reset=False)
+        _seed_initial_memory(user_id, email)
 
         return SignupResponse(
             api_key=api_key,
@@ -4072,6 +4245,7 @@ m.delete_webhook(webhook_id=1)</code></pre>
         user_id = store.create_user(email)
         api_key = store.create_api_key(user_id, name="github-oauth")
         _send_api_key_email(email, api_key, is_reset=False)
+        _seed_initial_memory(user_id, email)
         logger.info(f"🐙 GitHub OAuth signup: {email}")
 
         return _github_success_page(api_key, email)
@@ -6471,6 +6645,11 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         "pro": os.environ.get("PADDLE_PRICE_PRO", ""),
         "business": os.environ.get("PADDLE_PRICE_BUSINESS", ""),
     }
+    PADDLE_PRICES_ANNUAL = {
+        "starter": os.environ.get("PADDLE_PRICE_STARTER_ANNUAL", ""),
+        "pro": os.environ.get("PADDLE_PRICE_PRO_ANNUAL", ""),
+        "business": os.environ.get("PADDLE_PRICE_BUSINESS_ANNUAL", ""),
+    }
 
     def _paddle_request(method: str, path: str, body: dict = None) -> dict:
         """Make authenticated Paddle API request."""
@@ -6564,6 +6743,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         sub = store.get_subscription(user_id)
         usage = store.get_all_usage_counts(user_id)
         quotas = PLAN_QUOTAS.get(ctx.plan, PLAN_QUOTAS["free"])
+        annual_available = any(PADDLE_PRICES_ANNUAL.get(p) for p in ("starter", "pro", "business"))
         return {
             "plan": ctx.plan,
             "status": sub.get("status", "active"),
@@ -6571,15 +6751,24 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             "usage": usage,
             "quotas": {k: v for k, v in quotas.items() if k != "rate_limit"},
             "rate_limit": quotas["rate_limit"],
+            "annual_available": annual_available,
         }
 
     @app.post("/v1/billing/checkout", tags=["Billing"])
-    async def create_checkout(plan: str = Query(..., pattern="^(starter|pro|business)$"), ctx: AuthContext = Depends(auth)):
+    async def create_checkout(
+        plan: str = Query(..., pattern="^(starter|pro|business)$"),
+        billing: str = Query("monthly", pattern="^(monthly|annual)$"),
+        ctx: AuthContext = Depends(auth),
+    ):
         """Create Paddle checkout or update existing subscription for plan change."""
         user_id = ctx.user_id
         if not PADDLE_API_KEY:
             raise HTTPException(status_code=503, detail="Billing not configured")
-        price_id = PADDLE_PRICES.get(plan, "")
+        # Use annual price if available, fall back to monthly
+        if billing == "annual":
+            price_id = PADDLE_PRICES_ANNUAL.get(plan, "") or PADDLE_PRICES.get(plan, "")
+        else:
+            price_id = PADDLE_PRICES.get(plan, "")
         if not price_id:
             raise HTTPException(status_code=400, detail=f"Unknown plan: {plan}")
 
@@ -6726,11 +6915,11 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 items = data.get("items", [])
                 if items:
                     price_id = items[0].get("price", {}).get("id", "")
-                    if price_id == PADDLE_PRICES.get("business"):
+                    if price_id in (PADDLE_PRICES.get("business"), PADDLE_PRICES_ANNUAL.get("business")):
                         plan = "business"
-                    elif price_id == PADDLE_PRICES.get("pro"):
+                    elif price_id in (PADDLE_PRICES.get("pro"), PADDLE_PRICES_ANNUAL.get("pro")):
                         plan = "pro"
-                    elif price_id == PADDLE_PRICES.get("starter"):
+                    elif price_id in (PADDLE_PRICES.get("starter"), PADDLE_PRICES_ANNUAL.get("starter")):
                         plan = "starter"
             if not plan:
                 plan = "pro"
@@ -6790,11 +6979,11 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 items = data.get("items", [])
                 if items:
                     price_id = items[0].get("price", {}).get("id", "")
-                    if price_id == PADDLE_PRICES.get("business"):
+                    if price_id in (PADDLE_PRICES.get("business"), PADDLE_PRICES_ANNUAL.get("business")):
                         updates["plan"] = "business"
-                    elif price_id == PADDLE_PRICES.get("pro"):
+                    elif price_id in (PADDLE_PRICES.get("pro"), PADDLE_PRICES_ANNUAL.get("pro")):
                         updates["plan"] = "pro"
-                    elif price_id == PADDLE_PRICES.get("starter"):
+                    elif price_id in (PADDLE_PRICES.get("starter"), PADDLE_PRICES_ANNUAL.get("starter")):
                         updates["plan"] = "starter"
                 current_period = data.get("current_billing_period", {})
                 if current_period.get("starts_at"):

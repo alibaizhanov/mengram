@@ -708,27 +708,14 @@
                 <div id="billing-usage" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:12px;"></div>
             </div>
             <div class="set-section" id="billing-upgrade">
-                <h3>Upgrade</h3>
-                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-top:12px;">
-                    <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:20px;text-align:center;">
-                        <div style="font-size:16px;font-weight:700;margin-bottom:4px;">Starter</div>
-                        <div style="font-size:28px;font-weight:700;color:var(--accent);margin-bottom:4px;">$5<span style="font-size:14px;color:var(--text-2);font-weight:400;">/mo</span></div>
-                        <div style="font-size:12px;color:var(--text-2);margin-bottom:14px;">100 adds, 500 searches</div>
-                        <button onclick="upgradePlan('starter')" id="btn-upgrade-starter" style="width:100%;padding:10px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600;font-family:inherit;">Upgrade to Starter</button>
-                    </div>
-                    <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:20px;text-align:center;">
-                        <div style="font-size:16px;font-weight:700;margin-bottom:4px;">Pro</div>
-                        <div style="font-size:28px;font-weight:700;color:var(--accent);margin-bottom:4px;">$19<span style="font-size:14px;color:var(--text-2);font-weight:400;">/mo</span></div>
-                        <div style="font-size:12px;color:var(--text-2);margin-bottom:14px;">1K adds, 10K searches, LLM rerank</div>
-                        <button onclick="upgradePlan('pro')" id="btn-upgrade-pro" style="width:100%;padding:10px;background:var(--bg-elevated);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:14px;font-weight:600;font-family:inherit;">Upgrade to Pro</button>
-                    </div>
-                    <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:20px;text-align:center;">
-                        <div style="font-size:16px;font-weight:700;margin-bottom:4px;">Business</div>
-                        <div style="font-size:28px;font-weight:700;color:var(--accent);margin-bottom:4px;">$99<span style="font-size:14px;color:var(--text-2);font-weight:400;">/mo</span></div>
-                        <div style="font-size:12px;color:var(--text-2);margin-bottom:14px;">5K adds, 30K searches, Cohere rerank</div>
-                        <button onclick="upgradePlan('business')" id="btn-upgrade-business" style="width:100%;padding:10px;background:var(--bg-elevated);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:14px;font-weight:600;font-family:inherit;">Upgrade to Business</button>
+                <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:12px;">
+                    <h3 style="margin:0;">Upgrade</h3>
+                    <div id="billing-toggle" style="display:none;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:3px;font-size:13px;">
+                        <button id="toggle-monthly" onclick="setBillingCycle('monthly')" style="padding:6px 14px;border:none;border-radius:6px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;background:var(--accent);color:#fff;">Monthly</button>
+                        <button id="toggle-annual" onclick="setBillingCycle('annual')" style="padding:6px 14px;border:none;border-radius:6px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:500;background:transparent;color:var(--text-2);">Annual <span style="color:var(--accent);font-size:11px;">-20%</span></button>
                     </div>
                 </div>
+                <div id="pricing-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;"></div>
             </div>
         </div>
 
@@ -2481,21 +2468,62 @@ async function loadBilling() {
 
         // Hide upgrade section if already on business
         document.getElementById('billing-upgrade').style.display = plan === 'business' ? 'none' : 'block';
-        // Mark current plan button as active, disable lower plans
-        const planOrder = ['free', 'starter', 'pro'];
-        const currentIdx = planOrder.indexOf(plan);
-        planOrder.forEach((p, i) => {
-            const btn = document.getElementById('btn-upgrade-' + p);
-            if (!btn) return;
-            if (p === plan) {
-                btn.textContent = 'Current Plan';
-                btn.disabled = true;
-                btn.style.opacity = '0.5';
-            } else if (i < currentIdx) {
-                btn.style.display = 'none';
-            }
-        });
+        // Show annual toggle if available
+        window._annualAvailable = d.annual_available || false;
+        document.getElementById('billing-toggle').style.display = window._annualAvailable ? 'flex' : 'none';
+        window._currentPlan = plan;
+        renderPricingCards();
     } catch(e) { console.error('loadBilling error:', e); }
+}
+
+let _billingCycle = 'monthly';
+const PLAN_PRICING = {
+    starter:  { monthly: 5,  annual: 48,  adds: '100',  searches: '500',  desc: '100 adds, 500 searches' },
+    pro:      { monthly: 19, annual: 180, adds: '1K',   searches: '10K',  desc: '1K adds, 10K searches, LLM rerank' },
+    business: { monthly: 99, annual: 948, adds: '5K',   searches: '30K',  desc: '5K adds, 30K searches, Cohere rerank' },
+};
+
+function setBillingCycle(cycle) {
+    _billingCycle = cycle;
+    document.getElementById('toggle-monthly').style.background = cycle === 'monthly' ? 'var(--accent)' : 'transparent';
+    document.getElementById('toggle-monthly').style.color = cycle === 'monthly' ? '#fff' : 'var(--text-2)';
+    document.getElementById('toggle-annual').style.background = cycle === 'annual' ? 'var(--accent)' : 'transparent';
+    document.getElementById('toggle-annual').style.color = cycle === 'annual' ? '#fff' : 'var(--text-2)';
+    renderPricingCards();
+}
+
+function renderPricingCards() {
+    const plan = window._currentPlan || 'free';
+    const planOrder = ['starter', 'pro', 'business'];
+    const currentIdx = planOrder.indexOf(plan);
+    let html = '';
+    let firstUpgrade = true;
+    planOrder.forEach((p, i) => {
+        if (i < currentIdx) return; // hide lower plans
+        const info = PLAN_PRICING[p];
+        const isAnnual = _billingCycle === 'annual' && window._annualAvailable;
+        const price = isAnnual ? info.annual : info.monthly;
+        const period = isAnnual ? '/yr' : '/mo';
+        const isCurrent = p === plan;
+        let btnStyle;
+        if (isCurrent) {
+            btnStyle = 'opacity:0.5;cursor:default;background:var(--bg-elevated);color:var(--text);border:1px solid var(--border);';
+        } else if (firstUpgrade) {
+            btnStyle = 'background:var(--accent);color:#fff;border:none;';
+            firstUpgrade = false;
+        } else {
+            btnStyle = 'background:var(--bg-elevated);color:var(--text);border:1px solid var(--border);';
+        }
+        const saveBadge = isAnnual && !isCurrent ? '<div style="font-size:11px;color:var(--accent);margin-bottom:8px;">Save 20% vs monthly</div>' : '';
+        html += `<div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:20px;text-align:center;">
+            <div style="font-size:16px;font-weight:700;margin-bottom:4px;">${p.charAt(0).toUpperCase() + p.slice(1)}</div>
+            <div style="font-size:28px;font-weight:700;color:var(--accent);margin-bottom:4px;">$${price}<span style="font-size:14px;color:var(--text-2);font-weight:400;">${period}</span></div>
+            ${saveBadge}
+            <div style="font-size:12px;color:var(--text-2);margin-bottom:14px;">${info.desc}</div>
+            <button onclick="upgradePlan('${p}')" id="btn-upgrade-${p}" ${isCurrent ? 'disabled' : ''} style="width:100%;padding:10px;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600;font-family:inherit;${btnStyle}">${isCurrent ? 'Current Plan' : 'Upgrade to ' + p.charAt(0).toUpperCase() + p.slice(1)}</button>
+        </div>`;
+    });
+    document.getElementById('pricing-cards').innerHTML = html;
 }
 
 let _upgrading = false;
@@ -2505,7 +2533,8 @@ async function upgradePlan(plan) {
     const btn = document.getElementById('btn-upgrade-' + plan);
     if (btn) { btn.disabled = true; btn.textContent = 'Processing...'; }
     try {
-        const r = await fetch(`${API}/v1/billing/checkout?plan=${plan}`, {
+        const billing = (_billingCycle === 'annual' && window._annualAvailable) ? 'annual' : 'monthly';
+        const r = await fetch(`${API}/v1/billing/checkout?plan=${plan}&billing=${billing}`, {
             method: 'POST', headers: H()
         });
         const d = await r.json();
