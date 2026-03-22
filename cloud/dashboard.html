@@ -710,9 +710,12 @@
             <div class="set-section" id="billing-upgrade">
                 <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:12px;">
                     <h3 style="margin:0;">Upgrade</h3>
-                    <div id="billing-toggle" style="display:none;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:3px;font-size:13px;">
-                        <button id="toggle-monthly" onclick="setBillingCycle('monthly')" style="padding:6px 14px;border:none;border-radius:6px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;background:var(--accent);color:#fff;">Monthly</button>
-                        <button id="toggle-annual" onclick="setBillingCycle('annual')" style="padding:6px 14px;border:none;border-radius:6px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:500;background:transparent;color:var(--text-2);">Annual <span style="color:var(--accent);font-size:11px;">-20%</span></button>
+                    <div id="billing-toggle" style="display:none;align-items:center;gap:8px;font-size:13px;">
+                        <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:3px;">
+                            <button id="toggle-monthly" onclick="setBillingCycle('monthly')" style="padding:6px 14px;border:none;border-radius:6px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;background:var(--accent);color:#fff;">Monthly</button>
+                            <button id="toggle-annual" onclick="setBillingCycle('annual')" style="padding:6px 14px;border:none;border-radius:6px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:500;background:transparent;color:var(--text-2);">Annual</button>
+                        </div>
+                        <span id="annual-badge" style="background:#7c3aed22;color:var(--accent);font-size:12px;font-weight:600;padding:4px 10px;border-radius:6px;white-space:nowrap;">Save 20%</span>
                     </div>
                 </div>
                 <div id="pricing-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;"></div>
