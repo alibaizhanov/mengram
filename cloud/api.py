@@ -904,7 +904,7 @@ Be strict — only include entities that directly answer or relate to the query.
                 <div style="margin-bottom:28px">
                     <p style="font-size:15px;color:#c8c8d8;margin:0 0 4px">Hey,</p>
                     <p style="font-size:15px;color:#c8c8d8;margin:0 0 16px;line-height:1.6">Ali here, founder of Mengram. Thanks for signing up!</p>
-                    <p style="font-size:15px;color:#e8e8f0;margin:0;line-height:1.6">You explain the same things to AI every day. Your stack. Your bugs. Your preferences. <strong style="color:#a855f7">Mengram remembers so you don't have to.</strong></p>
+                    <p style="font-size:15px;color:#e8e8f0;margin:0;line-height:1.6">Your AI agents run 24/7 but forget everything between sessions. <strong style="color:#a855f7">Mengram gives them persistent memory</strong> — facts, events, and learned workflows — that grows smarter with every run.</p>
                 </div>
 
                 <div style="background:#12121e;border:1px solid #1a1a2e;border-radius:10px;padding:18px;margin:20px 0;text-align:center">
@@ -915,13 +915,13 @@ Be strict — only include entities that directly answer or relate to the query.
 
                 <div style="background:#1a0a2e;border:2px solid #7c3aed;border-radius:12px;padding:20px;margin:24px 0;text-align:center">
                     <p style="color:#a78bfa;font-weight:700;font-size:16px;margin:0 0 10px">Try it now — 10 seconds</p>
-                    <p style="color:#8888a8;font-size:12px;margin:0 0 12px">Paste this in your terminal:</p>
+                    <p style="color:#8888a8;font-size:12px;margin:0 0 12px">Save an agent conversation:</p>
                     <div style="background:#12121e;border:1px solid #1a1a2e;border-radius:8px;padding:14px;text-align:left">
-                        <code style="font-size:12px;color:#22c55e;word-break:break-all;line-height:1.6">curl -X POST https://mengram.io/v1/add_text -H "Authorization: Bearer {api_key}" -H "Content-Type: application/json" -d '{{"text":"I am a developer who loves building things"}}'</code>
+                        <code style="font-size:12px;color:#22c55e;word-break:break-all;line-height:1.6">curl -X POST https://mengram.io/v1/add -H "Authorization: Bearer {api_key}" -H "Content-Type: application/json" -d '{{"messages":[{{"role":"user","content":"Fix the auth timeout bug"}},{{"role":"assistant","content":"Fixed. Token TTL was 5min, changed to 30min."}}],"agent_id":"coding-assistant"}}'</code>
                     </div>
-                    <p style="color:#8888a8;font-size:12px;margin:10px 0 0">Then search it back:</p>
+                    <p style="color:#8888a8;font-size:12px;margin:10px 0 0">Recall on the next run:</p>
                     <div style="background:#12121e;border:1px solid #1a1a2e;border-radius:8px;padding:14px;margin-top:8px;text-align:left">
-                        <code style="font-size:12px;color:#22c55e;word-break:break-all;line-height:1.6">curl -X POST https://mengram.io/v1/search -H "Authorization: Bearer {api_key}" -H "Content-Type: application/json" -d '{{"query":"what do I build?"}}'</code>
+                        <code style="font-size:12px;color:#22c55e;word-break:break-all;line-height:1.6">curl -X POST https://mengram.io/v1/search -H "Authorization: Bearer {api_key}" -H "Content-Type: application/json" -d '{{"query":"auth timeout","agent_id":"coding-assistant"}}'</code>
                     </div>
                 </div>
 
@@ -935,15 +935,18 @@ Be strict — only include entities that directly answer or relate to the query.
                         <code style="color:#22c55e;font-size:13px">pip install mengram-ai</code>
                     </div>
                     <div style="background:#12121e;border:1px solid #1a1a2e;border-radius:10px;padding:16px">
-                        <code style="color:#22c55e;font-size:13px">mengram setup --key {api_key}</code>
+                        <pre style="margin:0;font-size:12px;color:#22c55e;white-space:pre-wrap"><code>from mengram import Mengram
+m = Mengram("{api_key}")
+m.add(messages, agent_id="my-agent")
+m.search("query", agent_id="my-agent")</code></pre>
                     </div>
                 </div>
 
                 <div style="margin:28px 0">
                     <p style="font-size:13px;color:#c8c8d8;margin:0;line-height:2">
-                        <span style="color:#a855f7">→</span> <strong>Claude Code / MCP Server</strong> — auto-capture, auto-recall<br>
-                        <span style="color:#a855f7">→</span> <strong>Python / JS SDK</strong> — build apps with persistent memory<br>
-                        <span style="color:#a855f7">→</span> <strong>REST API</strong> — 90+ endpoints for any integration
+                        <span style="color:#a855f7">→</span> <strong>Agent Memory</strong> — agent_id + run_id scoping, multi-agent isolation<br>
+                        <span style="color:#a855f7">→</span> <strong>Procedural Learning</strong> — agents learn which workflows succeed<br>
+                        <span style="color:#a855f7">→</span> <strong>7 Integrations</strong> — CrewAI, LangChain, Claude Code, OpenClaw, n8n, MCP, REST
                     </p>
                 </div>
 
