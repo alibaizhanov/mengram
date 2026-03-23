@@ -2193,7 +2193,7 @@ async function loadKeys() {
                 : '<span style="color:var(--text-3);">○ revoked</span>';
             const lastUsed = k.last_used ? 'Used ' + new Date(k.last_used).toLocaleDateString() : 'Never used';
             const actions = k.active
-                ? `<button onclick="revokeKey(${k.id},'${escA(k.prefix)}')" style="padding:3px 10px;background:none;border:1px solid var(--border);border-radius:6px;color:var(--red);cursor:pointer;font-size:11px;">Revoke</button>`
+                ? `<button onclick="revokeKey('${escA(k.id)}','${escA(k.prefix)}')" style="padding:3px 10px;background:none;border:1px solid var(--border);border-radius:6px;color:var(--red);cursor:pointer;font-size:11px;">Revoke</button>`
                 : '';
             return `<div style="background:var(--bg-card);border-radius:10px;padding:10px 14px;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;">
                 <div>
