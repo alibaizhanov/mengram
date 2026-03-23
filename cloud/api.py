@@ -1282,7 +1282,7 @@ m.add("I love hiking in the mountains")</code></pre>
 
         # Cache (5 min — demo data is static)
         import hashlib as _hl
-        cache_key = f"playground:{_hl.md5(q.encode()).hexdigest()}"
+        cache_key = f"playground:{_hl.md5(q.encode('utf-8', errors='replace')).hexdigest()}"
         cached = store.cache.get(cache_key)
         if cached:
             return cached
@@ -5473,7 +5473,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
         # ---- Redis cache: same query → instant response ----
         filter_str = json.dumps(meta_filters, sort_keys=True) if meta_filters else ""
-        cache_key = f"search:{user_id}:{sub_uid}:{_hashlib.md5(f'{req.query}:{req.limit}:{req.graph_depth}:{filter_str}'.encode()).hexdigest()}"
+        cache_key = f"search:{user_id}:{sub_uid}:{_hashlib.md5(f'{req.query}:{req.limit}:{req.graph_depth}:{filter_str}'.encode('utf-8', errors='replace')).hexdigest()}"
         cached = store.cache.get(cache_key)
         if cached:
             store.log_usage(user_id, "search")
@@ -6354,7 +6354,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
         # ---- Redis cache ----
         filter_str = json.dumps(meta_filters, sort_keys=True) if meta_filters else ""
-        cache_key = f"searchall:{user_id}:{sub_uid}:{_hashlib.md5(f'{req.query}:{req.limit}:{req.graph_depth}:{filter_str}'.encode()).hexdigest()}"
+        cache_key = f"searchall:{user_id}:{sub_uid}:{_hashlib.md5(f'{req.query}:{req.limit}:{req.graph_depth}:{filter_str}'.encode('utf-8', errors='replace')).hexdigest()}"
         cached = store.cache.get(cache_key)
         if cached:
             store.log_usage(user_id, "search_all")
