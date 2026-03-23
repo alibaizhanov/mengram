@@ -557,10 +557,10 @@ Be strict — only include entities that directly answer or relate to the query.
         except Exception:
             pass  # Redis down → counter will be set on next request
 
-        # Step 4: 80% quota warning email (one-time per month)
+        # Step 4: 80% quota warning email (one-time per month, deduped via drip_emails)
         if action in ("add", "search") and max_allowed > 0:
             threshold = int(max_allowed * 0.8)
-            if new_count >= threshold and (new_count - count) < threshold:
+            if new_count >= threshold:
                 # Just crossed 80% — send warning
                 try:
                     _email = store.get_user_email(ctx.user_id)
