@@ -1,8 +1,19 @@
 """
 Mengram CrewAI Integration — persistent memory tools for CrewAI agents.
 
-Give your CrewAI agents human-like memory that persists across sessions.
-Agents automatically learn workflows as procedures and improve over time.
+RECOMMENDED: Use MengramMemory (drop-in memory backend) instead of manual tools:
+
+    from integrations.crewai_memory import MengramMemory
+
+    crew = Crew(
+        agents=[agent],
+        tasks=[task],
+        memory=MengramMemory(api_key="om-..."),
+    )
+
+This file provides the LEGACY tool-based approach. Use if you need fine-grained
+control over when agents search/remember, or if you're on an older CrewAI version
+that doesn't support custom memory backends.
 
 Usage:
 
@@ -17,12 +28,6 @@ Usage:
     )
 
     crew = Crew(agents=[agent], tasks=[...])
-
-Killer Feature — Procedural Learning:
-
-    When an agent completes a multi-step workflow, Mengram saves it as a procedure.
-    Next time a similar task comes up, the agent already knows the optimal path
-    with success/failure tracking. No other memory system does this.
 
 Tools provided:
     - mengram_search: Search all 3 memory types (semantic, episodic, procedural)
