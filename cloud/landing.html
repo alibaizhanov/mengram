@@ -620,6 +620,23 @@
         .feat-icon {
             font-size: 24px;
             margin-bottom: 14px;
+            color: var(--text-2);
+        }
+        .feat-icon svg {
+            width: 24px;
+            height: 24px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 1.5;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+        .install-tab svg.tab-icon {
+            width: 16px;
+            height: 16px;
+            display: inline-block;
+            vertical-align: -2px;
+            margin-right: 4px;
         }
         .feat-card h3 {
             font-size: 16px;
@@ -748,6 +765,16 @@
         .agent-step-icon {
             font-size: 32px;
             margin-bottom: 12px;
+            color: var(--text-2);
+        }
+        .agent-step-icon svg {
+            width: 28px;
+            height: 28px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 1.5;
+            stroke-linecap: round;
+            stroke-linejoin: round;
         }
         .agent-step h3 {
             font-size: 16px;
@@ -1555,7 +1582,8 @@
             background: var(--accent-dim);
             color: var(--text);
         }
-        .cmd-icon { font-size: 16px; width: 24px; text-align: center; flex-shrink: 0; }
+        .cmd-icon { font-size: 16px; width: 24px; text-align: center; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; }
+        .cmd-icon svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
         .cmd-label { flex: 1; }
         .cmd-hint { font-size: 11px; color: var(--text-3); font-family: 'JetBrains Mono', monospace; }
         .cmd-palette-footer {
@@ -1630,7 +1658,7 @@
                     { "@type": "Offer", "price": "99", "priceCurrency": "USD", "name": "Business" },
                     { "@type": "Offer", "price": "0", "priceCurrency": "USD", "name": "Enterprise", "description": "Custom pricing — contact us" }
                 ],
-                "featureList": "Interactive Playground, Claude Code Auto-Save Hooks, Claude Code Auto-Recall, Cognitive Profile, Semantic Memory, Episodic Memory, Procedural Memory, Memory Agents, Knowledge Graph, MCP Server (29 tools), LangChain Integration, CrewAI Integration, Python SDK, JavaScript SDK, REST API",
+                "featureList": "Interactive Playground, Agent Memory, Claude Code Auto-Save Hooks, Claude Code Auto-Recall, Cognitive Profile, Semantic Memory, Episodic Memory, Procedural Memory, Memory Agents, Knowledge Graph, MCP Server (29 tools), LangChain Integration, CrewAI Drop-in Memory, OpenClaw Plugin, n8n Workflow, Python SDK, JavaScript SDK, REST API",
                 "softwareVersion": "2.19.0",
                 "author": { "@type": "Person", "name": "Ali Baizhanov" },
                 "license": "https://opensource.org/licenses/Apache-2.0",
@@ -1692,6 +1720,22 @@
                         "acceptedAnswer": {
                             "@type": "Answer",
                             "text": "claude-mem only saves conversations. Mengram provides a full memory loop: auto-save, auto-recall (searches past sessions on every prompt and injects context), and cognitive profile loading on session start. Mengram also stores 3 memory types (semantic, episodic, procedural), works across MCP, LangChain, CrewAI, and any tool — not just Claude Code."
+                        }
+                    },
+                    {
+                        "@type": "Question",
+                        "name": "How do I add memory to my AI agent?",
+                        "acceptedAnswer": {
+                            "@type": "Answer",
+                            "text": "Mengram provides drop-in memory for AI agents. For CrewAI: pass memory=MengramMemory(api_key='om-...') to any Crew — agents get recall and remember tools automatically. For LangChain: use MengramRetriever as a retriever in any LCEL chain. For OpenClaw: install the openclaw-mengram plugin for auto-recall before every turn and auto-capture after. For any framework: use the REST API — POST /v1/add to save, POST /v1/search to recall. All agents get semantic facts, episodic events, and procedural workflows that improve over time."
+                        }
+                    },
+                    {
+                        "@type": "Question",
+                        "name": "What frameworks does Mengram integrate with?",
+                        "acceptedAnswer": {
+                            "@type": "Answer",
+                            "text": "Mengram integrates with 7 frameworks: CrewAI (drop-in MengramMemory backend), LangChain (retriever + chat message history), OpenClaw (plugin with 12 tools and auto-recall/capture hooks), Claude Code (auto-save and auto-recall hooks), n8n (ready-to-import workflow), MCP server (29 tools for Claude Desktop, Cursor, Windsurf), and a REST API that works with any language or framework."
                         }
                     }
                 ]
@@ -1757,7 +1801,7 @@
                 <div class="terminal-body" id="terminal-body"></div>
             </div>
             <div class="hero-cta reveal" style="transition-delay:0.4s">
-                <a href="#signup" class="btn btn-primary">⚡ Get API Key Free</a>
+                <a href="#signup" class="btn btn-primary">Get API Key Free</a>
                 <a href="https://docs.mengram.io" class="btn btn-secondary">Read the Docs</a>
                 <a href="https://github.com/alibaizhanov/mengram" class="btn btn-secondary" style="display:inline-flex;align-items:center;gap:6px;">
                     <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" style="flex-shrink:0;"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
@@ -1865,13 +1909,13 @@
             <p class="reveal">Connect Mengram to your AI tools via MCP, Python, or JavaScript SDK.</p>
 
             <div class="install-tabs">
-                <button class="install-tab active" onclick="showInstall(event,'claude')">🟣 Claude Desktop / MCP</button>
-                <button class="install-tab" onclick="showInstall(event,'api')">🐍 Python</button>
-                <button class="install-tab" onclick="showInstall(event,'js')">⚡ JavaScript</button>
-                <button class="install-tab" onclick="showInstall(event,'langchain')">🦜 LangChain</button>
-                <button class="install-tab" onclick="showInstall(event,'crewai')">🚀 CrewAI</button>
-                <button class="install-tab" onclick="showInstall(event,'openclaw')">🦞 OpenClaw</button>
-                <button class="install-tab" onclick="showInstall(event,'n8n')">⚙️ n8n</button>
+                <button class="install-tab active" onclick="showInstall(event,'claude')"><svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M17.3041 3.541h-3.6718l6.696 16.918H24Zm-10.6082 0L0 20.459h3.7442l1.3693-3.5527h7.0052l1.3693 3.5528h3.7442L10.5363 3.5409Zm-.3712 10.2232 2.2914-5.9456 2.2914 5.9456Z"/></svg> Claude / MCP</button>
+                <button class="install-tab" onclick="showInstall(event,'api')"><svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M9.585 11.692h4.328s2.432.039 2.432-2.35V5.391S16.714 3 11.818 3C7.023 3 7.014 5.169 7.014 5.169l.003 2.246h4.878v.676H4.937S3 7.862 3 12.056c0 4.194 1.708 4.042 1.708 4.042h1.019v-1.945s-.055-1.708 1.681-1.708h4.006s1.627.026 1.627-1.575V7.391s.247-1.657-3.94-1.657c0 0-3.156-.174-3.156 1.82v2.054h3.64v2.084zm-.27-5.821a.656.656 0 1 1 0 1.312.656.656 0 0 1 0-1.312z"/><path d="M14.415 12.308H10.087s-2.432-.039-2.432 2.35v3.951S7.286 21 12.182 21c4.895 0 4.904-2.169 4.904-2.169l-.003-2.246h-4.878v-.676h6.958S21 16.138 21 11.944c0-4.194-1.708-4.042-1.708-4.042h-1.019v1.945s.055 1.708-1.681 1.708h-4.006s-1.627-.026-1.627 1.575v3.479s-.247 1.657 3.94 1.657c0 0 3.156.174 3.156-1.82v-2.054h-3.64v-2.084zm.27 5.821a.656.656 0 1 1 0-1.312.656.656 0 0 1 0 1.312z"/></svg> Python</button>
+                <button class="install-tab" onclick="showInstall(event,'js')"><svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M0 0h24v24H0V0zm22.034 18.276c-.175-1.095-.888-2.015-3.003-2.873-.736-.345-1.554-.585-1.797-1.14-.091-.33-.105-.51-.046-.705.15-.646.915-.84 1.515-.66.39.12.75.42.976.9 1.034-.676 1.034-.676 1.755-1.125-.27-.42-.405-.585-.585-.765-.63-.675-1.47-1.02-2.834-.975l-.705.089c-.676.165-1.32.525-1.71 1.005-1.14 1.275-.81 3.51.573 4.44 1.365.96 3.375 1.17 3.63 2.07.255 1.08-.795 1.425-1.8 1.305-.75-.165-1.17-.585-1.62-1.335L13.48 19.5c.24.57.555.84.975 1.35 2.01 1.725 7.02 1.635 7.92-1.635.03-.09.255-.72.06-1.68l-.4-.759zM13.785 8h-2.24v7.5c0 1.695.09 2.235-.195 2.565-.405.42-1.335.33-1.785.165-.465-.24-.705-.585-.975-1.02L6.585 18.57c.555 1.11 1.35 1.875 2.73 2.235 1.785.42 3.885-.195 4.32-1.695.195-.56.15-1.2.15-1.935V8z"/></svg> JavaScript</button>
+                <button class="install-tab" onclick="showInstall(event,'langchain')"><svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M6.0988 5.9175C2.7359 5.9175 0 8.6462 0 12s2.736 6.0825 6.0988 6.0825h11.8024C21.2641 18.0825 24 15.3538 24 12s-2.736-6.0825-6.0988-6.0825Zm12.2857 10.2335a4.18 4.18 0 0 1-2.9507-1.2161 4.135 4.135 0 0 1-1.2162-2.9349c0-1.1052.432-2.1445 1.2162-2.9349a4.18 4.18 0 0 1 2.9507-1.2161 4.18 4.18 0 0 1 2.9507 1.2161A4.135 4.135 0 0 1 22.335 12a4.135 4.135 0 0 1-1.2161 2.935 4.18 4.18 0 0 1-2.9344 1.216z"/></svg> LangChain</button>
+                <button class="install-tab" onclick="showInstall(event,'crewai')"><svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12.482.18C7.161 1.319 1.478 9.069 1.426 15.372c-.051 5.527 3.1 8.68 8.68 8.627 6.716-.05 14.259-6.87 12.09-10.9-.672-1.292-1.396-1.344-2.687-.207-1.602 1.395-1.654.31-.207-2.893 1.757-3.98 1.705-5.322-.31-7.544C17.03.388 14.962-.388 12.482.181z"/></svg> CrewAI</button>
+                <button class="install-tab" onclick="showInstall(event,'openclaw')"><svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M7 2C4 2 2 4.5 2 7.5S4 13 7 13h2v8h6v-8h2c3 0 5-2.5 5-5.5S20 2 17 2c-1.5 0-3 .8-3.8 2L12 6l-1.2-2C9.9 2.8 8.5 2 7 2z"/></svg> OpenClaw</button>
+                <button class="install-tab" onclick="showInstall(event,'n8n')"><svg class="tab-icon" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M21.4737 5.6842c-1.1772 0-2.1663.8051-2.4468 1.8947h-2.8955c-1.235 0-2.289.893-2.492 2.111l-.1038.623a1.263 1.263 0 0 1-1.246 1.0555H11.289c-.2805-1.0896-1.2696-1.8947-2.4468-1.8947s-2.1663.8051-2.4467 1.8947H4.973c-.2805-1.0896-1.2696-1.8947-2.4468-1.8947C1.1311 9.4737 0 10.6047 0 12s1.131 2.5263 2.5263 2.5263c1.1772 0 2.1663-.8051 2.4468-1.8947h1.4223c.2804 1.0896 1.2696 1.8947 2.4467 1.8947 1.1772 0 2.1663-.8051 2.4468-1.8947h1.0008a1.263 1.263 0 0 1 1.2459 1.0555l.1038.623c.203 1.218 1.257 2.111 2.492 2.111h.3692c.2804 1.0895 1.2696 1.8947 2.4468 1.8947 1.3952 0 2.5263-1.131 2.5263-2.5263s-1.131-2.5263-2.5263-2.5263c-1.1772 0-2.1664.805-2.4468 1.8947h-.3692a1.263 1.263 0 0 1-1.246-1.0555l-.1037-.623A2.52 2.52 0 0 0 13.9607 12a2.52 2.52 0 0 0 .821-1.4794l.1038-.623a1.263 1.263 0 0 1 1.2459-1.0555h2.8955c.2805 1.0896 1.2696 1.8947 2.4468 1.8947 1.3952 0 2.5263-1.131 2.5263-2.5263s-1.131-2.5263-2.5263-2.5263"/></svg> n8n</button>
             </div>
 
             <!-- Claude Desktop -->
@@ -2090,33 +2134,38 @@ chain_with_memory = RunnableWithMessageHistory(
                             <h4>Install</h4>
                             <div class="code-box">
                                 <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-                                <code>pip install mengram-ai[crewai]</code>
+                                <code>pip install mengram-ai crewai</code>
                             </div>
                         </div>
                     </div>
                     <div class="step">
                         <div class="step-num">2</div>
                         <div>
-                            <h4>Give agents persistent memory</h4>
-                            <p>5 tools: search, remember, profile, save_workflow, workflow_feedback. Agents learn optimal workflows over time.</p>
+                            <h4>Drop-in memory backend — one line</h4>
+                            <p>Pass <code>memory=MengramMemory()</code> to any Crew. Agents get recall + remember tools automatically. Mengram handles extraction, search, and procedural learning server-side.</p>
                             <div class="code-box">
                                 <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-<pre><span class="c-kw">from</span> <span class="c-fn">crewai</span> <span class="c-kw">import</span> Agent, Crew
-<span class="c-kw">from</span> <span class="c-fn">integrations.crewai</span> <span class="c-kw">import</span> create_mengram_tools
-
-tools = create_mengram_tools(
-    api_key=<span class="c-str">"om-..."</span>,
-)
+<pre><span class="c-kw">from</span> <span class="c-fn">crewai</span> <span class="c-kw">import</span> Agent, Crew, Task
+<span class="c-kw">from</span> <span class="c-fn">integrations.crewai_memory</span> <span class="c-kw">import</span> MengramMemory
 
 agent = Agent(
-    role=<span class="c-str">"Support Engineer"</span>,
-    goal=<span class="c-str">"Help users with technical issues"</span>,
-    tools=tools,
+    role=<span class="c-str">"DevOps Engineer"</span>,
+    goal=<span class="c-str">"Deploy and monitor services"</span>,
 )
 
-<span class="c-cmt"># Agent completes workflow → Mengram saves as procedure</span>
-<span class="c-cmt"># Next time → agent finds optimal path with success tracking</span>
-crew = Crew(agents=[agent], tasks=[...])</pre>
+task = Task(
+    description=<span class="c-str">"Deploy v2.15 to staging"</span>,
+    agent=agent,
+)
+
+<span class="c-cmt"># One line adds persistent memory to your entire crew</span>
+crew = Crew(
+    agents=[agent],
+    tasks=[task],
+    memory=MengramMemory(api_key=<span class="c-str">"om-..."</span>),
+)
+crew.kickoff()
+<span class="c-cmt"># → Agent recalls past deployments, learns from failures</span></pre>
                             </div>
                         </div>
                     </div>
@@ -2139,7 +2188,7 @@ crew = Crew(agents=[agent], tasks=[...])</pre>
                         <div class="step-num">2</div>
                         <div>
                             <h4>Configure in openclaw.json</h4>
-                            <p>Auto-recall before every turn, auto-capture after every turn. 12 tools, slash commands, CLI. Memory works automatically — zero code needed.</p>
+                            <p>v2.2 — Auto-recall before every turn (cacheable profile), auto-capture after every turn. 12 tools, slash commands, CLI. Backward compatible with older OpenClaw.</p>
                             <div class="code-box">
                                 <button class="copy-btn" onclick="copyCode(this)">Copy</button>
 <pre>{
@@ -2171,7 +2220,7 @@ crew = Crew(agents=[agent], tasks=[...])</pre>
                             <h4>Import the workflow</h4>
                             <p>Download the ready-made workflow and import it into n8n via <strong>Workflows → Import from File</strong>.</p>
                             <div class="code-box">
-                                <a href="https://github.com/alibaizhanov/mengram/tree/main/examples/n8n" target="_blank" rel="noopener noreferrer" style="color:var(--purple);text-decoration:none;">📥 Download n8n workflow from GitHub</a>
+                                <a href="https://github.com/alibaizhanov/mengram/tree/main/examples/n8n" target="_blank" rel="noopener noreferrer" style="color:var(--purple);text-decoration:none;">Download n8n workflow from GitHub</a>
                             </div>
                         </div>
                     </div>
@@ -2251,19 +2300,19 @@ results = m.search(<span class="c-str">"What does Ali prefer?"</span>)</div>
             <p class="reveal">Your agents run 24/7 but forget everything between sessions. Mengram gives them persistent memory that grows smarter over time.</p>
             <div class="agent-flow stagger">
                 <div class="agent-step reveal">
-                    <div class="agent-step-icon">🤖</div>
+                    <div class="agent-step-icon"><svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>
                     <h3>Agent Acts</h3>
                     <p>Your agent completes a task &mdash; applies to a job, deploys code, handles a ticket.</p>
                 </div>
                 <div class="agent-arrow reveal">&#10132;</div>
                 <div class="agent-step reveal" style="border-color: var(--accent); box-shadow: 0 0 20px var(--accent-dim);">
-                    <div class="agent-step-icon">🧠</div>
+                    <div class="agent-step-icon"><svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7z"/><path d="M10 21h4"/></svg></div>
                     <h3>Mengram Remembers</h3>
                     <p>One <code>add()</code> call extracts facts, events, and procedures. The agent builds experience.</p>
                 </div>
                 <div class="agent-arrow reveal">&#10132;</div>
                 <div class="agent-step reveal">
-                    <div class="agent-step-icon">⚡</div>
+                    <div class="agent-step-icon"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
                     <h3>Next Run is Smarter</h3>
                     <p>On the next task, <code>search()</code> recalls what worked and what failed. The agent improves autonomously.</p>
                 </div>
@@ -2291,7 +2340,7 @@ results = m.search(<span class="c-str">"What does Ali prefer?"</span>)</div>
                 <div class="feat-card feat-card-gradient feat-bento-large reveal">
                     <div class="feat-bento-content">
                         <span class="feat-badge-unique">Only in Mengram</span>
-                        <div class="feat-icon">🧠</div>
+                        <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M12 2a9 9 0 0 1 9 9c0 3-1.5 5.5-3.8 7"/><path d="M12 2a9 9 0 0 0-9 9c0 3 1.5 5.5 3.8 7"/><path d="M9.4 18.4C10 19.4 10.9 20 12 20s2-.6 2.6-1.6"/><path d="M12 2v4"/><path d="M4.9 7.5l3.5 2"/><path d="M19.1 7.5l-3.5 2"/><path d="M8 22h8"/><path d="M10 22v-2"/><path d="M14 22v-2"/></svg></div>
                         <h3>3 Memory Types</h3>
                         <p><strong>Semantic</strong> — facts & preferences. <strong>Episodic</strong> — events & decisions. <strong>Procedural</strong> — learned workflows. Just like a human brain.</p>
                     </div>
@@ -2307,7 +2356,7 @@ results = m.search(<span class="c-str">"What does Ali prefer?"</span>)</div>
                 <div class="feat-card feat-card-gradient feat-bento-large reveal">
                     <div class="feat-bento-content">
                         <span class="feat-badge-unique">Only in Mengram</span>
-                        <div class="feat-icon">👤</div>
+                        <div class="feat-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg></div>
                         <h3>Cognitive Profile</h3>
                         <p>One API call generates a ready-to-use system prompt from all memories. Insert into any LLM for instant personalization.</p>
                     </div>
@@ -2322,64 +2371,64 @@ results = m.search(<span class="c-str">"What does Ali prefer?"</span>)</div>
                     </div>
                 </div>
                 <div class="feat-card reveal">
-                    <div class="feat-icon">🤖</div>
+                    <div class="feat-icon"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="9" cy="16" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="16" r="1" fill="currentColor" stroke="none"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
                     <h3>Memory Agents</h3>
                     <p>Curator cleans contradictions. Connector finds hidden patterns. Digest gives weekly briefs. Runs autonomously.</p>
                 </div>
                 <div class="feat-card reveal">
-                    <div class="feat-icon">🔍</div>
+                    <div class="feat-icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></div>
                     <h3>Unified Search</h3>
                     <p>Search across all 3 memory types at once. Vector + BM25 + graph expansion + LLM re-ranking. One call returns facts, events, and workflows.</p>
                 </div>
                 <div class="feat-card reveal">
-                    <div class="feat-icon">⚙️</div>
+                    <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg></div>
                     <h3>Procedure Feedback</h3>
                     <p>Your AI learns which workflows succeed. Track success/fail counts per procedure. Proven patterns surface first.</p>
                 </div>
                 <div class="feat-card reveal" style="border-color: var(--green); box-shadow: 0 0 20px rgba(52,211,153,0.15);">
-                    <div class="feat-icon">👥</div>
+                    <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
                     <h3>Multi-User Isolation</h3>
                     <p>One API key, many users. Pass <code>user_id</code> to scope memories per end-user. Each user gets their own isolated facts, events, workflows, and cognitive profile.</p>
                 </div>
                 <div class="feat-card reveal">
-                    <div class="feat-icon">🤝</div>
+                    <div class="feat-icon"><svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4"/><path d="m8.6 10.5 6.8-4"/></svg></div>
                     <h3>Team Memory</h3>
                     <p>Share knowledge with your team. Everyone's AI sees the shared context. Invite code to join — 10 seconds.</p>
                 </div>
                 <div class="feat-card reveal">
-                    <div class="feat-icon">🔔</div>
+                    <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></div>
                     <h3>Webhooks</h3>
                     <p>Get notified when memories change. Connect to Slack, Zapier, Notion — any HTTP endpoint.</p>
                 </div>
                 <div class="feat-card reveal">
-                    <div class="feat-icon">🕸️</div>
+                    <div class="feat-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path d="m12 7v4"/><path d="m7.5 17.5 3-6.5"/><path d="m16.5 17.5-3-6.5"/><path d="M7 19h10"/></svg></div>
                     <h3>Knowledge Graph</h3>
                     <p>Entities, relations, facts — not just text. "Ali works_at Uzum Bank", not "the user mentioned a bank".</p>
                 </div>
                 <div class="feat-card reveal">
-                    <div class="feat-icon">✨</div>
+                    <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg></div>
                     <h3>AI Reflections</h3>
                     <p>Generates insights from your facts — behavioral patterns, skill clusters, strategic observations.</p>
                 </div>
                 <div class="feat-card reveal">
-                    <div class="feat-icon">🦜</div>
-                    <h3>LangChain, CrewAI, n8n & more</h3>
-                    <p>Drop-in integrations everywhere. LangChain memory, CrewAI tools, n8n workflows, OpenClaw plugin — one install to add 3 memory types to any framework.</p>
+                    <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/><path d="M12 17v5"/></svg></div>
+                    <h3>7 Framework Integrations</h3>
+                    <p>CrewAI memory backend, LangChain retriever, OpenClaw v2.2 plugin, n8n workflows, Claude Code hooks, MCP server, REST API — one install adds 3 memory types.</p>
                 </div>
                 <div class="feat-card feat-card-gradient reveal">
                     <span class="feat-badge-unique">Only in Mengram</span>
-                    <div class="feat-icon">⚡</div>
+                    <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
                     <h3>Smart Triggers</h3>
                     <p>Memory that raises its hand. Reminders from conversations, contradiction alerts, workflow pattern detection. Your AI proactively tells you what it remembers.</p>
                 </div>
                 <div class="feat-card reveal" style="border-color: var(--green); box-shadow: 0 0 20px rgba(52,211,153,0.15);">
-                    <div class="feat-icon">📥</div>
+                    <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></div>
                     <h3>Import Existing Data</h3>
                     <p>One command to import ChatGPT exports, Obsidian vaults, or text files. No cold start — your memory is useful from day 1. CLI + Python + JS SDK.</p>
                 </div>
                 <div class="feat-card feat-card-gradient reveal">
                     <span class="feat-badge-unique">Only in Mengram</span>
-                    <div class="feat-icon">🧬</div>
+                    <div class="feat-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M12 15V9"/><path d="m8.7 7.5 2.6 3"/><path d="m15.3 7.5-2.6 3"/></svg></div>
                     <h3>Experience-Driven Procedures</h3>
                     <p>Self-improving workflows. Failures auto-evolve procedures to new versions. 3+ similar successes auto-create new workflows. Version history + evolution log.</p>
                 </div>
@@ -2393,7 +2442,7 @@ results = m.search(<span class="c-str">"What does Ali prefer?"</span>)</div>
             <div class="features-grid" style="grid-template-columns: repeat(3, 1fr); margin-top: 30px;">
                 <a href="https://github.com/alibaizhanov/mengram/tree/main/examples/devops-agent" target="_blank" rel="noopener noreferrer" style="text-decoration:none;">
                     <div class="feat-card reveal" style="cursor:pointer; border-color: var(--green); box-shadow: 0 0 20px rgba(52,211,153,0.15);">
-                        <div class="feat-icon">🚀</div>
+                        <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg></div>
                         <h3>DevOps Agent</h3>
                         <p><strong>CloudMemory SDK</strong> — Learns deployment procedures from conversations. Reports failure → procedure auto-evolves. Version history tracks improvements.</p>
                         <span style="color:var(--green);font-size:12px;font-weight:600;">No LLM key needed →</span>
@@ -2401,7 +2450,7 @@ results = m.search(<span class="c-str">"What does Ali prefer?"</span>)</div>
                 </a>
                 <a href="https://github.com/alibaizhanov/mengram/tree/main/examples/customer-support-agent" target="_blank" rel="noopener noreferrer" style="text-decoration:none;">
                     <div class="feat-card reveal" style="cursor:pointer;">
-                        <div class="feat-icon">💬</div>
+                        <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
                         <h3>Customer Support</h3>
                         <p><strong>CrewAI + Mengram</strong> — 5 memory tools. Agent searches history, loads cognitive profile, saves new info. Run twice to see "returning customer" effect.</p>
                         <span style="color:var(--accent);font-size:12px;font-weight:600;">Interactive demo →</span>
@@ -2409,7 +2458,7 @@ results = m.search(<span class="c-str">"What does Ali prefer?"</span>)</div>
                 </a>
                 <a href="https://github.com/alibaizhanov/mengram/tree/main/examples/personal-assistant" target="_blank" rel="noopener noreferrer" style="text-decoration:none;">
                     <div class="feat-card reveal" style="cursor:pointer;">
-                        <div class="feat-icon">🧑‍💼</div>
+                        <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
                         <h3>Personal Assistant</h3>
                         <p><strong>LangChain + Mengram</strong> — Cognitive profile as system prompt, retriever for RAG, auto-saving history. Gets smarter with every conversation.</p>
                         <span style="color:var(--accent);font-size:12px;font-weight:600;">Chat demo →</span>
@@ -2732,7 +2781,7 @@ results = m.search(<span class="c-str">"What does Ali prefer?"</span>)</div>
                     <button class="signup-btn" id="verify-btn" onclick="verifyCode()">Verify</button>
                 </div>
                 <div class="signup-result" id="signup-result"></div>
-                <p class="signup-note" id="signup-note">🔒 We'll send a verification code to confirm your email.</p>
+                <p class="signup-note" id="signup-note">We'll send a verification code to confirm your email.</p>
             </div>
         </section>
 
@@ -2886,6 +2935,18 @@ results = m.search(<span class="c-str">"What does Ali prefer?"</span>)</div>
         // To add a new entry: just add an object to the top of this array.
         // Tags: "feature", "improvement", "fix"
         const CHANGELOG = [
+            {
+                date: "2026-03-26",
+                tag: "feature",
+                title: "CrewAI Drop-in Memory Backend",
+                body: "One line to add persistent memory to any CrewAI crew: <code>memory=MengramMemory(api_key=\"om-...\")</code>. Agents get recall and remember tools automatically. Mengram handles extraction, search, and procedural learning server-side.",
+            },
+            {
+                date: "2026-03-26",
+                tag: "improvement",
+                title: "OpenClaw Plugin v2.2 — Cacheable Profile Injection",
+                body: "Cognitive profile now injected via <code>prependSystemContext</code> for provider-level caching — saves tokens on repeated turns. Backward compatible with older OpenClaw versions via automatic fallback.",
+            },
             {
                 date: "2026-03-16",
                 tag: "feature",
@@ -3053,7 +3114,7 @@ results = m.search(<span class="c-str">"What does Ali prefer?"</span>)</div>
                     _signupEmail = email;
                     document.getElementById("step-email").style.display = "none";
                     document.getElementById("step-code").style.display = "flex";
-                    document.getElementById("signup-note").innerHTML = `📧 Code sent to <strong>${esc(email)}</strong>. Check your inbox.`;
+                    document.getElementById("signup-note").innerHTML = `Code sent to <strong>${esc(email)}</strong>. Check your inbox.`;
                     result.className = "signup-result";
                     result.innerHTML = "";
                     document.getElementById("code-input").focus();
@@ -3357,20 +3418,21 @@ results = m.search(<span class="c-str">"What does Ali prefer?"</span>)</div>
             var list = document.getElementById('cmd-list');
             if (!overlay || !input || !list) return;
 
+            var _i = function(d) { return '<svg viewBox="0 0 24 24">' + d + '</svg>'; };
             var items = [
-                { icon: '🏠', label: 'Home', href: '#', hint: 'Top' },
-                { icon: '⚙️', label: 'How it works', href: '#how', hint: 'Section' },
-                { icon: '📦', label: 'Install / Get Started', href: '#install', hint: 'Section' },
-                { icon: '🔄', label: 'Before / After', href: '#before-after', hint: 'Section' },
-                { icon: '🤖', label: 'AI Agents', href: '#agents', hint: 'Section' },
-                { icon: '✨', label: 'Features', href: '#features', hint: 'Section' },
-                { icon: '💰', label: 'Pricing', href: '#pricing', hint: 'Section' },
-                { icon: '📝', label: 'Changelog', href: '#changelog', hint: 'Section' },
-                { icon: '🔑', label: 'Get API Key', href: '#signup', hint: 'Section' },
-                { icon: '📖', label: 'API Documentation', href: 'https://docs.mengram.io', hint: 'External' },
-                { icon: '🐙', label: 'GitHub Repository', href: 'https://github.com/alibaizhanov/mengram', hint: 'External' },
-                { icon: '📊', label: 'Dashboard', href: '/dashboard', hint: 'External' },
-                { icon: '🐍', label: 'PyPI Package', href: 'https://pypi.org/project/mengram-ai/', hint: 'External' },
+                { icon: _i('<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>'), label: 'Home', href: '#', hint: 'Top' },
+                { icon: _i('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>'), label: 'How it works', href: '#how', hint: 'Section' },
+                { icon: _i('<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>'), label: 'Install / Get Started', href: '#install', hint: 'Section' },
+                { icon: _i('<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>'), label: 'Before / After', href: '#before-after', hint: 'Section' },
+                { icon: _i('<rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/>'), label: 'AI Agents', href: '#agents', hint: 'Section' },
+                { icon: _i('<path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/>'), label: 'Features', href: '#features', hint: 'Section' },
+                { icon: _i('<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>'), label: 'Pricing', href: '#pricing', hint: 'Section' },
+                { icon: _i('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>'), label: 'Changelog', href: '#changelog', hint: 'Section' },
+                { icon: _i('<path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.78 7.78 5.5 5.5 0 0 1 7.78-7.78zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>'), label: 'Get API Key', href: '#signup', hint: 'Section' },
+                { icon: _i('<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>'), label: 'API Documentation', href: 'https://docs.mengram.io', hint: 'External' },
+                { icon: _i('<path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/>'), label: 'GitHub Repository', href: 'https://github.com/alibaizhanov/mengram', hint: 'External' },
+                { icon: _i('<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>'), label: 'Dashboard', href: '/dashboard', hint: 'External' },
+                { icon: _i('<path d="M9.585 11.692h4.328s2.432.039 2.432-2.35V5.391S16.714 3 11.818 3C7.023 3 7.014 5.169 7.014 5.169l.003 2.246h4.878v.676H4.937S3 7.862 3 12.056c0 4.194 1.708 4.042 1.708 4.042h1.019v-1.945s-.055-1.708 1.681-1.708h4.006s1.627.026 1.627-1.575V7.391s.247-1.657-3.94-1.657c0 0-3.156-.174-3.156 1.82v2.054h3.64v2.084z"/><path d="M14.415 12.308H10.087s-2.432-.039-2.432 2.35v3.951S7.286 21 12.182 21c4.895 0 4.904-2.169 4.904-2.169l-.003-2.246h-4.878v-.676h6.958S21 16.138 21 11.944c0-4.194-1.708-4.042-1.708-4.042h-1.019v1.945s.055 1.708-1.681 1.708h-4.006s-1.627-.026-1.627 1.575v3.479s-.247 1.657 3.94 1.657c0 0 3.156.174 3.156-1.82v-2.054h-3.64v-2.084z"/>'), label: 'PyPI Package', href: 'https://pypi.org/project/mengram-ai/', hint: 'External' },
             ];
             var activeIndex = 0;
 

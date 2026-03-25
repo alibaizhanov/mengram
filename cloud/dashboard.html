@@ -81,7 +81,13 @@
         .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px; color: var(--text-2); font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s; margin-bottom: 2px; }
         .nav-item:hover { background: var(--bg-elevated); color: var(--text); }
         .nav-item.active { background: var(--accent-dim); color: var(--accent); }
-        .nav-item .icon { font-size: 16px; width: 20px; text-align: center; }
+        .nav-item .icon { font-size: 16px; width: 20px; text-align: center; display: inline-flex; align-items: center; justify-content: center; }
+        .nav-item .icon svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+        .ie-icon svg { width: 48px; height: 48px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+        .ic-icon svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+        .ci-icon svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+        .eicon svg { width: 48px; height: 48px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+        .di-svg svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
         .nav-item .chevron { margin-left: auto; font-size: 10px; color: var(--text-3); transition: transform 0.25s ease; }
         .nav-group.active .nav-item .chevron { transform: rotate(90deg); color: var(--accent); }
         .sidebar-account { padding: 12px 16px; border-top: 1px solid var(--border); }
@@ -174,7 +180,7 @@
 
         /* Graph */
         .graph-box { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; height: calc(100vh - 200px); position: relative; overflow: hidden; }
-        .graph-box svg { width: 100%; height: 100%; }
+        .graph-box > svg { width: 100%; height: 100%; }
         .graph-legend { position: absolute; bottom: 16px; left: 16px; display: flex; gap: 14px; font-size: 11px; color: var(--text-2); background: var(--bg-card); padding: 8px 14px; border-radius: 8px; backdrop-filter: blur(8px); border: 1px solid var(--border); }
         .ldot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 4px; }
         .graph-panel { position: absolute; right: 16px; top: 16px; width: 320px; max-height: calc(100% - 32px); overflow-y: auto; background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; z-index: 10; }
@@ -495,7 +501,7 @@
         <div class="sidebar-logo"><svg width="20" height="20" viewBox="0 0 120 120" style="vertical-align:middle;margin-right:4px;"><path d="M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68" fill="none" stroke="#a855f7" stroke-width="8" stroke-linecap="round"/><circle cx="62" cy="68" r="8" fill="#a855f7"/><circle cx="62" cy="68" r="3.5" fill="#fff"/></svg> Mengram</div>
         <div class="sidebar-nav">
             <div class="nav-group active" data-group="memory">
-                <div class="nav-item active" onclick="switchGroup(event,'memory')"><span class="icon">🧠</span> Memory <span class="chevron">▸</span></div>
+                <div class="nav-item active" onclick="switchGroup(event,'memory')"><span class="icon"><svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7z"/><path d="M10 21h4"/></svg></span> Memory <span class="chevron">▸</span></div>
                 <div class="nav-sub-items" style="max-height:200px">
                     <div class="nav-sub active" data-tab="graph" onclick="switchTab(event,'graph')">Knowledge Graph</div>
                     <div class="nav-sub" data-tab="feed" onclick="switchTab(event,'feed')">Feed</div>
@@ -503,17 +509,17 @@
                 </div>
             </div>
             <div class="nav-group" data-group="intelligence">
-                <div class="nav-item" onclick="switchGroup(event,'intelligence')"><span class="icon">✨</span> Intelligence <span class="chevron">▸</span></div>
+                <div class="nav-item" onclick="switchGroup(event,'intelligence')"><span class="icon"><svg viewBox="0 0 24 24"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg></span> Intelligence <span class="chevron">▸</span></div>
                 <div class="nav-sub-items">
                     <div class="nav-sub" data-tab="agents" onclick="switchTab(event,'agents')">Agents</div>
                     <div class="nav-sub" data-tab="insights" onclick="switchTab(event,'insights')">Insights</div>
                 </div>
             </div>
             <div class="nav-group" data-group="procedures">
-                <div class="nav-item" onclick="switchGroup(event,'procedures')"><span class="icon">🧬</span> Procedures</div>
+                <div class="nav-item" onclick="switchGroup(event,'procedures')"><span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M12 15V9"/><path d="m8.7 7.5 2.6 3"/><path d="m15.3 7.5-2.6 3"/></svg></span> Procedures</div>
             </div>
             <div class="nav-group" data-group="account">
-                <div class="nav-item" onclick="switchGroup(event,'account')"><span class="icon">⚙️</span> Account <span class="chevron">▸</span></div>
+                <div class="nav-item" onclick="switchGroup(event,'account')"><span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span> Account <span class="chevron">▸</span></div>
                 <div class="nav-sub-items">
                     <div class="nav-sub" data-tab="billing" onclick="switchTab(event,'billing')">Billing</div>
                     <div class="nav-sub" data-tab="settings" onclick="switchTab(event,'settings')">Settings</div>
@@ -588,7 +594,7 @@
             <div class="quick-add-bar">
                 <input type="text" id="quick-add-input" class="quick-add-input" placeholder="Add a memory... (e.g., 'John works at Google as a senior engineer')" autocomplete="off">
                 <label class="quick-add-file" title="Upload file (PDF, DOCX, TXT, MD)">
-                    📎
+                    <svg viewBox="0 0 24 24" style="width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
                     <input type="file" id="quick-add-file" accept=".pdf,.docx,.txt,.md" style="display:none" onchange="quickAddFile(this)">
                 </label>
                 <button class="quick-add-btn" id="quick-add-btn" onclick="quickAddText()">Add</button>
@@ -599,7 +605,7 @@
         <div class="tab-content" id="tab-feed">
             <div class="page-header">
                 <h2>Memory Feed</h2>
-                <div class="search-bar"><span>🔍</span><input id="search-input" placeholder="Semantic search..." onkeydown="if(event.key==='Enter')doSearch()"><div class="search-dropdown" id="search-dd"></div></div>
+                <div class="search-bar"><span><svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span><input id="search-input" placeholder="Semantic search..." onkeydown="if(event.key==='Enter')doSearch()"><div class="search-dropdown" id="search-dd"></div></div>
             </div>
             <div id="feed-box" class="loading">Loading memories...</div>
         </div>
@@ -608,30 +614,30 @@
             <div class="page-header">
                 <h2>Memory Agents</h2>
                 <div style="display:flex;gap:8px;">
-                    <button onclick="runAgent('curator')" style="background:var(--green);color:#fff;border:none;padding:8px 14px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;">🧹 Curator</button>
-                    <button onclick="runAgent('connector')" style="background:var(--blue);color:#fff;border:none;padding:8px 14px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;">🔗 Connector</button>
-                    <button onclick="runAgent('digest')" style="background:var(--orange);color:#fff;border:none;padding:8px 14px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;">📰 Digest</button>
-                    <button onclick="runAgent('all')" style="background:var(--accent);color:#fff;border:none;padding:8px 14px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;">🚀 Run All</button>
+                    <button onclick="runAgent('curator')" style="background:var(--green);color:#fff;border:none;padding:8px 14px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;">Curator</button>
+                    <button onclick="runAgent('connector')" style="background:var(--blue);color:#fff;border:none;padding:8px 14px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;">Connector</button>
+                    <button onclick="runAgent('digest')" style="background:var(--orange);color:#fff;border:none;padding:8px 14px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;">Digest</button>
+                    <button onclick="runAgent('all')" style="background:var(--accent);color:#fff;border:none;padding:8px 14px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;">Run All</button>
                 </div>
             </div>
             <div id="agents-box">
                 <div class="agents-intro" style="text-align:center;padding:40px 20px;color:var(--text-2);">
-                    <div style="font-size:48px;margin-bottom:16px;">🤖</div>
+                    <div style="margin-bottom:16px;"><svg viewBox="0 0 24 24" style="width:48px;height:48px;stroke:var(--text-2);fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg></div>
                     <h3 style="color:var(--text);margin-bottom:8px;">Memory Agents</h3>
                     <p>Autonomous agents that clean, analyze, and generate insights from your memory.</p>
                     <div style="display:flex;gap:20px;justify-content:center;margin-top:24px;flex-wrap:wrap;">
                         <div style="background:var(--bg-card);border-radius:12px;padding:16px;width:180px;text-align:left;">
-                            <div style="font-size:24px;margin-bottom:8px;">🧹</div>
+                            <div style="margin-bottom:8px;"><svg viewBox="0 0 24 24" style="width:24px;height:24px;stroke:var(--green);fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;"><path d="m13 11 9-9"/><path d="M14.6 12.6a4.5 4.5 0 0 0-6.4 0L2 19l6.4-6.2a4.5 4.5 0 0 0 6.4 0z"/><path d="m5 17 3 3"/></svg></div>
                             <strong style="color:var(--green);">Curator</strong>
                             <p style="font-size:12px;margin-top:4px;">Finds contradictions, stale facts, duplicates. Auto-cleans memory.</p>
                         </div>
                         <div style="background:var(--bg-card);border-radius:12px;padding:16px;width:180px;text-align:left;">
-                            <div style="font-size:24px;margin-bottom:8px;">🔗</div>
+                            <div style="margin-bottom:8px;"><svg viewBox="0 0 24 24" style="width:24px;height:24px;stroke:var(--blue);fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></div>
                             <strong style="color:var(--blue);">Connector</strong>
                             <p style="font-size:12px;margin-top:4px;">Discovers hidden patterns, skill clusters, strategic insights.</p>
                         </div>
                         <div style="background:var(--bg-card);border-radius:12px;padding:16px;width:180px;text-align:left;">
-                            <div style="font-size:24px;margin-bottom:8px;">📰</div>
+                            <div style="margin-bottom:8px;"><svg viewBox="0 0 24 24" style="width:24px;height:24px;stroke:var(--orange);fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6z"/></svg></div>
                             <strong style="color:var(--orange);">Digest</strong>
                             <p style="font-size:12px;margin-top:4px;">Weekly summary of memory activity, trends, recommendations.</p>
                         </div>
@@ -645,7 +651,7 @@
         <div class="tab-content" id="tab-insights">
             <div class="page-header">
                 <h2>AI Insights</h2>
-                <button onclick="triggerReflection()" style="background:var(--accent);color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;">🔄 Reflect Now</button>
+                <button onclick="triggerReflection()" style="background:var(--accent);color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;">Reflect Now</button>
             </div>
             <div id="insights-box" class="loading">Analyzing your memories...</div>
         </div>
@@ -725,7 +731,7 @@
         <div class="tab-content" id="tab-settings">
             <div class="page-header"><h2>Settings</h2></div>
             <div class="set-section">
-                <h3>🔔 Webhooks</h3>
+                <h3>Webhooks</h3>
                 <p>Get notified when memories are added, updated, or deleted.</p>
                 <div id="webhooks-list" style="margin:12px 0;"></div>
                 <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;">
@@ -741,7 +747,7 @@
                 </div>
             </div>
             <div class="set-section">
-                <h3>🤝 Teams — Shared Memory</h3>
+                <h3>Teams — Shared Memory</h3>
                 <p>Share memories with your team. Everyone's AI sees the shared context.</p>
                 <div id="teams-list" style="margin:12px 0;"></div>
                 <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;">
@@ -760,7 +766,7 @@
                 </div>
             </div>
             <div class="set-section">
-                <h3>🔑 API Keys</h3>
+                <h3>API Keys</h3>
                 <p style="color:var(--text-2);font-size:13px;margin-bottom:12px;">Create multiple keys for different apps. Revoke any key without affecting others.</p>
                 <div style="display:flex;gap:8px;margin-bottom:12px;">
                     <input id="new-key-name" placeholder="Key name (e.g. Claude Desktop)" style="flex:1;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;">
@@ -815,6 +821,38 @@ function toggleTheme() {
 function esc(s) { if(!s)return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
 function escA(s) { return (s||'').replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
 
+// ---- SVG Icons (monochrome stroke, 24x24 viewBox) ----
+const I = {
+    brain:    '<svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7z"/><path d="M10 21h4"/></svg>',
+    sparkle:  '<svg viewBox="0 0 24 24"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg>',
+    dna:      '<svg viewBox="0 0 24 24"><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M12 15V9"/><path d="m8.7 7.5 2.6 3"/><path d="m15.3 7.5-2.6 3"/></svg>',
+    gear:     '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+    search:   '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
+    rocket:   '<svg viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/></svg>',
+    bot:      '<svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg>',
+    broom:    '<svg viewBox="0 0 24 24"><path d="m13 11 9-9"/><path d="M14.6 12.6a4.5 4.5 0 0 0-6.4 0L2 19l6.4-6.2a4.5 4.5 0 0 0 6.4 0z"/><path d="m5 17 3 3"/></svg>',
+    link:     '<svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>',
+    newspaper:'<svg viewBox="0 0 24 24"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6z"/></svg>',
+    bell:     '<svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>',
+    users:    '<svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+    key:      '<svg viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.78 7.78 5.5 5.5 0 0 1 7.78-7.78zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>',
+    trash:    '<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
+    share:    '<svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>',
+    warn:     '<svg viewBox="0 0 24 24"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+    box:      '<svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>',
+    chart:    '<svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>',
+    refresh:  '<svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>',
+    bulb:     '<svg viewBox="0 0 24 24"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/></svg>',
+    download: '<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+    plus:     '<svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
+    clock:    '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+    check:    '<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>',
+    x:        '<svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+    list:     '<svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>',
+    think:    '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+    stale:    '<svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>',
+};
+
 // ---- Toast notifications ----
 function showToast(message, type='success', duration=3500) {
     const container = document.getElementById('toast-container');
@@ -866,20 +904,20 @@ function toggleMobileMenu() {
 // ---- Command palette ----
 let cmdActive = -1;
 const CMD_NAV = [
-    { icon: '🧠', label: 'Memory — Graph', action: () => switchTabDirect('graph') },
-    { icon: '🧠', label: 'Memory — Feed', action: () => switchTabDirect('feed') },
-    { icon: '🧠', label: 'Memory — Entities', action: () => switchTabDirect('entities') },
-    { icon: '✨', label: 'Intelligence — Agents', action: () => switchTabDirect('agents') },
-    { icon: '✨', label: 'Intelligence — Insights', action: () => switchTabDirect('insights') },
-    { icon: '🧬', label: 'Procedures', action: () => switchTabDirect('procedures') },
-    { icon: '⚙️', label: 'Account — Billing', action: () => switchTabDirect('billing') },
-    { icon: '⚙️', label: 'Account — Settings', action: () => switchTabDirect('settings') },
+    { icon: I.brain, label: 'Memory — Graph', action: () => switchTabDirect('graph') },
+    { icon: I.brain, label: 'Memory — Feed', action: () => switchTabDirect('feed') },
+    { icon: I.brain, label: 'Memory — Entities', action: () => switchTabDirect('entities') },
+    { icon: I.sparkle, label: 'Intelligence — Agents', action: () => switchTabDirect('agents') },
+    { icon: I.sparkle, label: 'Intelligence — Insights', action: () => switchTabDirect('insights') },
+    { icon: I.dna, label: 'Procedures', action: () => switchTabDirect('procedures') },
+    { icon: I.gear, label: 'Account — Billing', action: () => switchTabDirect('billing') },
+    { icon: I.gear, label: 'Account — Settings', action: () => switchTabDirect('settings') },
 ];
 const CMD_ACTIONS = [
-    { icon: '➕', label: 'Quick Add Memory', hint: 'Add text to memory', action: () => { document.getElementById('quick-add-input').focus(); } },
-    { icon: '🔄', label: 'Reflect Now', hint: 'Generate insights', action: () => { switchTabDirect('insights'); triggerReflection(); } },
-    { icon: '🚀', label: 'Run All Agents', hint: 'Curator + Connector + Digest', action: () => { switchTabDirect('agents'); runAgent('all'); } },
-    { icon: '📥', label: 'Export JSON', hint: 'Download all data', action: () => exportData() },
+    { icon: I.plus, label: 'Quick Add Memory', hint: 'Add text to memory', action: () => { document.getElementById('quick-add-input').focus(); } },
+    { icon: I.refresh, label: 'Reflect Now', hint: 'Generate insights', action: () => { switchTabDirect('insights'); triggerReflection(); } },
+    { icon: I.rocket, label: 'Run All Agents', hint: 'Curator + Connector + Digest', action: () => { switchTabDirect('agents'); runAgent('all'); } },
+    { icon: I.download, label: 'Export JSON', hint: 'Download all data', action: () => exportData() },
 ];
 
 function openCmdPalette() {
@@ -949,7 +987,7 @@ async function searchCmdEntities(q) {
             const box = document.getElementById('cmd-entities');
             if (group) group.style.display = 'block';
             if (box) {
-                box.innerHTML = d.results.map(r => `<div class="cmd-item" onclick="closeCmdPalette();openEntity('${escA(r.entity)}')"><span class="ci-icon">📦</span><span class="ci-label">${esc(r.entity)}</span><span class="ci-hint">${esc(r.type)}</span></div>`).join('');
+                box.innerHTML = d.results.map(r => `<div class="cmd-item" onclick="closeCmdPalette();openEntity('${escA(r.entity)}')"><span class="ci-icon">${I.box}</span><span class="ci-label">${esc(r.entity)}</span><span class="ci-hint">${esc(r.type)}</span></div>`).join('');
             }
         }
     } catch (e) {}
@@ -1252,7 +1290,7 @@ async function runAgent(type) {
     agentRunning = true;
     const resultsBox = document.getElementById('agent-results');
     resultsBox.style.display = 'block';
-    resultsBox.innerHTML = `<div class="loading" style="text-align:center;padding:30px;color:var(--text-2);"><div style="font-size:32px;margin-bottom:12px;">⏳</div>Running ${type === 'all' ? 'all agents' : type + ' agent'}...</div>`;
+    resultsBox.innerHTML = `<div class="loading" style="text-align:center;padding:30px;color:var(--text-2);"><div class="ie-icon" style="margin-bottom:12px;">${I.refresh}</div>Running ${type === 'all' ? 'all agents' : type + ' agent'}...</div>`;
 
     try {
         const autoFix = type === 'curator' || type === 'all' ? '&auto_fix=true' : '';
@@ -1295,17 +1333,17 @@ function renderAgentResults(type, data) {
     box.style.display = 'block';
 
     if (type === 'all' && data.agents) {
-        let html = '<h3 style="margin-bottom:16px;">🚀 All Agents Results</h3>';
+        let html = '<h3 style="margin-bottom:16px;">All Agents Results</h3>';
         html += renderCuratorResult(data.agents.curator);
         html += renderConnectorResult(data.agents.connector);
         html += renderDigestResult(data.agents.digest);
         box.innerHTML = html;
     } else if (type === 'curator') {
-        box.innerHTML = '<h3 style="margin-bottom:16px;">🧹 Curator Results</h3>' + renderCuratorResult(data.result);
+        box.innerHTML = '<h3 style="margin-bottom:16px;">Curator Results</h3>' + renderCuratorResult(data.result);
     } else if (type === 'connector') {
-        box.innerHTML = '<h3 style="margin-bottom:16px;">🔗 Connector Results</h3>' + renderConnectorResult(data.result);
+        box.innerHTML = '<h3 style="margin-bottom:16px;">Connector Results</h3>' + renderConnectorResult(data.result);
     } else if (type === 'digest') {
-        box.innerHTML = '<h3 style="margin-bottom:16px;">📰 Digest</h3>' + renderDigestResult(data.result);
+        box.innerHTML = '<h3 style="margin-bottom:16px;">Digest</h3>' + renderDigestResult(data.result);
     }
 }
 
@@ -1314,20 +1352,20 @@ function renderCuratorResult(r) {
     const meta = r._meta || {};
     let html = `<div style="background:var(--bg-card);border-radius:12px;padding:16px;margin-bottom:12px;border-left:3px solid var(--green);">`;
     html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">`;
-    html += `<strong style="color:var(--green);">🧹 Curator</strong>`;
+    html += `<strong style="color:var(--green);">Curator</strong>`;
     html += `<span style="font-size:12px;color:var(--text-2);">Health: <strong style="color:${(r.health_score||0)>0.7?'var(--green)':'var(--orange)'}">${Math.round((r.health_score||0)*100)}%</strong></span>`;
     html += `</div>`;
     if (r.summary) html += `<p style="color:var(--text-2);font-size:13px;margin-bottom:12px;">${esc(r.summary)}</p>`;
     if (r.contradictions?.length) {
-        html += `<div style="margin-bottom:8px;"><strong style="color:var(--red);font-size:12px;">⚠️ Contradictions (${r.contradictions.length})</strong>`;
+        html += `<div style="margin-bottom:8px;"><strong style="color:var(--red);font-size:12px;">Contradictions (${r.contradictions.length})</strong>`;
         r.contradictions.forEach(c => {
             html += `<div style="font-size:12px;padding:6px 10px;margin:4px 0;background:rgba(255,50,50,0.1);border-radius:6px;">"${esc(c.fact_a)}" vs "${esc(c.fact_b)}" — ${esc(c.suggestion)}</div>`;
         });
         html += `</div>`;
     }
-    if (r.stale?.length) html += `<div style="font-size:12px;color:var(--orange);margin-top:4px;">📦 ${r.stale.length} stale facts found</div>`;
-    if (r.low_quality?.length) html += `<div style="font-size:12px;color:var(--text-2);margin-top:4px;">🗑️ ${r.low_quality.length} low quality facts</div>`;
-    if (meta.actions_taken) html += `<div style="font-size:12px;color:var(--green);margin-top:4px;">✅ Auto-fixed: ${meta.actions_taken} facts archived</div>`;
+    if (r.stale?.length) html += `<div style="font-size:12px;color:var(--orange);margin-top:4px;">${r.stale.length} stale facts found</div>`;
+    if (r.low_quality?.length) html += `<div style="font-size:12px;color:var(--text-2);margin-top:4px;">${r.low_quality.length} low quality facts</div>`;
+    if (meta.actions_taken) html += `<div style="font-size:12px;color:var(--green);margin-top:4px;">Auto-fixed: ${meta.actions_taken} facts archived</div>`;
     html += `</div>`;
     return html;
 }
@@ -1335,7 +1373,7 @@ function renderCuratorResult(r) {
 function renderConnectorResult(r) {
     if (!r || r.status === 'error') return '<div style="color:var(--red)">Connector failed</div>';
     let html = `<div style="background:var(--bg-card);border-radius:12px;padding:16px;margin-bottom:12px;border-left:3px solid var(--blue);">`;
-    html += `<strong style="color:var(--blue);">🔗 Connector</strong>`;
+    html += `<strong style="color:var(--blue);">Connector</strong>`;
     if (r.connections?.length) {
         html += `<div style="margin-top:10px;"><strong style="font-size:12px;">Hidden Connections</strong>`;
         r.connections.forEach(c => {
@@ -1351,7 +1389,7 @@ function renderConnectorResult(r) {
         html += `</div>`;
     }
     if (r.suggestions?.length) {
-        html += `<div style="margin-top:10px;"><strong style="font-size:12px;">💡 Suggestions</strong>`;
+        html += `<div style="margin-top:10px;"><strong style="font-size:12px;">Suggestions</strong>`;
         r.suggestions.forEach(s => {
             const pc = s.priority === 'high' ? 'var(--red)' : s.priority === 'medium' ? 'var(--orange)' : 'var(--text-2)';
             html += `<div style="font-size:12px;padding:6px 10px;margin:4px 0;background:rgba(255,200,50,0.1);border-radius:6px;"><span style="color:${pc};">[${esc(s.priority)}]</span> ${esc(s.action)}</div>`;
@@ -1365,14 +1403,14 @@ function renderConnectorResult(r) {
 function renderDigestResult(r) {
     if (!r || r.status === 'error') return '<div style="color:var(--red)">Digest failed</div>';
     let html = `<div style="background:var(--bg-card);border-radius:12px;padding:16px;margin-bottom:12px;border-left:3px solid var(--orange);">`;
-    html += `<strong style="color:var(--orange);">📰 Weekly Digest</strong>`;
+    html += `<strong style="color:var(--orange);">Weekly Digest</strong>`;
     if (r.headline) html += `<p style="font-size:15px;font-weight:600;color:var(--text);margin:8px 0;">${esc(r.headline)}</p>`;
     if (r.highlights?.length) {
         html += `<ul style="font-size:13px;color:var(--text-2);padding-left:20px;margin:8px 0;">`;
         r.highlights.forEach(h => { html += `<li style="margin:4px 0;">${esc(h)}</li>`; });
         html += `</ul>`;
     }
-    if (r.recommendation) html += `<div style="font-size:13px;padding:10px;margin-top:8px;background:rgba(130,80,255,0.1);border-radius:8px;color:var(--accent);">💡 ${esc(r.recommendation)}</div>`;
+    if (r.recommendation) html += `<div style="font-size:13px;padding:10px;margin-top:8px;background:rgba(130,80,255,0.1);border-radius:8px;color:var(--accent);">${esc(r.recommendation)}</div>`;
     html += `</div>`;
     return html;
 }
@@ -1384,10 +1422,10 @@ async function loadAgentHistory() {
         if (!d.runs?.length) { box.innerHTML = '<p style="color:var(--text-2);text-align:center;font-size:13px;">No agent runs yet. Click a button above to start.</p>'; return; }
         let html = '<h4 style="margin-bottom:8px;color:var(--text-2);font-size:13px;">Recent Runs</h4>';
         d.runs.forEach(r => {
-            const icons = {curator:'🧹',connector:'🔗',digest:'📰'};
+            const icons = {curator:I.broom,connector:I.link,digest:I.newspaper};
             const time = new Date(r.created_at).toLocaleString();
             html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg-card);border-radius:8px;margin-bottom:4px;font-size:12px;">`;
-            html += `<span>${icons[r.agent_type]||'🤖'} <strong>${r.agent_type}</strong></span>`;
+            html += `<span class="di-svg" style="display:inline-flex;align-items:center;gap:6px;">${icons[r.agent_type]||I.bot} <strong>${r.agent_type}</strong></span>`;
             html += `<span style="color:var(--text-2);">${r.issues_found} findings${r.actions_taken ? `, ${r.actions_taken} fixed` : ''}</span>`;
             html += `<span style="color:var(--text-2);">${time}</span>`;
             html += `</div>`;
@@ -1401,10 +1439,10 @@ async function loadInsights() {
         const d = await (await fetch(`${API}/v1/insights`,{headers:H()})).json();
         if(!d.has_insights) {
             box.innerHTML = `<div class="insight-empty">
-                <div class="ie-icon">✨</div>
+                <div class="ie-icon">${I.sparkle}</div>
                 <h3>No insights yet</h3>
                 <p>Mengram needs enough memories to generate insights. Keep chatting with AI assistants, or click below to generate your first reflection.</p>
-                <button onclick="triggerReflection()">✨ Generate Insights</button>
+                <button onclick="triggerReflection()">Generate Insights</button>
             </div>`;
             return;
         }
@@ -1412,36 +1450,36 @@ async function loadInsights() {
         
         // Profile card
         if(d.profile) {
-            h += insightCard('📊', 'Profile', d.profile, 'full');
+            h += insightCard(I.chart, 'Profile', d.profile, 'full');
         }
         
         // Weekly card
         if(d.weekly) {
-            h += insightCard('🔄', 'Recent Activity', d.weekly);
+            h += insightCard(I.refresh, 'Recent Activity', d.weekly);
         }
         
         // Network card
         if(d.network) {
-            h += insightCard('👥', 'Network', d.network);
+            h += insightCard(I.users, 'Network', d.network);
         }
         
         // Patterns card
         if(d.patterns) {
-            h += insightCard('💡', 'Patterns', d.patterns);
+            h += insightCard(I.bulb, 'Patterns', d.patterns);
         }
 
         // All other reflections
         const shown = [d.profile, d.weekly, d.network, d.patterns].filter(Boolean).map(r=>r.title);
         const others = (d.all_reflections||[]).filter(r => !shown.includes(r.title));
         for(const r of others) {
-            const icon = r.scope === 'entity' ? '📦' : r.scope === 'cross' ? '🔗' : '⏱️';
+            const icon = r.scope === 'entity' ? I.box : r.scope === 'cross' ? I.link : I.clock;
             h += insightCard(icon, r.title, r);
         }
         
         h += '</div>';
         box.innerHTML = h;
     } catch(e) {
-        box.innerHTML = `<div class="insight-empty"><div class="ie-icon">⚠️</div><h3>Error loading insights</h3><p>${esc(e.message)}</p></div>`;
+        box.innerHTML = `<div class="insight-empty"><div class="ie-icon">${I.warn}</div><h3>Error loading insights</h3><p>${esc(e.message)}</p></div>`;
     }
 }
 
@@ -1462,25 +1500,25 @@ function insightCard(icon, label, r, cls) {
                 Confidence: ${conf}%
                 <span class="conf-bar"><span class="conf-fill" style="width:${conf}%;background:${confColor}"></span></span>
             </span>
-            ${r.entity && r.entity !== '_reflections' ? `<span>📦 ${esc(r.entity)}</span>` : ''}
-            ${time ? `<span>🕐 ${time}</span>` : ''}
+            ${r.entity && r.entity !== '_reflections' ? `<span>${esc(r.entity)}</span>` : ''}
+            ${time ? `<span>${time}</span>` : ''}
         </div>
     </div>`;
 }
 
 async function triggerReflection() {
     const box = document.getElementById('insights-box');
-    box.innerHTML = '<div class="insight-empty"><div class="ie-icon"><span class="reflecting-spinner">✨</span></div><h3>Reflecting...</h3><p>Analyzing your memories and generating insights. This may take 10-20 seconds.</p></div>';
+    box.innerHTML = `<div class="insight-empty"><div class="ie-icon"><span class="reflecting-spinner">${I.sparkle}</span></div><h3>Reflecting...</h3><p>Analyzing your memories and generating insights. This may take 10-20 seconds.</p></div>`;
     try {
         const d = await (await fetch(`${API}/v1/reflect`,{method:'POST',headers:H()})).json();
         const total = (d.generated.entity_reflections||0) + (d.generated.cross_entity||0) + (d.generated.temporal||0);
         if(total > 0) {
             await loadInsights();
         } else {
-            box.innerHTML = '<div class="insight-empty"><div class="ie-icon">🤔</div><h3>Not enough data</h3><p>Add more memories through conversations first.</p></div>';
+            box.innerHTML = `<div class="insight-empty"><div class="ie-icon">${I.think}</div><h3>Not enough data</h3><p>Add more memories through conversations first.</p></div>`;
         }
     } catch(e) {
-        box.innerHTML = `<div class="insight-empty"><div class="ie-icon">⚠️</div><h3>Reflection failed</h3><p>${esc(e.message)}</p></div>`;
+        box.innerHTML = `<div class="insight-empty"><div class="ie-icon">${I.warn}</div><h3>Reflection failed</h3><p>${esc(e.message)}</p></div>`;
     }
 }
 
@@ -1628,7 +1666,7 @@ async function loadFeed() {
     try {
         const d = await (await fetch(`${API}/v1/feed?limit=${FEED_PAGE}&offset=0`,{headers:H()})).json();
         if(!d.feed||!d.feed.length) {
-            box.innerHTML = `<div class="empty"><div class="eicon">📋</div><h3>Your memory is empty</h3><p>Use <a href="/">Claude Desktop MCP</a> or the <a href="https://pypi.org/project/mengram-ai/">Python API</a> to start building your AI memory.</p></div>`;
+            box.innerHTML = `<div class="empty"><div class="eicon">${I.list}</div><h3>Your memory is empty</h3><p>Use <a href="/">Claude Desktop MCP</a> or the <a href="https://pypi.org/project/mengram-ai/">Python API</a> to start building your AI memory.</p></div>`;
             return;
         }
         _feedOffset = d.feed.length;
@@ -1705,7 +1743,7 @@ function renderGraph(data) {
         const empty = document.createElement('div');
         empty.className = 'graph-empty';
         empty.style.cssText = 'position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px;z-index:5;';
-        empty.innerHTML = `<div style="font-size:56px;margin-bottom:16px;">🧠</div>
+        empty.innerHTML = `<div class="ie-icon" style="margin-bottom:16px;">${I.brain}</div>
             <h3 style="font-size:20px;font-weight:700;margin-bottom:8px;">Your knowledge graph is empty</h3>
             <p style="color:var(--text-2);font-size:14px;max-width:400px;line-height:1.6;margin-bottom:16px;">Add memories through the input above, upload a file, or use the <a href="/" style="color:var(--accent);text-decoration:none;">API</a> to start building your knowledge graph.</p>`;
         box.appendChild(empty);
@@ -1874,7 +1912,7 @@ async function loadEntities() {
         const ents = d.memories||[];
         _entTotal = d.total || ents.length;
         _entOffset = ents.length;
-        if(!ents.length) { grid.innerHTML='<div class="empty"><div class="eicon">📦</div><h3>No entities yet</h3><p>Entities are automatically extracted when you add memories. Use the <a href="https://docs.mengram.io/quickstart" style="color:var(--accent)">API</a> or <a href="https://docs.mengram.io/mcp" style="color:var(--accent)">MCP server</a> to get started.</p></div>'; return; }
+        if(!ents.length) { grid.innerHTML=`<div class="empty"><div class="eicon">${I.box}</div><h3>No entities yet</h3><p>Entities are automatically extracted when you add memories. Use the <a href="https://docs.mengram.io/quickstart" style="color:var(--accent)">API</a> or <a href="https://docs.mengram.io/mcp" style="color:var(--accent)">MCP server</a> to get started.</p></div>`; return; }
         let h = ents.map(e => _renderEntityCard(e)).join('');
         if(_entOffset < _entTotal) {
             h+=`<div id="ent-more-wrap" style="grid-column:1/-1;text-align:center;padding:12px;"><button class="btn" onclick="loadMoreEntities()" id="ent-more-btn" style="background:var(--bg-elevated);color:var(--text-2);border:1px solid var(--border);padding:8px 24px;border-radius:8px;cursor:pointer;font-size:13px;">Load more (${_entTotal - _entOffset} remaining)</button></div>`;
@@ -1925,8 +1963,8 @@ async function openEntity(name) {
             h+='</div>';
         }
         h+=`<div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;">`;
-        h+=`<button class="m-delete" style="flex:1;" onclick="delEntity('${escA(name)}')">🗑️ Delete "${esc(name)}"</button>`;
-        h+=`<button style="flex:1;padding:10px;background:var(--green-dim);color:var(--green);border:1px solid var(--green);border-radius:8px;cursor:pointer;font-size:13px;" onclick="shareEntityDialog('${escA(name)}')">🤝 Share to Team</button>`;
+        h+=`<button class="m-delete" style="flex:1;" onclick="delEntity('${escA(name)}')">Delete "${esc(name)}"</button>`;
+        h+=`<button style="flex:1;padding:10px;background:var(--green-dim);color:var(--green);border:1px solid var(--green);border-radius:8px;cursor:pointer;font-size:13px;" onclick="shareEntityDialog('${escA(name)}')">Share to Team</button>`;
         h+=`</div>`;
         body.innerHTML=h;
     } catch(e) { body.innerHTML='<p style="color:var(--red)">Failed to load.</p>'; }
@@ -2115,8 +2153,8 @@ async function loadTeams() {
                     </div>
                 </div>
                 <div style="font-size:12px;color:var(--text-2);margin-top:6px;">
-                    👥 ${t.member_count} members · 📦 ${t.shared_memories} shared memories
-                    ${t.invite_code ? ` · <span style="cursor:pointer;color:var(--accent);" onclick="copyInvite('${t.invite_code}')" title="Click to copy">🔗 ${t.invite_code}</span>` : ''}
+                    ${t.member_count} members · ${t.shared_memories} shared memories
+                    ${t.invite_code ? ` · <span style="cursor:pointer;color:var(--accent);" onclick="copyInvite('${t.invite_code}')" title="Click to copy">${t.invite_code}</span>` : ''}
                 </div>
             </div>`;
         });
@@ -2278,7 +2316,7 @@ async function loadProcedures() {
         const procs = data.procedures || [];
         if (!procs.length) {
             box.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-2);">
-                <div style="font-size:48px;margin-bottom:16px;">🧬</div>
+                <div style="margin-bottom:16px;"><svg viewBox="0 0 24 24" style="width:48px;height:48px;stroke:var(--text-2);fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;"><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M12 15V9"/><path d="m8.7 7.5 2.6 3"/><path d="m15.3 7.5-2.6 3"/></svg></div>
                 <h3 style="color:var(--text);margin-bottom:8px;">No procedures yet</h3>
                 <p>Procedures are auto-extracted from conversations. They capture workflows, processes, and how-to knowledge.</p>
                 <p style="margin-top:8px;font-size:12px;">Add conversations via the API and procedures will appear here.</p>
@@ -2298,9 +2336,9 @@ async function loadProcedures() {
                 </div>
                 <div style="color:var(--text-2);font-size:13px;margin-bottom:8px;">${esc(p.trigger_condition || p.trigger || '')}</div>
                 <div style="display:flex;gap:16px;font-size:12px;color:var(--text-3);">
-                    <span>📋 ${steps} steps</span>
-                    <span style="color:var(--green);">✅ ${success} success</span>
-                    <span style="color:var(--red);">❌ ${fail} fail</span>
+                    <span>${steps} steps</span>
+                    <span style="color:var(--green);">${success} success</span>
+                    <span style="color:var(--red);">${fail} fail</span>
                 </div>
             </div>`;
         }
@@ -2348,14 +2386,14 @@ async function showProcedureDetail(id) {
         }
         html += `</ol>
             <div style="display:flex;gap:16px;margin-top:16px;font-size:12px;color:var(--text-3);">
-                <span style="color:var(--green);">✅ ${current.success_count || 0} successes</span>
-                <span style="color:var(--red);">❌ ${current.failure_count || 0} failures</span>
+                <span style="color:var(--green);">${current.success_count || 0} successes</span>
+                <span style="color:var(--red);">${current.failure_count || 0} failures</span>
             </div>
         </div>`;
 
         // Evolution log
         if (evolution.length > 0) {
-            html += `<h4 style="margin-bottom:12px;">🧬 Evolution History</h4>
+            html += `<h4 style="margin-bottom:12px;">Evolution History</h4>
             <div style="display:flex;flex-direction:column;gap:8px;">`;
             for (const ev of evolution) {
                 const typeColors = {step_added:'var(--green)',step_removed:'var(--red)',step_modified:'var(--orange)',auto_created:'var(--accent)'};
@@ -2375,7 +2413,7 @@ async function showProcedureDetail(id) {
 
         // Version history
         if (versions.length > 1) {
-            html += `<h4 style="margin-top:20px;margin-bottom:12px;">📋 All Versions</h4>
+            html += `<h4 style="margin-top:20px;margin-bottom:12px;">All Versions</h4>
             <div style="display:flex;flex-direction:column;gap:6px;">`;
             for (const v of versions) {
                 const borderStyle = v.is_current ? 'border-color:var(--accent);' : '';
