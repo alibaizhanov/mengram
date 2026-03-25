@@ -97,7 +97,6 @@ class MengramMemory:
     def recall(
         self,
         query: str,
-        *,
         limit: int = 10,
         **kwargs: Any,
     ) -> list[MengramMatch]:
