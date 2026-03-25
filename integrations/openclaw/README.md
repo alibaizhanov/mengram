@@ -9,7 +9,7 @@ openclaw plugins install openclaw-mengram
 ```
 
 The plugin provides:
-- **Auto-recall** — memories injected before every agent turn (via `before_agent_start` hook)
+- **Auto-recall** — memories injected before every agent turn (via `before_prompt_build` hook)
 - **Auto-capture** — new info saved after every turn (via `agent_end` hook)
 - 12 tools: `memory_search`, `memory_store`, `memory_forget`, `memory_profile`, `memory_procedures`, `memory_feedback`, `memory_episodes`, `memory_timeline`, `memory_triggers`, `memory_insights`, `memory_agents`, `memory_graph`
 - Slash commands: `/remember`, `/recall`, `/forget`
