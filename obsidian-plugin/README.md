@@ -70,7 +70,7 @@ This plugin sends note content to the Mengram API (`mengram.io`) for AI-powered 
 
 ## Pricing
 
-Mengram offers a free tier (100 adds/month, 500 searches/month). Paid plans are available at [mengram.io/#pricing](https://mengram.io/#pricing). An API key is required — sign up for free at [mengram.io/dashboard](https://mengram.io/dashboard).
+Mengram offers a free tier (30 adds/month, 100 searches/month). Paid plans start at $5/mo at [mengram.io/#pricing](https://mengram.io/#pricing). An API key is required — sign up for free at [mengram.io/dashboard](https://mengram.io/dashboard).
 
 ## License
 

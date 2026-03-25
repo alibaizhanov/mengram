@@ -46,7 +46,7 @@ class AuthContext:
     rate_limit: int   # per-minute rate limit
 
 PLAN_QUOTAS = {
-    "free":     {"adds": 50,    "searches": 300,    "agents": 3,   "reflects": 3,   "dedups": 1,   "reindexes": 1,   "rules": 3,    "rate_limit": 20,  "webhooks": 0,  "teams": 0,  "sub_users": 3},
+    "free":     {"adds": 30,    "searches": 100,    "agents": 3,   "reflects": 3,   "dedups": 1,   "reindexes": 1,   "rules": 3,    "rate_limit": 20,  "webhooks": 0,  "teams": 0,  "sub_users": 3},
     "starter":  {"adds": 100,   "searches": 500,    "agents": 10,  "reflects": 10,  "dedups": 5,   "reindexes": 5,   "rules": 10,   "rate_limit": 60,  "webhooks": 2,  "teams": 1,  "sub_users": 10},
     "pro":      {"adds": 1_000, "searches": 10_000, "agents": 50,  "reflects": 30,  "dedups": 20,  "reindexes": 10,  "rules": 50,   "rate_limit": 120, "webhooks": 10, "teams": 5,  "sub_users": 50},
     "business": {"adds": 5_000, "searches": 30_000, "agents": -1,  "reflects": -1,  "dedups": -1,  "reindexes": -1,  "rules": -1,   "rate_limit": 300, "webhooks": 50, "teams": -1, "sub_users": -1},
@@ -2226,7 +2226,7 @@ Claude: Since you use Railway with FastAPI, here's how I'd set up your CI/CD...
 <tr style="border-bottom:1px solid #1a1a2e;"><td style="padding:10px;">MCP server</td><td style="text-align:center;">&#x2705;</td><td style="text-align:center;">&#x2705;</td></tr>
 <tr style="border-bottom:1px solid #1a1a2e;"><td style="padding:10px;">Self-hostable</td><td style="text-align:center;">&#x2705;</td><td style="text-align:center;">&#x2705;</td></tr>
 <tr style="border-bottom:1px solid #1a1a2e;"><td style="padding:10px;">Open source</td><td style="text-align:center;">MIT</td><td style="text-align:center;">Apache 2.0</td></tr>
-<tr style="border-bottom:1px solid #1a1a2e;"><td style="padding:10px;">Free tier</td><td style="text-align:center; color:#34d399; font-weight:600;">100 adds / 500 searches</td><td style="text-align:center;">10K memories</td></tr>
+<tr style="border-bottom:1px solid #1a1a2e;"><td style="padding:10px;">Free tier</td><td style="text-align:center; color:#34d399; font-weight:600;">30 adds / 100 searches</td><td style="text-align:center;">10K memories</td></tr>
 <tr><td style="padding:10px;">Paid plans</td><td style="text-align:center;">$19–99/mo</td><td style="text-align:center;">$19–249/mo</td></tr>
 </tbody>
 </table>
@@ -2614,7 +2614,7 @@ while True:
 <h2>Setup: 3 minutes</h2>
 
 <h3>Step 1: Get an API key</h3>
-<p>Sign up at <a href="/#signup">mengram.io</a> (free tier: 50 adds, 300 searches/month). Copy your API key from the dashboard.</p>
+<p>Sign up at <a href="/#signup">mengram.io</a> (free tier: 30 adds, 100 searches/month). Copy your API key from the dashboard.</p>
 
 <h3>Step 2: Install the MCP server</h3>
 <pre><code>pip install mengram-ai</code></pre>
@@ -2729,7 +2729,7 @@ Cursor: [recalls: Next.js App Router, TypeScript, Supabase, existing route patte
 <p>Both work with the same Mengram backend, so your memories sync across tools.</p>
 
 <h2>Pricing</h2>
-<p>The free tier includes 50 memory adds and 300 searches per month — enough for personal use. For heavier usage:</p>
+<p>The free tier includes 30 memory adds and 100 searches per month — enough to try it out. For heavier usage:</p>
 <ul>
 <li><strong>Starter</strong> ($5/mo) — 100 adds, 500 searches</li>
 <li><strong>Pro</strong> ($19/mo) — 1,000 adds, 10,000 searches, smart triggers</li>
