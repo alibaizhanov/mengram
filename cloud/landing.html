@@ -1279,81 +1279,6 @@
             .form-row { flex-direction: column; gap: 12px; }
         }
 
-        /* ---- Changelog ---- */
-        .changelog-section { padding: 80px 0; }
-        .changelog-section h2 {
-            text-align: center;
-            font-size: 32px;
-            font-weight: 700;
-            letter-spacing: -1px;
-            margin-bottom: 8px;
-        }
-        .changelog-section > p {
-            text-align: center;
-            color: var(--text-2);
-            font-size: 16px;
-            margin-bottom: 40px;
-        }
-        .changelog-list {
-            max-width: 680px;
-            margin: 0 auto;
-            display: flex;
-            flex-direction: column;
-            gap: 0;
-        }
-        .cl-entry {
-            display: flex;
-            gap: 20px;
-            padding: 24px 0;
-            border-bottom: 1px solid var(--border);
-        }
-        .cl-entry:first-child { padding-top: 0; }
-        .cl-entry:last-child { border-bottom: none; }
-        .cl-date {
-            min-width: 90px;
-            font-size: 13px;
-            color: var(--text-3);
-            font-family: 'JetBrains Mono', monospace;
-            padding-top: 2px;
-        }
-        .cl-body { flex: 1; }
-        .cl-body h3 {
-            font-size: 16px;
-            font-weight: 600;
-            margin-bottom: 6px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-        .cl-body p {
-            color: var(--text-2);
-            font-size: 14px;
-            line-height: 1.6;
-        }
-        .cl-tag {
-            font-size: 11px;
-            font-weight: 600;
-            padding: 2px 8px;
-            border-radius: 6px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        .cl-tag.feature { background: var(--accent-dim); color: var(--accent); }
-        .cl-tag.improvement { background: rgba(96,165,250,0.1); color: var(--blue); }
-        .cl-tag.fix { background: rgba(251,146,60,0.1); color: var(--orange); }
-        .cl-more {
-            text-align: center;
-            margin-top: 24px;
-        }
-        .cl-more a {
-            color: var(--text-3);
-            font-size: 14px;
-            text-decoration: none;
-            transition: color 0.2s;
-        }
-        .cl-more a:hover { color: var(--text-2); }
-
         /* ---- Hero Terminal ---- */
         .terminal {
             max-width: 600px;
@@ -1458,6 +1383,18 @@
             color: #fff;
             margin-bottom: 8px;
         }
+
+        /* ---- Framework Spotlight ---- */
+        .fw-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; max-width: 960px; margin: 0 auto; }
+        .fw-card { padding: 28px 24px; }
+        .fw-badge { display: inline-block; font-size: 10px; font-weight: 600; text-transform: uppercase; padding: 3px 10px; border-radius: 20px; color: #fff; margin-bottom: 12px; letter-spacing: 0.5px; }
+        .fw-benefits { list-style: none; padding: 0; margin: 12px 0 16px; }
+        .fw-benefits li { font-size: 14px; color: var(--text-2); padding: 4px 0; line-height: 1.5; }
+        .fw-benefits li::before { content: '→ '; color: var(--accent); font-weight: 600; }
+        .fw-benefits code { background: var(--bg); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+        .fw-cta { display: inline-block; background: var(--accent); color: #fff; padding: 10px 24px; border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 600; margin-top: 8px; transition: background 0.2s; }
+        .fw-cta:hover { background: #7c3aed; }
+        @media (max-width: 768px) { .fw-grid { grid-template-columns: 1fr; } }
 
         /* ---- Scroll Animations ---- */
         .reveal {
@@ -1773,7 +1710,6 @@
                 <a href="#features">Features</a>
                 <a href="#playground">Playground</a>
                 <a href="#pricing">Pricing</a>
-                <a href="#changelog">Changelog</a>
                 <a href="/blog">Blog</a>
                 <a href="/dashboard">Console</a>
                 <a href="https://github.com/alibaizhanov/mengram">GitHub</a>
@@ -1899,6 +1835,326 @@
                 <div class="perf-status">
                     <span class="perf-dot"></span>
                     All systems operational
+                </div>
+            </div>
+        </section>
+
+        <!-- Before / After -->
+        <section class="before-after-section" id="before-after">
+            <h2 class="reveal">Before Mengram / After Mengram</h2>
+            <p class="reveal">Replace your entire RAG pipeline with 3 lines of code.</p>
+            <div class="ba-grid stagger">
+                <div class="ba-panel before reveal">
+                    <div class="ba-panel-header">&#10005; Traditional RAG Pipeline</div>
+                    <div class="ba-code">from langchain.embeddings import OpenAIEmbeddings
+from langchain.vectorstores import Pinecone
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.chains import RetrievalQA
+import pinecone
+
+pinecone.init(api_key="...", environment="...")
+embeddings = OpenAIEmbeddings()
+splitter = RecursiveCharacterTextSplitter(chunk_size=500)
+chunks = splitter.split_documents(docs)
+vectorstore = Pinecone.from_documents(chunks, embeddings)
+retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
+chain = RetrievalQA.from_chain_type(
+    llm=llm, retriever=retriever
+)
+result = chain.run("What does Ali prefer?")</div>
+                    <div class="ba-lines-label">15 lines &middot; 3 API keys &middot; manual chunking</div>
+                </div>
+                <div class="ba-panel after reveal">
+                    <div class="ba-panel-header">&#10003; With Mengram</div>
+                    <div class="ba-code"><span class="c-kw">from</span> mengram <span class="c-kw">import</span> Mengram
+
+m = Mengram(api_key=<span class="c-str">"om-..."</span>)
+results = m.search(<span class="c-str">"What does Ali prefer?"</span>)</div>
+                    <div class="ba-lines-label">3 lines &middot; 1 API key &middot; zero config</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Built for AI Agents -->
+        <section class="agent-section" id="agents">
+            <h2 class="reveal">Built for AI Agents</h2>
+            <p class="reveal">Your agents run 24/7 but forget everything between sessions. Mengram gives them persistent memory that grows smarter over time.</p>
+            <div class="agent-flow stagger">
+                <div class="agent-step reveal">
+                    <div class="agent-step-icon"><svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>
+                    <h3>Agent Acts</h3>
+                    <p>Your agent completes a task &mdash; applies to a job, deploys code, handles a ticket.</p>
+                </div>
+                <div class="agent-arrow reveal">&#10132;</div>
+                <div class="agent-step reveal" style="border-color: var(--accent); box-shadow: 0 0 20px var(--accent-dim);">
+                    <div class="agent-step-icon"><svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7z"/><path d="M10 21h4"/></svg></div>
+                    <h3>Mengram Remembers</h3>
+                    <p>One <code>add()</code> call extracts facts, events, and procedures. The agent builds experience.</p>
+                </div>
+                <div class="agent-arrow reveal">&#10132;</div>
+                <div class="agent-step reveal">
+                    <div class="agent-step-icon"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+                    <h3>Next Run is Smarter</h3>
+                    <p>On the next task, <code>search()</code> recalls what worked and what failed. The agent improves autonomously.</p>
+                </div>
+            </div>
+            <div class="agent-usecases stagger">
+                <div class="agent-usecase reveal">
+                    <h4>Autonomous Workflows</h4>
+                    <p>Agents that apply to jobs, manage tickets, or process data &mdash; remembering outcomes and adapting strategy across runs.</p>
+                </div>
+                <div class="agent-usecase reveal">
+                    <h4>Coding Assistants</h4>
+                    <p>Claude Code, Cursor, Windsurf &mdash; your AI remembers your stack, preferences, and past solutions across sessions.</p>
+                </div>
+                <div class="agent-usecase reveal">
+                    <h4>Multi-Agent Systems</h4>
+                    <p>CrewAI, LangChain, AutoGPT &mdash; shared memory between agents. One discovers, another executes, all remember.</p>
+                </div>
+            </div>
+            <h3 class="reveal" style="text-align:center;font-size:22px;margin-top:48px;margin-bottom:8px;">Ready-to-Run Templates</h3>
+            <p class="reveal" style="text-align:center;color:var(--text-2);margin-bottom:24px;">Clone, set API key, run in 5 minutes.</p>
+            <div class="features-grid stagger" style="grid-template-columns: repeat(3, 1fr);">
+                <a href="https://github.com/alibaizhanov/mengram/tree/main/examples/devops-agent" target="_blank" rel="noopener noreferrer" style="text-decoration:none;">
+                    <div class="feat-card reveal" style="cursor:pointer; border-color: var(--green); box-shadow: 0 0 20px rgba(52,211,153,0.15);">
+                        <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg></div>
+                        <h3>DevOps Agent</h3>
+                        <p><strong>CloudMemory SDK</strong> — Learns deployment procedures from conversations. Reports failure → procedure auto-evolves.</p>
+                        <span style="color:var(--green);font-size:12px;font-weight:600;">No LLM key needed →</span>
+                    </div>
+                </a>
+                <a href="https://github.com/alibaizhanov/mengram/tree/main/examples/customer-support-agent" target="_blank" rel="noopener noreferrer" style="text-decoration:none;">
+                    <div class="feat-card reveal" style="cursor:pointer;">
+                        <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+                        <h3>Customer Support</h3>
+                        <p><strong>CrewAI + Mengram</strong> — Agent searches history, loads cognitive profile, saves new info.</p>
+                        <span style="color:var(--accent);font-size:12px;font-weight:600;">Interactive demo →</span>
+                    </div>
+                </a>
+                <a href="https://github.com/alibaizhanov/mengram/tree/main/examples/personal-assistant" target="_blank" rel="noopener noreferrer" style="text-decoration:none;">
+                    <div class="feat-card reveal" style="cursor:pointer;">
+                        <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+                        <h3>Personal Assistant</h3>
+                        <p><strong>LangChain + Mengram</strong> — Cognitive profile as system prompt, retriever for RAG.</p>
+                        <span style="color:var(--accent);font-size:12px;font-weight:600;">Chat demo →</span>
+                    </div>
+                </a>
+            </div>
+        </section>
+
+        <section class="features-section" id="features">
+            <h2 class="reveal">What makes Mengram different</h2>
+            <p class="reveal">Others store facts. Mengram remembers like a human brain.</p>
+            <div class="features-grid stagger">
+                <div class="feat-card feat-card-gradient feat-bento-large reveal">
+                    <div class="feat-bento-content">
+                        <span class="feat-badge-unique">Only in Mengram</span>
+                        <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M12 2a9 9 0 0 1 9 9c0 3-1.5 5.5-3.8 7"/><path d="M12 2a9 9 0 0 0-9 9c0 3 1.5 5.5 3.8 7"/><path d="M9.4 18.4C10 19.4 10.9 20 12 20s2-.6 2.6-1.6"/><path d="M12 2v4"/><path d="M4.9 7.5l3.5 2"/><path d="M19.1 7.5l-3.5 2"/><path d="M8 22h8"/><path d="M10 22v-2"/><path d="M14 22v-2"/></svg></div>
+                        <h3>3 Memory Types</h3>
+                        <p><strong>Semantic</strong> — facts & preferences. <strong>Episodic</strong> — events & decisions. <strong>Procedural</strong> — learned workflows. Just like a human brain.</p>
+                    </div>
+                    <div class="feat-bento-visual">
+<pre><span class="c-cmt">// One add() extracts all 3:</span>
+{
+  <span class="c-str">"semantic"</span>: [<span class="c-str">"Ali prefers Railway"</span>],
+  <span class="c-str">"episodic"</span>: [<span class="c-str">"Deployed v2.15 today"</span>],
+  <span class="c-str">"procedural"</span>: [<span class="c-str">"Deploy: build→test→push"</span>]
+}</pre>
+                    </div>
+                </div>
+                <div class="feat-card feat-card-gradient feat-bento-large reveal">
+                    <div class="feat-bento-content">
+                        <span class="feat-badge-unique">Only in Mengram</span>
+                        <div class="feat-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg></div>
+                        <h3>Cognitive Profile</h3>
+                        <p>One API call generates a ready-to-use system prompt from all memories. Insert into any LLM for instant personalization.</p>
+                    </div>
+                    <div class="feat-bento-visual">
+<pre><span class="c-fn">GET</span> <span class="c-str">/v1/profile</span>
+
+<span class="c-cmt">// Returns:</span>
+<span class="c-str">"You are talking to Ali,
+ a backend developer who
+ prefers Python, deploys
+ on Railway..."</span></pre>
+                    </div>
+                </div>
+                <div class="feat-card reveal">
+                    <div class="feat-icon"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="9" cy="16" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="16" r="1" fill="currentColor" stroke="none"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
+                    <h3>Memory Agents</h3>
+                    <p>Curator cleans contradictions. Connector finds hidden patterns. Digest gives weekly briefs. Runs autonomously.</p>
+                </div>
+                <div class="feat-card reveal" style="border-color: var(--green); box-shadow: 0 0 20px rgba(52,211,153,0.15);">
+                    <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+                    <h3>Multi-User Isolation</h3>
+                    <p>One API key, many users. Pass <code>user_id</code> to scope memories per end-user. Each user gets their own isolated facts, events, workflows, and cognitive profile.</p>
+                </div>
+                <div class="feat-card reveal">
+                    <div class="feat-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path d="m12 7v4"/><path d="m7.5 17.5 3-6.5"/><path d="m16.5 17.5-3-6.5"/><path d="M7 19h10"/></svg></div>
+                    <h3>Knowledge Graph</h3>
+                    <p>Entities, relations, facts — not just text. "Ali works_at Uzum Bank", not "the user mentioned a bank".</p>
+                </div>
+                <div class="feat-card feat-card-gradient reveal">
+                    <span class="feat-badge-unique">Only in Mengram</span>
+                    <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+                    <h3>Smart Triggers</h3>
+                    <p>Memory that raises its hand. Reminders from conversations, contradiction alerts, workflow pattern detection. Your AI proactively tells you what it remembers.</p>
+                </div>
+                <div class="feat-card reveal" style="border-color: var(--green); box-shadow: 0 0 20px rgba(52,211,153,0.15);">
+                    <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></div>
+                    <h3>Import Existing Data</h3>
+                    <p>One command to import ChatGPT exports, Obsidian vaults, or text files. No cold start — your memory is useful from day 1. CLI + Python + JS SDK.</p>
+                </div>
+                <div class="feat-card feat-card-gradient reveal">
+                    <span class="feat-badge-unique">Only in Mengram</span>
+                    <div class="feat-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M12 15V9"/><path d="m8.7 7.5 2.6 3"/><path d="m15.3 7.5-2.6 3"/></svg></div>
+                    <h3>Experience-Driven Procedures</h3>
+                    <p>Self-improving workflows. Failures auto-evolve procedures to new versions. 3+ similar successes auto-create new workflows. Version history + evolution log.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- CrewAI / OpenClaw Spotlight -->
+        <section class="features-section" style="padding-top: 0;">
+            <h2 class="reveal">Works with your agent framework</h2>
+            <p class="reveal">Add persistent memory to CrewAI or OpenClaw in under 2 minutes.</p>
+            <div class="fw-grid stagger">
+                <div class="feat-card feat-card-gradient fw-card reveal">
+                    <span class="fw-badge" style="background:var(--green);">Drop-in Memory</span>
+                    <h3>CrewAI</h3>
+                    <ul class="fw-benefits">
+                        <li><code>memory=MengramMemory()</code> — one line, zero config</li>
+                        <li>Agents auto-recall past runs and outcomes</li>
+                        <li>Procedural learning — workflows improve over time</li>
+                    </ul>
+                    <div class="code-box">
+                        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+<pre><span class="c-kw">from</span> <span class="c-fn">crewai</span> <span class="c-kw">import</span> Crew, Agent, Task
+<span class="c-kw">from</span> <span class="c-fn">integrations.crewai_memory</span> <span class="c-kw">import</span> MengramMemory
+
+crew = Crew(
+    agents=[agent], tasks=[task],
+    memory=MengramMemory(api_key=<span class="c-str">"om-..."</span>),
+)
+crew.kickoff() <span class="c-cmt"># Agents recall + learn</span></pre>
+                    </div>
+                    <a href="#signup" class="fw-cta">Get API Key</a>
+                </div>
+                <div class="feat-card feat-card-gradient fw-card reveal">
+                    <span class="fw-badge" style="background:var(--blue);">12 Tools + Auto-Recall</span>
+                    <h3>OpenClaw</h3>
+                    <ul class="fw-benefits">
+                        <li>Install plugin, add API key — done</li>
+                        <li>Auto-recall before every turn, auto-capture after</li>
+                        <li>Slash commands: /remember, /recall, /forget</li>
+                    </ul>
+                    <div class="code-box">
+                        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+<pre>{
+  <span class="c-str">"plugins"</span>: {
+    <span class="c-str">"entries"</span>: {
+      <span class="c-str">"openclaw-mengram"</span>: {
+        <span class="c-str">"enabled"</span>: <span class="c-kw">true</span>,
+        <span class="c-str">"config"</span>: { <span class="c-str">"apiKey"</span>: <span class="c-str">"om-..."</span> }
+      }
+    }
+  }
+}</pre>
+                    </div>
+                    <a href="#signup" class="fw-cta">Get API Key</a>
+                </div>
+            </div>
+        </section>
+
+        <!-- Comparison -->
+        <section class="features-section" style="padding-top: 0;">
+            <h2 class="reveal">Mengram vs Mem0 vs Supermemory</h2>
+            <p class="reveal">Others store facts. Mengram remembers experiences and learns workflows.</p>
+            <div style="max-width: 820px; margin: 30px auto 0; overflow-x: auto;">
+                <table style="width:100%;border-collapse:collapse;font-size:14px;">
+                    <thead>
+                        <tr style="border-bottom: 1px solid var(--border);">
+                            <th style="text-align:left;padding:12px 16px;color:var(--text-2);font-weight:500;"></th>
+                            <th style="text-align:center;padding:12px 16px;color:var(--accent);font-weight:600;">Mengram</th>
+                            <th style="text-align:center;padding:12px 16px;color:var(--text-2);font-weight:500;">Mem0</th>
+                            <th style="text-align:center;padding:12px 16px;color:var(--text-2);font-weight:500;">Supermemory</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr style="border-bottom: 1px solid var(--border);">
+                            <td style="padding:10px 16px;">Semantic Memory <span style="color:var(--text-3);font-size:11px;">(facts)</span></td>
+                            <td style="text-align:center;padding:10px;">✅</td>
+                            <td style="text-align:center;padding:10px;">✅</td>
+                            <td style="text-align:center;padding:10px;">✅</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--border);background:var(--accent-dim);">
+                            <td style="padding:10px 16px;font-weight:600;">Episodic Memory <span style="color:var(--accent);font-size:11px;">(events)</span></td>
+                            <td style="text-align:center;padding:10px;">✅</td>
+                            <td style="text-align:center;padding:10px;">❌</td>
+                            <td style="text-align:center;padding:10px;">❌</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--border);background:var(--accent-dim);">
+                            <td style="padding:10px 16px;font-weight:600;">Procedural Memory <span style="color:var(--accent);font-size:11px;">(workflows)</span></td>
+                            <td style="text-align:center;padding:10px;">✅</td>
+                            <td style="text-align:center;padding:10px;">❌</td>
+                            <td style="text-align:center;padding:10px;">❌</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--border);background:var(--accent-dim);">
+                            <td style="padding:10px 16px;font-weight:600;">Cognitive Profile</td>
+                            <td style="text-align:center;padding:10px;">✅</td>
+                            <td style="text-align:center;padding:10px;">❌</td>
+                            <td style="text-align:center;padding:10px;">❌</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--border);">
+                            <td style="padding:10px 16px;">Knowledge Graph</td>
+                            <td style="text-align:center;padding:10px;">✅</td>
+                            <td style="text-align:center;padding:10px;">✅</td>
+                            <td style="text-align:center;padding:10px;">❌</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--border); background: rgba(168,85,247,0.05);">
+                            <td style="padding:10px 16px;"><strong>Procedural Learning</strong> <span style="color:var(--accent);font-size:11px;">(auto-evolves)</span></td>
+                            <td style="text-align:center;padding:10px;"><strong>✅</strong></td>
+                            <td style="text-align:center;padding:10px;">❌</td>
+                            <td style="text-align:center;padding:10px;">❌</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--border); background: rgba(168,85,247,0.05);">
+                            <td style="padding:10px 16px;"><strong>Smart Triggers</strong></td>
+                            <td style="text-align:center;padding:10px;"><strong>✅</strong></td>
+                            <td style="text-align:center;padding:10px;">❌</td>
+                            <td style="text-align:center;padding:10px;">❌</td>
+                        </tr>
+                        <tr>
+                            <td style="padding:10px 16px;font-weight:600;">Price</td>
+                            <td style="text-align:center;padding:10px;color:var(--green);font-weight:600;">Free</td>
+                            <td style="text-align:center;padding:10px;color:var(--text-2);">$19-249/mo</td>
+                            <td style="text-align:center;padding:10px;color:var(--text-2);">Enterprise</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Playground -->
+        <section class="playground-section" id="playground">
+            <h2 class="reveal">Try it now</h2>
+            <p class="reveal">Search a DevOps agent's memory — no signup needed.</p>
+            <div class="playground-box reveal">
+                <div class="pg-search-row">
+                    <input type="text" class="pg-search-input" id="pg-input"
+                           placeholder="what database do we use?"
+                           maxlength="200" autocomplete="off">
+                    <button class="pg-search-btn" id="pg-btn" onclick="playgroundSearch()">Search</button>
+                </div>
+                <div class="pg-suggestions">
+                    <span class="pg-suggestion" onclick="pgSuggest('what database do we use?')">what database do we use?</span>
+                    <span class="pg-suggestion" onclick="pgSuggest('how to deploy to production')">how to deploy</span>
+                    <span class="pg-suggestion" onclick="pgSuggest('recent incidents')">recent incidents</span>
+                    <span class="pg-suggestion" onclick="pgSuggest('monitoring setup')">monitoring setup</span>
+                </div>
+                <div class="pg-results" id="pg-results"></div>
+                <div class="pg-cta">
+                    <p>This is a demo account with sample data. Want your own?</p>
+                    <a href="#signup" class="signup-btn" style="display:inline-block;text-decoration:none;padding:10px 24px;">Sign up free &rarr;</a>
                 </div>
             </div>
         </section>
@@ -2258,380 +2514,6 @@ POST /v1/add → {<span class="c-str">"messages"</span>: [...], <span class="c-s
             </div>
         </section>
 
-        <!-- Before / After -->
-        <section class="before-after-section" id="before-after">
-            <h2 class="reveal">Before Mengram / After Mengram</h2>
-            <p class="reveal">Replace your entire RAG pipeline with 3 lines of code.</p>
-            <div class="ba-grid stagger">
-                <div class="ba-panel before reveal">
-                    <div class="ba-panel-header">&#10005; Traditional RAG Pipeline</div>
-                    <div class="ba-code">from langchain.embeddings import OpenAIEmbeddings
-from langchain.vectorstores import Pinecone
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.chains import RetrievalQA
-import pinecone
-
-pinecone.init(api_key="...", environment="...")
-embeddings = OpenAIEmbeddings()
-splitter = RecursiveCharacterTextSplitter(chunk_size=500)
-chunks = splitter.split_documents(docs)
-vectorstore = Pinecone.from_documents(chunks, embeddings)
-retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
-chain = RetrievalQA.from_chain_type(
-    llm=llm, retriever=retriever
-)
-result = chain.run("What does Ali prefer?")</div>
-                    <div class="ba-lines-label">15 lines &middot; 3 API keys &middot; manual chunking</div>
-                </div>
-                <div class="ba-panel after reveal">
-                    <div class="ba-panel-header">&#10003; With Mengram</div>
-                    <div class="ba-code"><span class="c-kw">from</span> mengram <span class="c-kw">import</span> Mengram
-
-m = Mengram(api_key=<span class="c-str">"om-..."</span>)
-results = m.search(<span class="c-str">"What does Ali prefer?"</span>)</div>
-                    <div class="ba-lines-label">3 lines &middot; 1 API key &middot; zero config</div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Built for AI Agents -->
-        <section class="agent-section" id="agents">
-            <h2 class="reveal">Built for AI Agents</h2>
-            <p class="reveal">Your agents run 24/7 but forget everything between sessions. Mengram gives them persistent memory that grows smarter over time.</p>
-            <div class="agent-flow stagger">
-                <div class="agent-step reveal">
-                    <div class="agent-step-icon"><svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>
-                    <h3>Agent Acts</h3>
-                    <p>Your agent completes a task &mdash; applies to a job, deploys code, handles a ticket.</p>
-                </div>
-                <div class="agent-arrow reveal">&#10132;</div>
-                <div class="agent-step reveal" style="border-color: var(--accent); box-shadow: 0 0 20px var(--accent-dim);">
-                    <div class="agent-step-icon"><svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7z"/><path d="M10 21h4"/></svg></div>
-                    <h3>Mengram Remembers</h3>
-                    <p>One <code>add()</code> call extracts facts, events, and procedures. The agent builds experience.</p>
-                </div>
-                <div class="agent-arrow reveal">&#10132;</div>
-                <div class="agent-step reveal">
-                    <div class="agent-step-icon"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
-                    <h3>Next Run is Smarter</h3>
-                    <p>On the next task, <code>search()</code> recalls what worked and what failed. The agent improves autonomously.</p>
-                </div>
-            </div>
-            <div class="agent-usecases stagger">
-                <div class="agent-usecase reveal">
-                    <h4>Autonomous Workflows</h4>
-                    <p>Agents that apply to jobs, manage tickets, or process data &mdash; remembering outcomes and adapting strategy across runs.</p>
-                </div>
-                <div class="agent-usecase reveal">
-                    <h4>Coding Assistants</h4>
-                    <p>Claude Code, Cursor, Windsurf &mdash; your AI remembers your stack, preferences, and past solutions across sessions.</p>
-                </div>
-                <div class="agent-usecase reveal">
-                    <h4>Multi-Agent Systems</h4>
-                    <p>CrewAI, LangChain, AutoGPT &mdash; shared memory between agents. One discovers, another executes, all remember.</p>
-                </div>
-            </div>
-        </section>
-
-        <section class="features-section" id="features">
-            <h2 class="reveal">What makes Mengram different</h2>
-            <p class="reveal">Others store facts. Mengram remembers like a human brain.</p>
-            <div class="features-grid stagger">
-                <div class="feat-card feat-card-gradient feat-bento-large reveal">
-                    <div class="feat-bento-content">
-                        <span class="feat-badge-unique">Only in Mengram</span>
-                        <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M12 2a9 9 0 0 1 9 9c0 3-1.5 5.5-3.8 7"/><path d="M12 2a9 9 0 0 0-9 9c0 3 1.5 5.5 3.8 7"/><path d="M9.4 18.4C10 19.4 10.9 20 12 20s2-.6 2.6-1.6"/><path d="M12 2v4"/><path d="M4.9 7.5l3.5 2"/><path d="M19.1 7.5l-3.5 2"/><path d="M8 22h8"/><path d="M10 22v-2"/><path d="M14 22v-2"/></svg></div>
-                        <h3>3 Memory Types</h3>
-                        <p><strong>Semantic</strong> — facts & preferences. <strong>Episodic</strong> — events & decisions. <strong>Procedural</strong> — learned workflows. Just like a human brain.</p>
-                    </div>
-                    <div class="feat-bento-visual">
-<pre><span class="c-cmt">// One add() extracts all 3:</span>
-{
-  <span class="c-str">"semantic"</span>: [<span class="c-str">"Ali prefers Railway"</span>],
-  <span class="c-str">"episodic"</span>: [<span class="c-str">"Deployed v2.15 today"</span>],
-  <span class="c-str">"procedural"</span>: [<span class="c-str">"Deploy: build→test→push"</span>]
-}</pre>
-                    </div>
-                </div>
-                <div class="feat-card feat-card-gradient feat-bento-large reveal">
-                    <div class="feat-bento-content">
-                        <span class="feat-badge-unique">Only in Mengram</span>
-                        <div class="feat-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg></div>
-                        <h3>Cognitive Profile</h3>
-                        <p>One API call generates a ready-to-use system prompt from all memories. Insert into any LLM for instant personalization.</p>
-                    </div>
-                    <div class="feat-bento-visual">
-<pre><span class="c-fn">GET</span> <span class="c-str">/v1/profile</span>
-
-<span class="c-cmt">// Returns:</span>
-<span class="c-str">"You are talking to Ali,
- a backend developer who
- prefers Python, deploys
- on Railway..."</span></pre>
-                    </div>
-                </div>
-                <div class="feat-card reveal">
-                    <div class="feat-icon"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="9" cy="16" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="16" r="1" fill="currentColor" stroke="none"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
-                    <h3>Memory Agents</h3>
-                    <p>Curator cleans contradictions. Connector finds hidden patterns. Digest gives weekly briefs. Runs autonomously.</p>
-                </div>
-                <div class="feat-card reveal">
-                    <div class="feat-icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></div>
-                    <h3>Unified Search</h3>
-                    <p>Search across all 3 memory types at once. Vector + BM25 + graph expansion + LLM re-ranking. One call returns facts, events, and workflows.</p>
-                </div>
-                <div class="feat-card reveal">
-                    <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg></div>
-                    <h3>Procedure Feedback</h3>
-                    <p>Your AI learns which workflows succeed. Track success/fail counts per procedure. Proven patterns surface first.</p>
-                </div>
-                <div class="feat-card reveal" style="border-color: var(--green); box-shadow: 0 0 20px rgba(52,211,153,0.15);">
-                    <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
-                    <h3>Multi-User Isolation</h3>
-                    <p>One API key, many users. Pass <code>user_id</code> to scope memories per end-user. Each user gets their own isolated facts, events, workflows, and cognitive profile.</p>
-                </div>
-                <div class="feat-card reveal">
-                    <div class="feat-icon"><svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4"/><path d="m8.6 10.5 6.8-4"/></svg></div>
-                    <h3>Team Memory</h3>
-                    <p>Share knowledge with your team. Everyone's AI sees the shared context. Invite code to join — 10 seconds.</p>
-                </div>
-                <div class="feat-card reveal">
-                    <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></div>
-                    <h3>Webhooks</h3>
-                    <p>Get notified when memories change. Connect to Slack, Zapier, Notion — any HTTP endpoint.</p>
-                </div>
-                <div class="feat-card reveal">
-                    <div class="feat-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path d="m12 7v4"/><path d="m7.5 17.5 3-6.5"/><path d="m16.5 17.5-3-6.5"/><path d="M7 19h10"/></svg></div>
-                    <h3>Knowledge Graph</h3>
-                    <p>Entities, relations, facts — not just text. "Ali works_at Uzum Bank", not "the user mentioned a bank".</p>
-                </div>
-                <div class="feat-card reveal">
-                    <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg></div>
-                    <h3>AI Reflections</h3>
-                    <p>Generates insights from your facts — behavioral patterns, skill clusters, strategic observations.</p>
-                </div>
-                <div class="feat-card reveal">
-                    <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/><path d="M12 17v5"/></svg></div>
-                    <h3>7 Framework Integrations</h3>
-                    <p>CrewAI memory backend, LangChain retriever, OpenClaw v2.2 plugin, n8n workflows, Claude Code hooks, MCP server, REST API — one install adds 3 memory types.</p>
-                </div>
-                <div class="feat-card feat-card-gradient reveal">
-                    <span class="feat-badge-unique">Only in Mengram</span>
-                    <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
-                    <h3>Smart Triggers</h3>
-                    <p>Memory that raises its hand. Reminders from conversations, contradiction alerts, workflow pattern detection. Your AI proactively tells you what it remembers.</p>
-                </div>
-                <div class="feat-card reveal" style="border-color: var(--green); box-shadow: 0 0 20px rgba(52,211,153,0.15);">
-                    <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></div>
-                    <h3>Import Existing Data</h3>
-                    <p>One command to import ChatGPT exports, Obsidian vaults, or text files. No cold start — your memory is useful from day 1. CLI + Python + JS SDK.</p>
-                </div>
-                <div class="feat-card feat-card-gradient reveal">
-                    <span class="feat-badge-unique">Only in Mengram</span>
-                    <div class="feat-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M12 15V9"/><path d="m8.7 7.5 2.6 3"/><path d="m15.3 7.5-2.6 3"/></svg></div>
-                    <h3>Experience-Driven Procedures</h3>
-                    <p>Self-improving workflows. Failures auto-evolve procedures to new versions. 3+ similar successes auto-create new workflows. Version history + evolution log.</p>
-                </div>
-            </div>
-        </section>
-
-        <!-- Examples -->
-        <section class="features-section" style="padding-top: 0;" id="examples">
-            <h2>Ready-to-Run Agent Templates</h2>
-            <p>Clone, set API key, run in 5 minutes. See Mengram in action.</p>
-            <div class="features-grid" style="grid-template-columns: repeat(3, 1fr); margin-top: 30px;">
-                <a href="https://github.com/alibaizhanov/mengram/tree/main/examples/devops-agent" target="_blank" rel="noopener noreferrer" style="text-decoration:none;">
-                    <div class="feat-card reveal" style="cursor:pointer; border-color: var(--green); box-shadow: 0 0 20px rgba(52,211,153,0.15);">
-                        <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg></div>
-                        <h3>DevOps Agent</h3>
-                        <p><strong>CloudMemory SDK</strong> — Learns deployment procedures from conversations. Reports failure → procedure auto-evolves. Version history tracks improvements.</p>
-                        <span style="color:var(--green);font-size:12px;font-weight:600;">No LLM key needed →</span>
-                    </div>
-                </a>
-                <a href="https://github.com/alibaizhanov/mengram/tree/main/examples/customer-support-agent" target="_blank" rel="noopener noreferrer" style="text-decoration:none;">
-                    <div class="feat-card reveal" style="cursor:pointer;">
-                        <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
-                        <h3>Customer Support</h3>
-                        <p><strong>CrewAI + Mengram</strong> — 5 memory tools. Agent searches history, loads cognitive profile, saves new info. Run twice to see "returning customer" effect.</p>
-                        <span style="color:var(--accent);font-size:12px;font-weight:600;">Interactive demo →</span>
-                    </div>
-                </a>
-                <a href="https://github.com/alibaizhanov/mengram/tree/main/examples/personal-assistant" target="_blank" rel="noopener noreferrer" style="text-decoration:none;">
-                    <div class="feat-card reveal" style="cursor:pointer;">
-                        <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
-                        <h3>Personal Assistant</h3>
-                        <p><strong>LangChain + Mengram</strong> — Cognitive profile as system prompt, retriever for RAG, auto-saving history. Gets smarter with every conversation.</p>
-                        <span style="color:var(--accent);font-size:12px;font-weight:600;">Chat demo →</span>
-                    </div>
-                </a>
-            </div>
-        </section>
-
-        <!-- Comparison -->
-        <section class="features-section" style="padding-top: 0;">
-            <h2 class="reveal">Mengram vs Mem0 vs Supermemory</h2>
-            <p class="reveal">Others store facts. Mengram remembers experiences and learns workflows.</p>
-            <div style="max-width: 820px; margin: 30px auto 0; overflow-x: auto;">
-                <table style="width:100%;border-collapse:collapse;font-size:14px;">
-                    <thead>
-                        <tr style="border-bottom: 1px solid var(--border);">
-                            <th style="text-align:left;padding:12px 16px;color:var(--text-2);font-weight:500;"></th>
-                            <th style="text-align:center;padding:12px 16px;color:var(--accent);font-weight:600;">Mengram</th>
-                            <th style="text-align:center;padding:12px 16px;color:var(--text-2);font-weight:500;">Mem0</th>
-                            <th style="text-align:center;padding:12px 16px;color:var(--text-2);font-weight:500;">Supermemory</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr style="border-bottom: 1px solid var(--border);">
-                            <td style="padding:10px 16px;">Semantic Memory <span style="color:var(--text-3);font-size:11px;">(facts)</span></td>
-                            <td style="text-align:center;padding:10px;">✅</td>
-                            <td style="text-align:center;padding:10px;">✅</td>
-                            <td style="text-align:center;padding:10px;">✅</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid var(--border);background:var(--accent-dim);">
-                            <td style="padding:10px 16px;font-weight:600;">Episodic Memory <span style="color:var(--accent);font-size:11px;">(events)</span></td>
-                            <td style="text-align:center;padding:10px;">✅</td>
-                            <td style="text-align:center;padding:10px;">❌</td>
-                            <td style="text-align:center;padding:10px;">❌</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid var(--border);background:var(--accent-dim);">
-                            <td style="padding:10px 16px;font-weight:600;">Procedural Memory <span style="color:var(--accent);font-size:11px;">(workflows)</span></td>
-                            <td style="text-align:center;padding:10px;">✅</td>
-                            <td style="text-align:center;padding:10px;">❌</td>
-                            <td style="text-align:center;padding:10px;">❌</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid var(--border);background:var(--accent-dim);">
-                            <td style="padding:10px 16px;font-weight:600;">Cognitive Profile</td>
-                            <td style="text-align:center;padding:10px;">✅</td>
-                            <td style="text-align:center;padding:10px;">❌</td>
-                            <td style="text-align:center;padding:10px;">❌</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid var(--border);background:var(--accent-dim);">
-                            <td style="padding:10px 16px;font-weight:600;">Unified Search <span style="color:var(--accent);font-size:11px;">(all 3 types)</span></td>
-                            <td style="text-align:center;padding:10px;">✅</td>
-                            <td style="text-align:center;padding:10px;">❌</td>
-                            <td style="text-align:center;padding:10px;">❌</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid var(--border);background:var(--accent-dim);">
-                            <td style="padding:10px 16px;font-weight:600;">Multi-User Isolation <span style="color:var(--green);font-size:11px;">NEW</span></td>
-                            <td style="text-align:center;padding:10px;">✅</td>
-                            <td style="text-align:center;padding:10px;">✅</td>
-                            <td style="text-align:center;padding:10px;">❌</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid var(--border);">
-                            <td style="padding:10px 16px;">Knowledge Graph</td>
-                            <td style="text-align:center;padding:10px;">✅</td>
-                            <td style="text-align:center;padding:10px;">✅</td>
-                            <td style="text-align:center;padding:10px;">❌</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid var(--border);">
-                            <td style="padding:10px 16px;">Autonomous Agents</td>
-                            <td style="text-align:center;padding:10px;">✅ <span style="color:var(--green);font-size:11px;">3 agents</span></td>
-                            <td style="text-align:center;padding:10px;">❌</td>
-                            <td style="text-align:center;padding:10px;">❌</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid var(--border);">
-                            <td style="padding:10px 16px;">Team Shared Memory</td>
-                            <td style="text-align:center;padding:10px;">✅</td>
-                            <td style="text-align:center;padding:10px;">❌</td>
-                            <td style="text-align:center;padding:10px;">✅</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid var(--border);">
-                            <td style="padding:10px 16px;">AI Reflections</td>
-                            <td style="text-align:center;padding:10px;">✅</td>
-                            <td style="text-align:center;padding:10px;">❌</td>
-                            <td style="text-align:center;padding:10px;">❌</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid var(--border);">
-                            <td style="padding:10px 16px;">Webhooks</td>
-                            <td style="text-align:center;padding:10px;">✅</td>
-                            <td style="text-align:center;padding:10px;">✅</td>
-                            <td style="text-align:center;padding:10px;">✅</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid var(--border);background:var(--accent-dim);">
-                            <td style="padding:10px 16px;font-weight:600;">Import <span style="color:var(--accent);font-size:11px;">(ChatGPT, Obsidian)</span></td>
-                            <td style="text-align:center;padding:10px;">✅</td>
-                            <td style="text-align:center;padding:10px;">❌</td>
-                            <td style="text-align:center;padding:10px;">❌</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid var(--border);">
-                            <td style="padding:10px 16px;">MCP Server</td>
-                            <td style="text-align:center;padding:10px;">✅</td>
-                            <td style="text-align:center;padding:10px;">✅</td>
-                            <td style="text-align:center;padding:10px;">❌</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid var(--border);">
-                            <td style="padding:10px 16px;">LangChain, CrewAI, n8n & OpenClaw</td>
-                            <td style="text-align:center;padding:10px;">✅</td>
-                            <td style="text-align:center;padding:10px;">✅</td>
-                            <td style="text-align:center;padding:10px;">❌</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid var(--border); background: rgba(168,85,247,0.05);">
-                            <td style="padding:10px 16px;"><strong>Procedural Learning</strong></td>
-                            <td style="text-align:center;padding:10px;"><strong>✅</strong></td>
-                            <td style="text-align:center;padding:10px;">❌</td>
-                            <td style="text-align:center;padding:10px;">❌</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid var(--border); background: rgba(168,85,247,0.05);">
-                            <td style="padding:10px 16px;"><strong>Smart Triggers</strong></td>
-                            <td style="text-align:center;padding:10px;"><strong>✅</strong></td>
-                            <td style="text-align:center;padding:10px;">❌</td>
-                            <td style="text-align:center;padding:10px;">❌</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid var(--border); background: rgba(52,211,153,0.05);">
-                            <td style="padding:10px 16px;"><strong>Experience-Driven Procedures</strong> <span style="color:var(--green);font-size:11px;">NEW</span></td>
-                            <td style="text-align:center;padding:10px;"><strong>✅</strong></td>
-                            <td style="text-align:center;padding:10px;">❌</td>
-                            <td style="text-align:center;padding:10px;">❌</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid var(--border);">
-                            <td style="padding:10px 16px;">Python & JS SDK</td>
-                            <td style="text-align:center;padding:10px;">✅</td>
-                            <td style="text-align:center;padding:10px;">✅</td>
-                            <td style="text-align:center;padding:10px;">✅</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid var(--border);">
-                            <td style="padding:10px 16px;">Self-hostable</td>
-                            <td style="text-align:center;padding:10px;">✅</td>
-                            <td style="text-align:center;padding:10px;">✅</td>
-                            <td style="text-align:center;padding:10px;">✅</td>
-                        </tr>
-                        <tr>
-                            <td style="padding:10px 16px;font-weight:600;">Price</td>
-                            <td style="text-align:center;padding:10px;color:var(--green);font-weight:600;">Free</td>
-                            <td style="text-align:center;padding:10px;color:var(--text-2);">$19-249/mo</td>
-                            <td style="text-align:center;padding:10px;color:var(--text-2);">Enterprise</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </section>
-
-        <!-- Playground -->
-        <section class="playground-section" id="playground">
-            <h2 class="reveal">Try it now</h2>
-            <p class="reveal">Search a DevOps agent's memory — no signup needed.</p>
-            <div class="playground-box reveal">
-                <div class="pg-search-row">
-                    <input type="text" class="pg-search-input" id="pg-input"
-                           placeholder="what database do we use?"
-                           maxlength="200" autocomplete="off">
-                    <button class="pg-search-btn" id="pg-btn" onclick="playgroundSearch()">Search</button>
-                </div>
-                <div class="pg-suggestions">
-                    <span class="pg-suggestion" onclick="pgSuggest('what database do we use?')">what database do we use?</span>
-                    <span class="pg-suggestion" onclick="pgSuggest('how to deploy to production')">how to deploy</span>
-                    <span class="pg-suggestion" onclick="pgSuggest('recent incidents')">recent incidents</span>
-                    <span class="pg-suggestion" onclick="pgSuggest('monitoring setup')">monitoring setup</span>
-                </div>
-                <div class="pg-results" id="pg-results"></div>
-                <div class="pg-cta">
-                    <p>This is a demo account with sample data. Want your own?</p>
-                    <a href="#signup" class="signup-btn" style="display:inline-block;text-decoration:none;padding:10px 24px;">Sign up free &rarr;</a>
-                </div>
-            </div>
-        </section>
-
         <!-- Pricing -->
         <section class="pricing-section" id="pricing">
             <h2 class="reveal">Simple, predictable pricing</h2>
@@ -2751,16 +2633,6 @@ results = m.search(<span class="c-str">"What does Ali prefer?"</span>)</div>
                 </form>
             </div>
         </div>
-
-        <!-- Changelog -->
-        <section class="changelog-section" id="changelog">
-            <h2 class="reveal">What's New</h2>
-            <p class="reveal">Mengram ships improvements every week. Here's what's latest.</p>
-            <div class="changelog-list" id="changelog-list"></div>
-            <div class="cl-more">
-                <a href="https://github.com/alibaizhanov/mengram/commits/main">View full history on GitHub &rarr;</a>
-            </div>
-        </section>
 
         <!-- Signup -->
         <section class="signup-section" id="signup">
@@ -2931,105 +2803,7 @@ results = m.search(<span class="c-str">"What does Ali prefer?"</span>)</div>
             setTimeout(function() { runSequence(0); }, startDelay);
         })();
 
-        // ---- Changelog entries ----
-        // To add a new entry: just add an object to the top of this array.
-        // Tags: "feature", "improvement", "fix"
-        const CHANGELOG = [
-            {
-                date: "2026-03-26",
-                tag: "feature",
-                title: "CrewAI Drop-in Memory Backend",
-                body: "One line to add persistent memory to any CrewAI crew: <code>memory=MengramMemory(api_key=\"om-...\")</code>. Agents get recall and remember tools automatically. Mengram handles extraction, search, and procedural learning server-side.",
-            },
-            {
-                date: "2026-03-26",
-                tag: "improvement",
-                title: "OpenClaw Plugin v2.2 — Cacheable Profile Injection",
-                body: "Cognitive profile now injected via <code>prependSystemContext</code> for provider-level caching — saves tokens on repeated turns. Backward compatible with older OpenClaw versions via automatic fallback.",
-            },
-            {
-                date: "2026-03-16",
-                tag: "feature",
-                title: "Interactive Playground",
-                body: "Try Mengram without signing up. Search a pre-seeded DevOps agent's memory — entities, episodes, and procedures — right on the landing page. Rate-limited to 30 searches/hour per IP.",
-            },
-            {
-                date: "2026-02-22",
-                tag: "feature",
-                title: "Multi-User Isolation",
-                body: "One API key, many users. Pass <code>user_id</code> to isolate memories per end-user — each gets their own facts, events, workflows, and cognitive profile. Build multi-user apps with a single API key. Backward compatible: no <code>user_id</code> = works as before.",
-            },
-            {
-                date: "2025-02-20",
-                tag: "feature",
-                title: "Import from ChatGPT, Obsidian & Text Files",
-                body: "One command to import your entire ChatGPT history, Obsidian vault, or text files into Mengram. Kill the cold-start problem — memory is useful from day 1. CLI: <code>mengram import chatgpt export.zip</code>. Python SDK: <code>m.import_chatgpt('export.zip')</code>.",
-            },
-            {
-                date: "2025-02-20",
-                tag: "feature",
-                title: "MCP Resources — Proactive Memory Injection",
-                body: "Agents now automatically receive your Cognitive Profile, active procedures, and pending triggers at session start — no tool call needed. Claude Desktop and Cursor instantly know who you are, your workflows, and your reminders.",
-            },
-            {
-                date: "2025-02-19",
-                tag: "feature",
-                title: "Experience-Driven Procedure Evolution",
-                body: "Procedures automatically improve when you report failures. The system analyzes what went wrong, generates an improved version, and tracks full version history. 3+ similar successes auto-create new procedures.",
-            },
-            {
-                date: "2025-02-19",
-                tag: "feature",
-                title: "Smart Triggers — Memory That Raises Its Hand",
-                body: "Automatic detection of reminders from conversations, contradiction alerts when facts conflict, and workflow pattern recognition. Your AI proactively tells you what it noticed.",
-            },
-            {
-                date: "2025-02-18",
-                tag: "feature",
-                title: "Cognitive Profile — One API Call Personalization",
-                body: "GET /v1/profile generates a ready-to-use system prompt from all 3 memory types. Insert into any LLM for instant personalization. Cached for 1 hour, force-refresh available.",
-            },
-            {
-                date: "2025-02-27",
-                tag: "feature",
-                title: "n8n Workflow Integration",
-                body: "Ready-to-import n8n workflow that adds persistent memory to any AI agent. 3 HTTP nodes: search memories, respond with context, save new facts. Works with any LLM.",
-            },
-            {
-                date: "2025-02-17",
-                tag: "feature",
-                title: "LangChain, CrewAI & OpenClaw Integrations",
-                body: "Drop-in integrations for all major agent frameworks. LangChain retriever + chat history, 5 CrewAI tools, OpenClaw plugin with auto-recall/capture hooks and 12 tools. One install adds 3 memory types.",
-            },
-            {
-                date: "2025-02-16",
-                tag: "improvement",
-                title: "JavaScript SDK — Zero Dependencies",
-                body: "Full-featured JS/TS SDK with typed definitions. Uses native fetch, zero runtime dependencies. All endpoints covered including procedures, triggers, teams, and webhooks.",
-            },
-            {
-                date: "2025-02-15",
-                tag: "feature",
-                title: "Episodic & Procedural Memory",
-                body: "Mengram now extracts and stores 3 memory types from every conversation: semantic (facts), episodic (events with context, outcome, emotional valence), and procedural (workflows with steps).",
-            },
-        ];
-
-        // Render changelog
-        (function renderChangelog() {
-            const list = document.getElementById("changelog-list");
-            if (!list) return;
-            list.innerHTML = CHANGELOG.slice(0, 7).map(e => `
-                <div class="cl-entry">
-                    <div class="cl-date">${e.date}</div>
-                    <div class="cl-body">
-                        <h3><span class="cl-tag ${e.tag}">${e.tag}</span> ${e.title}</h3>
-                        <p>${e.body}</p>
-                    </div>
-                </div>
-            `).join("");
-        })();
-
+        // ---- Utility functions ----
         function esc(s) { if(!s)return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
 
         function pricingCTA(plan) {
@@ -3427,7 +3201,6 @@ results = m.search(<span class="c-str">"What does Ali prefer?"</span>)</div>
                 { icon: _i('<rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/>'), label: 'AI Agents', href: '#agents', hint: 'Section' },
                 { icon: _i('<path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/>'), label: 'Features', href: '#features', hint: 'Section' },
                 { icon: _i('<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>'), label: 'Pricing', href: '#pricing', hint: 'Section' },
-                { icon: _i('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>'), label: 'Changelog', href: '#changelog', hint: 'Section' },
                 { icon: _i('<path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.78 7.78 5.5 5.5 0 0 1 7.78-7.78zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>'), label: 'Get API Key', href: '#signup', hint: 'Section' },
                 { icon: _i('<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>'), label: 'API Documentation', href: 'https://docs.mengram.io', hint: 'External' },
                 { icon: _i('<path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/>'), label: 'GitHub Repository', href: 'https://github.com/alibaizhanov/mengram', hint: 'External' },
