@@ -47,8 +47,8 @@ class AuthContext:
 
 PLAN_QUOTAS = {
     "free":     {"adds": 30,    "searches": 100,    "agents": 3,   "reflects": 3,   "dedups": 1,   "reindexes": 1,   "rules": 3,    "rate_limit": 20,  "webhooks": 0,  "teams": 0,  "sub_users": 3},
-    "starter":  {"adds": 100,   "searches": 500,    "agents": 10,  "reflects": 10,  "dedups": 5,   "reindexes": 5,   "rules": 10,   "rate_limit": 60,  "webhooks": 2,  "teams": 1,  "sub_users": 10},
-    "pro":      {"adds": 1_000, "searches": 10_000, "agents": 50,  "reflects": 30,  "dedups": 20,  "reindexes": 10,  "rules": 50,   "rate_limit": 120, "webhooks": 10, "teams": 5,  "sub_users": 50},
+    "starter":  {"adds": 100,   "searches": 500,    "agents": 10,  "reflects": 30,  "dedups": 5,   "reindexes": 5,   "rules": 10,   "rate_limit": 60,  "webhooks": 2,  "teams": 1,  "sub_users": 10},
+    "pro":      {"adds": 1_000, "searches": 10_000, "agents": 50,  "reflects": -1,  "dedups": 20,  "reindexes": 10,  "rules": 50,   "rate_limit": 120, "webhooks": 10, "teams": 5,  "sub_users": 50},
     "business": {"adds": 5_000, "searches": 30_000, "agents": -1,  "reflects": -1,  "dedups": -1,  "reindexes": -1,  "rules": -1,   "rate_limit": 300, "webhooks": 50, "teams": -1, "sub_users": -1},
 }
 
