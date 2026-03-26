@@ -1218,16 +1218,30 @@ m.add("I love hiking in the mountains")</code></pre>
                         <a href="https://docs.mengram.io/quickstart" style="background:#7c3aed;color:white;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Read quickstart guide</a>
                     </div>"""
 
+            elif drip_type == "churned_7d":
+                subject = "Your Mengram memory is waiting"
+                body = """
+                    <p style="font-size:15px;color:#c8c8d8;line-height:1.6">Hi,</p>
+                    <p style="font-size:15px;color:#c8c8d8;line-height:1.6">Your Mengram account has been quiet for a while. Everything ok?</p>
+                    <p style="font-size:15px;color:#c8c8d8;line-height:1.6">Your memories are still here — facts, events, and workflows your agents built up. They're ready whenever you are.</p>
+                    <div style="text-align:center;margin:24px 0">
+                        <a href="https://mengram.io/dashboard" style="background:#7c3aed;color:white;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Open Dashboard</a>
+                    </div>
+                    <p style="font-size:13px;color:#8888a8">If you ran into any issues or have feedback, just reply to this email.</p>"""
+
             else:
                 return
 
             html = _wrap(subject, body)
-            resend.Emails.send({
+            payload = {
                 "from": EMAIL_FROM,
                 "to": [email],
                 "subject": subject,
                 "html": html,
-            })
+            }
+            if drip_type == "churned_7d":
+                payload["reply_to"] = "the.baizhanov@gmail.com"
+            resend.Emails.send(payload)
             logger.info(f"📧 Drip email '{drip_type}' sent to {email}")
         except Exception as e:
             logger.error(f"⚠️ Drip email '{drip_type}' failed for {email}: {e}")
@@ -6628,6 +6642,12 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 for user in store.get_users_searched_no_add():
                     if store.try_record_drip(user["email"], "searched_no_add", user["id"]):
                         _send_drip_email(user["email"], "searched_no_add")
+                        _time.sleep(0.5)
+
+                # Churned active users (were active, stopped for 7+ days)
+                for user in store.get_churned_active_users():
+                    if store.try_record_drip(user["email"], "churned_7d", user["id"]):
+                        _send_drip_email(user["email"], "churned_7d")
                         _time.sleep(0.5)
 
             except Exception as e:

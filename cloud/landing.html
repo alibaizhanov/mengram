@@ -2518,6 +2518,15 @@ POST /v1/add → {<span class="c-str">"messages"</span>: [...], <span class="c-s
         <section class="pricing-section" id="pricing">
             <h2 class="reveal">Simple, predictable pricing</h2>
             <p class="reveal">Start free. Upgrade when you need more.</p>
+            <div style="display:flex;justify-content:center;margin-bottom:32px;" class="reveal">
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:3px;">
+                        <button id="lp-toggle-monthly" onclick="setLandingBilling('monthly')" style="padding:6px 14px;border:none;border-radius:6px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;background:var(--accent);color:#fff;">Monthly</button>
+                        <button id="lp-toggle-annual" onclick="setLandingBilling('annual')" style="padding:6px 14px;border:none;border-radius:6px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:500;background:transparent;color:var(--text-2);">Annual</button>
+                    </div>
+                    <span style="background:#7c3aed22;color:var(--accent);font-size:12px;font-weight:600;padding:4px 10px;border-radius:6px;">Save 20%</span>
+                </div>
+            </div>
             <div class="pricing-grid stagger">
                 <!-- Free -->
                 <div class="price-card reveal">
@@ -2537,7 +2546,7 @@ POST /v1/add → {<span class="c-str">"messages"</span>: [...], <span class="c-s
                     <a href="#signup" class="price-btn">Get started free</a>
                 </div>
                 <!-- Starter -->
-                <div class="price-card reveal">
+                <div class="price-card reveal" data-plan="starter">
                     <h3>Starter</h3>
                     <div class="price-amount">$5 <span>/ month</span></div>
                     <div class="price-desc">For personal projects and indie developers.</div>
@@ -2554,7 +2563,7 @@ POST /v1/add → {<span class="c-str">"messages"</span>: [...], <span class="c-s
                     <a href="#signup" onclick="return pricingCTA('starter')" class="price-btn">Upgrade to Starter</a>
                 </div>
                 <!-- Pro -->
-                <div class="price-card featured reveal">
+                <div class="price-card featured reveal" data-plan="pro">
                     <div class="price-badge">Most Popular</div>
                     <h3>Pro</h3>
                     <div class="price-amount">$19 <span>/ month</span></div>
@@ -2574,7 +2583,7 @@ POST /v1/add → {<span class="c-str">"messages"</span>: [...], <span class="c-s
                     <a href="#signup" onclick="return pricingCTA('pro')" class="price-btn primary">Upgrade to Pro</a>
                 </div>
                 <!-- Business -->
-                <div class="price-card reveal">
+                <div class="price-card reveal" data-plan="business">
                     <h3>Business</h3>
                     <div class="price-amount">$99 <span>/ month</span></div>
                     <div class="price-desc">For teams and high-volume applications.</div>
@@ -2806,12 +2815,43 @@ POST /v1/add → {<span class="c-str">"messages"</span>: [...], <span class="c-s
         // ---- Utility functions ----
         function esc(s) { if(!s)return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
 
+        // Landing page billing toggle
+        const LP_PRICES = {
+            starter:  { monthly: 5,  annual: 48 },
+            pro:      { monthly: 19, annual: 180 },
+            business: { monthly: 99, annual: 948 },
+        };
+        let _lpBilling = 'monthly';
+
+        function setLandingBilling(cycle) {
+            _lpBilling = cycle;
+            document.getElementById('lp-toggle-monthly').style.background = cycle === 'monthly' ? 'var(--accent)' : 'transparent';
+            document.getElementById('lp-toggle-monthly').style.color = cycle === 'monthly' ? '#fff' : 'var(--text-2)';
+            document.getElementById('lp-toggle-monthly').style.fontWeight = cycle === 'monthly' ? '600' : '500';
+            document.getElementById('lp-toggle-annual').style.background = cycle === 'annual' ? 'var(--accent)' : 'transparent';
+            document.getElementById('lp-toggle-annual').style.color = cycle === 'annual' ? '#fff' : 'var(--text-2)';
+            document.getElementById('lp-toggle-annual').style.fontWeight = cycle === 'annual' ? '600' : '500';
+            document.querySelectorAll('.price-card').forEach(card => {
+                const plan = card.dataset.plan;
+                if (!plan || !LP_PRICES[plan]) return;
+                const info = LP_PRICES[plan];
+                const amountEl = card.querySelector('.price-amount');
+                if (cycle === 'annual') {
+                    amountEl.innerHTML = '$' + info.annual + ' <span>/ year</span>';
+                } else {
+                    amountEl.innerHTML = '$' + info.monthly + ' <span>/ month</span>';
+                }
+            });
+        }
+
         function pricingCTA(plan) {
             if (localStorage.getItem('mengram_key')) {
-                window.location.href = '/dashboard?tab=billing';
+                const billing = _lpBilling === 'annual' ? '&billing=annual' : '';
+                window.location.href = '/dashboard?tab=billing' + billing;
                 return false;
             }
             sessionStorage.setItem('wanted_plan', plan);
+            if (_lpBilling === 'annual') sessionStorage.setItem('wanted_billing', 'annual');
             return true; // follow href="#signup"
         }
 

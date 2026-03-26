@@ -1301,6 +1301,26 @@ class CloudStore:
             )
             return [{"id": str(r["id"]), "email": r["email"]} for r in cur.fetchall()]
 
+    def get_churned_active_users(self, min_actions: int = 10, inactive_hours: int = 168, drip_type: str = "churned_7d") -> list:
+        """Find users who were actively using the API but stopped for 7+ days."""
+        self.ensure_drip_emails_table()
+        with self._cursor(dict_cursor=True) as cur:
+            cur.execute(
+                """SELECT u.id, u.email
+                   FROM users u
+                   JOIN usage_log ac ON ac.user_id = u.id
+                   WHERE u.created_at > NOW() - INTERVAL '90 days'
+                     AND NOT EXISTS (
+                         SELECT 1 FROM drip_emails de
+                         WHERE de.email = u.email AND de.drip_type = %s
+                     )
+                   GROUP BY u.id, u.email
+                   HAVING count(*) FILTER (WHERE ac.action IN ('add', 'search', 'search_all')) >= %s
+                      AND max(ac.created_at) < NOW() - make_interval(hours => %s)""",
+                (drip_type, min_actions, inactive_hours)
+            )
+            return [{"id": str(r["id"]), "email": r["email"]} for r in cur.fetchall()]
+
     def save_oauth_code(self, code: str, user_id: str, redirect_uri: str, state: str):
         """Save OAuth authorization code (expires in 5 min)."""
         with self._cursor() as cur:
