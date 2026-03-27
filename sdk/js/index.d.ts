@@ -14,6 +14,8 @@ export interface MemoryOptions {
   runId?: string;
   appId?: string;
   expirationDate?: string;
+  source?: string;
+  metadata?: Record<string, any>;
 }
 
 export interface SearchOptions extends MemoryOptions {
@@ -34,6 +36,7 @@ export interface SearchResult {
   facts: string[];
   knowledge: any[];
   relations: any[];
+  metadata?: Record<string, any>;
 }
 
 export interface Entity {
@@ -42,6 +45,7 @@ export interface Entity {
   facts: string[];
   knowledge: any[];
   relations: any[];
+  metadata?: Record<string, any>;
   created_at: string;
   updated_at: string;
 }
@@ -91,6 +95,7 @@ export interface Episode {
   failed_at_step: number | null;
   score?: number;
   created_at: string | null;
+  metadata?: Record<string, any>;
   memory_type?: 'episodic';
 }
 
@@ -110,6 +115,7 @@ export interface Procedure {
   last_used: string | null;
   created_at?: string | null;
   updated_at: string | null;
+  metadata?: Record<string, any>;
   memory_type?: 'procedural';
 }
 

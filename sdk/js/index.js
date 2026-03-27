@@ -110,17 +110,22 @@ class MengramClient {
    * @param {string} [options.runId] - Run/session ID
    * @param {string} [options.appId] - Application ID
    * @param {string} [options.expirationDate] - ISO datetime — facts auto-expire after this
+   * @param {string} [options.source] - Provenance source (e.g. "discord", "slack", "email")
+   * @param {object} [options.metadata] - Arbitrary provenance metadata
    * @returns {Promise<{status: string, job_id?: string}>}
    */
   async add(messages, options = {}) {
-    return this._request('POST', '/v1/add', {
+    const body = {
       messages,
       user_id: options.userId || 'default',
       agent_id: options.agentId || null,
       run_id: options.runId || null,
       app_id: options.appId || null,
       expiration_date: options.expirationDate || null,
-    });
+    };
+    if (options.source) body.source = options.source;
+    if (options.metadata) body.metadata = options.metadata;
+    return this._request('POST', '/v1/add', body);
   }
 
   /**
@@ -132,6 +137,8 @@ class MengramClient {
    * @param {string} [options.runId]
    * @param {string} [options.appId]
    * @param {string} [options.expirationDate] - ISO datetime when memories expire
+   * @param {string} [options.source] - Provenance source (e.g. "discord", "slack", "email")
+   * @param {object} [options.metadata] - Arbitrary provenance metadata
    * @returns {Promise<{status: string}>}
    */
   async addText(text, options = {}) {
@@ -143,6 +150,8 @@ class MengramClient {
       app_id: options.appId || null,
     };
     if (options.expirationDate) body.expiration_date = options.expirationDate;
+    if (options.source) body.source = options.source;
+    if (options.metadata) body.metadata = options.metadata;
     return this._request('POST', '/v1/add_text', body);
   }
 

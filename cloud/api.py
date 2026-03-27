@@ -84,6 +84,8 @@ class AddRequest(BaseModel):
     agent_id: str | None = None
     run_id: str | None = None
     app_id: str | None = None
+    source: str | None = None              # Provenance: "discord", "slack", "email", "api", etc.
+    metadata: dict | None = None           # Arbitrary provenance metadata
     expiration_date: str | None = None
     dry_run: bool = False
     prompt_version: str | None = None  # Override extraction prompt version (only works with dry_run)
@@ -94,6 +96,8 @@ class AddTextRequest(BaseModel):
     agent_id: str | None = None
     run_id: str | None = None
     app_id: str | None = None
+    source: str | None = None
+    metadata: dict | None = None
     expiration_date: str | None = None
 
 class SearchRequest(BaseModel):
@@ -5164,7 +5168,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                             "upgrade_url": "https://mengram.io/#pricing",
                         })
         job_id = store.create_job(user_id, "add")
-        # Build metadata from categories
+        # Build metadata from categories + provenance
         metadata = {}
         if req.agent_id:
             metadata["agent_id"] = req.agent_id
@@ -5172,6 +5176,10 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             metadata["run_id"] = req.run_id
         if req.app_id:
             metadata["app_id"] = req.app_id
+        if req.source:
+            metadata["source"] = req.source
+        if req.metadata:
+            metadata.update(req.metadata)
 
         def process_in_background():
             _run_extraction_pipeline(
@@ -5203,6 +5211,9 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             agent_id=req.agent_id,
             run_id=req.run_id,
             app_id=req.app_id,
+            source=req.source,
+            metadata=req.metadata,
+            expiration_date=req.expiration_date,
         )
         # Delegate to add() which handles quota check + increment internally
         result = await add(add_req, ctx)
@@ -6155,6 +6166,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             "facts": entity.facts,
             "relations": entity.relations,
             "knowledge": entity.knowledge,
+            "metadata": entity.metadata or {},
         }
 
     @app.delete("/v1/memory/{name}", tags=["Memory"])

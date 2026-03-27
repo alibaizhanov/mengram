@@ -119,13 +119,14 @@ class CloudMemory:
 
     def add(self, messages: list[dict], user_id: str = "default",
             agent_id: str = None, run_id: str = None, app_id: str = None,
-            expiration_date: str = None) -> dict:
+            expiration_date: str = None,
+            source: str = None, metadata: dict = None) -> dict:
         """
         Add memories from conversation.
-        
+
         Automatically extracts entities, facts, relations, and knowledge.
         Returns immediately — processing happens in background.
-        
+
         Args:
             messages: [{"role": "user", "content": "..."}, ...]
             user_id: User identifier
@@ -134,7 +135,9 @@ class CloudMemory:
             app_id: Application identifier
             expiration_date: ISO datetime string — facts auto-expire after this date.
                              None = persist forever.
-            
+            source: Provenance source (e.g. "discord", "slack", "email", "api")
+            metadata: Arbitrary provenance metadata dict
+
         Returns:
             {"status": "accepted", "job_id": "job-...", "message": "..."}
         """
@@ -147,6 +150,10 @@ class CloudMemory:
             body["app_id"] = app_id
         if expiration_date:
             body["expiration_date"] = expiration_date
+        if source:
+            body["source"] = source
+        if metadata:
+            body["metadata"] = metadata
         return self._request("POST", "/v1/add", body)
 
     def add_file(self, file_path: str, user_id: str = "default",
@@ -245,7 +252,8 @@ class CloudMemory:
 
     def add_text(self, text: str, user_id: str = "default",
                  agent_id: str = None, run_id: str = None,
-                 app_id: str = None, expiration_date: str = None) -> dict:
+                 app_id: str = None, expiration_date: str = None,
+                 source: str = None, metadata: dict = None) -> dict:
         """Add memories from plain text.
 
         Args:
@@ -255,6 +263,8 @@ class CloudMemory:
             run_id: Filter by run/session
             app_id: Filter by application
             expiration_date: ISO datetime when memories expire (e.g. "2026-12-31")
+            source: Provenance source (e.g. "discord", "slack", "email", "api")
+            metadata: Arbitrary provenance metadata dict
         """
         body = {"text": text, "user_id": user_id}
         if agent_id:
@@ -265,6 +275,10 @@ class CloudMemory:
             body["app_id"] = app_id
         if expiration_date:
             body["expiration_date"] = expiration_date
+        if source:
+            body["source"] = source
+        if metadata:
+            body["metadata"] = metadata
         return self._request("POST", "/v1/add_text", body)
 
     def search(self, query: str, user_id: str = "default",

@@ -124,24 +124,30 @@ class AsyncCloudMemory:
 
     async def add(self, messages: list[dict], user_id: str = "default",
                   agent_id: str = None, run_id: str = None, app_id: str = None,
-                  expiration_date: str = None) -> dict:
+                  expiration_date: str = None,
+                  source: str = None, metadata: dict = None) -> dict:
         """Add memories from conversation. Returns immediately — processing in background."""
         body = {"messages": messages, "user_id": user_id}
         if agent_id: body["agent_id"] = agent_id
         if run_id: body["run_id"] = run_id
         if app_id: body["app_id"] = app_id
         if expiration_date: body["expiration_date"] = expiration_date
+        if source: body["source"] = source
+        if metadata: body["metadata"] = metadata
         return await self._request("POST", "/v1/add", body)
 
     async def add_text(self, text: str, user_id: str = "default",
                        agent_id: str = None, run_id: str = None,
-                       app_id: str = None, expiration_date: str = None) -> dict:
+                       app_id: str = None, expiration_date: str = None,
+                       source: str = None, metadata: dict = None) -> dict:
         """Add memories from plain text."""
         body = {"text": text, "user_id": user_id}
         if agent_id: body["agent_id"] = agent_id
         if run_id: body["run_id"] = run_id
         if app_id: body["app_id"] = app_id
         if expiration_date: body["expiration_date"] = expiration_date
+        if source: body["source"] = source
+        if metadata: body["metadata"] = metadata
         return await self._request("POST", "/v1/add_text", body)
 
     async def add_file(self, file_path: str, user_id: str = "default",

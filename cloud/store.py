@@ -186,6 +186,7 @@ class CloudEntity:
     facts: list[str]
     relations: list[dict]
     knowledge: list[dict]
+    metadata: dict = None
 
 
 class CloudStore:
@@ -760,6 +761,15 @@ class CloudStore:
             cur.execute("""
                 CREATE INDEX IF NOT EXISTS idx_facts_event_date
                 ON facts(event_date) WHERE event_date IS NOT NULL
+            """)
+
+            # Provenance metadata on facts (v2.16)
+            cur.execute("""
+                ALTER TABLE facts ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_facts_metadata
+                ON facts USING gin(metadata)
             """)
 
             # Raw conversation chunk storage
@@ -1629,7 +1639,7 @@ class CloudStore:
                 logger.info(f"🔀 User → '{canonical_name}' (id: {entity_id})")
                 with self._cursor() as cur:
                     cur.execute("UPDATE entities SET updated_at = NOW() WHERE id = %s", (entity_id,))
-                self._add_facts_knowledge_relations(entity_id, user_id, canonical_name, facts, relations, knowledge, expires_at=expires_at, fact_dates=fact_dates, sub_user_id=sub_user_id)
+                self._add_facts_knowledge_relations(entity_id, user_id, canonical_name, facts, relations, knowledge, expires_at=expires_at, fact_dates=fact_dates, sub_user_id=sub_user_id, metadata=metadata)
                 return entity_id
 
         # Check for case-insensitive exact match first
@@ -1673,7 +1683,7 @@ class CloudStore:
                     cur.execute("UPDATE entities SET updated_at = NOW() WHERE id = %s", (entity_id,))
 
                 # Add facts, knowledge, relations below
-                self._add_facts_knowledge_relations(entity_id, user_id, name, facts, relations, knowledge, expires_at=expires_at, fact_dates=fact_dates, sub_user_id=sub_user_id)
+                self._add_facts_knowledge_relations(entity_id, user_id, name, facts, relations, knowledge, expires_at=expires_at, fact_dates=fact_dates, sub_user_id=sub_user_id, metadata=metadata)
                 return entity_id
 
         # Check for duplicate entity (word-boundary match)
@@ -1734,7 +1744,7 @@ class CloudStore:
                     else:
                         raise
 
-        self._add_facts_knowledge_relations(entity_id, user_id, name, facts, relations, knowledge, expires_at=expires_at, fact_dates=fact_dates, sub_user_id=sub_user_id)
+        self._add_facts_knowledge_relations(entity_id, user_id, name, facts, relations, knowledge, expires_at=expires_at, fact_dates=fact_dates, sub_user_id=sub_user_id, metadata=metadata)
         return entity_id
 
     @staticmethod
@@ -1792,28 +1802,34 @@ class CloudStore:
                                         knowledge: list[dict] = None,
                                         expires_at: str = None,
                                         fact_dates: dict = None,
-                                        sub_user_id: str = "default"):
+                                        sub_user_id: str = "default",
+                                        metadata: dict = None):
         """Add facts, knowledge, and relations to an entity."""
         added_facts = []
+        meta_json = json.dumps(metadata) if metadata else '{}'
         with self._cursor() as cur:
             for fact in (facts or []):
                 importance = self.estimate_importance(fact)
                 event_date = (fact_dates or {}).get(fact)
                 if expires_at:
                     cur.execute(
-                        """INSERT INTO facts (entity_id, content, importance, expires_at, event_date)
-                           VALUES (%s, %s, %s, %s, %s)
-                           ON CONFLICT (entity_id, content) DO UPDATE SET event_date = COALESCE(EXCLUDED.event_date, facts.event_date)
+                        """INSERT INTO facts (entity_id, content, importance, expires_at, event_date, metadata)
+                           VALUES (%s, %s, %s, %s, %s, %s::jsonb)
+                           ON CONFLICT (entity_id, content) DO UPDATE SET
+                               event_date = COALESCE(EXCLUDED.event_date, facts.event_date),
+                               metadata = facts.metadata || EXCLUDED.metadata
                            RETURNING content""",
-                        (entity_id, fact, importance, expires_at, event_date)
+                        (entity_id, fact, importance, expires_at, event_date, meta_json)
                     )
                 else:
                     cur.execute(
-                        """INSERT INTO facts (entity_id, content, importance, event_date)
-                           VALUES (%s, %s, %s, %s)
-                           ON CONFLICT (entity_id, content) DO UPDATE SET event_date = COALESCE(EXCLUDED.event_date, facts.event_date)
+                        """INSERT INTO facts (entity_id, content, importance, event_date, metadata)
+                           VALUES (%s, %s, %s, %s, %s::jsonb)
+                           ON CONFLICT (entity_id, content) DO UPDATE SET
+                               event_date = COALESCE(EXCLUDED.event_date, facts.event_date),
+                               metadata = facts.metadata || EXCLUDED.metadata
                            RETURNING content""",
-                        (entity_id, fact, importance, event_date)
+                        (entity_id, fact, importance, event_date, meta_json)
                     )
                 row = cur.fetchone()
                 if row:
@@ -1913,7 +1929,7 @@ class CloudStore:
         """Get entity with all data."""
         with self._cursor(dict_cursor=True) as cur:
             cur.execute(
-                "SELECT id, name, type FROM entities WHERE user_id = %s AND sub_user_id = %s AND name = %s",
+                "SELECT id, name, type, metadata FROM entities WHERE user_id = %s AND sub_user_id = %s AND name = %s",
                 (user_id, sub_user_id, name)
             )
             row = cur.fetchone()
@@ -1955,6 +1971,7 @@ class CloudStore:
                 facts=facts,
                 relations=relations,
                 knowledge=knowledge,
+                metadata=row.get("metadata") or {},
             )
 
     def get_all_entities(self, user_id: str, sub_user_id: str = "default",
@@ -2192,12 +2209,12 @@ class CloudStore:
         while len(selected) < top_k and remaining:
             best_idx, best_mmr = 0, float('-inf')
             for i, (eid, score) in enumerate(remaining):
-                etype = entity_info.get(eid, ("?", "?", None))[1]
-                ename = entity_info.get(eid, ("?", "?", None))[0].lower()
+                etype = entity_info.get(eid, ("?", "?", None, {}))[1]
+                ename = entity_info.get(eid, ("?", "?", None, {}))[0].lower()
                 max_sim = 0
                 for sel_id, _ in selected:
-                    sel_type = entity_info.get(sel_id, ("?", "?", None))[1]
-                    sel_name = entity_info.get(sel_id, ("?", "?", None))[0].lower()
+                    sel_type = entity_info.get(sel_id, ("?", "?", None, {}))[1]
+                    sel_name = entity_info.get(sel_id, ("?", "?", None, {}))[0].lower()
                     type_sim = 0.5 if etype == sel_type else 0
                     name_sim = 0.5 if (ename in sel_name or sel_name in ename) else 0
                     max_sim = max(max_sim, type_sim + name_sim)
@@ -2306,7 +2323,7 @@ class CloudStore:
                 f"""SELECT DISTINCT ON (e.id)
                        e.id, e.name, e.type,
                        1 - (emb.embedding <=> %s::vector) AS score,
-                       e.updated_at
+                       e.updated_at, e.metadata
                    FROM embeddings emb
                    JOIN entities e ON e.id = emb.entity_id
                    WHERE e.user_id = %s AND e.sub_user_id = %s
@@ -2363,19 +2380,19 @@ class CloudStore:
             all_entity_ids = set(vector_ranked.keys()) | set(bm25_ranked.keys())
             
             rrf_scores = {}
-            entity_info = {}  # id -> (name, type, updated_at)
+            entity_info = {}  # id -> (name, type, updated_at, metadata)
             
             for eid in all_entity_ids:
                 score = 0.0
                 if eid in vector_ranked:
                     rank, row = vector_ranked[eid]
                     score += 1.0 / (k + rank)
-                    entity_info[eid] = (row["name"], row["type"], row.get("updated_at"))
+                    entity_info[eid] = (row["name"], row["type"], row.get("updated_at"), row.get("metadata") or {})
                 if eid in bm25_ranked:
                     rank, row = bm25_ranked[eid]
                     score += 1.0 / (k + rank)
                     if eid not in entity_info:
-                        entity_info[eid] = (row["name"], row["type"], row.get("updated_at"))
+                        entity_info[eid] = (row["name"], row["type"], row.get("updated_at"), row.get("metadata") or {})
                 rrf_scores[eid] = score
 
             # ========== STAGE 4: Graph expansion (multi-hop) ==========
@@ -2390,7 +2407,7 @@ class CloudStore:
             graph_expanded_ids = set()
             for eid, info in graph_entities.items():
                 rrf_scores[eid] = info["score"]
-                entity_info[eid] = (info["name"], info["type"], info.get("updated_at"))
+                entity_info[eid] = (info["name"], info["type"], info.get("updated_at"), {})
                 graph_expanded_ids.add(eid)
 
             # ========== STAGE 5: Recency boost + build results ==========
@@ -2423,11 +2440,12 @@ class CloudStore:
             entity_ids = [eid for eid, _ in top_entities]
             entity_map = {}
             for eid, score in top_entities:
-                name, etype, _ = entity_info.get(eid, ("?", "?", None))
+                name, etype, _, emeta = entity_info.get(eid, ("?", "?", None, {}))
                 entity_map[eid] = {
                     "entity": name,
                     "type": etype,
                     "score": round(score, 4),
+                    "metadata": emeta or {},
                     "facts": [],
                     "relations": [],
                     "knowledge": [],
@@ -3908,7 +3926,7 @@ REFLECTIONS/PATTERNS:
         query = """
             SELECT ep.id, ep.summary, ep.context, ep.outcome, ep.participants,
                    ep.emotional_valence, ep.importance, ep.created_at,
-                   ep.happened_at,
+                   ep.happened_at, ep.metadata,
                    1 - (ee.embedding <=> %s::vector) AS score
             FROM episode_embeddings ee
             JOIN episodes ep ON ep.id = ee.episode_id
@@ -3961,7 +3979,7 @@ REFLECTIONS/PATTERNS:
                     if eid not in vec_rows:
                         cur.execute("""
                             SELECT ep.id, ep.summary, ep.context, ep.outcome, ep.participants,
-                                   ep.emotional_valence, ep.importance, ep.created_at, ep.happened_at
+                                   ep.emotional_valence, ep.importance, ep.created_at, ep.happened_at, ep.metadata
                             FROM episodes ep WHERE ep.id = %s
                         """, (eid,))
                         r = cur.fetchone()
@@ -4003,6 +4021,7 @@ REFLECTIONS/PATTERNS:
                     "score": final_score,
                     "happened_at": row.get("happened_at"),
                     "created_at": row["created_at"].isoformat() if row.get("created_at") else None,
+                    "metadata": row.get("metadata") or {},
                     "memory_type": "episodic",
                 })
             results.sort(key=lambda r: r["score"], reverse=True)
@@ -4021,7 +4040,7 @@ REFLECTIONS/PATTERNS:
         sql = """
             SELECT ep.id, ep.summary, ep.context, ep.outcome, ep.participants,
                    ep.emotional_valence, ep.importance, ep.created_at,
-                   ep.happened_at,
+                   ep.happened_at, ep.metadata,
                    ts_rank(ee.tsv, plainto_tsquery('english', %s)) AS score
             FROM episode_embeddings ee
             JOIN episodes ep ON ep.id = ee.episode_id
@@ -4051,6 +4070,7 @@ REFLECTIONS/PATTERNS:
                     "score": round(float(row["score"]), 4),
                     "happened_at": row.get("happened_at"),
                     "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                    "metadata": row.get("metadata") or {},
                     "memory_type": "episodic",
                 })
             return results
@@ -4143,7 +4163,7 @@ REFLECTIONS/PATTERNS:
             cur.execute(
                 """SELECT id, name, trigger_condition, steps, entity_names,
                           success_count, fail_count, last_used, version,
-                          created_at, updated_at
+                          created_at, updated_at, metadata
                    FROM procedures
                    WHERE user_id = %s AND sub_user_id = %s
                      AND is_current = TRUE
@@ -4166,6 +4186,7 @@ REFLECTIONS/PATTERNS:
                     "last_used": row["last_used"].isoformat() if row["last_used"] else None,
                     "created_at": row["created_at"].isoformat() if row["created_at"] else None,
                     "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
+                    "metadata": row.get("metadata") or {},
                     "memory_type": "procedural",
                 })
             return results
@@ -4176,7 +4197,7 @@ REFLECTIONS/PATTERNS:
         """Hybrid search over procedural memory: vector + BM25 + RRF (current versions only)."""
         query = """
             SELECT p.id, p.name, p.trigger_condition, p.steps, p.entity_names,
-                   p.success_count, p.fail_count, p.last_used, p.version, p.updated_at,
+                   p.success_count, p.fail_count, p.last_used, p.version, p.updated_at, p.metadata,
                    1 - (pe.embedding <=> %s::vector) AS score
             FROM procedure_embeddings pe
             JOIN procedures p ON p.id = pe.procedure_id
@@ -4223,7 +4244,7 @@ REFLECTIONS/PATTERNS:
                     if pid not in vec_rows:
                         cur.execute("""
                             SELECT p.id, p.name, p.trigger_condition, p.steps, p.entity_names,
-                                   p.success_count, p.fail_count, p.last_used, p.version, p.updated_at
+                                   p.success_count, p.fail_count, p.last_used, p.version, p.updated_at, p.metadata
                             FROM procedures p WHERE p.id = %s
                         """, (pid,))
                         r = cur.fetchone()
@@ -4254,6 +4275,7 @@ REFLECTIONS/PATTERNS:
                     "version": row.get("version") or 1,
                     "score": round(rrf_scores[pid], 4),
                     "updated_at": row["updated_at"].isoformat() if row.get("updated_at") else None,
+                    "metadata": row.get("metadata") or {},
                     "memory_type": "procedural",
                 })
             results = results[:top_k]
@@ -4270,7 +4292,7 @@ REFLECTIONS/PATTERNS:
         """BM25 text search over procedural memory (current versions only)."""
         sql = """
             SELECT p.id, p.name, p.trigger_condition, p.steps, p.entity_names,
-                   p.success_count, p.fail_count, p.version, p.updated_at,
+                   p.success_count, p.fail_count, p.version, p.updated_at, p.metadata,
                    ts_rank(pe.tsv, plainto_tsquery('english', %s)) AS score
             FROM procedure_embeddings pe
             JOIN procedures p ON p.id = pe.procedure_id
@@ -4301,6 +4323,7 @@ REFLECTIONS/PATTERNS:
                     "version": row["version"] or 1,
                     "score": round(float(row["score"]), 4),
                     "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
+                    "metadata": row.get("metadata") or {},
                     "memory_type": "procedural",
                 })
             return results
