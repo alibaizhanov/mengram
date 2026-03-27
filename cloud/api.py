@@ -86,6 +86,7 @@ class AddRequest(BaseModel):
     app_id: str | None = None
     expiration_date: str | None = None
     dry_run: bool = False
+    prompt_version: str | None = None  # Override extraction prompt version (only works with dry_run)
 
 class AddTextRequest(BaseModel):
     text: str
@@ -5116,7 +5117,8 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             except Exception:
                 pass
             conversation = [{"role": m.role, "content": m.content} for m in req.messages]
-            result = extractor.extract(conversation, existing_context=existing_context)
+            result = extractor.extract(conversation, existing_context=existing_context,
+                                       prompt_version=req.prompt_version)
             return {
                 "dry_run": True,
                 "extraction": {

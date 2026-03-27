@@ -593,7 +593,8 @@ class ConversationExtractor:
     def __init__(self, llm_client: LLMClient):
         self.llm = llm_client
 
-    def extract(self, conversation: list[dict], existing_context: str = "") -> ExtractionResult:
+    def extract(self, conversation: list[dict], existing_context: str = "",
+                prompt_version: str = None) -> ExtractionResult:
         conv_text = self._format_conversation(conversation)
 
         # Build context block
@@ -602,7 +603,8 @@ class ConversationExtractor:
         else:
             context_block = ""
 
-        prompt_template = EXTRACTION_PROMPT_V2 if EXTRACTION_PROMPT_VERSION == "v2" else EXTRACTION_PROMPT
+        version = prompt_version or EXTRACTION_PROMPT_VERSION
+        prompt_template = EXTRACTION_PROMPT_V2 if version == "v2" else EXTRACTION_PROMPT
         prompt = prompt_template.format(
             conversation=conv_text,
             existing_context=context_block
