@@ -2348,7 +2348,7 @@ class CloudStore:
                         f"""SELECT DISTINCT ON (e.id)
                                e.id, e.name, e.type,
                                ts_rank(emb.tsv, plainto_tsquery('english', %s)) AS rank,
-                               e.updated_at
+                               e.updated_at, e.metadata
                            FROM embeddings emb
                            JOIN entities e ON e.id = emb.entity_id
                            WHERE e.user_id = %s AND e.sub_user_id = %s
@@ -2363,7 +2363,7 @@ class CloudStore:
 
                     # Also search entity names directly (ILIKE)
                     cur.execute(
-                        """SELECT id, name, type, updated_at
+                        """SELECT id, name, type, updated_at, metadata
                            FROM entities
                            WHERE user_id = %s AND sub_user_id = %s AND (
                                name ILIKE %s OR name ILIKE %s
@@ -2604,6 +2604,7 @@ class CloudStore:
                         "entity": entity.name,
                         "type": entity.type,
                         "score": 0.5,
+                        "metadata": entity.metadata or {},
                         "facts": entity.facts,
                         "relations": [r for r in entity.relations],
                         "knowledge": [k for k in entity.knowledge],
@@ -5576,7 +5577,7 @@ Return ONLY JSON (no markdown):
                 f"""SELECT DISTINCT ON (e.id)
                        e.id, e.name, e.type, e.user_id, e.team_id,
                        1 - (emb.embedding <=> %s::vector) AS score,
-                       e.updated_at
+                       e.updated_at, e.metadata
                    FROM embeddings emb
                    JOIN entities e ON e.id = emb.entity_id
                    WHERE ((e.user_id = %s AND e.sub_user_id = %s) OR e.team_id = ANY(%s))
@@ -5598,7 +5599,7 @@ Return ONLY JSON (no markdown):
                         f"""SELECT DISTINCT ON (e.id)
                                e.id, e.name, e.type, e.user_id, e.team_id,
                                ts_rank(emb.tsv, plainto_tsquery('english', %s)) AS rank,
-                               e.updated_at
+                               e.updated_at, e.metadata
                            FROM embeddings emb
                            JOIN entities e ON e.id = emb.entity_id
                            WHERE ((e.user_id = %s AND e.sub_user_id = %s) OR e.team_id = ANY(%s))
@@ -5625,6 +5626,7 @@ Return ONLY JSON (no markdown):
                     entity_info[eid] = {
                         "name": row["name"], "type": row["type"],
                         "updated_at": row.get("updated_at"),
+                        "metadata": row.get("metadata") or {},
                         "team_shared": row["team_id"] is not None and row["user_id"] != user_id
                     }
                 if eid in bm25_ranked:
@@ -5634,6 +5636,7 @@ Return ONLY JSON (no markdown):
                         entity_info[eid] = {
                             "name": row["name"], "type": row["type"],
                             "updated_at": row.get("updated_at"),
+                            "metadata": row.get("metadata") or {},
                             "team_shared": row["team_id"] is not None and row["user_id"] != user_id
                         }
                 rrf_scores[eid] = score
@@ -5770,6 +5773,7 @@ Return ONLY JSON (no markdown):
                     "entity": info["name"],
                     "type": info["type"],
                     "score": round(score, 4),
+                    "metadata": info.get("metadata") or {},
                     "facts": facts_map.get(eid, []),
                     "relations": relations_map.get(eid, []),
                     "knowledge": knowledge_map.get(eid, []),
