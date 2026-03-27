@@ -378,7 +378,10 @@ QUALITY BAR — only extract facts worth recalling in a FUTURE conversation:
 - NO: transient actions ("searched for X", "looked at Y", "opened the file")
 - NO: conversation mechanics ("thanked the assistant", "asked for help")
 - NO: generic knowledge anyone could look up ("Python is a programming language")
-- When in doubt, skip it. Under-extraction is better than junk extraction.
+- When in doubt about ASSISTANT content, skip it. Under-extraction of assistant noise is better than junk.
+- BUT: the User's direct "I"/"my" statements are ALWAYS worth extracting — NEVER skip them.
+  "I already use pytest at work" → MUST extract (uses pytest, works somewhere)
+  "I have a side project" → MUST extract
 
 FACT DEDUP — check existing facts above. Do NOT re-extract facts that already exist (even if worded slightly differently).
 If someone says "I use Python" and existing context already has "uses Python" → skip it.
