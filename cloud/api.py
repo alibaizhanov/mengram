@@ -85,6 +85,7 @@ class AddRequest(BaseModel):
     run_id: str | None = None
     app_id: str | None = None
     expiration_date: str | None = None
+    dry_run: bool = False
 
 class AddTextRequest(BaseModel):
     text: str
@@ -5104,10 +5105,46 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         Returns immediately with job_id, processes in background.
         """
         user_id = ctx.user_id
+        sub_uid = req.user_id or "default"
+
+        # Dry run: extract and return preview without saving
+        if req.dry_run:
+            extractor = get_llm()
+            existing_context = ""
+            try:
+                existing_context = store.get_existing_context(user_id, sub_user_id=sub_uid)
+            except Exception:
+                pass
+            conversation = [{"role": m.role, "content": m.content} for m in req.messages]
+            result = extractor.extract(conversation, existing_context=existing_context)
+            return {
+                "dry_run": True,
+                "extraction": {
+                    "entities": [
+                        {"name": e.name, "type": e.entity_type,
+                         "facts": [{"fact": f.content, "when": f.event_date} for f in e.facts]}
+                        for e in result.entities if e.name
+                    ],
+                    "relations": [
+                        {"from": r.from_entity, "to": r.to_entity,
+                         "type": r.relation_type, "description": r.description}
+                        for r in result.relations
+                    ],
+                    "episodes": [
+                        {"summary": ep.summary, "context": ep.context, "outcome": ep.outcome,
+                         "participants": ep.participants, "importance": ep.importance}
+                        for ep in result.episodes if ep.summary
+                    ],
+                    "procedures": [
+                        {"name": p.name, "trigger": p.trigger,
+                         "steps": p.steps, "entities": p.entities}
+                        for p in result.procedures if p.name
+                    ],
+                }
+            }
+
         use_quota(ctx, "add")  # atomic check+increment before background processing
         import threading
-
-        sub_uid = req.user_id or "default"
 
         # Enforce sub-user limit per plan
         if sub_uid != "default":

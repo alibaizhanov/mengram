@@ -21,6 +21,7 @@ Knowledge is the killer feature. LLM determines the knowledge type:
   ... any other type that fits the context
 """
 
+import os
 import sys
 import json
 import logging
@@ -30,6 +31,8 @@ from typing import Optional
 from engine.extractor.llm_client import LLMClient
 
 _logger = logging.getLogger("mengram")
+
+EXTRACTION_PROMPT_VERSION = os.environ.get("EXTRACTION_PROMPT_VERSION", "v1")
 
 # OpenAI Structured Outputs schema — guarantees valid JSON with correct types
 EXTRACTION_SCHEMA = {
@@ -319,6 +322,180 @@ EXISTING ENTITIES FOR THIS USER (use same names, avoid duplicate facts):
 """
 
 
+# ============================================================
+# V2 — stricter filtering, better attribution, quality bar
+# Activated via EXTRACTION_PROMPT_VERSION=v2 env var
+# ============================================================
+
+EXTRACTION_PROMPT_V2 = """You are a knowledge extraction system. Extract personal knowledge from the User's perspective.
+
+Return ONLY valid JSON without markdown.
+
+WHO TO EXTRACT ABOUT:
+- Extract facts about the User and real people/entities the User mentions
+- The User's own statements ("I work at Google", "my dog is named Rex") → facts about the User
+- The Assistant's research, explanations, and general knowledge are NOT facts about anyone — skip them
+- ONLY extract from Assistant content if the User EXPLICITLY CONFIRMS it applies to them
+  Example: Assistant says "React uses virtual DOM" → DO NOT extract
+  Example: User says "yeah I use React with virtual DOM daily" → extract for User
+- If someone says "I"/"me"/"my" — that's the User (resolve to their name if known, otherwise "User")
+- Information from web searches, docs, tool outputs, or code analysis is NOT a personal fact
+{existing_context}
+DO NOT EXTRACT — meta-conversation noise:
+- Assistant's internal actions: "let me search", "I'll look into", "here's what I found"
+- Tool/function call outputs, search results, code analysis by the Assistant
+- Procedural filler: "Sure, I can help", "Let me explain", "Here's an overview"
+- The User asking the Assistant to do something ("can you search for X", "help me with Y")
+  — unless it reveals a personal fact about the User (e.g. "search for flights to Tokyo" → User plans to visit Tokyo)
+- Any fact that describes what happened IN this conversation rather than about the real world
+
+ENTITY RULES:
+- Named entities with 1+ extractable facts (people, places, organizations, activities, projects)
+- entity_type: person, project, technology, company, concept, place, activity
+- Create separate entities for each person by name
+- Single-fact entities are OK if the fact is important (identity, job, location, hobby)
+
+ENTITY NAMING:
+- EXACT casing from context: "Mengram" not "MENGRAM", "PostgreSQL" not "postgresql"
+- FULL name when known: "Ali Baizhanov" not "Ali", "Uzum Bank" not "uzum"
+- If entity already exists above — use EXACT SAME NAME (do not create duplicates)
+
+FACT RULES:
+- Concise but complete, under 20 words
+- ALWAYS include dates/times when mentioned or inferrable from context
+  GOOD: "attended LGBTQ support group on May 7, 2023"
+  GOOD: "started pottery class in June 2023"
+  GOOD: "works as a software engineer at Google"
+  BAD: "attended support group" (date was available but omitted!)
+- If the conversation includes timestamps like "[1:56 pm on 8 May, 2023]" and someone says "yesterday" — calculate the actual date and include it
+- ONLY facts that DIRECTLY describe the entity they're assigned to
+- Keep project facts on projects, personal facts on the person — don't mix
+- Facts can optionally include a "when" date field (see format below)
+
+QUALITY BAR — only extract facts worth recalling in a FUTURE conversation:
+- YES: identity, preferences, skills, relationships, plans, locations, tools used
+- YES: decisions made, problems solved, opinions expressed
+- NO: transient actions ("searched for X", "looked at Y", "opened the file")
+- NO: conversation mechanics ("thanked the assistant", "asked for help")
+- NO: generic knowledge anyone could look up ("Python is a programming language")
+- When in doubt, skip it. Under-extraction is better than junk extraction.
+
+FACT DEDUP — check existing facts above. Do NOT re-extract facts that already exist (even if worded slightly differently).
+If someone says "I use Python" and existing context already has "uses Python" → skip it.
+If someone says "I switched from React to Svelte" and existing has "uses React" → extract "switched to Svelte" (this is NEW info).
+
+EPISODIC MEMORY — extract events and interactions:
+- An episode = something that HAPPENED: an activity, decision, milestone, trip, class, meetup, achievement
+- Only extract events from the REAL WORLD — not meta-conversation events
+- Include: what happened (summary), details (context), result (outcome), who was involved (participants)
+- Include "happened_at" date if known from conversation context (e.g. "2023-05-07")
+- emotional_valence: positive, negative, neutral, mixed
+- importance: 0.3 (minor) to 0.9 (major milestone)
+- Do NOT create episodes for pure greetings, small talk, or "User asked Assistant to do X"
+
+PROCEDURAL MEMORY — extract workflows/processes:
+- A procedure = a repeatable sequence of steps someone performs or described
+- Only extract if there are 2+ concrete steps forming a workflow
+- Include: name, trigger (when to use it), steps (ordered actions)
+- Link to entities involved
+- Extract from IMPLICIT workflows too ("first I do X, then Y, then Z")
+
+Response format (strict JSON, no ```):
+{{
+  "entities": [
+    {{
+      "name": "Entity Name",
+      "type": "person|project|technology|company|concept|place|activity",
+      "facts": [
+        {{"fact": "simple fact as string", "when": null}},
+        {{"fact": "fact with date", "when": "2023-05-07"}}
+      ]
+    }}
+  ],
+  "relations": [
+    {{
+      "from": "Entity 1",
+      "to": "Entity 2",
+      "type": "works_at|uses|member_of|related_to|depends_on|created_by|friend_of|lives_in",
+      "description": "short description"
+    }}
+  ],
+  "knowledge": [
+    {{
+      "entity": "Entity this knowledge belongs to",
+      "type": "solution|formula|command|insight|decision|recipe|reference",
+      "title": "Short descriptive title",
+      "content": "Detailed explanation",
+      "artifact": "code/config/formula/command (optional, null if none)"
+    }}
+  ],
+  "episodes": [
+    {{
+      "summary": "Brief description of what happened (under 20 words)",
+      "context": "Detailed description of the event",
+      "outcome": "What was decided, resolved, or resulted",
+      "participants": ["Entity1", "Entity2"],
+      "emotional_valence": "positive|negative|neutral|mixed",
+      "importance": 0.5,
+      "happened_at": "2023-05-07 or null if unknown"
+    }}
+  ],
+  "procedures": [
+    {{
+      "name": "Short procedure name",
+      "trigger": "When/why to use this procedure",
+      "steps": [
+        {{"step": 1, "action": "What to do", "detail": "Specific instruction"}},
+        {{"step": 2, "action": "Next step", "detail": "Specifics"}}
+      ],
+      "entities": ["Entity1"]
+    }}
+  ]
+}}
+
+EXAMPLE:
+Input conversation:
+  User: "[2023-06-15] Ali: I deployed mengram on Railway yesterday, everything works."
+  Assistant: "[2023-06-15] Bot: Great! Which PostgreSQL version?"
+  User: "[2023-06-15] Ali: 15, hosted on Supabase."
+
+Output:
+{{
+  "entities": [
+    {{"name": "Ali", "type": "person", "facts": [
+      {{"fact": "deployed Mengram on Railway", "when": "2023-06-14"}},
+      {{"fact": "uses Supabase with PostgreSQL 15", "when": null}}
+    ]}},
+    {{"name": "Mengram", "type": "project", "facts": [
+      {{"fact": "deployed on Railway", "when": "2023-06-14"}},
+      {{"fact": "uses Supabase PostgreSQL 15", "when": null}}
+    ]}}
+  ],
+  "relations": [
+    {{"from": "Ali", "to": "Mengram", "type": "created_by", "description": "deployed and manages"}},
+    {{"from": "Mengram", "to": "Supabase", "type": "depends_on", "description": "database hosting"}}
+  ],
+  "knowledge": [],
+  "episodes": [
+    {{
+      "summary": "Ali deployed Mengram on Railway successfully",
+      "context": "Deployed Mengram to Railway with Supabase PostgreSQL 15.",
+      "outcome": "Deployment successful",
+      "participants": ["Ali", "Mengram", "Railway"],
+      "emotional_valence": "positive",
+      "importance": 0.7,
+      "happened_at": "2023-06-14"
+    }}
+  ],
+  "procedures": []
+}}
+
+CONVERSATION:
+{conversation}
+
+Extract knowledge (return ONLY JSON):"""
+
+
 @dataclass
 class ExtractedFact:
     """Extracted fact with optional temporal metadata."""
@@ -425,7 +602,8 @@ class ConversationExtractor:
         else:
             context_block = ""
 
-        prompt = EXTRACTION_PROMPT.format(
+        prompt_template = EXTRACTION_PROMPT_V2 if EXTRACTION_PROMPT_VERSION == "v2" else EXTRACTION_PROMPT
+        prompt = prompt_template.format(
             conversation=conv_text,
             existing_context=context_block
         )
