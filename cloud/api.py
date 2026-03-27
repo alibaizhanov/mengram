@@ -5513,7 +5513,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 # Fallback: if nothing found, retry with lower threshold
                 if not results:
                     results = store.search_vector_with_teams(user_id, emb, top_k=search_limit,
-                                                  min_score=0.15, query_text=req.query,
+                                                  min_score=0.2, query_text=req.query,
                                                   graph_depth=req.graph_depth,
                                                   sub_user_id=sub_uid, meta_filters=meta_filters)
         else:
@@ -6393,7 +6393,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 graph_depth=req.graph_depth, sub_user_id=sub_uid, meta_filters=meta_filters)
             if not semantic:
                 semantic = store.search_vector_with_teams(
-                    user_id, emb, top_k=search_limit, min_score=0.15,
+                    user_id, emb, top_k=search_limit, min_score=0.2,
                     query_text=req.query, graph_depth=req.graph_depth, sub_user_id=sub_uid, meta_filters=meta_filters)
             # Episodic
             episodic = store.search_episodes_vector(

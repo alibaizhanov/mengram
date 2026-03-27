@@ -46,6 +46,10 @@ CREATE TABLE entities (
     UNIQUE(user_id, sub_user_id, name)
 );
 
+-- Case-insensitive unique index (prevents "Python" + "python" duplicates)
+CREATE UNIQUE INDEX idx_entities_user_sub_lname
+ON entities (user_id, sub_user_id, LOWER(name));
+
 CREATE INDEX idx_entities_user ON entities(user_id);
 CREATE INDEX idx_entities_sub_user ON entities(user_id, sub_user_id);
 CREATE INDEX idx_entities_type ON entities(user_id, type);
@@ -91,7 +95,8 @@ CREATE TABLE relations (
     description TEXT DEFAULT '',
     created_at TIMESTAMP DEFAULT NOW(),
 
-    UNIQUE(source_id, target_id, type)
+    UNIQUE(source_id, target_id, type),
+    CONSTRAINT chk_no_self_relation CHECK (source_id != target_id)
 );
 
 CREATE INDEX idx_relations_source ON relations(source_id);
@@ -217,6 +222,10 @@ CREATE TABLE procedures (
     expires_at TIMESTAMPTZ,
     UNIQUE(user_id, sub_user_id, name, version)
 );
+
+-- Case-insensitive unique index (prevents "Inbox Check" + "inbox check" duplicates)
+CREATE UNIQUE INDEX idx_procedures_user_sub_lname_ver
+ON procedures (user_id, sub_user_id, LOWER(name), version);
 
 CREATE INDEX idx_procedures_user ON procedures(user_id, updated_at DESC);
 CREATE INDEX idx_procedures_sub_user ON procedures(user_id, sub_user_id);

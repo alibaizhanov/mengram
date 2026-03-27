@@ -918,6 +918,125 @@ class CloudStore:
             """)
         logger.info("✅ Migration complete (v2.18: rules quota counter)")
 
+        # --- v2.19 Entity/procedure case-insensitive dedup, relation cleanup ---
+        with self._cursor() as cur:
+            # 1. Merge case-insensitive duplicate entities
+            cur.execute("""
+                DO $$
+                DECLARE
+                    r RECORD;
+                BEGIN
+                    FOR r IN
+                        SELECT user_id, sub_user_id, LOWER(name) as lname,
+                               array_agg(id ORDER BY length(name) DESC, updated_at DESC) as ids,
+                               (array_agg(id ORDER BY length(name) DESC, updated_at DESC))[1] as canonical_id
+                        FROM entities
+                        GROUP BY user_id, sub_user_id, LOWER(name)
+                        HAVING count(*) > 1
+                    LOOP
+                        -- Move facts from duplicates to canonical
+                        UPDATE facts SET entity_id = r.canonical_id
+                        WHERE entity_id = ANY(r.ids[2:])
+                        AND NOT EXISTS (
+                            SELECT 1 FROM facts f2
+                            WHERE f2.entity_id = r.canonical_id AND f2.content = facts.content
+                        );
+                        DELETE FROM facts WHERE entity_id = ANY(r.ids[2:]);
+                        -- Move relations (source)
+                        UPDATE relations SET source_id = r.canonical_id
+                        WHERE source_id = ANY(r.ids[2:])
+                        AND NOT EXISTS (
+                            SELECT 1 FROM relations r2
+                            WHERE r2.source_id = r.canonical_id AND r2.target_id = relations.target_id AND r2.type = relations.type
+                        );
+                        DELETE FROM relations WHERE source_id = ANY(r.ids[2:]);
+                        -- Move relations (target)
+                        UPDATE relations SET target_id = r.canonical_id
+                        WHERE target_id = ANY(r.ids[2:])
+                        AND NOT EXISTS (
+                            SELECT 1 FROM relations r2
+                            WHERE r2.source_id = relations.source_id AND r2.target_id = r.canonical_id AND r2.type = relations.type
+                        );
+                        DELETE FROM relations WHERE target_id = ANY(r.ids[2:]);
+                        -- Move embeddings
+                        UPDATE embeddings SET entity_id = r.canonical_id
+                        WHERE entity_id = ANY(r.ids[2:])
+                        AND NOT EXISTS (
+                            SELECT 1 FROM embeddings e2 WHERE e2.entity_id = r.canonical_id
+                        );
+                        DELETE FROM embeddings WHERE entity_id = ANY(r.ids[2:]);
+                        -- Delete duplicate entities
+                        DELETE FROM entities WHERE id = ANY(r.ids[2:]);
+                    END LOOP;
+                END $$
+            """)
+            # Case-insensitive unique index (prevents future duplicates)
+            cur.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_entities_user_sub_lname
+                ON entities (user_id, sub_user_id, LOWER(name))
+            """)
+
+            # 2. Merge case-insensitive duplicate procedures
+            cur.execute("""
+                DO $$
+                DECLARE
+                    r RECORD;
+                BEGIN
+                    FOR r IN
+                        SELECT user_id, sub_user_id, LOWER(name) as lname, version,
+                               array_agg(id ORDER BY updated_at DESC) as ids,
+                               (array_agg(id ORDER BY updated_at DESC))[1] as canonical_id
+                        FROM procedures
+                        GROUP BY user_id, sub_user_id, LOWER(name), version
+                        HAVING count(*) > 1
+                    LOOP
+                        -- Move embeddings to canonical
+                        UPDATE procedure_embeddings SET procedure_id = r.canonical_id
+                        WHERE procedure_id = ANY(r.ids[2:])
+                        AND NOT EXISTS (
+                            SELECT 1 FROM procedure_embeddings pe2 WHERE pe2.procedure_id = r.canonical_id
+                        );
+                        DELETE FROM procedure_embeddings WHERE procedure_id = ANY(r.ids[2:]);
+                        -- Move evolution records
+                        UPDATE procedure_evolution SET procedure_id = r.canonical_id
+                        WHERE procedure_id = ANY(r.ids[2:]);
+                        -- Delete duplicate procedures
+                        DELETE FROM procedures WHERE id = ANY(r.ids[2:]);
+                    END LOOP;
+                END $$
+            """)
+            # Case-insensitive unique index for procedures
+            cur.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_procedures_user_sub_lname_ver
+                ON procedures (user_id, sub_user_id, LOWER(name), version)
+            """)
+
+            # 3. Clean relations: self-referential and reverse duplicates
+            cur.execute("DELETE FROM relations WHERE source_id = target_id")
+            cur.execute("""
+                DELETE FROM relations r1
+                USING relations r2
+                WHERE r1.source_id = r2.target_id
+                  AND r1.target_id = r2.source_id
+                  AND r1.type = r2.type
+                  AND r1.created_at > r2.created_at
+            """)
+
+            # Prevent self-referential relations (idempotent)
+            cur.execute("""
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.table_constraints
+                        WHERE constraint_name = 'chk_no_self_relation' AND table_name = 'relations'
+                    ) THEN
+                        ALTER TABLE relations ADD CONSTRAINT chk_no_self_relation
+                        CHECK (source_id != target_id);
+                    END IF;
+                END $$
+            """)
+        logger.info("✅ Migration complete (v2.19: entity/procedure CI dedup, relation cleanup)")
+
         with self._cursor() as cur:
             cur.execute("SELECT pg_advisory_unlock(42)")
 
@@ -1459,6 +1578,32 @@ class CloudStore:
 
         logger.info(f"🔀 Merged entity {source_id} into {target_id} ({target_name})")
 
+    def _auto_merge_duplicate_entities(self, user_id: str, sub_user_id: str = "default") -> int:
+        """Find and merge case-insensitive duplicate entities. Returns merge count."""
+        merged = 0
+        with self._cursor(dict_cursor=True) as cur:
+            cur.execute("""
+                SELECT LOWER(name) as lname,
+                       array_agg(id ORDER BY length(name) DESC, updated_at DESC) as ids,
+                       array_agg(name ORDER BY length(name) DESC, updated_at DESC) as names
+                FROM entities
+                WHERE user_id = %s AND sub_user_id = %s
+                GROUP BY LOWER(name)
+                HAVING count(*) > 1
+            """, (user_id, sub_user_id))
+            dupes = cur.fetchall()
+
+        for dupe in dupes:
+            canonical_id = str(dupe["ids"][0])
+            canonical_name = dupe["names"][0]
+            for dup_id in dupe["ids"][1:]:
+                try:
+                    self.merge_entities(user_id, str(dup_id), canonical_id, canonical_name)
+                    merged += 1
+                except Exception as e:
+                    logger.warning(f"⚠️ Entity merge failed {dup_id} → {canonical_id}: {e}")
+        return merged
+
     def save_entity(self, user_id: str, name: str, type: str,
                     facts: list[str] = None,
                     relations: list[dict] = None,
@@ -1719,7 +1864,10 @@ class CloudStore:
                 "SELECT id FROM entities WHERE user_id = %s AND sub_user_id = %s AND LOWER(name) = LOWER(%s)",
                 (user_id, sub_user_id, target_name)
             )
-            target_id = str(cur.fetchone()[0])
+            row = cur.fetchone()
+            if not row:
+                return
+            target_id = str(row[0])
 
             direction = rel.get("direction", "outgoing")
             if direction == "outgoing":
@@ -1727,11 +1875,25 @@ class CloudStore:
             else:
                 src, tgt = target_id, source_entity_id
 
+            # Prevent self-referential relations
+            if src == tgt:
+                return
+
+            rel_type = rel.get("type", "related_to")
+
+            # Prevent circular A→B + B→A with same type
+            cur.execute(
+                "SELECT 1 FROM relations WHERE source_id = %s AND target_id = %s AND type = %s",
+                (tgt, src, rel_type)
+            )
+            if cur.fetchone():
+                return
+
             cur.execute(
                 """INSERT INTO relations (source_id, target_id, type, description)
                    VALUES (%s, %s, %s, %s)
                    ON CONFLICT (source_id, target_id, type) DO NOTHING""",
-                (src, tgt, rel.get("type", "related_to"), rel.get("description", ""))
+                (src, tgt, rel_type, rel.get("description", ""))
             )
 
         # Invalidate caches after write
@@ -2218,9 +2380,11 @@ class CloudStore:
                             pass
                 final_scores[eid] = score
 
-            # Sort and limit
+            # Sort, filter by minimum RRF score, and limit
             sorted_final = sorted(final_scores.items(), key=lambda x: x[1], reverse=True)
-            top_entities = sorted_final[:top_k]
+            min_rrf = 0.005  # RRF score of 1/(60+rank) at rank ~140
+            top_entities = [(eid, score) for eid, score in sorted_final
+                            if score >= min_rrf or eid in graph_expanded_ids][:top_k]
 
             if not top_entities:
                 return []
@@ -3605,7 +3769,7 @@ REFLECTIONS/PATTERNS:
 
     def search_chunks_vector(self, user_id: str, embedding: list[float],
                              query_text: str = "", top_k: int = 5,
-                             min_score: float = 0.05,
+                             min_score: float = 0.15,
                              sub_user_id: str = "default") -> list[dict]:
         """Search raw conversation chunks via hybrid vector+BM25."""
         embedding_str = f"[{','.join(str(x) for x in embedding)}]"
@@ -3723,8 +3887,9 @@ REFLECTIONS/PATTERNS:
             JOIN episodes ep ON ep.id = ee.episode_id
             WHERE ep.user_id = %s AND ep.sub_user_id = %s
               AND (ep.expires_at IS NULL OR ep.expires_at > NOW())
+              AND 1 - (ee.embedding <=> %s::vector) > 0.25
         """
-        params = [embedding, user_id, sub_user_id]
+        params = [embedding, user_id, sub_user_id, embedding]
         if after:
             query += " AND ep.created_at >= %s"
             params.append(after)
@@ -3816,26 +3981,52 @@ REFLECTIONS/PATTERNS:
         entities = entity_names or []
         ep_ids = source_episode_ids or []
 
-        with self._cursor() as cur:
+        # Case-insensitive lookup: use existing name to trigger ON CONFLICT correctly
+        with self._cursor(dict_cursor=True) as cur:
             cur.execute(
-                """INSERT INTO procedures
-                   (user_id, sub_user_id, name, trigger_condition, steps, entity_names,
-                    source_episode_ids, metadata, expires_at,
-                    version, parent_version_id, evolved_from_episode, is_current)
-                   VALUES (%s, %s, %s, %s, %s::jsonb, %s, %s::uuid[], %s::jsonb, %s,
-                           %s, %s, %s, %s)
-                   ON CONFLICT ON CONSTRAINT uq_procedures_user_sub_name_ver
-                   DO UPDATE SET
-                       trigger_condition = COALESCE(EXCLUDED.trigger_condition, procedures.trigger_condition),
-                       steps = EXCLUDED.steps,
-                       entity_names = EXCLUDED.entity_names,
-                       updated_at = NOW()
-                   RETURNING id""",
-                (user_id, sub_user_id, name, trigger_condition, steps_json, entities,
-                 ep_ids if ep_ids else None, meta_json, expires_at,
-                 version, parent_version_id, evolved_from_episode, is_current)
+                """SELECT name FROM procedures
+                   WHERE user_id = %s AND sub_user_id = %s AND LOWER(name) = LOWER(%s)
+                   AND version = %s LIMIT 1""",
+                (user_id, sub_user_id, name, version)
             )
-            proc_id = str(cur.fetchone()[0])
+            existing = cur.fetchone()
+            if existing:
+                name = existing["name"]  # Use canonical casing
+
+        try:
+            with self._cursor() as cur:
+                cur.execute(
+                    """INSERT INTO procedures
+                       (user_id, sub_user_id, name, trigger_condition, steps, entity_names,
+                        source_episode_ids, metadata, expires_at,
+                        version, parent_version_id, evolved_from_episode, is_current)
+                       VALUES (%s, %s, %s, %s, %s::jsonb, %s, %s::uuid[], %s::jsonb, %s,
+                               %s, %s, %s, %s)
+                       ON CONFLICT ON CONSTRAINT uq_procedures_user_sub_name_ver
+                       DO UPDATE SET
+                           trigger_condition = COALESCE(EXCLUDED.trigger_condition, procedures.trigger_condition),
+                           steps = EXCLUDED.steps,
+                           entity_names = EXCLUDED.entity_names,
+                           updated_at = NOW()
+                       RETURNING id""",
+                    (user_id, sub_user_id, name, trigger_condition, steps_json, entities,
+                     ep_ids if ep_ids else None, meta_json, expires_at,
+                     version, parent_version_id, evolved_from_episode, is_current)
+                )
+                proc_id = str(cur.fetchone()[0])
+        except (psycopg2.IntegrityError, psycopg2.errors.UniqueViolation):
+            # Race condition: CI index caught a case-different duplicate
+            with self._cursor(dict_cursor=True) as cur:
+                cur.execute(
+                    """SELECT id FROM procedures
+                       WHERE user_id = %s AND sub_user_id = %s AND LOWER(name) = LOWER(%s) AND version = %s""",
+                    (user_id, sub_user_id, name, version)
+                )
+                row = cur.fetchone()
+                if row:
+                    proc_id = str(row["id"])
+                else:
+                    raise
         logger.info(f"⚙️ Procedure saved: {name} v{version}")
         return proc_id
 
@@ -3899,11 +4090,12 @@ REFLECTIONS/PATTERNS:
             WHERE p.user_id = %s AND p.sub_user_id = %s
               AND p.is_current = TRUE
               AND (p.expires_at IS NULL OR p.expires_at > NOW())
+              AND 1 - (pe.embedding <=> %s::vector) > 0.25
             ORDER BY pe.embedding <=> %s::vector
             LIMIT %s
         """
         with self._cursor(dict_cursor=True) as cur:
-            cur.execute(query, (embedding, user_id, sub_user_id, embedding, top_k))
+            cur.execute(query, (embedding, user_id, sub_user_id, embedding, embedding, top_k))
             results = []
             seen = set()
             for row in cur.fetchall():
@@ -4383,6 +4575,27 @@ Be specific and personal, not generic. No markdown, just JSON."""
                             if cur.rowcount > 0:
                                 actions_taken += 1
 
+            # Auto-fix: merge case-insensitive duplicate entities
+            try:
+                merged = self._auto_merge_duplicate_entities(user_id, sub_user_id)
+                actions_taken += merged
+            except Exception as e:
+                logger.warning(f"⚠️ Auto entity merge failed: {e}")
+
+            # Auto-fix: dedup facts on entities with many facts
+            try:
+                for e in entities[:20]:
+                    if len(e.get("facts", [])) >= 5:
+                        entity_name = e["entity"]
+                        entity_id = self.get_entity_id(user_id, entity_name, sub_user_id=sub_user_id)
+                        if entity_id:
+                            try:
+                                dedup_result = self.dedup_entity_facts(entity_id, entity_name, llm_client)
+                                actions_taken += len(dedup_result.get("archived", []))
+                            except Exception:
+                                pass
+            except Exception as e:
+                logger.warning(f"⚠️ Auto fact dedup failed: {e}")
 
         # Save run
         with self._cursor() as cur:
