@@ -2336,6 +2336,11 @@ class CloudStore:
             vector_rows = cur.fetchall()
             # Rank by score
             vector_rows.sort(key=lambda r: float(r["score"]), reverse=True)
+
+            # Cosine floor: if best vector result < 0.25, query is unrelated to anything in memory
+            if vector_rows and float(vector_rows[0]["score"]) < 0.25:
+                return []
+
             vector_ranked = {str(r["id"]): (i + 1, r) for i, r in enumerate(vector_rows[:40])}
 
             # ========== STAGE 2: BM25 text search ==========
@@ -2429,7 +2434,7 @@ class CloudStore:
 
             # Sort, filter by minimum RRF score, and diversify via MMR
             sorted_final = sorted(final_scores.items(), key=lambda x: x[1], reverse=True)
-            min_rrf = 0.005  # RRF score of 1/(60+rank) at rank ~140
+            min_rrf = 0.01  # RRF score of 1/(60+rank) at rank ~40
             filtered = [(eid, score) for eid, score in sorted_final
                         if score >= min_rrf or eid in graph_expanded_ids]
             top_entities = self._mmr_select(filtered, entity_info, top_k)
@@ -2980,33 +2985,48 @@ Return ONLY JSON (no markdown):
                          scope: str, title: str, content: str,
                          confidence: float = 0.8, based_on: list = None,
                          sub_user_id: str = "default"):
-        """Save or update a reflection."""
+        """Save or update a reflection with semantic dedup (word overlap)."""
+        target_id = entity_id
+        if not target_id:
+            target_id = self._get_or_create_global_entity(user_id, sub_user_id=sub_user_id)
+
+        # Semantic dedup: check existing reflections for >60% word overlap
+        with self._cursor(dict_cursor=True) as cur:
+            cur.execute(
+                """SELECT id, title, content FROM knowledge
+                   WHERE entity_id = %s AND type = 'reflection' AND scope = %s""",
+                (target_id, scope)
+            )
+            existing = cur.fetchall()
+
+            new_words = set(content.lower().split())
+            for ex in existing:
+                ex_words = set(ex["content"].lower().split())
+                if not new_words or not ex_words:
+                    continue
+                overlap = len(new_words & ex_words) / max(len(new_words), len(ex_words))
+                if overlap > 0.6:
+                    # Update existing reflection instead of creating a duplicate
+                    cur.execute(
+                        """UPDATE knowledge SET content = %s, confidence = %s,
+                           based_on_facts = %s, refreshed_at = NOW(), title = %s
+                           WHERE id = %s""",
+                        (content, confidence, based_on or [], title, ex["id"])
+                    )
+                    return
+
+        # No similar existing — upsert by entity + title
         with self._cursor() as cur:
-            if entity_id:
-                # Entity reflection — upsert by entity + scope
-                cur.execute(
-                    """INSERT INTO knowledge (entity_id, user_id, sub_user_id, type, title, content, scope, confidence, based_on_facts, refreshed_at)
-                       VALUES (%s, %s, %s, 'reflection', %s, %s, %s, %s, %s, NOW())
-                       ON CONFLICT (entity_id, title)
-                       DO UPDATE SET content = EXCLUDED.content,
-                                     confidence = EXCLUDED.confidence,
-                                     based_on_facts = EXCLUDED.based_on_facts,
-                                     refreshed_at = NOW()""",
-                    (entity_id, user_id, sub_user_id, title, content, scope, confidence, based_on or [])
-                )
-            else:
-                # Cross/temporal reflection — need a "global" entity
-                global_id = self._get_or_create_global_entity(user_id, sub_user_id=sub_user_id)
-                cur.execute(
-                    """INSERT INTO knowledge (entity_id, user_id, sub_user_id, type, title, content, scope, confidence, based_on_facts, refreshed_at)
-                       VALUES (%s, %s, %s, 'reflection', %s, %s, %s, %s, %s, NOW())
-                       ON CONFLICT (entity_id, title)
-                       DO UPDATE SET content = EXCLUDED.content,
-                                     confidence = EXCLUDED.confidence,
-                                     based_on_facts = EXCLUDED.based_on_facts,
-                                     refreshed_at = NOW()""",
-                    (global_id, user_id, sub_user_id, title, content, scope, confidence, based_on or [])
-                )
+            cur.execute(
+                """INSERT INTO knowledge (entity_id, user_id, sub_user_id, type, title, content, scope, confidence, based_on_facts, refreshed_at)
+                   VALUES (%s, %s, %s, 'reflection', %s, %s, %s, %s, %s, NOW())
+                   ON CONFLICT (entity_id, title)
+                   DO UPDATE SET content = EXCLUDED.content,
+                                 confidence = EXCLUDED.confidence,
+                                 based_on_facts = EXCLUDED.based_on_facts,
+                                 refreshed_at = NOW()""",
+                (target_id, user_id, sub_user_id, title, content, scope, confidence, based_on or [])
+            )
 
     def _get_or_create_global_entity(self, user_id: str, sub_user_id: str = "default") -> str:
         """Get or create a special _reflections entity for cross/temporal reflections."""
@@ -4788,6 +4808,49 @@ Be specific and personal, not generic. No markdown, just JSON."""
         logger.info(f"🧹 Curator agent: {issues_found} issues, {actions_taken} auto-fixed for {user_id}")
         return result
 
+    @staticmethod
+    def infer_entity_type(name: str, facts: list[str]) -> str:
+        """Heuristic fallback for entity type when LLM returns 'unknown'."""
+        name_lower = name.lower()
+        facts_text = " ".join(str(f) for f in facts).lower() if facts else ""
+        all_text = f"{name_lower} {facts_text}"
+
+        # Technology indicators
+        tech_kw = {"python", "javascript", "typescript", "react", "vue", "angular", "node",
+                   "postgres", "postgresql", "redis", "docker", "kubernetes", "k8s", "aws",
+                   "gcp", "azure", "api", "sdk", "framework", "library", "database", "linux",
+                   "git", "github", "npm", "pip", "rust", "golang", "swift", "kotlin",
+                   "terraform", "nginx", "graphql", "mongodb", "mysql", "sqlite", "kafka",
+                   "elasticsearch", "supabase", "railway", "vercel", "netlify", "heroku"}
+        if any(kw in name_lower for kw in tech_kw) or name_lower.endswith((".js", ".py", ".rs", ".go")):
+            return "technology"
+
+        # Company indicators
+        company_kw = {"company", "startup", "corporation", "inc.", "ltd.", "founded", "headquartered",
+                      "employees", "ceo", "revenue", "acquired", "ipo", "b2b", "b2c", "saas"}
+        if any(kw in all_text for kw in company_kw):
+            return "company"
+
+        # Person indicators
+        person_kw = {"works at", "lives in", "born", "developer", "engineer", "designer",
+                     "manager", "founder", "cto", "ceo", "prefers", "enjoys", "studied",
+                     "graduated", "speaks", "married", "colleague"}
+        if any(kw in all_text for kw in person_kw):
+            return "person"
+
+        # Project indicators
+        project_kw = {"project", "repository", "repo", "codebase", "app", "application",
+                      "built with", "deployed", "launched", "version", "release"}
+        if any(kw in all_text for kw in project_kw):
+            return "project"
+
+        # Place indicators
+        place_kw = {"city", "country", "located in", "capital", "population", "state", "region"}
+        if any(kw in all_text for kw in place_kw):
+            return "place"
+
+        return "unknown"
+
     def reclassify_unknown_entities(self, user_id: str, llm_client, sub_user_id: str = "default") -> dict:
         """Reclassify entities with type='unknown' using LLM batch classification.
         Processes in batches of 40 to stay within token limits."""
@@ -5589,6 +5652,11 @@ Return ONLY JSON (no markdown):
             )
             vector_rows = cur.fetchall()
             vector_rows.sort(key=lambda r: float(r["score"]), reverse=True)
+
+            # Cosine floor: if best vector result < 0.25, query is unrelated to anything in memory
+            if vector_rows and float(vector_rows[0]["score"]) < 0.25:
+                return []
+
             vector_ranked = {str(r["id"]): (i + 1, r) for i, r in enumerate(vector_rows[:20])}
 
             # BM25 text search
@@ -5662,8 +5730,11 @@ Return ONLY JSON (no markdown):
                     }
                     graph_expanded_ids.add(eid)
 
-            # Sort and limit after expansion
-            sorted_results = sorted(rrf_scores.items(), key=lambda x: x[1], reverse=True)[:top_k]
+            # Sort, filter by minimum RRF score, and limit
+            min_rrf = 0.01  # RRF score of 1/(60+rank) at rank ~40
+            sorted_final = sorted(rrf_scores.items(), key=lambda x: x[1], reverse=True)
+            sorted_results = [(eid, score) for eid, score in sorted_final
+                              if score >= min_rrf or eid in graph_expanded_ids][:top_k]
 
             if not sorted_results:
                 return []

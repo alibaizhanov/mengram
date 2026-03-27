@@ -4796,11 +4796,16 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                             "new_facts": fact_strings
                         })
 
+                    # Heuristic fallback: if LLM returned unknown/empty type, try to infer
+                    etype = entity.entity_type
+                    if not etype or etype == "unknown":
+                        etype = store.infer_entity_type(name, fact_strings) or "unknown"
+
                     try:
                         entity_id = store.save_entity(
                             user_id=user_id,
                             name=name,
-                            type=entity.entity_type,
+                            type=etype,
                             facts=fact_strings,
                             relations=entity_relations,
                             knowledge=entity_knowledge,
@@ -5027,6 +5032,12 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             # ---- Post-completion tasks (fire-and-forget, don't block job) ----
             import threading as _thr
             def _post_completion():
+                # Auto entity merge — lightweight SQL, no LLM, all plans
+                try:
+                    store._auto_merge_duplicate_entities(user_id, sub_uid)
+                except Exception as e:
+                    logger.warning(f"⚠️ Auto entity merge failed: {e}")
+
                 try:
                     # Auto-reflection
                     if store.should_reflect(user_id, sub_user_id=sub_uid):
@@ -5044,7 +5055,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
                 try:
                     add_count = store.get_usage_count(user_id, "add")
-                    if add_count > 0 and add_count % 10 == 0 and plan not in ("free", "starter"):
+                    if add_count > 0 and add_count % 5 == 0 and plan not in ("free", "starter"):
                         plan_quotas_local = PLAN_QUOTAS.get(plan, PLAN_QUOTAS["free"])
                         max_agents = plan_quotas_local.get("agents", 0)
                         try:
@@ -5057,6 +5068,15 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                             logger.info(f"⏭️ Auto-agents skipped (agent quota reached) for {user_id}")
                 except Exception as e:
                     logger.error(f"⚠️ Auto-agents failed: {e}")
+
+                # Auto-reclassify unknown entities (all plans, every 20th add, no quota cost)
+                try:
+                    add_count_rc = store.get_usage_count(user_id, "add")
+                    if add_count_rc > 0 and add_count_rc % 20 == 0:
+                        rc_llm = get_llm()
+                        store.reclassify_unknown_entities(user_id, rc_llm.llm, sub_user_id=sub_uid)
+                except Exception as e:
+                    logger.error(f"⚠️ Auto-reclassify failed: {e}")
 
                 if plan not in ("free", "starter"):
                     try:
@@ -5586,27 +5606,31 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         for r in results:
             r.pop("_graph", None)
 
-        # Prepend matching reflections for richer context
+        # Prepend matching reflections for richer context (word overlap matching)
         reflections = store.get_reflections(user_id, sub_user_id=sub_uid)
         if reflections:
-            query_lower = req.query.lower()
-            matching = [r for r in reflections if
-                       query_lower in r["content"].lower() or
-                       query_lower in r["title"].lower() or
-                       any(w in r["content"].lower() for w in query_lower.split() if len(w) > 3)]
-            if matching:
-                # Add as a special "reflection" result at the top
-                top_reflection = matching[0]
-                results.insert(0, {
-                    "entity": f"✨ Insight: {top_reflection['title']}",
-                    "type": "reflection",
-                    "scope": top_reflection["scope"],
-                    "score": top_reflection["confidence"],
-                    "metadata": {},
-                    "facts": [top_reflection["content"]],
-                    "relations": [],
-                    "knowledge": [],
-                })
+            query_words = set(w.lower() for w in req.query.split() if len(w) > 3)
+            if len(query_words) >= 2:
+                best_match = None
+                best_overlap = 0.0
+                for r in reflections:
+                    ref_text = f"{r['title']} {r['content']}".lower()
+                    matching_count = sum(1 for w in query_words if w in ref_text)
+                    overlap = matching_count / len(query_words)
+                    if overlap > best_overlap:
+                        best_overlap = overlap
+                        best_match = r
+                if best_match and best_overlap >= 0.5:
+                    results.insert(0, {
+                        "entity": f"✨ Insight: {best_match['title']}",
+                        "type": "reflection",
+                        "scope": best_match["scope"],
+                        "score": best_match["confidence"],
+                        "metadata": {},
+                        "facts": [best_match["content"]],
+                        "relations": [],
+                        "knowledge": [],
+                    })
 
         # Cache results in Redis (TTL 30s)
         store.cache.set(cache_key, results, ttl=30)
