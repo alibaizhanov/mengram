@@ -37,7 +37,7 @@ CREATE TABLE entities (
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     sub_user_id TEXT NOT NULL DEFAULT 'default',
     name VARCHAR(255) NOT NULL,
-    type VARCHAR(50) NOT NULL DEFAULT 'concept',  -- person, project, technology, company, concept
+    type VARCHAR(50) NOT NULL DEFAULT 'concept',  -- free-form type: person, project, technology, etc.
     metadata JSONB DEFAULT '{}',
     team_id INTEGER,                              -- v2.14: shared memory via teams (FK added after teams table)
     created_at TIMESTAMP DEFAULT NOW(),

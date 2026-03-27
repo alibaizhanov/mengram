@@ -5796,9 +5796,9 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     async def fix_entity_type(name: str, new_type: str, sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
         """Fix entity type (e.g. 'company' → 'technology')."""
         user_id = ctx.user_id
-        valid_types = {"person", "project", "technology", "company", "concept", "unknown"}
-        if new_type not in valid_types:
-            raise HTTPException(status_code=400, detail=f"Invalid type. Must be one of: {valid_types}")
+        new_type = new_type.strip().lower()
+        if not new_type or len(new_type) > 50:
+            raise HTTPException(status_code=400, detail="Type must be a non-empty string (max 50 chars)")
         entity_id = store.get_entity_id(user_id, name, sub_user_id=sub_user_id)
         if not entity_id:
             raise HTTPException(status_code=404, detail=f"Entity '{name}' not found")
@@ -7195,9 +7195,9 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 {"name": "dismiss_trigger", "description": "Dismiss a smart trigger without firing its webhook.",
                  "annotations": {"title": "Dismiss Trigger", "readOnlyHint": False, "destructiveHint": False, "openWorldHint": False},
                  "inputSchema": {"type": "object", "properties": {"trigger_id": {"type": "integer", "description": "ID of the trigger to dismiss"}}, "required": ["trigger_id"]}},
-                {"name": "fix_entity_type", "description": "Fix an entity's type classification (person, project, technology, company, concept, unknown).",
+                {"name": "fix_entity_type", "description": "Fix an entity's type classification to any descriptive type.",
                  "annotations": {"title": "Fix Entity Type", "readOnlyHint": False, "destructiveHint": False, "openWorldHint": False},
-                 "inputSchema": {"type": "object", "properties": {"name": {"type": "string", "description": "Entity name to reclassify"}, "new_type": {"type": "string", "enum": ["person", "project", "technology", "company", "concept", "unknown"], "description": "Correct entity type"}}, "required": ["name", "new_type"]}},
+                 "inputSchema": {"type": "object", "properties": {"name": {"type": "string", "description": "Entity name to reclassify"}, "new_type": {"type": "string", "description": "Correct entity type (e.g. person, project, technology, company, concept, place, activity, event, book, tool, etc.)"}}, "required": ["name", "new_type"]}},
                 {"name": "list_memories", "description": "List all stored memory entities with their types and fact counts.",
                  "annotations": {"title": "List Memories", "readOnlyHint": True, "destructiveHint": False, "openWorldHint": False},
                  "inputSchema": {"type": "object", "properties": {}}},

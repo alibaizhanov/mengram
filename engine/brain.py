@@ -359,12 +359,21 @@ class MengramBrain:
         # Build profile
         sections.append("# User Knowledge Profile\n")
 
-        for etype in ["person", "company", "project", "technology", "concept"]:
+        # Show known types first in stable order, then any additional types alphabetically
+        _PRIORITY_TYPES = ["person", "company", "project", "technology", "concept", "place", "activity"]
+        _PLURALS = {"person": "People", "company": "Companies", "project": "Projects",
+                    "technology": "Technologies", "concept": "Concepts", "place": "Places",
+                    "activity": "Activities"}
+        ordered_types = [t for t in _PRIORITY_TYPES if t in entities_by_type]
+        ordered_types += sorted(t for t in entities_by_type if t not in _PRIORITY_TYPES and t != "unknown")
+        if "unknown" in entities_by_type:
+            ordered_types.append("unknown")
+
+        for etype in ordered_types:
             entities = entities_by_type.get(etype, [])
             if not entities:
                 continue
-            plural = {"person": "People", "company": "Companies", "project": "Projects",
-                      "technology": "Technologies", "concept": "Concepts"}.get(etype, etype.title() + "s")
+            plural = _PLURALS.get(etype, etype.replace("-", " ").title() + "s")
             sections.append(f"\n## {plural}")
             for e in entities[:10]:
                 name = e["entity"]

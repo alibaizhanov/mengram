@@ -2,7 +2,7 @@
 Conversation Extractor v2 — extracts RICH knowledge from conversations.
 
 Extracts:
-1. Entities (person, project, technology, company, concept)
+1. Entities (any type: person, project, technology, company, concept, place, activity, event, etc.)
 2. Facts — short assertions
 3. Relations — connections between entities
 4. Knowledge — solutions, formulas, recipes, configs, commands (with artifacts)
@@ -49,7 +49,7 @@ EXTRACTION_SCHEMA = {
                         "type": "object",
                         "properties": {
                             "name": {"type": "string"},
-                            "type": {"type": "string", "enum": ["person", "project", "technology", "company", "concept", "place", "activity"]},
+                            "type": {"type": "string", "description": "Entity type (e.g. person, project, technology, company, concept, place, activity, event, book, tool, etc.)"},
                             "facts": {
                                 "type": "array",
                                 "items": {
@@ -178,7 +178,7 @@ WHO TO EXTRACT ABOUT:
 {existing_context}
 ENTITY RULES:
 - Named entities with 1+ extractable facts (people, places, organizations, activities, projects)
-- entity_type: person, project, technology, company, concept, place, activity
+- entity_type: a descriptive type (e.g. person, project, technology, company, concept, place, activity, event, book, tool, etc.)
 - Create separate entities for each person by name
 - Single-fact entities are OK if the fact is important (identity, job, location, hobby)
 
@@ -225,7 +225,7 @@ Response format (strict JSON, no ```):
   "entities": [
     {{
       "name": "Entity Name",
-      "type": "person|project|technology|company|concept|place|activity",
+      "type": "person",
       "facts": [
         {{"fact": "simple fact as string", "when": null}},
         {{"fact": "fact with date", "when": "2023-05-07"}}
@@ -351,7 +351,7 @@ DO NOT EXTRACT — meta-conversation noise:
 
 ENTITY RULES:
 - Named entities with 1+ extractable facts (people, places, organizations, activities, projects)
-- entity_type: person, project, technology, company, concept, place, activity
+- entity_type: a descriptive type (e.g. person, project, technology, company, concept, place, activity, event, book, tool, etc.)
 - Create separate entities for each person by name
 - Single-fact entities are OK if the fact is important (identity, job, location, hobby)
 
@@ -414,7 +414,7 @@ Response format (strict JSON, no ```):
   "entities": [
     {{
       "name": "Entity Name",
-      "type": "person|project|technology|company|concept|place|activity",
+      "type": "person",
       "facts": [
         {{"fact": "simple fact as string", "when": null}},
         {{"fact": "fact with date", "when": "2023-05-07"}}
@@ -516,7 +516,7 @@ class ExtractedFact:
 class ExtractedEntity:
     """Extracted entity"""
     name: str
-    entity_type: str  # person, project, technology, company, concept, place, activity
+    entity_type: str  # free-form type: person, project, technology, etc.
     facts: list[ExtractedFact] = field(default_factory=list)
 
     def __repr__(self):

@@ -86,13 +86,21 @@ def _build_compact_profile(brain: MengramBrain) -> str:
         lines.extend(recent_entities)
 
         # All entity names grouped by type (just names, no details)
-        for etype in ["person", "company", "project", "technology", "concept"]:
+        _PRIORITY_TYPES = ["person", "company", "project", "technology", "concept", "place", "activity"]
+        _PLURALS_LC = {"person": "people", "company": "companies", "project": "projects",
+                       "technology": "technologies", "concept": "concepts", "place": "places",
+                       "activity": "activities"}
+        ordered_types = [t for t in _PRIORITY_TYPES if t in entities_by_type]
+        ordered_types += sorted(t for t in entities_by_type if t not in _PRIORITY_TYPES and t != "unknown")
+        if "unknown" in entities_by_type:
+            ordered_types.append("unknown")
+
+        for etype in ordered_types:
             entities = entities_by_type.get(etype, [])
             if not entities:
                 continue
             names = [e["entity"] for e in entities]
-            plural = {"person": "people", "company": "companies", "project": "projects",
-                      "technology": "technologies", "concept": "concepts"}.get(etype, etype + "s")
+            plural = _PLURALS_LC.get(etype, etype.replace("-", " ") + "s")
             if len(names) <= 15:
                 lines.append(f"\nAll {plural}: {', '.join(names)}")
             else:
@@ -157,7 +165,7 @@ def create_mcp_server(brain: MengramBrain) -> "Server":
             ResourceTemplate(
                 uriTemplate="memory://entity/{name}",
                 name="Entity Details",
-                description="Full details for a specific entity (person, project, technology).",
+                description="Full details for a specific entity.",
                 mimeType="text/markdown",
             ),
         ]

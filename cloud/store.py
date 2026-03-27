@@ -4854,8 +4854,6 @@ Be specific and personal, not generic. No markdown, just JSON."""
     def reclassify_unknown_entities(self, user_id: str, llm_client, sub_user_id: str = "default") -> dict:
         """Reclassify entities with type='unknown' using LLM batch classification.
         Processes in batches of 40 to stay within token limits."""
-        VALID_TYPES = {"person", "project", "technology", "company", "concept", "place", "activity"}
-
         with self._cursor(dict_cursor=True) as cur:
             cur.execute(
                 """SELECT e.id, e.name,
@@ -4885,7 +4883,10 @@ Be specific and personal, not generic. No markdown, just JSON."""
                 facts_str = "; ".join(str(f) for f in facts[:5] if f)
                 lines.append(f"- {ent['name']}: {facts_str}" if facts_str else f"- {ent['name']}")
 
-            prompt = f"""Classify each entity into exactly one type: person, project, technology, company, concept, place, activity.
+            prompt = f"""Classify each entity with the single most descriptive type.
+Common types: person, project, technology, company, concept, place, activity.
+You may use other types if they fit better (e.g. event, book, tool, food, pet, game, language, sport).
+Use lowercase, single-word or hyphenated types.
 
 ENTITIES:
 {chr(10).join(lines)}
@@ -4916,7 +4917,7 @@ Return ONLY JSON (no markdown):
             for item in result["classifications"]:
                 ent_name = item.get("name", "")
                 ent_type = item.get("type", "").lower().strip()
-                if ent_type not in VALID_TYPES:
+                if not ent_type or len(ent_type) > 50:
                     continue
                 entity_id = name_to_id.get(ent_name.lower())
                 if not entity_id:

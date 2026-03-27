@@ -163,6 +163,9 @@
         .b-technology { background: var(--green-dim); color: var(--green); }
         .b-company { background: var(--orange-dim); color: var(--orange); }
         .b-concept { background: var(--pink-dim); color: var(--pink); }
+        .b-place { background: var(--orange-dim); color: var(--orange); }
+        .b-activity { background: var(--green-dim); color: var(--green); }
+        .b-unknown { background: rgba(148,163,184,0.1); color: #94a3b8; }
         .feed-content { flex: 1; }
         .feed-fact { font-size: 14px; line-height: 1.5; }
         .feed-meta { font-size: 11px; color: var(--text-3); margin-top: 4px; }
@@ -820,6 +823,8 @@ function toggleTheme() {
 })();
 function esc(s) { if(!s)return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
 function escA(s) { return (s||'').replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
+function _badgeStyle(t){const k=['person','project','technology','company','concept','place','activity','unknown'];if(k.includes(t))return'';let h=0;for(let i=0;i<t.length;i++)h=t.charCodeAt(i)+((h<<5)-h);h=((h%360)+360)%360;return`background:hsla(${h},55%,60%,0.12);color:hsl(${h},55%,55%)`;}
+
 
 // ---- SVG Icons (monochrome stroke, 24x24 viewBox) ----
 const I = {
@@ -1646,14 +1651,15 @@ let _feedOffset = 0;
 const FEED_PAGE = 30;
 
 function _renderFeedItem(it) {
-    const bc = 'b-'+(it.entity_type||'concept');
+    const _bt = it.entity_type||'concept';
+    const bc = 'b-'+_bt;
     const tm = it.created_at ? new Date(it.created_at).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}) : '';
     const imp = it.importance || 0.5;
     const impColor = imp >= 0.8 ? '#a855f7' : imp >= 0.6 ? '#6366f1' : imp >= 0.4 ? '#64748b' : '#334155';
     const impLabel = imp >= 0.8 ? '●●●' : imp >= 0.6 ? '●●○' : imp >= 0.4 ? '●○○' : '○○○';
     const accInfo = it.access_count > 0 ? ` · recalled ${it.access_count}×` : '';
     return `<div class="feed-item">
-        <span class="feed-badge ${bc}">${esc(it.entity)}</span>
+        <span class="feed-badge ${bc}" style="${_badgeStyle(_bt)}">${esc(it.entity)}</span>
         <div class="feed-content"><div class="feed-fact">${esc(it.fact)}</div><div class="feed-meta">${tm}<span style="color:${impColor};margin-left:8px" title="Importance: ${imp}">${impLabel}</span>${accInfo}</div></div>
         <button class="feed-del" onclick="archFact('${escA(it.id)}','${escA(it.entity)}','${escA(it.fact)}',this)" title="Delete">✕</button>
     </div>`;
@@ -1754,10 +1760,11 @@ function renderGraph(data) {
 
     const W=box.clientWidth, HH=box.clientHeight;
     const cs = getComputedStyle(document.documentElement);
-    const tc = {person:cs.getPropertyValue('--blue').trim()||'#60a5fa',project:cs.getPropertyValue('--accent').trim()||'#a855f7',technology:cs.getPropertyValue('--green').trim()||'#34d399',company:cs.getPropertyValue('--orange').trim()||'#fb923c',concept:cs.getPropertyValue('--pink').trim()||'#f472b6'};
+    const tc = {person:cs.getPropertyValue('--blue').trim()||'#60a5fa',project:cs.getPropertyValue('--accent').trim()||'#a855f7',technology:cs.getPropertyValue('--green').trim()||'#34d399',company:cs.getPropertyValue('--orange').trim()||'#fb923c',concept:cs.getPropertyValue('--pink').trim()||'#f472b6',place:cs.getPropertyValue('--orange').trim()||'#fb923c',activity:cs.getPropertyValue('--green').trim()||'#34d399'};
+    function _typeColor(t){if(tc[t])return tc[t];let h=0;for(let i=0;i<t.length;i++)h=t.charCodeAt(i)+((h<<5)-h);return`hsl(${((h%360)+360)%360},55%,60%)`;}
     const _borderColor = cs.getPropertyValue('--border').trim()||'#1a1a2e';
     const _textColor2 = cs.getPropertyValue('--text-2').trim()||'#9898b0';
-    const nodes = data.nodes.map(n=>({id:n.name,type:n.type,r:6+Math.min((n.facts_count||0)*1.5,18),c:tc[n.type]||'#888'}));
+    const nodes = data.nodes.map(n=>({id:n.name,type:n.type,r:6+Math.min((n.facts_count||0)*1.5,18),c:_typeColor(n.type||'unknown')}));
     const ns = new Set(nodes.map(n=>n.id));
     const links = data.edges.filter(e=>ns.has(e.source)&&ns.has(e.target)).map(e=>({source:e.source,target:e.target,type:e.type,description:e.description}));
 
@@ -1860,7 +1867,7 @@ async function openGraphPanel(name, nodeSelection, linkSelection, linksData) {
 
     try {
         const d = await (await fetch(`${API}/v1/memory/${encodeURIComponent(name)}`,{headers:H()})).json();
-        let h = `<span class="e-tag b-${esc(d.type)}" style="font-size:11px;">${esc(d.type)}</span>`;
+        let h = `<span class="e-tag b-${esc(d.type)}" style="font-size:11px;${_badgeStyle(d.type||'unknown')}">${esc(d.type)}</span>`;
         if(d.facts?.length) {
             h += `<div class="gp-section"><h4>Facts (${d.facts.length})</h4><ul class="gp-facts">`;
             for(const f of d.facts.slice(0,10)) h += `<li>${esc(f)}</li>`;
@@ -1895,10 +1902,11 @@ let _entTotal = 0;
 const ENT_PAGE = 24;
 
 function _renderEntityCard(e) {
-    const bc='b-'+(e.type||'concept');
+    const _et=e.type||'concept';
+    const bc='b-'+_et;
     const facts = (e.facts||[]).slice(0,3).join(' · ');
     return `<div class="e-card" onclick="openEntity('${escA(e.name)}')">
-        <div class="e-head"><span class="e-name">${esc(e.name)}</span><span class="e-tag ${bc}">${esc(e.type)}</span></div>
+        <div class="e-head"><span class="e-name">${esc(e.name)}</span><span class="e-tag ${bc}" style="${_badgeStyle(_et)}">${esc(e.type)}</span></div>
         <div class="e-facts">${esc(facts)||'No facts yet'}</div>
         <div class="e-count">${e.facts_count||e.facts?.length||0} facts</div>
     </div>`;
@@ -1946,7 +1954,7 @@ async function openEntity(name) {
     body.innerHTML='<div class="loading">Loading...</div>'; bg.classList.add('show');
     try {
         const d = await (await fetch(`${API}/v1/memory/${encodeURIComponent(name)}`,{headers:H()})).json();
-        let h=`<div class="modal-head"><h2>${esc(d.entity)} <span class="e-tag b-${esc(d.type)}" style="font-size:12px;margin-left:8px">${esc(d.type)}</span></h2><button class="modal-x" onclick="closeModal()">✕</button></div>`;
+        let h=`<div class="modal-head"><h2>${esc(d.entity)} <span class="e-tag b-${esc(d.type)}" style="font-size:12px;margin-left:8px;${_badgeStyle(d.type||'unknown')}">${esc(d.type)}</span></h2><button class="modal-x" onclick="closeModal()">✕</button></div>`;
         if(d.facts?.length) {
             h+='<div class="modal-sec"><h3>Facts</h3>';
             for(const f of d.facts) h+=`<div class="m-fact"><span>${esc(f)}</span><button onclick="archFactM('${escA(name)}','${escA(f)}',this)">✕</button></div>`;

@@ -549,15 +549,14 @@ def create_cloud_mcp_server(mem: CloudMemory, user_id: str = "default") -> "Serv
             ),
             Tool(
                 name="fix_entity_type",
-                description="Fix an entity's type classification. Use when an entity was auto-classified incorrectly (e.g. a technology labeled as 'person'). Valid types: person, project, technology, company, concept, unknown.",
+                description="Fix an entity's type classification. Use when an entity was auto-classified incorrectly (e.g. a technology labeled as 'person'). Accepts any descriptive type string.",
                 inputSchema={
                     "type": "object",
                     "properties": {
                         "name": {"type": "string", "description": "Entity name to reclassify"},
                         "new_type": {
                             "type": "string",
-                            "description": "Correct type",
-                            "enum": ["person", "project", "technology", "company", "concept", "unknown"],
+                            "description": "Correct entity type (e.g. person, project, technology, company, concept, place, activity, event, book, tool, etc.)",
                         },
                         "user_id": {"type": "string", "description": "Optional user ID override"},
                     },
