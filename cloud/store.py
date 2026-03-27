@@ -3984,6 +3984,7 @@ REFLECTIONS/PATTERNS:
                         """, (eid,))
                         r = cur.fetchone()
                         if r:
+                            r = dict(r)
                             r["score"] = 0
                             vec_rows[eid] = (len(vec_rows), r)
 
@@ -4249,6 +4250,7 @@ REFLECTIONS/PATTERNS:
                         """, (pid,))
                         r = cur.fetchone()
                         if r:
+                            r = dict(r)
                             r["score"] = 0
                             vec_rows[pid] = (len(vec_rows), r)
 
