@@ -5602,6 +5602,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                     "type": "reflection",
                     "scope": top_reflection["scope"],
                     "score": top_reflection["confidence"],
+                    "metadata": {},
                     "facts": [top_reflection["content"]],
                     "relations": [],
                     "knowledge": [],
