@@ -1631,6 +1631,8 @@ class CloudStore:
         if name == name.upper() and len(name) > 3 and ' ' not in name:
             name = name.capitalize()
 
+        meta_json = json.dumps(metadata) if metadata else '{}'
+
         # ---- "User" resolution: merge into primary person entity ----
         if name.lower() == "user" and type == "person":
             primary = self._find_primary_person(user_id, sub_user_id=sub_user_id)
@@ -1638,7 +1640,7 @@ class CloudStore:
                 entity_id, canonical_name = primary
                 logger.info(f"🔀 User → '{canonical_name}' (id: {entity_id})")
                 with self._cursor() as cur:
-                    cur.execute("UPDATE entities SET updated_at = NOW() WHERE id = %s", (entity_id,))
+                    cur.execute("UPDATE entities SET updated_at = NOW(), metadata = metadata || %s::jsonb WHERE id = %s", (meta_json, entity_id))
                 self._add_facts_knowledge_relations(entity_id, user_id, canonical_name, facts, relations, knowledge, expires_at=expires_at, fact_dates=fact_dates, sub_user_id=sub_user_id, metadata=metadata)
                 return entity_id
 
@@ -1663,24 +1665,24 @@ class CloudStore:
                         try:
                             if should_update_type:
                                 cur.execute(
-                                    "UPDATE entities SET name = %s, type = %s, updated_at = NOW() WHERE id = %s",
-                                    (better_name, type, entity_id)
+                                    "UPDATE entities SET name = %s, type = %s, updated_at = NOW(), metadata = metadata || %s::jsonb WHERE id = %s",
+                                    (better_name, type, meta_json, entity_id)
                                 )
                             else:
                                 cur.execute(
-                                    "UPDATE entities SET name = %s, updated_at = NOW() WHERE id = %s",
-                                    (better_name, entity_id)
+                                    "UPDATE entities SET name = %s, updated_at = NOW(), metadata = metadata || %s::jsonb WHERE id = %s",
+                                    (better_name, meta_json, entity_id)
                                 )
                         except (psycopg2.IntegrityError, psycopg2.errors.UniqueViolation):
                             logger.info(f"🔀 Entity rename skipped (conflict): '{existing_name}' → '{better_name}'")
                     elif should_update_type:
-                        cur.execute("UPDATE entities SET type = %s, updated_at = NOW() WHERE id = %s", (type, entity_id))
+                        cur.execute("UPDATE entities SET type = %s, updated_at = NOW(), metadata = metadata || %s::jsonb WHERE id = %s", (type, meta_json, entity_id))
                     else:
-                        cur.execute("UPDATE entities SET updated_at = NOW() WHERE id = %s", (entity_id,))
+                        cur.execute("UPDATE entities SET updated_at = NOW(), metadata = metadata || %s::jsonb WHERE id = %s", (meta_json, entity_id))
                 elif should_update_type:
-                    cur.execute("UPDATE entities SET type = %s, updated_at = NOW() WHERE id = %s", (type, entity_id))
+                    cur.execute("UPDATE entities SET type = %s, updated_at = NOW(), metadata = metadata || %s::jsonb WHERE id = %s", (type, meta_json, entity_id))
                 else:
-                    cur.execute("UPDATE entities SET updated_at = NOW() WHERE id = %s", (entity_id,))
+                    cur.execute("UPDATE entities SET updated_at = NOW(), metadata = metadata || %s::jsonb WHERE id = %s", (meta_json, entity_id))
 
                 # Add facts, knowledge, relations below
                 self._add_facts_knowledge_relations(entity_id, user_id, name, facts, relations, knowledge, expires_at=expires_at, fact_dates=fact_dates, sub_user_id=sub_user_id, metadata=metadata)
@@ -1695,8 +1697,8 @@ class CloudStore:
                 try:
                     with self._cursor() as cur:
                         cur.execute(
-                            "UPDATE entities SET name = %s, type = %s, updated_at = NOW() WHERE id = %s",
-                            (canonical_name, type, existing_id)
+                            "UPDATE entities SET name = %s, type = %s, updated_at = NOW(), metadata = metadata || %s::jsonb WHERE id = %s",
+                            (canonical_name, type, meta_json, existing_id)
                         )
                 except (psycopg2.IntegrityError, psycopg2.errors.UniqueViolation):
                     logger.info(f"🔀 Dedup rename conflict: '{name}' already exists, using existing")
@@ -1711,13 +1713,12 @@ class CloudStore:
             else:
                 with self._cursor() as cur:
                     cur.execute(
-                        "UPDATE entities SET type = %s, updated_at = NOW() WHERE id = %s",
-                        (type, existing_id)
+                        "UPDATE entities SET type = %s, updated_at = NOW(), metadata = metadata || %s::jsonb WHERE id = %s",
+                        (type, meta_json, existing_id)
                     )
             entity_id = existing_id
             logger.info(f"🔀 Dedup: '{name}' → '{canonical_name}' (id: {entity_id})")
         else:
-            meta_json = json.dumps(metadata) if metadata else '{}'
             try:
                 with self._cursor() as cur:
                     cur.execute(
