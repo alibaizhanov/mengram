@@ -4590,6 +4590,9 @@ Find these issues:
 2. STALE FACTS — facts that are likely outdated based on context (old job titles, old plans, completed tasks)
 3. LOW QUALITY — vague, trivial, or non-useful facts (e.g., "asked a question", "mentioned something")
 4. DUPLICATES — facts that say the same thing differently across entities
+5. ENTITY_MERGES — entities that clearly refer to the same real-world person/thing
+   (e.g. "Mel" and "Melanie" are the same person, "Bob" and "Robert Smith" are the same person,
+    "trans girl" and "Caroline" are the same person based on their facts)
 
 Return JSON:
 {{
@@ -4604,6 +4607,9 @@ Return JSON:
   ],
   "duplicates": [
     {{"facts": ["fact1", "fact2"], "entities": ["entity1", "entity2"], "keep": "best version"}}
+  ],
+  "entity_merges": [
+    {{"source": "entity to merge away", "target": "entity to keep (the canonical name)", "reason": "why they are the same"}}
   ],
   "health_score": 0.0-1.0,
   "summary": "One paragraph overview of memory health"
@@ -4735,7 +4741,8 @@ Be specific and personal, not generic. No markdown, just JSON."""
             len(result.get("contradictions", [])) +
             len(result.get("stale", [])) +
             len(result.get("low_quality", [])) +
-            len(result.get("duplicates", []))
+            len(result.get("duplicates", [])) +
+            len(result.get("entity_merges", []))
         )
 
         actions_taken = 0
@@ -4775,6 +4782,22 @@ Be specific and personal, not generic. No markdown, just JSON."""
                 actions_taken += merged
             except Exception as e:
                 logger.warning(f"⚠️ Auto entity merge failed: {e}")
+
+            # Auto-fix: merge entities identified by LLM as same real-world entity
+            for item in result.get("entity_merges", []):
+                source_name = item.get("source", "")
+                target_name = item.get("target", "")
+                if not source_name or not target_name:
+                    continue
+                source_id = self.get_entity_id(user_id, source_name, sub_user_id=sub_user_id)
+                target_id = self.get_entity_id(user_id, target_name, sub_user_id=sub_user_id)
+                if source_id and target_id and source_id != target_id:
+                    try:
+                        self.merge_entities(user_id, source_id, target_id, target_name)
+                        actions_taken += 1
+                        logger.info(f"Curator merged '{source_name}' -> '{target_name}'")
+                    except Exception as e:
+                        logger.warning(f"Curator entity merge failed '{source_name}' -> '{target_name}': {e}")
 
             # Auto-fix: dedup facts on entities with many facts
             try:

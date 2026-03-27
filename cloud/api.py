@@ -4698,8 +4698,8 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             except Exception as e:
                 logger.error(f"⚠️ Context fetch failed: {e}")
 
-            # ---- Windowed extraction: extract per 4-message window ----
-            WINDOW_SIZE = 4  # 2 user+assistant exchanges per window
+            # ---- Windowed extraction: extract per 12-message window ----
+            WINDOW_SIZE = 12  # 6 user+assistant exchanges per window
             all_episodes = []
             all_procedures = []
             all_entities = []  # for smart triggers at end
