@@ -371,6 +371,12 @@ FACT RULES:
 - ONLY facts that DIRECTLY describe the entity they're assigned to
 - Keep project facts on projects, personal facts on the person — don't mix
 - Facts can optionally include a "when" date field (see format below)
+- COMPOUND STATEMENTS = MULTIPLE FACTS. Extract EVERY claim, not just the novel one:
+  "I already use pytest at work but want to try hypothesis for my side project"
+  → fact 1: "uses pytest at work"
+  → fact 2: "wants to try hypothesis for a side project"
+  → fact 3: "has a side project"
+  The word "already" does NOT mean skip — it means this is an established fact worth storing.
 
 QUALITY BAR — only extract facts worth recalling in a FUTURE conversation:
 - YES: identity, preferences, skills, relationships, plans, locations, tools used
