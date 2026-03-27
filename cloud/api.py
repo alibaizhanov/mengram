@@ -309,7 +309,7 @@ profile = m.get_profile()             # instant system prompt
 
     def rerank_results(query: str, results: list[dict], plan: str = "business") -> list[dict]:
         """Re-rank search results based on subscription plan.
-        Free: no reranking.  Pro: LLM rerank.  Business: Cohere Rerank → LLM fallback."""
+        Free/Starter: no reranking.  Pro/Business: Cohere Rerank → LLM fallback."""
         if not results or len(results) <= 1:
             return results
 
@@ -318,8 +318,7 @@ profile = m.get_profile()             # instant system prompt
             return results
 
         # Try Cohere Rerank first — fact-level (cross-encoder, more precise)
-        # Only for Business plan (Pro skips straight to LLM rerank)
-        cohere_key = os.environ.get("COHERE_API_KEY", "") if plan == "business" else ""
+        cohere_key = os.environ.get("COHERE_API_KEY", "") if plan in ("pro", "business") else ""
         if cohere_key:
             try:
                 nonlocal _cohere_client
@@ -1317,9 +1316,9 @@ m.add("I love hiking in the mountains")</code></pre>
                 user_id, emb, top_k=10, query_text=q,
                 graph_depth=2, sub_user_id=sub_uid)
             episodic = store.search_episodes_vector(
-                user_id, emb, top_k=3, sub_user_id=sub_uid)
+                user_id, emb, top_k=3, sub_user_id=sub_uid, query_text=q)
             procedural = store.search_procedures_vector(
-                user_id, emb, top_k=3, sub_user_id=sub_uid)
+                user_id, emb, top_k=3, sub_user_id=sub_uid, query_text=q)
         else:
             semantic = store.search_text(user_id, q, top_k=10, sub_user_id=sub_uid)
             episodic = []
@@ -6267,7 +6266,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         if embedder:
             emb = embedder.embed(query)
             results = store.search_episodes_vector(
-                user_id, emb, top_k=limit, after=after, before=before, sub_user_id=sub_user_id)
+                user_id, emb, top_k=limit, after=after, before=before, sub_user_id=sub_user_id, query_text=query)
         else:
             results = store.search_episodes_text(user_id, query, top_k=limit, sub_user_id=sub_user_id)
         return {"results": results}
@@ -6297,7 +6296,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         embedder = get_embedder()
         if embedder:
             emb = embedder.embed(query)
-            results = store.search_procedures_vector(user_id, emb, top_k=limit, sub_user_id=sub_user_id)
+            results = store.search_procedures_vector(user_id, emb, top_k=limit, sub_user_id=sub_user_id, query_text=query)
         else:
             results = store.search_procedures_text(user_id, query, top_k=limit, sub_user_id=sub_user_id)
         return {"results": results}
@@ -6436,10 +6435,10 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                     query_text=req.query, graph_depth=req.graph_depth, sub_user_id=sub_uid, meta_filters=meta_filters)
             # Episodic
             episodic = store.search_episodes_vector(
-                user_id, emb, top_k=ep_limit, sub_user_id=sub_uid)
+                user_id, emb, top_k=ep_limit, sub_user_id=sub_uid, query_text=req.query)
             # Procedural
             procedural = store.search_procedures_vector(
-                user_id, emb, top_k=proc_limit, sub_user_id=sub_uid)
+                user_id, emb, top_k=proc_limit, sub_user_id=sub_uid, query_text=req.query)
         else:
             semantic = store.search_text(user_id, req.query, top_k=search_limit, sub_user_id=sub_uid)
             episodic = store.search_episodes_text(
@@ -6466,7 +6465,26 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         except Exception as e:
             logger.warning(f"Chunk search failed: {e}")
 
+        # Unified ranking: normalize scores across types (different scales) and merge
+        def _normalize_and_merge(sem, epi, proc, chk, limit):
+            all_items = []
+            for category, type_name in [(sem, "semantic"), (epi, "episodic"),
+                                         (proc, "procedural"), (chk, "chunk")]:
+                if not category:
+                    continue
+                max_s = max((r.get("score", 0) for r in category), default=0) or 1.0
+                for r in category:
+                    entry = dict(r)
+                    entry["memory_type"] = type_name
+                    entry["_norm"] = r.get("score", 0) / max_s
+                    all_items.append(entry)
+            all_items.sort(key=lambda r: r["_norm"], reverse=True)
+            for r in all_items:
+                r.pop("_norm", None)
+            return all_items[:limit]
+
         result = {
+            "results": _normalize_and_merge(semantic, episodic, procedural, chunks, req.limit),
             "semantic": semantic,
             "episodic": episodic,
             "procedural": procedural,

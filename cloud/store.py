@@ -2177,6 +2177,37 @@ class CloudStore:
         self._schedule_matview_refresh()
         return count
 
+    # ---- MMR Diversification ----
+
+    def _mmr_select(self, candidates: list[tuple], entity_info: dict,
+                    top_k: int, lambda_param: float = 0.7) -> list[tuple]:
+        """Maximal Marginal Relevance: select results that are relevant AND diverse.
+        candidates: [(entity_id, score), ...] sorted by score descending.
+        entity_info: {eid: (name, type, updated_at)}.
+        """
+        if len(candidates) <= top_k:
+            return candidates
+        selected = [candidates[0]]
+        remaining = list(candidates[1:])
+        while len(selected) < top_k and remaining:
+            best_idx, best_mmr = 0, float('-inf')
+            for i, (eid, score) in enumerate(remaining):
+                etype = entity_info.get(eid, ("?", "?", None))[1]
+                ename = entity_info.get(eid, ("?", "?", None))[0].lower()
+                max_sim = 0
+                for sel_id, _ in selected:
+                    sel_type = entity_info.get(sel_id, ("?", "?", None))[1]
+                    sel_name = entity_info.get(sel_id, ("?", "?", None))[0].lower()
+                    type_sim = 0.5 if etype == sel_type else 0
+                    name_sim = 0.5 if (ename in sel_name or sel_name in ename) else 0
+                    max_sim = max(max_sim, type_sim + name_sim)
+                mmr = lambda_param * score - (1 - lambda_param) * max_sim
+                if mmr > best_mmr:
+                    best_mmr = mmr
+                    best_idx = i
+            selected.append(remaining.pop(best_idx))
+        return selected
+
     # ---- Graph Traversal ----
 
     def _graph_expand(self, cur, user_id: str, seed_ids: list[str],
@@ -2372,29 +2403,21 @@ class CloudStore:
                     if updated_at:
                         try:
                             age_days = (now - updated_at.replace(tzinfo=datetime.timezone.utc)).days
-                            if age_days <= 7:
-                                score *= 1.15  # 15% boost for recent
-                            elif age_days <= 30:
-                                score *= 1.05  # 5% boost
+                            recency_boost = 1.0 + 0.3 * math.exp(-0.05 * age_days)
+                            score *= recency_boost
                         except Exception:
                             pass
                 final_scores[eid] = score
 
-            # Sort, filter by minimum RRF score, and limit
+            # Sort, filter by minimum RRF score, and diversify via MMR
             sorted_final = sorted(final_scores.items(), key=lambda x: x[1], reverse=True)
             min_rrf = 0.005  # RRF score of 1/(60+rank) at rank ~140
-            top_entities = [(eid, score) for eid, score in sorted_final
-                            if score >= min_rrf or eid in graph_expanded_ids][:top_k]
+            filtered = [(eid, score) for eid, score in sorted_final
+                        if score >= min_rrf or eid in graph_expanded_ids]
+            top_entities = self._mmr_select(filtered, entity_info, top_k)
 
             if not top_entities:
                 return []
-
-            # Touch accessed entities
-            accessed_ids = [eid for eid, _ in top_entities]
-            cur.execute(
-                "UPDATE entities SET updated_at = NOW() WHERE id = ANY(%s::uuid[])",
-                (accessed_ids,)
-            )
 
             # ========== STAGE 6: Batch load details ==========
             entity_ids = [eid for eid, _ in top_entities]
@@ -2465,9 +2488,12 @@ class CloudStore:
                         chunk_relevance[eid].get(fact_text, 0), rel
                     )
 
-            # Sort facts by combined relevance + importance, keep top 7
+            # Sort facts by combined relevance + importance, adaptive cap (5-10)
+            max_entity_score = max((entity_map[eid]["score"] for eid in entity_map), default=1.0)
             for eid in entity_map:
                 relevances = chunk_relevance.get(eid, {})
+                score_ratio = entity_map[eid]["score"] / max_entity_score if max_entity_score > 0 else 0
+                max_facts = 5 + int(5 * score_ratio)  # top entity: 10, weakest: ~5
                 sorted_facts = sorted(
                     entity_map[eid]["facts"],
                     key=lambda f: (
@@ -2475,7 +2501,7 @@ class CloudStore:
                         0.3 * f["importance"]
                     ),
                     reverse=True
-                )[:5]
+                )[:max_facts]
                 entity_map[eid]["facts"] = [
                     f"[{f['event_date']}] {f['content']}" if f.get("event_date")
                     else f["content"]
@@ -3876,8 +3902,9 @@ REFLECTIONS/PATTERNS:
 
     def search_episodes_vector(self, user_id: str, embedding: list[float],
                                top_k: int = 5, after: str = None,
-                               before: str = None, sub_user_id: str = "default") -> list[dict]:
-        """Semantic search over episodic memory."""
+                               before: str = None, sub_user_id: str = "default",
+                               query_text: str = "") -> list[dict]:
+        """Hybrid search over episodic memory: vector + BM25 + RRF + temporal decay."""
         query = """
             SELECT ep.id, ep.summary, ep.context, ep.outcome, ep.participants,
                    ep.emotional_valence, ep.importance, ep.created_at,
@@ -3897,30 +3924,95 @@ REFLECTIONS/PATTERNS:
             query += " AND ep.created_at <= %s"
             params.append(before)
         query += " ORDER BY ee.embedding <=> %s::vector LIMIT %s"
-        params.extend([embedding, top_k])
+        params.extend([embedding, top_k * 4])
 
         with self._cursor(dict_cursor=True) as cur:
             cur.execute(query, params)
-            results = []
+            # Stage 1: Vector results — rank by position
+            vec_rows = {}  # id -> (rank, row_dict)
             seen = set()
-            for row in cur.fetchall():
+            for rank, row in enumerate(cur.fetchall()):
                 eid = str(row["id"])
                 if eid in seen:
                     continue
                 seen.add(eid)
+                vec_rows[eid] = (rank, row)
+
+            # Stage 2: BM25 text results
+            bm25_rows = {}  # id -> rank
+            if query_text:
+                cur.execute("""
+                    SELECT DISTINCT ON (ep.id)
+                           ep.id,
+                           ts_rank(ee.tsv, plainto_tsquery('english', %s)) AS rank
+                    FROM episode_embeddings ee
+                    JOIN episodes ep ON ep.id = ee.episode_id
+                    WHERE ep.user_id = %s AND ep.sub_user_id = %s
+                      AND (ep.expires_at IS NULL OR ep.expires_at > NOW())
+                      AND ee.tsv @@ plainto_tsquery('english', %s)
+                    ORDER BY ep.id, rank DESC
+                """, (query_text, user_id, sub_user_id, query_text))
+                bm25_list = cur.fetchall()
+                bm25_list.sort(key=lambda r: float(r["rank"]), reverse=True)
+                bm25_rows = {str(r["id"]): i for i, r in enumerate(bm25_list[:top_k * 4])}
+
+                # Fetch full rows for BM25-only hits
+                for eid in bm25_rows:
+                    if eid not in vec_rows:
+                        cur.execute("""
+                            SELECT ep.id, ep.summary, ep.context, ep.outcome, ep.participants,
+                                   ep.emotional_valence, ep.importance, ep.created_at, ep.happened_at
+                            FROM episodes ep WHERE ep.id = %s
+                        """, (eid,))
+                        r = cur.fetchone()
+                        if r:
+                            r["score"] = 0
+                            vec_rows[eid] = (len(vec_rows), r)
+
+            # Stage 3: RRF fusion (k=60)
+            rrf_k = 60
+            rrf_scores = {}
+            for eid, (rank, _) in vec_rows.items():
+                rrf_scores[eid] = 1.0 / (rrf_k + rank)
+            for eid, rank in bm25_rows.items():
+                rrf_scores[eid] = rrf_scores.get(eid, 0) + 1.0 / (rrf_k + rank)
+
+            # Stage 4: Temporal decay + build results
+            now = datetime.datetime.now(datetime.timezone.utc)
+            results = []
+            for eid in sorted(rrf_scores, key=rrf_scores.get, reverse=True):
+                _, row = vec_rows[eid]
+                ref_time = row.get("happened_at") or row.get("created_at")
+                if ref_time:
+                    try:
+                        age_days = (now - ref_time.replace(tzinfo=datetime.timezone.utc)).days
+                        decay = 0.7 + 0.3 * math.exp(-0.02 * age_days)
+                    except Exception:
+                        decay = 0.7
+                else:
+                    decay = 0.7
+                final_score = round(rrf_scores[eid] * decay, 4)
                 results.append({
                     "id": eid,
                     "summary": row["summary"],
                     "context": row["context"],
                     "outcome": row["outcome"],
-                    "participants": row["participants"] or [],
-                    "emotional_valence": row["emotional_valence"],
-                    "importance": round(float(row["importance"] or 0.5), 2),
-                    "score": round(float(row["score"]), 4),
+                    "participants": row.get("participants") or [],
+                    "emotional_valence": row.get("emotional_valence"),
+                    "importance": round(float(row.get("importance") or 0.5), 2),
+                    "score": final_score,
                     "happened_at": row.get("happened_at"),
-                    "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                    "created_at": row["created_at"].isoformat() if row.get("created_at") else None,
                     "memory_type": "episodic",
                 })
+            results.sort(key=lambda r: r["score"], reverse=True)
+            results = results[:top_k]
+            # Normalize scores to 0-1 range (RRF scores are tiny, clients expect 0-1)
+            if results:
+                max_s = max(r["score"] for r in results)
+                if max_s > 0:
+                    for r in results:
+                        r["score"] = round(r["score"] / max_s, 4)
             return results
 
     def search_episodes_text(self, user_id: str, query: str,
@@ -4079,8 +4171,9 @@ REFLECTIONS/PATTERNS:
             return results
 
     def search_procedures_vector(self, user_id: str, embedding: list[float],
-                                 top_k: int = 5, sub_user_id: str = "default") -> list[dict]:
-        """Semantic search over procedural memory (current versions only)."""
+                                 top_k: int = 5, sub_user_id: str = "default",
+                                 query_text: str = "") -> list[dict]:
+        """Hybrid search over procedural memory: vector + BM25 + RRF (current versions only)."""
         query = """
             SELECT p.id, p.name, p.trigger_condition, p.steps, p.entity_names,
                    p.success_count, p.fail_count, p.last_used, p.version, p.updated_at,
@@ -4095,27 +4188,81 @@ REFLECTIONS/PATTERNS:
             LIMIT %s
         """
         with self._cursor(dict_cursor=True) as cur:
-            cur.execute(query, (embedding, user_id, sub_user_id, embedding, embedding, top_k))
-            results = []
+            cur.execute(query, (embedding, user_id, sub_user_id, embedding, embedding, top_k * 4))
+            # Stage 1: Vector results
+            vec_rows = {}
             seen = set()
-            for row in cur.fetchall():
+            for rank, row in enumerate(cur.fetchall()):
                 pid = str(row["id"])
                 if pid in seen:
                     continue
                 seen.add(pid)
+                vec_rows[pid] = (rank, row)
+
+            # Stage 2: BM25 text results
+            bm25_rows = {}
+            if query_text:
+                cur.execute("""
+                    SELECT DISTINCT ON (p.id)
+                           p.id,
+                           ts_rank(pe.tsv, plainto_tsquery('english', %s)) AS rank
+                    FROM procedure_embeddings pe
+                    JOIN procedures p ON p.id = pe.procedure_id
+                    WHERE p.user_id = %s AND p.sub_user_id = %s
+                      AND p.is_current = TRUE
+                      AND (p.expires_at IS NULL OR p.expires_at > NOW())
+                      AND pe.tsv @@ plainto_tsquery('english', %s)
+                    ORDER BY p.id, rank DESC
+                """, (query_text, user_id, sub_user_id, query_text))
+                bm25_list = cur.fetchall()
+                bm25_list.sort(key=lambda r: float(r["rank"]), reverse=True)
+                bm25_rows = {str(r["id"]): i for i, r in enumerate(bm25_list[:top_k * 4])}
+
+                # Fetch full rows for BM25-only hits
+                for pid in bm25_rows:
+                    if pid not in vec_rows:
+                        cur.execute("""
+                            SELECT p.id, p.name, p.trigger_condition, p.steps, p.entity_names,
+                                   p.success_count, p.fail_count, p.last_used, p.version, p.updated_at
+                            FROM procedures p WHERE p.id = %s
+                        """, (pid,))
+                        r = cur.fetchone()
+                        if r:
+                            r["score"] = 0
+                            vec_rows[pid] = (len(vec_rows), r)
+
+            # Stage 3: RRF fusion (k=60)
+            rrf_k = 60
+            rrf_scores = {}
+            for pid, (rank, _) in vec_rows.items():
+                rrf_scores[pid] = 1.0 / (rrf_k + rank)
+            for pid, rank in bm25_rows.items():
+                rrf_scores[pid] = rrf_scores.get(pid, 0) + 1.0 / (rrf_k + rank)
+
+            # Build results sorted by RRF score
+            results = []
+            for pid in sorted(rrf_scores, key=rrf_scores.get, reverse=True):
+                _, row = vec_rows[pid]
                 results.append({
                     "id": pid,
                     "name": row["name"],
-                    "trigger_condition": row["trigger_condition"],
-                    "steps": row["steps"] or [],
-                    "entity_names": row["entity_names"] or [],
-                    "success_count": row["success_count"] or 0,
-                    "fail_count": row["fail_count"] or 0,
-                    "version": row["version"] or 1,
-                    "score": round(float(row["score"]), 4),
-                    "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
+                    "trigger_condition": row.get("trigger_condition"),
+                    "steps": row.get("steps") or [],
+                    "entity_names": row.get("entity_names") or [],
+                    "success_count": row.get("success_count") or 0,
+                    "fail_count": row.get("fail_count") or 0,
+                    "version": row.get("version") or 1,
+                    "score": round(rrf_scores[pid], 4),
+                    "updated_at": row["updated_at"].isoformat() if row.get("updated_at") else None,
                     "memory_type": "procedural",
                 })
+            results = results[:top_k]
+            # Normalize scores to 0-1 range (RRF scores are tiny, clients expect 0-1)
+            if results:
+                max_s = max(r["score"] for r in results)
+                if max_s > 0:
+                    for r in results:
+                        r["score"] = round(r["score"] / max_s, 4)
             return results
 
     def search_procedures_text(self, user_id: str, query: str,
