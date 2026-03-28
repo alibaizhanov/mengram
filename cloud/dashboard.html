@@ -870,7 +870,7 @@ function showQuotaOrError(detail, fallback) {
         const container = document.getElementById('toast-container');
         const toast = document.createElement('div');
         toast.className = 'toast error';
-        toast.innerHTML = `<span class="toast-icon">✕</span><span class="toast-msg">Monthly ${action} limit reached (${detail.limit}). <a href="${esc(detail.upgrade_url || '/billing')}" style="color:#a78bfa;text-decoration:underline;font-weight:600;">Upgrade now</a></span><button class="toast-close" onclick="dismissToast(this.parentElement)">✕</button>`;
+        toast.innerHTML = `<span class="toast-icon">✕</span><span class="toast-msg">Monthly ${esc(action)} limit reached (${esc(String(detail.limit))}). <a href="${esc(detail.upgrade_url || '/billing')}" style="color:#a78bfa;text-decoration:underline;font-weight:600;">Upgrade now</a></span><button class="toast-close" onclick="dismissToast(this.parentElement)">✕</button>`;
         container.appendChild(toast);
         setTimeout(() => dismissToast(toast), 8000);
         return;
