@@ -2434,7 +2434,8 @@ class CloudStore:
 
             # Sort, filter by minimum RRF score, and diversify via MMR
             sorted_final = sorted(final_scores.items(), key=lambda x: x[1], reverse=True)
-            min_rrf = 0.01  # RRF score of 1/(60+rank) at rank ~40
+            top_score = sorted_final[0][1] if sorted_final else 0
+            min_rrf = max(0.01, top_score * 0.4)  # at least 40% of best match
             filtered = [(eid, score) for eid, score in sorted_final
                         if score >= min_rrf]
             top_entities = self._mmr_select(filtered, entity_info, top_k)
@@ -5805,8 +5806,9 @@ Return ONLY JSON (no markdown):
                     graph_expanded_ids.add(eid)
 
             # Sort, filter by minimum RRF score, and limit
-            min_rrf = 0.01  # RRF score of 1/(60+rank) at rank ~40
             sorted_final = sorted(rrf_scores.items(), key=lambda x: x[1], reverse=True)
+            top_score = sorted_final[0][1] if sorted_final else 0
+            min_rrf = max(0.01, top_score * 0.4)  # at least 40% of best match
             sorted_results = [(eid, score) for eid, score in sorted_final
                               if score >= min_rrf][:top_k]
 
