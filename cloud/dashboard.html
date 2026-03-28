@@ -360,6 +360,57 @@
             .onboarding-step-cta { padding: 6px 10px; font-size: 11px; }
         }
 
+        /* Search page */
+        .search-hero { text-align: center; padding: 40px 20px 32px; }
+        .search-hero h2 { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
+        .search-hero p { color: var(--text-2); font-size: 14px; margin-bottom: 24px; }
+        .search-hero-bar { max-width: 560px; margin: 0 auto; display: flex; align-items: center; gap: 8px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 10px 16px; transition: border-color 0.2s, box-shadow 0.2s; }
+        .search-hero-bar:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+        .search-hero-bar input { flex: 1; background: none; border: none; color: var(--text); font-size: 15px; font-family: 'Sora', sans-serif; outline: none; padding: 6px 4px; }
+        .search-hero-bar input::placeholder { color: var(--text-3); }
+        .search-hero-btn { padding: 10px 24px; background: var(--accent); color: #fff; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: 'Sora', sans-serif; transition: background 0.15s; white-space: nowrap; }
+        .search-hero-btn:hover { background: #9333ea; }
+        .search-hero-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .search-suggestions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 16px; }
+        .search-chip { padding: 6px 14px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 20px; font-size: 12px; color: var(--text-2); cursor: pointer; transition: all 0.15s; }
+        .search-chip:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+        .search-results { max-width: 720px; margin: 0 auto; padding: 0 20px; }
+        .search-results-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+        .search-results-header h3 { font-size: 16px; font-weight: 600; }
+        .search-results-count { font-size: 13px; color: var(--text-3); }
+        .search-section { margin-bottom: 24px; }
+        .search-section-title { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-3); }
+        .search-section-title .ss-dot { width: 8px; height: 8px; border-radius: 50%; }
+        .sr-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; margin-bottom: 8px; transition: border-color 0.15s; }
+        .sr-card:hover { border-color: var(--border-hover); }
+        .sr-card-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+        .sr-type { font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 600; }
+        .sr-type.t-semantic { background: var(--green-dim); color: var(--green); }
+        .sr-type.t-episodic { background: var(--blue-dim); color: var(--blue); }
+        .sr-type.t-procedural { background: var(--accent-dim); color: var(--accent); }
+        .sr-type.t-chunk { background: var(--orange-dim); color: var(--orange); }
+        .sr-entity { font-weight: 600; font-size: 14px; }
+        .sr-score { margin-left: auto; font-size: 11px; color: var(--text-3); font-family: 'JetBrains Mono', monospace; }
+        .sr-body { font-size: 14px; color: var(--text-2); line-height: 1.6; }
+        .sr-meta { font-size: 11px; color: var(--text-3); margin-top: 6px; display: flex; gap: 12px; flex-wrap: wrap; }
+        .sr-steps { list-style: none; padding: 0; margin: 4px 0 0; counter-reset: step; }
+        .sr-steps li { padding: 4px 0; font-size: 13px; color: var(--text-2); display: flex; align-items: baseline; gap: 8px; }
+        .sr-steps li::before { counter-increment: step; content: counter(step); display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: var(--accent-dim); color: var(--accent); font-size: 11px; font-weight: 600; flex-shrink: 0; }
+        .search-empty { text-align: center; padding: 60px 20px; color: var(--text-3); }
+        .search-empty h3 { color: var(--text-2); font-size: 16px; margin-bottom: 6px; }
+        .search-empty p { font-size: 13px; max-width: 360px; margin: 0 auto; line-height: 1.5; }
+        .search-quota-banner { max-width: 560px; margin: 0 auto; background: var(--bg-card); border: 1px solid rgba(248,113,113,0.2); border-radius: 12px; padding: 20px 24px; text-align: center; }
+        .search-quota-banner h3 { color: var(--red); font-size: 15px; margin-bottom: 6px; }
+        .search-quota-banner p { font-size: 13px; color: var(--text-2); margin-bottom: 14px; }
+        .search-quota-banner a { display: inline-block; padding: 10px 24px; background: var(--accent); color: #fff; border-radius: 10px; font-size: 14px; font-weight: 600; text-decoration: none; transition: background 0.15s; }
+        .search-quota-banner a:hover { background: #9333ea; }
+        @media (max-width: 768px) {
+            .search-hero { padding: 24px 8px 20px; }
+            .search-hero-bar { padding: 8px 12px; }
+            .search-hero-bar input { font-size: 14px; }
+            .search-results { padding: 0 8px; }
+        }
+
         /* Onboarding Checklist */
         .onboarding-checklist {
             background: var(--bg-card);
@@ -507,6 +558,7 @@
                 <div class="nav-item active" onclick="switchGroup(event,'memory')"><span class="icon"><svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7z"/><path d="M10 21h4"/></svg></span> Memory <span class="chevron">▸</span></div>
                 <div class="nav-sub-items" style="max-height:200px">
                     <div class="nav-sub active" data-tab="graph" onclick="switchTab(event,'graph')">Knowledge Graph</div>
+                    <div class="nav-sub" data-tab="search" onclick="switchTab(event,'search')">Search</div>
                     <div class="nav-sub" data-tab="feed" onclick="switchTab(event,'feed')">Feed</div>
                     <div class="nav-sub" data-tab="entities" onclick="switchTab(event,'entities')">Entities</div>
                 </div>
@@ -603,6 +655,25 @@
                 <button class="quick-add-btn" id="quick-add-btn" onclick="quickAddText()">Add</button>
             </div>
             <div class="quick-add-status" id="quick-add-status" style="display:none;"></div>
+        </div>
+
+        <div class="tab-content" id="tab-search">
+            <div class="search-hero">
+                <h2>Search Your Memory</h2>
+                <p>Find facts, events, and workflows across all memory types</p>
+                <div class="search-hero-bar">
+                    <svg viewBox="0 0 24 24" style="width:18px;height:18px;stroke:var(--text-3);fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <input id="full-search-input" placeholder="What are you looking for?" autocomplete="off" onkeydown="if(event.key==='Enter')doFullSearch()">
+                    <button class="search-hero-btn" id="full-search-btn" onclick="doFullSearch()">Search</button>
+                </div>
+                <div class="search-suggestions" id="search-suggestions">
+                    <span class="search-chip" onclick="doFullSearch('tech stack')">tech stack</span>
+                    <span class="search-chip" onclick="doFullSearch('deployment')">deployment</span>
+                    <span class="search-chip" onclick="doFullSearch('recent decisions')">recent decisions</span>
+                    <span class="search-chip" onclick="doFullSearch('preferences')">preferences</span>
+                </div>
+            </div>
+            <div id="full-search-results" class="search-results"></div>
         </div>
 
         <div class="tab-content" id="tab-feed">
@@ -859,6 +930,7 @@ const I = {
 };
 
 // ---- Helpers ----
+function safeHref(url, fallback) { return (url && (url.startsWith('/') || url.startsWith('https://'))) ? esc(url) : esc(fallback || '/dashboard?tab=billing'); }
 function detailMsg(detail, fallback='Something went wrong') {
     if (!detail) return fallback;
     if (typeof detail === 'string') return detail;
@@ -870,7 +942,7 @@ function showQuotaOrError(detail, fallback) {
         const container = document.getElementById('toast-container');
         const toast = document.createElement('div');
         toast.className = 'toast error';
-        toast.innerHTML = `<span class="toast-icon">✕</span><span class="toast-msg">Monthly ${esc(action)} limit reached (${esc(String(detail.limit))}). <a href="${esc(detail.upgrade_url || '/billing')}" style="color:#a78bfa;text-decoration:underline;font-weight:600;">Upgrade now</a></span><button class="toast-close" onclick="dismissToast(this.parentElement)">✕</button>`;
+        toast.innerHTML = `<span class="toast-icon">✕</span><span class="toast-msg">Monthly ${esc(action)} limit reached (${esc(String(detail.limit))}). <a href="${safeHref(detail.upgrade_url, '/billing')}" style="color:#a78bfa;text-decoration:underline;font-weight:600;">Upgrade now</a></span><button class="toast-close" onclick="dismissToast(this.parentElement)">✕</button>`;
         container.appendChild(toast);
         setTimeout(() => dismissToast(toast), 8000);
         return;
@@ -930,6 +1002,7 @@ function toggleMobileMenu() {
 let cmdActive = -1;
 const CMD_NAV = [
     { icon: I.brain, label: 'Memory — Graph', action: () => switchTabDirect('graph') },
+    { icon: I.search, label: 'Memory — Search', action: () => switchTabDirect('search') },
     { icon: I.brain, label: 'Memory — Feed', action: () => switchTabDirect('feed') },
     { icon: I.brain, label: 'Memory — Entities', action: () => switchTabDirect('entities') },
     { icon: I.sparkle, label: 'Intelligence — Agents', action: () => switchTabDirect('agents') },
@@ -1029,7 +1102,7 @@ function _invalidateCache(key) { delete _tabCache[key]; delete _tabCacheTime[key
 
 // ---- Navigation groups (4 groups mapping to 8 tabs) ----
 const TAB_GROUPS = {
-    memory:       { tabs: ['graph', 'feed', 'entities'], default: 'graph' },
+    memory:       { tabs: ['graph', 'search', 'feed', 'entities'], default: 'graph' },
     intelligence: { tabs: ['agents', 'insights'], default: 'agents' },
     procedures:   { tabs: ['procedures'], default: 'procedures' },
     account:      { tabs: ['billing', 'settings'], default: 'billing' }
@@ -1056,8 +1129,8 @@ function switchTabDirect(t) {
     _updateNavHighlighting(t);
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
     document.getElementById('tab-' + t).classList.add('active');
-    // Show Quick Add + Stats only on Memory group tabs
-    const isMemory = TAB_GROUPS.memory.tabs.includes(t);
+    // Show Quick Add + Stats only on Memory group tabs (except Search which has its own UI)
+    const isMemory = TAB_GROUPS.memory.tabs.includes(t) && t !== 'search';
     const qa = document.getElementById('quick-add');
     const ss = document.querySelector('.stats-strip');
     if (qa) qa.style.display = isMemory ? '' : 'none';
@@ -1189,7 +1262,7 @@ async function tryLogin(k) {
             let _tab = new URLSearchParams(location.search).get('tab');
             const _groupAlias = { memory: 'graph', intelligence: 'agents', account: 'billing' };
             if (_tab && _groupAlias[_tab]) _tab = _groupAlias[_tab];
-            if(_tab && ['feed','agents','insights','graph','entities','procedures','billing','settings'].includes(_tab)) {
+            if(_tab && ['feed','search','agents','insights','graph','entities','procedures','billing','settings'].includes(_tab)) {
                 switchTabDirect(_tab);
             }
         } else { document.getElementById('login-error').style.display='block'; }
@@ -1200,6 +1273,18 @@ function switchTab(e, t) {
     _updateNavHighlighting(t);
     document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
     document.getElementById('tab-'+t).classList.add('active');
+    // Show/hide Quick Add + Stats (search tab has its own UI)
+    const isMemory = TAB_GROUPS.memory.tabs.includes(t) && t !== 'search';
+    const qa = document.getElementById('quick-add');
+    const ss = document.querySelector('.stats-strip');
+    if (qa) qa.style.display = isMemory ? '' : 'none';
+    if (ss) ss.style.display = isMemory ? '' : 'none';
+    const ob = document.getElementById('onboarding-checklist');
+    if (ob && localStorage.getItem('mengram_ob_active') === '1') ob.style.display = isMemory ? '' : 'none';
+    // Update URL
+    const url = new URL(window.location);
+    url.searchParams.set('tab', t);
+    history.replaceState(null, '', url);
     // Close mobile menu on tab switch
     const sidebar = document.querySelector('.sidebar');
     if (sidebar.classList.contains('open')) toggleMobileMenu();
@@ -1287,8 +1372,8 @@ function obClickAdd() {
     if (inp) { inp.placeholder = "Try: I am a backend engineer who loves Python and PostgreSQL"; inp.focus(); }
 }
 function obClickSearch() {
-    switchTabDirect('feed');
-    setTimeout(() => { const s = document.getElementById('search-input'); if (s) { s.placeholder = 'Try: what language do I use?'; s.focus(); } }, 150);
+    switchTabDirect('search');
+    setTimeout(() => { const s = document.getElementById('full-search-input'); if (s) { s.placeholder = 'Try: what language do I use?'; s.focus(); } }, 150);
 }
 function obClickGraph() { switchTabDirect('graph'); }
 
@@ -2080,6 +2165,159 @@ async function doSearch(q) {
     } catch(e){}
 }
 document.addEventListener('click',e=>{if(!e.target.closest('.search-bar'))document.getElementById('search-dd')?.classList.remove('show');});
+
+// ---- Full Search (Search tab — /v1/search/all) ----
+let _fullSearching = false;
+async function doFullSearch(query) {
+    const inp = document.getElementById('full-search-input');
+    if (query) inp.value = query;
+    const q = inp.value.trim();
+    if (!q) { inp.focus(); return; }
+
+    if (_fullSearching) return;
+    _fullSearching = true;
+    const btn = document.getElementById('full-search-btn');
+    btn.disabled = true;
+    btn.textContent = 'Searching...';
+    const box = document.getElementById('full-search-results');
+    box.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-3);">Searching across all memory types...</div>';
+
+    try {
+        const r = await fetch(`${API}/v1/search/all`, {
+            method: 'POST', headers: H(),
+            body: JSON.stringify({ query: q, limit: 15 })
+        });
+        const d = await r.json();
+
+        if (!r.ok) {
+            if (d.detail && typeof d.detail === 'object' && d.detail.error === 'quota_exceeded') {
+                box.innerHTML = `<div class="search-quota-banner">
+                    <h3>Search limit reached</h3>
+                    <p>You've used all ${esc(String(d.detail.limit))} searches this month on the ${esc(String(d.detail.plan || 'free'))} plan.</p>
+                    <a href="${safeHref(d.detail.upgrade_url, '/dashboard?tab=billing')}">Upgrade to search more</a>
+                </div>`;
+            } else {
+                box.innerHTML = `<div class="search-empty"><h3>Something went wrong</h3><p>${esc(detailMsg(d.detail, 'Please try again.'))}</p></div>`;
+            }
+            return;
+        }
+
+        updateObStep('search', true);
+
+        const sem = d.semantic || [];
+        const epi = d.episodic || [];
+        const proc = d.procedural || [];
+        const chk = d.chunks || [];
+        const total = sem.length + epi.length + proc.length + chk.length;
+
+        if (total === 0) {
+            const hint = d.hint || 'No results found. Try broader terms or add more memories first.';
+            box.innerHTML = `<div class="search-empty">
+                <div style="margin-bottom:12px;"><svg viewBox="0 0 24 24" style="width:40px;height:40px;stroke:var(--text-3);fill:none;stroke-width:1.5;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
+                <h3>No results</h3>
+                <p>${esc(hint)}</p>
+            </div>`;
+            return;
+        }
+
+        let html = `<div class="search-results-header"><h3>Results for "${esc(q)}"</h3><span class="search-results-count">${total} result${total!==1?'s':''}</span></div>`;
+
+        // Semantic facts
+        if (sem.length) {
+            html += `<div class="search-section">
+                <div class="search-section-title"><span class="ss-dot" style="background:var(--green)"></span> Facts (${sem.length})</div>`;
+            sem.forEach(r => {
+                const facts = (r.facts || []).slice(0, 4);
+                const score = typeof r.score === 'number' ? r.score.toFixed(2) : '';
+                html += `<div class="sr-card" style="cursor:pointer" onclick="openEntity('${escA(r.entity || '')}')">
+                    <div class="sr-card-head">
+                        <span class="sr-type t-semantic">fact</span>
+                        <span class="sr-entity">${esc(r.entity || 'Unknown')}</span>
+                        <small style="color:var(--text-3);font-size:12px;">${esc(r.type || '')}</small>
+                        ${r.team_shared ? '<span style="background:var(--green-dim);color:var(--green);padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;">team</span>' : ''}
+                        ${score ? '<span class="sr-score">' + score + '</span>' : ''}
+                    </div>
+                    <div class="sr-body">${facts.map(f => esc(f)).join('<br>')}</div>
+                    ${facts.length < (r.facts||[]).length ? '<div class="sr-meta">+' + ((r.facts||[]).length - facts.length) + ' more facts</div>' : ''}
+                </div>`;
+            });
+            html += '</div>';
+        }
+
+        // Episodic events
+        if (epi.length) {
+            html += `<div class="search-section">
+                <div class="search-section-title"><span class="ss-dot" style="background:var(--blue)"></span> Events (${epi.length})</div>`;
+            epi.forEach(r => {
+                const score = typeof r.score === 'number' ? r.score.toFixed(2) : '';
+                const date = r.date || r.occurred_at || '';
+                const dateStr = date ? new Date(date).toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'}) : '';
+                html += `<div class="sr-card">
+                    <div class="sr-card-head">
+                        <span class="sr-type t-episodic">event</span>
+                        ${dateStr ? '<small style="color:var(--text-3);font-size:12px;">' + esc(dateStr) + '</small>' : ''}
+                        ${score ? '<span class="sr-score">' + score + '</span>' : ''}
+                    </div>
+                    <div class="sr-body">${esc(r.summary || r.content || '')}</div>
+                    <div class="sr-meta">
+                        ${r.outcome ? '<span>Outcome: ' + esc(r.outcome) + '</span>' : ''}
+                        ${r.participants?.length ? '<span>Participants: ' + r.participants.map(p => esc(p)).join(', ') + '</span>' : ''}
+                    </div>
+                </div>`;
+            });
+            html += '</div>';
+        }
+
+        // Procedural workflows
+        if (proc.length) {
+            html += `<div class="search-section">
+                <div class="search-section-title"><span class="ss-dot" style="background:var(--accent)"></span> Workflows (${proc.length})</div>`;
+            proc.forEach(r => {
+                const score = typeof r.score === 'number' ? r.score.toFixed(2) : '';
+                const steps = r.steps || [];
+                html += `<div class="sr-card">
+                    <div class="sr-card-head">
+                        <span class="sr-type t-procedural">workflow</span>
+                        <span class="sr-entity">${esc(r.name || r.title || 'Unnamed')}</span>
+                        ${r.version ? '<small style="color:var(--text-3);font-size:12px;">v' + esc(String(r.version)) + '</small>' : ''}
+                        ${score ? '<span class="sr-score">' + score + '</span>' : ''}
+                    </div>
+                    ${r.description ? '<div class="sr-body">' + esc(r.description) + '</div>' : ''}
+                    ${steps.length ? '<ol class="sr-steps">' + steps.map(s => '<li>' + esc(typeof s === 'string' ? s : s.action || s.step || JSON.stringify(s)) + '</li>').join('') + '</ol>' : ''}
+                </div>`;
+            });
+            html += '</div>';
+        }
+
+        // Raw chunks
+        if (chk.length) {
+            html += `<div class="search-section">
+                <div class="search-section-title"><span class="ss-dot" style="background:var(--orange)"></span> Conversations (${chk.length})</div>`;
+            chk.forEach(r => {
+                const score = typeof r.score === 'number' ? r.score.toFixed(2) : '';
+                const text = r.text || r.content || '';
+                const preview = text.length > 300 ? text.substring(0, 300) + '...' : text;
+                html += `<div class="sr-card">
+                    <div class="sr-card-head">
+                        <span class="sr-type t-chunk">conversation</span>
+                        ${score ? '<span class="sr-score">' + score + '</span>' : ''}
+                    </div>
+                    <div class="sr-body" style="white-space:pre-wrap;font-size:13px;font-family:'JetBrains Mono',monospace;">${esc(preview)}</div>
+                </div>`;
+            });
+            html += '</div>';
+        }
+
+        box.innerHTML = html;
+
+    } catch(e) {
+        box.innerHTML = `<div class="search-empty"><h3>Search failed</h3><p>${esc(e.message || 'Network error. Please try again.')}</p></div>`;
+    } finally {
+        _fullSearching = false;
+        btn.disabled = false;
+        btn.textContent = 'Search';
+    }
+}
 
 // ---- Settings ----
 async function loadWebhooks() {
