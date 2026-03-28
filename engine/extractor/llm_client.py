@@ -45,6 +45,7 @@ class AnthropicClient(LLMClient):
         response = self.client.messages.create(
             model=self.model,
             max_tokens=4096,
+            temperature=0.2,
             system=system or "You are a knowledge extraction assistant.",
             messages=[{"role": "user", "content": prompt}],
         )
@@ -78,6 +79,7 @@ class OpenAIClient(LLMClient):
                 {"role": "system", "content": system or "You are a knowledge extraction assistant."},
                 {"role": "user", "content": prompt},
             ],
+            temperature=0.2,
         )
         if response_format:
             kwargs["response_format"] = response_format

@@ -176,6 +176,12 @@ WHO TO EXTRACT ABOUT:
 - DO NOT extract: generic knowledge the AI assistant explained (unless a person confirmed they use it)
 - If a person says "I"/"me"/"my" — resolve to their name if known, otherwise "User"
 {existing_context}
+IMAGE DESCRIPTIONS:
+- Messages may contain "[Shared image: <description>]" — treat as REAL content the person shared
+- Extract facts from image descriptions combined with surrounding conversation
+- Example: "[Shared image: a black and white bowl]" during pottery discussion → "made a black and white bowl in pottery class"
+- Example: "[Shared image: a book cover]" → extract the book title if identifiable from context
+
 ENTITY RULES:
 - Named entities with 1+ extractable facts (people, places, organizations, activities, projects)
 - entity_type: a descriptive type (e.g. person, project, technology, company, concept, place, activity, event, book, tool, etc.)
@@ -188,17 +194,34 @@ ENTITY NAMING:
 - If entity already exists above — use EXACT SAME NAME (do not create duplicates)
 
 FACT RULES:
-- Concise but complete, under 20 words
+- Concise but COMPLETE — preserve ALL specific details (names, titles, numbers, brands, breeds, instruments)
+- Prefer 10-25 words per fact. Longer is OK if needed to preserve critical specifics.
 - ALWAYS include dates/times when mentioned or inferrable from context
   GOOD: "attended LGBTQ support group on May 7, 2023"
   GOOD: "started pottery class in June 2023"
   GOOD: "works as a software engineer at Google"
   BAD: "attended support group" (date was available but omitted!)
-- If the conversation includes timestamps like "[1:56 pm on 8 May, 2023]" and someone says "yesterday" — calculate the actual date and include it
+- TEMPORAL RESOLUTION IS MANDATORY when date context exists:
+  - "[8 May, 2023]" + "yesterday" → calculate: "May 7, 2023"
+  - "[June 15]" + "last week" → calculate: "approximately June 8, 2023"
+  - "[Oct 2023]" + "last year" → use "2022"
+  - "[July 3]" + "two days ago" → calculate: "July 1, 2023"
+  ALWAYS do the arithmetic — never output relative references like "yesterday" or "last week"
+- The "when" field MUST be an absolute date when determinable (e.g. "2023-05-07", "June 2023", "2023")
 - ONLY facts that DIRECTLY describe the entity they're assigned to
 - Keep project facts on projects, personal facts on the person — don't mix
 - DO NOT extract: meta-conversation actions ("asked a question", "sent a message", "said hello")
 - Facts can optionally include a "when" date field (see format below)
+
+DETAIL PRESERVATION — these details are ALWAYS worth keeping in facts:
+- Book/movie/show/song titles: "reading Charlotte's Web" not "reading a book"
+- Instrument/sport/hobby specifics: "plays clarinet and violin" not "plays instruments"
+- Pet breed/species and names: "has a guinea pig named Patches" not "has a pet"
+- Food/cuisine specifics: "favorite dish is pad thai" not "likes Asian food"
+- Place names: "visited the Louvre" not "visited a museum"
+- Quantities and measurements: "ran a 5K" not "went running", "has 3 children" not "has children"
+- People's full names: "met Dr. Sarah Chen" not "met a doctor"
+- Symbols and descriptions: "rainbow flag tattoo" not "has a tattoo"
 
 FACT DEDUP — check existing facts above. Do NOT re-extract facts that already exist (even if worded slightly differently).
 If someone says "I use Python" and existing context already has "uses Python" → skip it.
@@ -310,6 +333,8 @@ Output:
   "procedures": []
 }}
 
+CRITICAL: Extract TOO MANY facts rather than too few. A missing fact can never be recovered, but a duplicate is cheaply deduplicated. When in doubt, EXTRACT IT.
+
 CONVERSATION:
 {conversation}
 
@@ -349,6 +374,12 @@ DO NOT EXTRACT — meta-conversation noise:
   — unless it reveals a personal fact about the User (e.g. "search for flights to Tokyo" → User plans to visit Tokyo)
 - Any fact that describes what happened IN this conversation rather than about the real world
 
+IMAGE DESCRIPTIONS:
+- Messages may contain "[Shared image: <description>]" — treat as REAL content the person shared
+- Extract facts from image descriptions combined with surrounding conversation
+- Example: "[Shared image: a black and white bowl]" during pottery discussion → "made a black and white bowl in pottery class"
+- Example: "[Shared image: a book cover]" → extract the book title if identifiable from context
+
 ENTITY RULES:
 - Named entities with 1+ extractable facts (people, places, organizations, activities, projects)
 - entity_type: a descriptive type (e.g. person, project, technology, company, concept, place, activity, event, book, tool, etc.)
@@ -361,13 +392,20 @@ ENTITY NAMING:
 - If entity already exists above — use EXACT SAME NAME (do not create duplicates)
 
 FACT RULES:
-- Concise but complete, under 20 words
+- Concise but COMPLETE — preserve ALL specific details (names, titles, numbers, brands, breeds, instruments)
+- Prefer 10-25 words per fact. Longer is OK if needed to preserve critical specifics.
 - ALWAYS include dates/times when mentioned or inferrable from context
   GOOD: "attended LGBTQ support group on May 7, 2023"
   GOOD: "started pottery class in June 2023"
   GOOD: "works as a software engineer at Google"
   BAD: "attended support group" (date was available but omitted!)
-- If the conversation includes timestamps like "[1:56 pm on 8 May, 2023]" and someone says "yesterday" — calculate the actual date and include it
+- TEMPORAL RESOLUTION IS MANDATORY when date context exists:
+  - "[8 May, 2023]" + "yesterday" → calculate: "May 7, 2023"
+  - "[June 15]" + "last week" → calculate: "approximately June 8, 2023"
+  - "[Oct 2023]" + "last year" → use "2022"
+  - "[July 3]" + "two days ago" → calculate: "July 1, 2023"
+  ALWAYS do the arithmetic — never output relative references like "yesterday" or "last week"
+- The "when" field MUST be an absolute date when determinable (e.g. "2023-05-07", "June 2023", "2023")
 - ONLY facts that DIRECTLY describe the entity they're assigned to
 - Keep project facts on projects, personal facts on the person — don't mix
 - Facts can optionally include a "when" date field (see format below)
@@ -377,6 +415,16 @@ FACT RULES:
   → fact 2: "wants to try hypothesis for a side project"
   → fact 3: "has a side project"
   The word "already" does NOT mean skip — it means this is an established fact worth storing.
+
+DETAIL PRESERVATION — these details are ALWAYS worth keeping in facts:
+- Book/movie/show/song titles: "reading Charlotte's Web" not "reading a book"
+- Instrument/sport/hobby specifics: "plays clarinet and violin" not "plays instruments"
+- Pet breed/species and names: "has a guinea pig named Patches" not "has a pet"
+- Food/cuisine specifics: "favorite dish is pad thai" not "likes Asian food"
+- Place names: "visited the Louvre" not "visited a museum"
+- Quantities and measurements: "ran a 5K" not "went running", "has 3 children" not "has children"
+- People's full names: "met Dr. Sarah Chen" not "met a doctor"
+- Symbols and descriptions: "rainbow flag tattoo" not "has a tattoo"
 
 QUALITY BAR — only extract facts worth recalling in a FUTURE conversation:
 - YES: identity, preferences, skills, relationships, plans, locations, tools used
@@ -498,6 +546,8 @@ Output:
   ],
   "procedures": []
 }}
+
+CRITICAL: Extract TOO MANY facts rather than too few. A missing fact can never be recovered, but a duplicate is cheaply deduplicated. When in doubt, EXTRACT IT.
 
 CONVERSATION:
 {conversation}
