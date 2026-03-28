@@ -1,6 +1,6 @@
 {
   "name": "mengram-ai",
-  "version": "2.20.0",
+  "version": "2.21.0",
   "description": "Human-like memory for AI — auto-save, auto-recall, cognitive profile. Claude Code hooks, MCP server (29 tools), semantic/episodic/procedural memory. Free Mem0 alternative.",
   "main": "index.js",
   "types": "index.d.ts",

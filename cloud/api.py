@@ -89,6 +89,7 @@ class AddRequest(BaseModel):
     expiration_date: str | None = None
     dry_run: bool = False
     prompt_version: str | None = None  # Override extraction prompt version (only works with dry_run)
+    agent_mode: bool = False           # True = extract from all speakers (agent actions + user), False = user-only (default)
 
 class AddTextRequest(BaseModel):
     text: str
@@ -4684,7 +4685,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         return result
 
     def _run_extraction_pipeline(user_id, sub_uid, conversation, metadata,
-                                 expiration_date, job_id, plan):
+                                 expiration_date, job_id, plan, prompt_version=None):
         """Shared extraction pipeline used by /v1/add and /v1/add_file."""
         created = []
         try:
@@ -4710,7 +4711,8 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 if not window:
                     break
 
-                win_extraction = extractor.extract(window, existing_context=existing_context)
+                win_extraction = extractor.extract(window, existing_context=existing_context,
+                                                     prompt_version=prompt_version)
                 all_episodes.extend(win_extraction.episodes)
                 all_procedures.extend(win_extraction.procedures)
                 all_entities.extend(win_extraction.entities)
@@ -5140,8 +5142,9 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             except Exception:
                 pass
             conversation = [{"role": m.role, "content": m.content} for m in req.messages]
+            dry_prompt = "v1" if req.agent_mode else req.prompt_version
             result = extractor.extract(conversation, existing_context=existing_context,
-                                       prompt_version=req.prompt_version)
+                                       prompt_version=dry_prompt)
             return {
                 "dry_run": True,
                 "extraction": {
@@ -5201,6 +5204,9 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         if req.metadata:
             metadata.update(req.metadata)
 
+        # agent_mode=True → extract from all speakers (v1), False → user-only (v2 default)
+        effective_prompt_version = "v1" if req.agent_mode else req.prompt_version
+
         def process_in_background():
             _run_extraction_pipeline(
                 user_id=user_id,
@@ -5210,6 +5216,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 expiration_date=req.expiration_date,
                 job_id=job_id,
                 plan=ctx.plan,
+                prompt_version=effective_prompt_version,
             )
 
 

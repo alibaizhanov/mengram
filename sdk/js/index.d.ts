@@ -16,6 +16,7 @@ export interface MemoryOptions {
   expirationDate?: string;
   source?: string;
   metadata?: Record<string, any>;
+  agentMode?: boolean;
 }
 
 export interface SearchOptions extends MemoryOptions {

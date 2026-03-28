@@ -120,7 +120,8 @@ class CloudMemory:
     def add(self, messages: list[dict], user_id: str = "default",
             agent_id: str = None, run_id: str = None, app_id: str = None,
             expiration_date: str = None,
-            source: str = None, metadata: dict = None) -> dict:
+            source: str = None, metadata: dict = None,
+            agent_mode: bool = False) -> dict:
         """
         Add memories from conversation.
 
@@ -137,6 +138,8 @@ class CloudMemory:
                              None = persist forever.
             source: Provenance source (e.g. "discord", "slack", "email", "api")
             metadata: Arbitrary provenance metadata dict
+            agent_mode: If True, extract from all speakers (user + assistant actions).
+                        If False (default), extract only from the user's perspective.
 
         Returns:
             {"status": "accepted", "job_id": "job-...", "message": "..."}
@@ -154,6 +157,8 @@ class CloudMemory:
             body["source"] = source
         if metadata:
             body["metadata"] = metadata
+        if agent_mode:
+            body["agent_mode"] = True
         return self._request("POST", "/v1/add", body)
 
     def add_file(self, file_path: str, user_id: str = "default",

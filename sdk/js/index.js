@@ -112,6 +112,7 @@ class MengramClient {
    * @param {string} [options.expirationDate] - ISO datetime — facts auto-expire after this
    * @param {string} [options.source] - Provenance source (e.g. "discord", "slack", "email")
    * @param {object} [options.metadata] - Arbitrary provenance metadata
+   * @param {boolean} [options.agentMode] - If true, extract from all speakers (user + assistant actions)
    * @returns {Promise<{status: string, job_id?: string}>}
    */
   async add(messages, options = {}) {
@@ -125,6 +126,7 @@ class MengramClient {
     };
     if (options.source) body.source = options.source;
     if (options.metadata) body.metadata = options.metadata;
+    if (options.agentMode) body.agent_mode = true;
     return this._request('POST', '/v1/add', body);
   }
 
