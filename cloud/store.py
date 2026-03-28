@@ -2512,12 +2512,12 @@ class CloudStore:
                         chunk_relevance[eid].get(fact_text, 0), rel
                     )
 
-            # Sort facts by combined relevance + importance, adaptive cap (5-10)
+            # Sort facts by combined relevance + importance, adaptive cap (10-20)
             max_entity_score = max((entity_map[eid]["score"] for eid in entity_map), default=1.0)
             for eid in entity_map:
                 relevances = chunk_relevance.get(eid, {})
                 score_ratio = entity_map[eid]["score"] / max_entity_score if max_entity_score > 0 else 0
-                max_facts = 5 + int(5 * score_ratio)  # top entity: 10, weakest: ~5
+                max_facts = 10 + int(10 * score_ratio)  # top entity: 20, weakest: ~10
                 sorted_facts = sorted(
                     entity_map[eid]["facts"],
                     key=lambda f: (
@@ -5809,11 +5809,11 @@ Return ONLY JSON (no markdown):
                 fact_str = f"[{r['event_date']}] {r['content']}" if r.get("event_date") else r["content"]
                 facts_raw[eid].append((fact_str, combined))
 
-            # Sort by combined score, keep top 5 per entity
+            # Sort by combined score, keep top 15 per entity
             facts_map = {}
             for eid, facts_list in facts_raw.items():
                 facts_list.sort(key=lambda x: x[1], reverse=True)
-                facts_map[eid] = [f[0] for f in facts_list[:5]]
+                facts_map[eid] = [f[0] for f in facts_list[:15]]
 
             # Batch fetch knowledge
             cur.execute(

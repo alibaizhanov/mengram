@@ -175,6 +175,15 @@ WHO TO EXTRACT ABOUT:
 - If someone says "I went to a support group" — extract it as a fact about THAT person
 - DO NOT extract: generic knowledge the AI assistant explained (unless a person confirmed they use it)
 - If a person says "I"/"me"/"my" — resolve to their name if known, otherwise "User"
+
+SPEAKER vs THIRD-PARTY DISAMBIGUATION:
+- There are exactly TWO participants in this conversation (user messages and assistant messages)
+- When a speaker says "I have a pet" or "I read a book" → that fact belongs to THAT SPEAKER, not to any third party
+- Third-party people (authors, friends, relatives mentioned by name) get their own entities ONLY for facts directly ABOUT them
+  Example: "I read Becoming Nicole by Amy Ellis Nutt" → fact "read Becoming Nicole" belongs to the SPEAKER
+  Amy Ellis Nutt entity should ONLY get: "author of the book Becoming Nicole"
+- NEVER attribute a speaker's personal experiences, possessions, or activities to a mentioned third party
+- If Speaker A says "my guinea pig Oscar" → Oscar belongs to Speaker A, NOT to anyone else mentioned in conversation
 {existing_context}
 IMAGE DESCRIPTIONS:
 - Messages may contain "[Shared image: <description>]" — treat as REAL content the person shared
