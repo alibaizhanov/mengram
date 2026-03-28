@@ -4121,17 +4121,22 @@ REFLECTIONS/PATTERNS:
         entities = entity_names or []
         ep_ids = source_episode_ids or []
 
-        # Case-insensitive lookup: use existing name to trigger ON CONFLICT correctly
+        # Fuzzy match: if a similar procedure already exists, reuse its name
+        from difflib import SequenceMatcher
         with self._cursor(dict_cursor=True) as cur:
             cur.execute(
                 """SELECT name FROM procedures
-                   WHERE user_id = %s AND sub_user_id = %s AND LOWER(name) = LOWER(%s)
-                   AND version = %s LIMIT 1""",
-                (user_id, sub_user_id, name, version)
+                   WHERE user_id = %s AND sub_user_id = %s AND is_current = TRUE
+                   ORDER BY updated_at DESC NULLS LAST LIMIT 50""",
+                (user_id, sub_user_id)
             )
-            existing = cur.fetchone()
-            if existing:
-                name = existing["name"]  # Use canonical casing
+            existing_names = [row["name"] for row in cur.fetchall()]
+
+        name_lower = name.lower()
+        for existing_name in existing_names:
+            if SequenceMatcher(None, name_lower, existing_name.lower()).ratio() >= 0.55:
+                name = existing_name  # Reuse existing → triggers ON CONFLICT
+                break
 
         try:
             with self._cursor() as cur:
