@@ -2525,7 +2525,12 @@ class CloudStore:
                         0.3 * f["importance"]
                     ),
                     reverse=True
-                )[:max_facts]
+                )
+                # Filter out facts with low relevance to the query (reduce junk)
+                sorted_facts = [
+                    f for f in sorted_facts
+                    if relevances.get(f["content"], 0) >= 0.15
+                ][:max_facts]
                 entity_map[eid]["facts"] = [
                     f"[{f['event_date']}] {f['content']}" if f.get("event_date")
                     else f["content"]
@@ -4585,6 +4590,9 @@ REFLECTIONS/PATTERNS:
 ALL FACTS (grouped by entity):
 {facts_text}
 
+PROCEDURES (workflows/routines):
+{procedures_text}
+
 Find these issues:
 1. CONTRADICTIONS — facts that conflict with each other (e.g., "lives in Almaty" vs "relocated to USA")
 2. STALE FACTS — facts that are likely outdated based on context (old job titles, old plans, completed tasks)
@@ -4593,6 +4601,8 @@ Find these issues:
 5. ENTITY_MERGES — entities that clearly refer to the same real-world person/thing
    (e.g. "Mel" and "Melanie" are the same person, "Bob" and "Robert Smith" are the same person,
     "trans girl" and "Caroline" are the same person based on their facts)
+6. PROCEDURE_DUPLICATES — procedures that describe the same workflow (same steps or same goal, different names).
+   Keep the one with more steps or higher success_count.
 
 Return JSON:
 {{
@@ -4610,6 +4620,9 @@ Return JSON:
   ],
   "entity_merges": [
     {{"source": "entity to merge away", "target": "entity to keep (the canonical name)", "reason": "why they are the same"}}
+  ],
+  "procedure_duplicates": [
+    {{"procedures": ["name1", "name2"], "keep": "name of the one to keep", "reason": "why they are duplicates"}}
   ],
   "health_score": 0.0-1.0,
   "summary": "One paragraph overview of memory health"
@@ -4720,7 +4733,17 @@ Be specific and personal, not generic. No markdown, just JSON."""
         if len(facts_text) > 8000:
             facts_text = facts_text[:8000] + "\n... (truncated)"
 
-        prompt = self.AGENT_CURATOR_PROMPT.format(facts_text=facts_text)
+        # Fetch procedures for dedup analysis
+        procedures = self.get_procedures(user_id, limit=50, sub_user_id=sub_user_id)
+        proc_lines = []
+        for p in procedures:
+            steps_str = " → ".join(p["steps"][:10]) if p["steps"] else "(no steps)"
+            proc_lines.append(f"- {p['name']} (success={p['success_count']}, steps={len(p['steps'])}): {steps_str}")
+        procedures_text = "\n".join(proc_lines) if proc_lines else "(no procedures)"
+        if len(procedures_text) > 3000:
+            procedures_text = procedures_text[:3000] + "\n... (truncated)"
+
+        prompt = self.AGENT_CURATOR_PROMPT.format(facts_text=facts_text, procedures_text=procedures_text)
 
         try:
             result = None
@@ -4742,7 +4765,8 @@ Be specific and personal, not generic. No markdown, just JSON."""
             len(result.get("stale", [])) +
             len(result.get("low_quality", [])) +
             len(result.get("duplicates", [])) +
-            len(result.get("entity_merges", []))
+            len(result.get("entity_merges", [])) +
+            len(result.get("procedure_duplicates", []))
         )
 
         actions_taken = 0
@@ -4813,6 +4837,30 @@ Be specific and personal, not generic. No markdown, just JSON."""
                                 pass
             except Exception as e:
                 logger.warning(f"⚠️ Auto fact dedup failed: {e}")
+
+            # Auto-fix: archive duplicate procedures (keep the better one)
+            for item in result.get("procedure_duplicates", []):
+                proc_names = item.get("procedures", [])
+                keep_name = item.get("keep", "")
+                if len(proc_names) < 2 or not keep_name:
+                    continue
+                # Archive all procedures that aren't the one to keep
+                for pname in proc_names:
+                    if pname.strip().lower() == keep_name.strip().lower():
+                        continue
+                    try:
+                        with self._cursor() as cur:
+                            cur.execute(
+                                """UPDATE procedures SET is_current = FALSE, updated_at = NOW()
+                                   WHERE user_id = %s AND sub_user_id = %s
+                                     AND LOWER(name) = LOWER(%s) AND is_current = TRUE""",
+                                (user_id, sub_user_id, pname)
+                            )
+                            if cur.rowcount > 0:
+                                actions_taken += cur.rowcount
+                                logger.info(f"Curator archived duplicate procedure '{pname}' (keeping '{keep_name}')")
+                    except Exception as e:
+                        logger.warning(f"Curator procedure dedup failed for '{pname}': {e}")
 
         # Save run
         with self._cursor() as cur:
@@ -5797,7 +5845,7 @@ Return ONLY JSON (no markdown):
                     )
 
             # Build facts with combined relevance + importance scoring
-            facts_raw = {}  # eid → [(text, combined_score)]
+            facts_raw = {}  # eid → [(text, combined_score, relevance)]
             for r in facts_rows:
                 eid = str(r["entity_id"])
                 if eid not in facts_raw:
@@ -5807,13 +5855,13 @@ Return ONLY JSON (no markdown):
                 importance = float(r["importance"] or 0.5)
                 combined = 0.7 * relevance + 0.3 * importance
                 fact_str = f"[{r['event_date']}] {r['content']}" if r.get("event_date") else r["content"]
-                facts_raw[eid].append((fact_str, combined))
+                facts_raw[eid].append((fact_str, combined, relevance))
 
-            # Sort by combined score, keep top 15 per entity
+            # Sort by combined score, filter low-relevance junk, keep top 15 per entity
             facts_map = {}
             for eid, facts_list in facts_raw.items():
                 facts_list.sort(key=lambda x: x[1], reverse=True)
-                facts_map[eid] = [f[0] for f in facts_list[:15]]
+                facts_map[eid] = [f[0] for f in facts_list if f[2] >= 0.15][:15]
 
             # Batch fetch knowledge
             cur.execute(

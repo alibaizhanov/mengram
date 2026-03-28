@@ -374,6 +374,15 @@ WHO TO EXTRACT ABOUT:
   Example: User says "yeah I use React with virtual DOM daily" → extract for User
 - If someone says "I"/"me"/"my" — that's the User (resolve to their name if known, otherwise "User")
 - Information from web searches, docs, tool outputs, or code analysis is NOT a personal fact
+
+SPEAKER vs THIRD-PARTY DISAMBIGUATION:
+- The User sends messages as "user" role. The Assistant sends messages as "assistant" role.
+- When the User says "I have a pet" or "I read a book" → that fact belongs to the USER, not to any third party
+- Third-party people (authors, friends, relatives mentioned by name) get their own entities ONLY for facts directly ABOUT them
+  Example: "I read Becoming Nicole by Amy Ellis Nutt" → fact "read Becoming Nicole" belongs to the USER
+  Amy Ellis Nutt entity should ONLY get: "author of the book Becoming Nicole"
+- NEVER attribute the User's personal experiences, possessions, or activities to a mentioned third party
+- If the User says "my guinea pig Oscar" → Oscar belongs to the User, NOT to anyone else mentioned
 {existing_context}
 DO NOT EXTRACT — meta-conversation noise:
 - Assistant's internal actions: "let me search", "I'll look into", "here's what I found"
