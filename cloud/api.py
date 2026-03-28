@@ -5142,7 +5142,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             except Exception:
                 pass
             conversation = [{"role": m.role, "content": m.content} for m in req.messages]
-            dry_prompt = "v1" if req.agent_mode else req.prompt_version
+            dry_prompt = "v1" if (req.agent_mode or req.agent_id) else req.prompt_version
             result = extractor.extract(conversation, existing_context=existing_context,
                                        prompt_version=dry_prompt)
             return {
@@ -5204,8 +5204,8 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         if req.metadata:
             metadata.update(req.metadata)
 
-        # agent_mode=True → extract from all speakers (v1), False → user-only (v2 default)
-        effective_prompt_version = "v1" if req.agent_mode else req.prompt_version
+        # agent_id present or agent_mode=True → extract from all speakers (v1)
+        effective_prompt_version = "v1" if (req.agent_mode or req.agent_id) else req.prompt_version
 
         def process_in_background():
             _run_extraction_pipeline(
