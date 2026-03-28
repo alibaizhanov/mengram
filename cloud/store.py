@@ -2436,7 +2436,7 @@ class CloudStore:
             sorted_final = sorted(final_scores.items(), key=lambda x: x[1], reverse=True)
             min_rrf = 0.01  # RRF score of 1/(60+rank) at rank ~40
             filtered = [(eid, score) for eid, score in sorted_final
-                        if score >= min_rrf or eid in graph_expanded_ids]
+                        if score >= min_rrf]
             top_entities = self._mmr_select(filtered, entity_info, top_k)
 
             if not top_entities:
@@ -4055,7 +4055,8 @@ REFLECTIONS/PATTERNS:
             results.sort(key=lambda r: r["score"], reverse=True)
             results = results[:top_k]
             # Normalize scores to 0-1 range (RRF scores are tiny, clients expect 0-1)
-            if results:
+            # Only normalize when 2+ results; single result keeps raw score to avoid false 1.0
+            if len(results) >= 2:
                 max_s = max(r["score"] for r in results)
                 if max_s > 0:
                     for r in results:
@@ -4309,7 +4310,8 @@ REFLECTIONS/PATTERNS:
                 })
             results = results[:top_k]
             # Normalize scores to 0-1 range (RRF scores are tiny, clients expect 0-1)
-            if results:
+            # Only normalize when 2+ results; single result keeps raw score to avoid false 1.0
+            if len(results) >= 2:
                 max_s = max(r["score"] for r in results)
                 if max_s > 0:
                     for r in results:
@@ -5806,7 +5808,7 @@ Return ONLY JSON (no markdown):
             min_rrf = 0.01  # RRF score of 1/(60+rank) at rank ~40
             sorted_final = sorted(rrf_scores.items(), key=lambda x: x[1], reverse=True)
             sorted_results = [(eid, score) for eid, score in sorted_final
-                              if score >= min_rrf or eid in graph_expanded_ids][:top_k]
+                              if score >= min_rrf][:top_k]
 
             if not sorted_results:
                 return []
