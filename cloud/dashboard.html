@@ -864,6 +864,19 @@ function detailMsg(detail, fallback='Something went wrong') {
     if (typeof detail === 'string') return detail;
     return detail.message || detail.error || fallback;
 }
+function showQuotaOrError(detail, fallback) {
+    if (detail && typeof detail === 'object' && detail.error === 'quota_exceeded') {
+        const action = detail.action === 'add' ? 'memory add' : detail.action;
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        toast.className = 'toast error';
+        toast.innerHTML = `<span class="toast-icon">✕</span><span class="toast-msg">Monthly ${action} limit reached (${detail.limit}). <a href="${esc(detail.upgrade_url || '/billing')}" style="color:#a78bfa;text-decoration:underline;font-weight:600;">Upgrade now</a></span><button class="toast-close" onclick="dismissToast(this.parentElement)">✕</button>`;
+        container.appendChild(toast);
+        setTimeout(() => dismissToast(toast), 8000);
+        return;
+    }
+    showToast(detailMsg(detail, fallback), 'error');
+}
 
 // ---- Toast notifications ----
 function showToast(message, type='success', duration=3500) {
@@ -1595,7 +1608,7 @@ async function quickAddText() {
             }
             setTimeout(() => { status.style.display = 'none'; status.style.color = ''; }, 5000);
         } else {
-            showToast(detailMsg(d.detail, 'Failed to add memory'), 'error');
+            showQuotaOrError(d.detail, 'Failed to add memory');
             status.style.display = 'none';
         }
     } catch(e) {
@@ -1638,7 +1651,7 @@ async function quickAddFile(fileInput) {
             }
             setTimeout(() => { status.style.display = 'none'; status.style.color = ''; }, 5000);
         } else {
-            showToast(detailMsg(d.detail, 'Failed to upload file'), 'error');
+            showQuotaOrError(d.detail, 'Failed to upload file');
             status.style.display = 'none';
         }
     } catch(e) {
