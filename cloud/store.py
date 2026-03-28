@@ -2433,11 +2433,13 @@ class CloudStore:
                 final_scores[eid] = score
 
             # Sort, filter by minimum RRF score, and diversify via MMR
+            # Direct matches: fixed floor 0.01. Graph-expanded: stricter adaptive floor.
             sorted_final = sorted(final_scores.items(), key=lambda x: x[1], reverse=True)
             top_score = sorted_final[0][1] if sorted_final else 0
-            min_rrf = max(0.01, top_score * 0.4)  # at least 40% of best match
+            min_rrf_graph = max(0.01, top_score * 0.4)
             filtered = [(eid, score) for eid, score in sorted_final
-                        if score >= min_rrf]
+                        if (eid in graph_expanded_ids and score >= min_rrf_graph) or
+                           (eid not in graph_expanded_ids and score >= 0.01)]
             top_entities = self._mmr_select(filtered, entity_info, top_k)
 
             if not top_entities:
@@ -5806,11 +5808,13 @@ Return ONLY JSON (no markdown):
                     graph_expanded_ids.add(eid)
 
             # Sort, filter by minimum RRF score, and limit
+            # Direct matches: fixed floor 0.01. Graph-expanded: stricter adaptive floor.
             sorted_final = sorted(rrf_scores.items(), key=lambda x: x[1], reverse=True)
             top_score = sorted_final[0][1] if sorted_final else 0
-            min_rrf = max(0.01, top_score * 0.4)  # at least 40% of best match
+            min_rrf_graph = max(0.01, top_score * 0.4)
             sorted_results = [(eid, score) for eid, score in sorted_final
-                              if score >= min_rrf][:top_k]
+                              if (eid in graph_expanded_ids and score >= min_rrf_graph) or
+                                 (eid not in graph_expanded_ids and score >= 0.01)][:top_k]
 
             if not sorted_results:
                 return []
