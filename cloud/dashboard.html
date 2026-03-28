@@ -858,6 +858,13 @@ const I = {
     stale:    '<svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>',
 };
 
+// ---- Helpers ----
+function detailMsg(detail, fallback='Something went wrong') {
+    if (!detail) return fallback;
+    if (typeof detail === 'string') return detail;
+    return detail.message || detail.error || fallback;
+}
+
 // ---- Toast notifications ----
 function showToast(message, type='success', duration=3500) {
     const container = document.getElementById('toast-container');
@@ -1137,7 +1144,7 @@ async function sendResetCode() {
             document.getElementById('reset-step-email').style.display = 'none';
             document.getElementById('reset-step-code').style.display = 'block';
             document.getElementById('reset-code').focus();
-        } else { err.textContent = d.detail || 'Failed'; err.style.display = 'block'; }
+        } else { err.textContent = detailMsg(d.detail, 'Failed'); err.style.display = 'block'; }
     } catch(e) { err.textContent = 'Network error'; err.style.display = 'block'; }
 }
 async function verifyResetCode() {
@@ -1154,7 +1161,7 @@ async function verifyResetCode() {
             res.style.display = 'block';
             localStorage.setItem('mengram_key', d.api_key);
             res.innerHTML = `<strong style="color:var(--green);">New key generated!</strong><p style="margin-top:8px;font-size:13px;color:var(--text-2);">Save it — old keys are now inactive:</p><div style="margin-top:8px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:13px;word-break:break-all;">${esc(d.api_key)}</div><button onclick="navigator.clipboard.writeText('${d.api_key.replace(/'/g,"\\'")}');this.textContent='Copied!';setTimeout(()=>this.textContent='Copy Key',2000)" style="margin-top:8px;padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;width:100%;">Copy Key</button><button onclick="tryLogin('${d.api_key.replace(/'/g,"\\'")}')" style="margin-top:6px;padding:8px 16px;background:var(--bg-card);color:var(--accent);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:13px;width:100%;">Open Console with this key →</button>`;
-        } else { err.textContent = d.detail || 'Invalid code'; err.style.display = 'block'; }
+        } else { err.textContent = detailMsg(d.detail, 'Invalid code'); err.style.display = 'block'; }
     } catch(e) { err.textContent = 'Network error'; err.style.display = 'block'; }
 }
 async function tryLogin(k) {
@@ -1588,7 +1595,7 @@ async function quickAddText() {
             }
             setTimeout(() => { status.style.display = 'none'; status.style.color = ''; }, 5000);
         } else {
-            showToast(d.detail || 'Failed to add memory', 'error');
+            showToast(detailMsg(d.detail, 'Failed to add memory'), 'error');
             status.style.display = 'none';
         }
     } catch(e) {
@@ -1631,7 +1638,7 @@ async function quickAddFile(fileInput) {
             }
             setTimeout(() => { status.style.display = 'none'; status.style.color = ''; }, 5000);
         } else {
-            showToast(d.detail || 'Failed to upload file', 'error');
+            showToast(detailMsg(d.detail, 'Failed to upload file'), 'error');
             status.style.display = 'none';
         }
     } catch(e) {
@@ -1995,7 +2002,7 @@ async function shareEntityDialog(name) {
             showConfirm('Share Entity', `Share "${name}" with team "${team.name}"?`, async () => {
                 const r = await fetch(`${API}/v1/teams/${team.id}/share`, {method:'POST', headers:H(), body:JSON.stringify({entity:name})});
                 if (r.ok) { showToast(`"${name}" shared with ${team.name}!`, 'success'); }
-                else { const err = await r.json(); showToast(err.detail || 'Failed to share', 'error'); }
+                else { const err = await r.json(); showToast(detailMsg(err.detail, 'Failed to share'), 'error'); }
             });
             return;
         }
@@ -2028,7 +2035,7 @@ async function shareEntityDialog(name) {
             if (!selectedTeam) return;
             const r = await fetch(`${API}/v1/teams/${selectedTeam.id}/share`, {method:'POST', headers:H(), body:JSON.stringify({entity:name})});
             if (r.ok) { showToast(`"${name}" shared with ${selectedTeam.name}!`, 'success'); }
-            else { const err = await r.json(); showToast(err.detail || 'Failed to share', 'error'); }
+            else { const err = await r.json(); showToast(detailMsg(err.detail, 'Failed to share'), 'error'); }
         };
         bg.classList.add('show');
     } catch(e) { showToast('Error: ' + e.message, 'error'); }
@@ -2114,7 +2121,7 @@ async function createWebhook() {
             loadWebhooks();
             showToast('Webhook created', 'success');
         } else {
-            showToast(d.detail || 'Failed to create webhook', 'error');
+            showToast(detailMsg(d.detail, 'Failed to create webhook'), 'error');
         }
     } catch(e) { showToast('Error: ' + e.message, 'error'); }
 }
@@ -2186,7 +2193,7 @@ async function createTeam() {
             document.getElementById('team-name').value = '';
             loadTeams();
             showToast(`Team created! Invite: ${d.team?.invite_code}`, 'success', 5000);
-        } else { showToast(d.detail || 'Failed', 'error'); }
+        } else { showToast(detailMsg(d.detail, 'Failed'), 'error'); }
     } catch(e) { showToast('Error: ' + e.message, 'error'); }
 }
 
@@ -2200,7 +2207,7 @@ async function joinTeam() {
             document.getElementById('invite-code').value = '';
             loadTeams();
             showToast(`Joined team: ${d.team_name}!`, 'success');
-        } else { showToast(d.detail || 'Failed', 'error'); }
+        } else { showToast(detailMsg(d.detail, 'Failed'), 'error'); }
     } catch(e) { showToast('Error: ' + e.message, 'error'); }
 }
 
@@ -2272,7 +2279,7 @@ async function createNewKey() {
                 `<code style="display:block;background:var(--bg);padding:12px;border-radius:8px;font-size:13px;word-break:break-all;margin-bottom:12px;border:1px solid var(--border);user-select:all;">${esc(d.key)}</code>` +
                 `<p style="font-size:13px;color:var(--text-2);">Copied to clipboard. Save it — it won't be shown again.</p>`;
         } else {
-            showToast(d.detail || 'Failed to create key', 'error');
+            showToast(detailMsg(d.detail, 'Failed to create key'), 'error');
         }
     } catch(e) { showToast('Failed to create key', 'error'); }
 }
@@ -2284,10 +2291,10 @@ async function revokeKey(keyId, prefix) {
             const d = await r.json();
             if (r.ok) { loadKeys(); showToast('Key revoked', 'success'); }
             else {
-                if (d.detail && d.detail.includes('last active key')) {
+                if (typeof d.detail === 'string' && d.detail.includes('last active key')) {
                     showToast('Create a new key first, then revoke the old one.', 'error', 5000);
                 } else {
-                    showToast(d.detail || 'Failed to revoke', 'error');
+                    showToast(detailMsg(d.detail, 'Failed to revoke'), 'error');
                 }
             }
         } catch(e) { showToast('Failed', 'error'); }

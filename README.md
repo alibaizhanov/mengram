@@ -432,6 +432,18 @@ m.procedure_feedback(proc_id, success=False,
 
 Works with any agent framework — CrewAI, LangChain, AutoGPT, custom loops. The agent just calls `add()` after actions and `search()` before decisions.
 
+## Self-Hosted (Ollama)
+
+When running locally with Ollama, use models with **8B+ parameters** and **8K+ context window**. The extraction prompt is ~4,000 tokens — smaller models will hallucinate or mix examples with real data.
+
+| Model | Parameters | Works? |
+|-------|-----------|--------|
+| `llama3.1:8b` | 8B | Yes |
+| `mistral:7b` | 7B | Yes |
+| `gemma2:9b` | 9B | Yes |
+| `llama3.1:70b` | 70B | Best |
+| `phi4-mini:3.8b` | 3.8B | No — context too small |
+
 ## API Reference
 
 | Endpoint | Description |

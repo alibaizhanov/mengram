@@ -589,8 +589,8 @@ Be strict — only include entities that directly answer or relate to the query.
             tracker_key = f"{user_id[:8]}:{action}"
             now = _time.time()
             entry = _quota_log_tracker.get(tracker_key)
-            if entry is None or (now - entry[0]) >= 300:
-                # First block or 5 min since last log — log with suppressed count
+            if entry is None or (now - entry[0]) >= 1800:
+                # First block or 30 min since last log — log with suppressed count
                 suppressed = entry[1] if entry else 0
                 suffix = f" ({suppressed} blocked requests suppressed)" if suppressed > 0 else ""
                 logger.warning(f"🚫 QUOTA {action} | user={user_id[:8]} | {current}/{max_allowed} | plan={plan}{suffix}")
@@ -864,7 +864,25 @@ Be strict — only include entities that directly answer or relate to the query.
         request.state.rate_remaining = remaining
 
         key_prefix = key[:10] if len(key) > 10 else key[:4]
-        logger.info(f"🔑 {request.method} {request.url.path} | key={key_prefix}... | user={user_id[:8]} | plan={plan}")
+        # Suppress request log for quota-exhausted users (reduces log noise from MCP hooks)
+        _skip_log = False
+        _path = request.url.path
+        if redis_client and plan != "business":
+            try:
+                _month = f"{datetime.date.today().year}-{datetime.date.today().month:02d}"
+                # Only suppress log if the specific request type is over quota
+                if _path.startswith("/v1/add"):
+                    _cached = redis_client.get(f"qc:{user_id}:add:{_month}")
+                    if _cached is not None and int(_cached) >= PLAN_QUOTAS.get(plan, PLAN_QUOTAS["free"]).get("adds", 0):
+                        _skip_log = True
+                elif "search" in _path:
+                    _cached = redis_client.get(f"qc:{user_id}:search:{_month}")
+                    if _cached is not None and int(_cached) >= PLAN_QUOTAS.get(plan, PLAN_QUOTAS["free"]).get("searches", 0):
+                        _skip_log = True
+            except Exception:
+                pass
+        if not _skip_log:
+            logger.info(f"🔑 {request.method} {request.url.path} | key={key_prefix}... | user={user_id[:8]} | plan={plan}")
         return AuthContext(user_id=user_id, plan=plan, rate_limit=rate_limit)
 
     # ---- Email helper ----
