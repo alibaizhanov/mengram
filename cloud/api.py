@@ -4064,10 +4064,14 @@ m.delete_webhook(webhook_id=1)</code></pre>
         email = store.get_user_email(user_id)
         sub = store.get_subscription(user_id)
         plan = sub.get("plan", "free") if sub else "free"
+        usage = store.get_all_usage_counts(user_id)
+        plan_quotas = PLAN_QUOTAS.get(plan, PLAN_QUOTAS["free"])
         return {
             "email": email,
             "plan": plan,
             "user_id": user_id,
+            "usage": usage,
+            "quotas": {k: v for k, v in plan_quotas.items() if k != "rate_limit"},
         }
 
     @app.post("/v1/signup", tags=["System"])

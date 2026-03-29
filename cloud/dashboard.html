@@ -358,6 +358,9 @@
             .onboarding-checklist { padding: 16px; }
             .onboarding-step { padding: 10px 12px; }
             .onboarding-step-cta { padding: 6px 10px; font-size: 11px; }
+            .quota-banner { padding: 16px; }
+            .quota-banner-body { flex-direction: column; gap: 12px; }
+            .quota-banner-cta { width: 100%; text-align: center; }
         }
 
         /* Search page */
@@ -404,6 +407,25 @@
         .search-quota-banner p { font-size: 13px; color: var(--text-2); margin-bottom: 14px; }
         .search-quota-banner a { display: inline-block; padding: 10px 24px; background: var(--accent); color: #fff; border-radius: 10px; font-size: 14px; font-weight: 600; text-decoration: none; transition: background 0.15s; }
         .search-quota-banner a:hover { background: #9333ea; }
+
+        /* Quota upgrade banner */
+        .quota-banner { background:var(--bg-card); border:1px solid var(--border); border-radius:14px; padding:20px 24px; margin-bottom:20px; position:relative; overflow:hidden; }
+        .quota-banner::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; }
+        .quota-banner.warning::before { background:linear-gradient(90deg, var(--orange), var(--accent)); }
+        .quota-banner.critical::before { background:linear-gradient(90deg, var(--red), var(--orange)); }
+        .quota-banner-body { display:flex; align-items:center; gap:16px; }
+        .quota-banner-info { flex:1; }
+        .quota-banner-title { font-size:14px; font-weight:600; margin-bottom:4px; }
+        .quota-banner.warning .quota-banner-title { color:var(--orange); }
+        .quota-banner.critical .quota-banner-title { color:var(--red); }
+        .quota-banner-desc { font-size:13px; color:var(--text-2); }
+        .quota-banner-bar { height:4px; background:var(--bg-elevated); border-radius:2px; margin-top:10px; overflow:hidden; }
+        .quota-banner-bar-fill { height:100%; border-radius:2px; transition:width 0.5s ease; }
+        .quota-banner-cta { padding:10px 24px; background:var(--accent); color:#fff; border:none; border-radius:10px; font-size:13px; font-weight:600; cursor:pointer; font-family:'Sora',sans-serif; text-decoration:none; transition:background 0.15s; white-space:nowrap; display:inline-block; }
+        .quota-banner-cta:hover { background:#9333ea; }
+        .quota-banner-dismiss { position:absolute; top:12px; right:12px; background:none; border:none; color:var(--text-3); cursor:pointer; font-size:14px; padding:4px 8px; border-radius:6px; transition:all 0.15s; }
+        .quota-banner-dismiss:hover { background:var(--bg-elevated); color:var(--text); }
+
         @media (max-width: 768px) {
             .search-hero { padding: 24px 8px 20px; }
             .search-hero-bar { padding: 8px 12px; }
@@ -594,6 +616,7 @@
     </div>
 
     <div class="main">
+        <div id="quota-banner" style="display:none;"></div>
         <div class="stats-strip">
             <div class="stat-card" onclick="switchTabDirect('entities')" style="cursor:pointer"><div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="7" r="4"/><path d="M5.5 21a6.5 6.5 0 0 1 13 0"/></svg>Entities</div><div class="stat-value purple" id="s-ent">—</div></div>
             <div class="stat-card" onclick="switchTabDirect('feed')" style="cursor:pointer"><div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5l4 4L7 21H3v-4L16.5 3.5z"/></svg>Facts</div><div class="stat-value green" id="s-facts">—</div></div>
@@ -1388,8 +1411,67 @@ async function loadAccount() {
             const planLabel = d.plan.charAt(0).toUpperCase() + d.plan.slice(1);
             planEl.innerHTML = d.plan === 'free' ? 'Free plan' : `<span>${planLabel}</span> plan`;
             document.getElementById('sidebar-account').style.display = 'block';
+            if (d.usage && d.quotas && d.plan !== 'business') {
+                renderQuotaBanner(d.plan, d.usage, d.quotas);
+            }
         }
     } catch(e) {}
+}
+
+function renderQuotaBanner(plan, usage, quotas) {
+    const el = document.getElementById('quota-banner');
+    if (!el) return;
+    const month = new Date().toISOString().slice(0, 7);
+    if (localStorage.getItem('mengram_qb_dismissed') === month) { el.style.display = 'none'; return; }
+
+    const checks = [
+        { key: 'add_count', quota: 'adds', label: 'memory adds' },
+        { key: 'search_count', quota: 'searches', label: 'searches' },
+    ];
+    let worst = null;
+    for (const c of checks) {
+        const used = usage[c.key] || 0;
+        const limit = quotas[c.quota];
+        if (!limit || limit <= 0 || limit === -1) continue;
+        const pct = (used / limit) * 100;
+        if (pct >= 80 && (!worst || pct > worst.pct))
+            worst = { ...c, used, limit, pct: Math.min(pct, 100) };
+    }
+    if (!worst) { el.style.display = 'none'; return; }
+
+    const atLimit = worst.pct >= 100;
+    const cls = atLimit ? 'critical' : 'warning';
+    const barColor = atLimit ? 'var(--red)' : 'var(--orange)';
+    const nextPlanKey = { free: 'starter', starter: 'pro', pro: 'business' }[plan] || 'starter';
+    const nextPlanLabel = { free: 'Starter ($5/mo)', starter: 'Pro ($19/mo)', pro: 'Business ($99/mo)' }[plan] || 'a higher plan';
+    const title = atLimit
+        ? `Monthly ${esc(worst.label)} limit reached`
+        : `You\u2019re approaching your ${esc(worst.label)} limit`;
+    const desc = atLimit
+        ? `You\u2019ve used all ${worst.limit.toLocaleString()} ${esc(worst.label)} this month. Upgrade to ${esc(nextPlanLabel)} to continue.`
+        : `${worst.used.toLocaleString()} of ${worst.limit.toLocaleString()} ${esc(worst.label)} used this month (${Math.round(worst.pct)}%). Upgrade to ${esc(nextPlanLabel)} for more.`;
+
+    el.style.display = '';
+    el.innerHTML = `<div class="quota-banner ${cls}">
+        <button class="quota-banner-dismiss" onclick="dismissQuotaBanner()" title="Dismiss">\u2715</button>
+        <div class="quota-banner-body">
+            <div class="quota-banner-info">
+                <div class="quota-banner-title">${title}</div>
+                <div class="quota-banner-desc">${desc}</div>
+                <div class="quota-banner-bar"><div class="quota-banner-bar-fill" style="width:${worst.pct}%;background:${barColor};"></div></div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+                <button class="quota-banner-cta" onclick="upgradePlan('${nextPlanKey}')">Upgrade to ${esc(nextPlanKey.charAt(0).toUpperCase() + nextPlanKey.slice(1))}</button>
+                <a href="/dashboard?tab=billing" style="font-size:11px;color:var(--text-3);text-decoration:none;transition:color 0.15s;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text-3)'">See all plans</a>
+            </div>
+        </div>
+    </div>`;
+}
+
+function dismissQuotaBanner() {
+    const el = document.getElementById('quota-banner');
+    if (el) el.style.display = 'none';
+    localStorage.setItem('mengram_qb_dismissed', new Date().toISOString().slice(0, 7));
 }
 
 // ---- Agents ----
