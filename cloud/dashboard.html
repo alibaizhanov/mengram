@@ -358,9 +358,10 @@
             .onboarding-checklist { padding: 16px; }
             .onboarding-step { padding: 10px 12px; }
             .onboarding-step-cta { padding: 6px 10px; font-size: 11px; }
-            .quota-banner { padding: 16px; }
-            .quota-banner-body { flex-direction: column; gap: 12px; }
+            .quota-banner { padding: 16px 18px; }
+            .quota-banner-actions { flex-direction: column; gap: 10px; }
             .quota-banner-cta { width: 100%; text-align: center; }
+            .quota-banner-link { text-align: center; }
         }
 
         /* Search page */
@@ -409,21 +410,33 @@
         .search-quota-banner a:hover { background: #9333ea; }
 
         /* Quota upgrade banner */
-        .quota-banner { background:var(--bg-card); border:1px solid var(--border); border-radius:14px; padding:20px 24px; margin-bottom:20px; position:relative; overflow:hidden; }
-        .quota-banner::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; }
+        .quota-banner { background:var(--bg-card); border:1px solid var(--border); border-radius:14px; padding:24px 28px; margin-bottom:20px; position:relative; overflow:hidden; }
+        .quota-banner::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; }
+        .quota-banner.warning { border-color:rgba(251,147,60,0.2); }
         .quota-banner.warning::before { background:linear-gradient(90deg, var(--orange), var(--accent)); }
+        .quota-banner.critical { border-color:rgba(248,113,113,0.2); }
         .quota-banner.critical::before { background:linear-gradient(90deg, var(--red), var(--orange)); }
-        .quota-banner-body { display:flex; align-items:center; gap:16px; }
-        .quota-banner-info { flex:1; }
-        .quota-banner-title { font-size:14px; font-weight:600; margin-bottom:4px; }
+        .quota-banner-top { display:flex; align-items:center; gap:12px; margin-bottom:16px; }
+        .quota-banner-icon { width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+        .quota-banner-icon svg { width:20px; height:20px; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; fill:none; }
+        .quota-banner.warning .quota-banner-icon { background:var(--orange-dim); }
+        .quota-banner.warning .quota-banner-icon svg { stroke:var(--orange); }
+        .quota-banner.critical .quota-banner-icon { background:var(--red-dim); }
+        .quota-banner.critical .quota-banner-icon svg { stroke:var(--red); }
+        .quota-banner-title { font-size:15px; font-weight:600; }
         .quota-banner.warning .quota-banner-title { color:var(--orange); }
         .quota-banner.critical .quota-banner-title { color:var(--red); }
-        .quota-banner-desc { font-size:13px; color:var(--text-2); }
-        .quota-banner-bar { height:4px; background:var(--bg-elevated); border-radius:2px; margin-top:10px; overflow:hidden; }
-        .quota-banner-bar-fill { height:100%; border-radius:2px; transition:width 0.5s ease; }
-        .quota-banner-cta { padding:10px 24px; background:var(--accent); color:#fff; border:none; border-radius:10px; font-size:13px; font-weight:600; cursor:pointer; font-family:'Sora',sans-serif; text-decoration:none; transition:background 0.15s; white-space:nowrap; display:inline-block; }
-        .quota-banner-cta:hover { background:#9333ea; }
-        .quota-banner-dismiss { position:absolute; top:12px; right:12px; background:none; border:none; color:var(--text-3); cursor:pointer; font-size:14px; padding:4px 8px; border-radius:6px; transition:all 0.15s; }
+        .quota-banner-mid { display:flex; align-items:center; gap:12px; margin-bottom:6px; }
+        .quota-banner-bar { flex:1; height:6px; background:var(--bg-elevated); border-radius:3px; overflow:hidden; }
+        .quota-banner-bar-fill { height:100%; border-radius:3px; transition:width 0.6s ease; }
+        .quota-banner-count { font-size:13px; font-weight:600; font-family:'JetBrains Mono',monospace; color:var(--text); white-space:nowrap; }
+        .quota-banner-desc { font-size:13px; color:var(--text-2); line-height:1.5; margin-bottom:16px; }
+        .quota-banner-actions { display:flex; align-items:center; gap:16px; }
+        .quota-banner-cta { padding:10px 28px; background:var(--accent); color:#fff; border:none; border-radius:10px; font-size:13px; font-weight:600; cursor:pointer; font-family:'Sora',sans-serif; transition:all 0.15s; white-space:nowrap; }
+        .quota-banner-cta:hover { background:#9333ea; transform:translateY(-1px); }
+        .quota-banner-link { font-size:12px; color:var(--text-3); text-decoration:none; transition:color 0.15s; }
+        .quota-banner-link:hover { color:var(--accent); }
+        .quota-banner-dismiss { position:absolute; top:14px; right:14px; background:none; border:none; color:var(--text-3); cursor:pointer; font-size:14px; padding:4px 8px; border-radius:6px; transition:all 0.15s; }
         .quota-banner-dismiss:hover { background:var(--bg-elevated); color:var(--text); }
 
         @media (max-width: 768px) {
@@ -1444,26 +1457,32 @@ function renderQuotaBanner(plan, usage, quotas) {
     const barColor = atLimit ? 'var(--red)' : 'var(--orange)';
     const nextPlanKey = { free: 'starter', starter: 'pro', pro: 'business' }[plan] || 'starter';
     const nextPlanLabel = { free: 'Starter ($5/mo)', starter: 'Pro ($19/mo)', pro: 'Business ($99/mo)' }[plan] || 'a higher plan';
+    const nextPlanLimits = { starter: '100 adds, 500 searches', pro: '1K adds, 10K searches', business: '5K adds, 30K searches' }[nextPlanKey] || '';
     const title = atLimit
         ? `Monthly ${esc(worst.label)} limit reached`
-        : `You\u2019re approaching your ${esc(worst.label)} limit`;
+        : `Approaching your ${esc(worst.label)} limit`;
     const desc = atLimit
-        ? `You\u2019ve used all ${worst.limit.toLocaleString()} ${esc(worst.label)} this month. Upgrade to ${esc(nextPlanLabel)} to continue.`
-        : `${worst.used.toLocaleString()} of ${worst.limit.toLocaleString()} ${esc(worst.label)} used this month (${Math.round(worst.pct)}%). Upgrade to ${esc(nextPlanLabel)} for more.`;
+        ? `Upgrade to ${esc(nextPlanLabel)} to continue \u2014 includes ${esc(nextPlanLimits)}/mo.`
+        : `Upgrade to ${esc(nextPlanLabel)} for ${esc(nextPlanLimits)}/mo.`;
+    const icon = atLimit
+        ? '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>'
+        : '<svg viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>';
 
     el.style.display = '';
     el.innerHTML = `<div class="quota-banner ${cls}">
         <button class="quota-banner-dismiss" onclick="dismissQuotaBanner()" title="Dismiss">\u2715</button>
-        <div class="quota-banner-body">
-            <div class="quota-banner-info">
-                <div class="quota-banner-title">${title}</div>
-                <div class="quota-banner-desc">${desc}</div>
-                <div class="quota-banner-bar"><div class="quota-banner-bar-fill" style="width:${worst.pct}%;background:${barColor};"></div></div>
-            </div>
-            <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
-                <button class="quota-banner-cta" onclick="upgradePlan('${nextPlanKey}')">Upgrade to ${esc(nextPlanKey.charAt(0).toUpperCase() + nextPlanKey.slice(1))}</button>
-                <a href="/dashboard?tab=billing" style="font-size:11px;color:var(--text-3);text-decoration:none;transition:color 0.15s;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text-3)'">See all plans</a>
-            </div>
+        <div class="quota-banner-top">
+            <div class="quota-banner-icon">${icon}</div>
+            <div class="quota-banner-title">${title}</div>
+        </div>
+        <div class="quota-banner-mid">
+            <div class="quota-banner-bar"><div class="quota-banner-bar-fill" style="width:${worst.pct}%;background:${barColor};"></div></div>
+            <div class="quota-banner-count">${worst.used} / ${worst.limit}</div>
+        </div>
+        <div class="quota-banner-desc">${desc}</div>
+        <div class="quota-banner-actions">
+            <button class="quota-banner-cta" onclick="upgradePlan('${nextPlanKey}')">Upgrade to ${esc(nextPlanKey.charAt(0).toUpperCase() + nextPlanKey.slice(1))}</button>
+            <a href="/dashboard?tab=billing" class="quota-banner-link">See all plans \u2192</a>
         </div>
     </div>`;
 }
