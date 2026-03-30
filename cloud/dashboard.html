@@ -426,7 +426,8 @@
         .quota-banner-title { font-size:15px; font-weight:600; }
         .quota-banner.warning .quota-banner-title { color:var(--orange); }
         .quota-banner.critical .quota-banner-title { color:var(--red); }
-        .quota-banner-mid { display:flex; align-items:center; gap:12px; margin-bottom:6px; }
+        .quota-banner-mid { display:flex; align-items:center; gap:12px; margin-bottom:8px; }
+        .quota-banner-label { font-size:11px; font-weight:600; color:var(--text-3); text-transform:uppercase; letter-spacing:0.5px; width:70px; flex-shrink:0; }
         .quota-banner-bar { flex:1; height:6px; background:var(--bg-elevated); border-radius:3px; overflow:hidden; }
         .quota-banner-bar-fill { height:100%; border-radius:3px; transition:width 0.6s ease; }
         .quota-banner-count { font-size:13px; font-weight:600; font-family:'JetBrains Mono',monospace; color:var(--text); white-space:nowrap; }
@@ -1438,35 +1439,38 @@ function renderQuotaBanner(plan, usage, quotas) {
     if (localStorage.getItem('mengram_qb_dismissed') === month) { el.style.display = 'none'; return; }
 
     const checks = [
-        { key: 'add_count', quota: 'adds', label: 'memory adds' },
-        { key: 'search_count', quota: 'searches', label: 'searches' },
+        { key: 'add_count', quota: 'adds', label: 'Adds' },
+        { key: 'search_count', quota: 'searches', label: 'Searches' },
     ];
-    let worst = null;
+    const hits = [];
     for (const c of checks) {
         const used = usage[c.key] || 0;
         const limit = quotas[c.quota];
         if (!limit || limit <= 0 || limit === -1) continue;
-        const pct = (used / limit) * 100;
-        if (pct >= 80 && (!worst || pct > worst.pct))
-            worst = { ...c, used, limit, pct: Math.min(pct, 100) };
+        const pct = Math.min((used / limit) * 100, 100);
+        if (pct >= 80) hits.push({ ...c, used, limit, pct });
     }
-    if (!worst) { el.style.display = 'none'; return; }
+    if (!hits.length) { el.style.display = 'none'; return; }
+    hits.sort((a, b) => b.pct - a.pct);
 
-    const atLimit = worst.pct >= 100;
-    const cls = atLimit ? 'critical' : 'warning';
-    const barColor = atLimit ? 'var(--red)' : 'var(--orange)';
+    const anyAtLimit = hits.some(h => h.pct >= 100);
+    const cls = anyAtLimit ? 'critical' : 'warning';
     const nextPlanKey = { free: 'starter', starter: 'pro', pro: 'business' }[plan] || 'starter';
     const nextPlanLabel = { free: 'Starter ($5/mo)', starter: 'Pro ($19/mo)', pro: 'Business ($99/mo)' }[plan] || 'a higher plan';
     const nextPlanLimits = { starter: '100 adds, 500 searches', pro: '1K adds, 10K searches', business: '5K adds, 30K searches' }[nextPlanKey] || '';
-    const title = atLimit
-        ? `Monthly ${esc(worst.label)} limit reached`
-        : `Approaching your ${esc(worst.label)} limit`;
-    const desc = atLimit
-        ? `Upgrade to ${esc(nextPlanLabel)} to continue \u2014 includes ${esc(nextPlanLimits)}/mo.`
-        : `Upgrade to ${esc(nextPlanLabel)} for ${esc(nextPlanLimits)}/mo.`;
-    const icon = atLimit
+    const title = anyAtLimit ? 'Monthly usage limit reached' : 'Approaching your usage limits';
+    const desc = `Upgrade to ${esc(nextPlanLabel)} for ${esc(nextPlanLimits)}/mo.`;
+    const icon = anyAtLimit
         ? '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>'
         : '<svg viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>';
+    const bars = hits.map(h => {
+        const c = h.pct >= 100 ? 'var(--red)' : 'var(--orange)';
+        return `<div class="quota-banner-mid">
+            <span class="quota-banner-label">${esc(h.label)}</span>
+            <div class="quota-banner-bar"><div class="quota-banner-bar-fill" style="width:${h.pct}%;background:${c};"></div></div>
+            <div class="quota-banner-count">${h.used} / ${h.limit}</div>
+        </div>`;
+    }).join('');
 
     el.style.display = '';
     el.innerHTML = `<div class="quota-banner ${cls}">
@@ -1475,10 +1479,7 @@ function renderQuotaBanner(plan, usage, quotas) {
             <div class="quota-banner-icon">${icon}</div>
             <div class="quota-banner-title">${title}</div>
         </div>
-        <div class="quota-banner-mid">
-            <div class="quota-banner-bar"><div class="quota-banner-bar-fill" style="width:${worst.pct}%;background:${barColor};"></div></div>
-            <div class="quota-banner-count">${worst.used} / ${worst.limit}</div>
-        </div>
+        ${bars}
         <div class="quota-banner-desc">${desc}</div>
         <div class="quota-banner-actions">
             <button class="quota-banner-cta" onclick="upgradePlan('${nextPlanKey}')">Upgrade to ${esc(nextPlanKey.charAt(0).toUpperCase() + nextPlanKey.slice(1))}</button>
