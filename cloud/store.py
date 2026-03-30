@@ -3013,7 +3013,7 @@ Return ONLY JSON (no markdown):
                 if not new_words or not ex_words:
                     continue
                 overlap = len(new_words & ex_words) / max(len(new_words), len(ex_words))
-                if overlap > 0.6:
+                if overlap > 0.8:
                     # Update existing reflection instead of creating a duplicate
                     # Keep original title to avoid unique constraint violation
                     cur.execute(
