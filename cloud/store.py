@@ -3015,11 +3015,12 @@ Return ONLY JSON (no markdown):
                 overlap = len(new_words & ex_words) / max(len(new_words), len(ex_words))
                 if overlap > 0.6:
                     # Update existing reflection instead of creating a duplicate
+                    # Keep original title to avoid unique constraint violation
                     cur.execute(
                         """UPDATE knowledge SET content = %s, confidence = %s,
-                           based_on_facts = %s, refreshed_at = NOW(), title = %s
+                           based_on_facts = %s, refreshed_at = NOW()
                            WHERE id = %s""",
-                        (content, confidence, based_on or [], title, ex["id"])
+                        (content, confidence, based_on or [], ex["id"])
                     )
                     return
 
