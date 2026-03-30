@@ -481,3 +481,8 @@ Apache 2.0 — free for commercial use.
 **[Get your free API key](https://mengram.io/#signup)** · Built by **[Ali Baizhanov](https://github.com/alibaizhanov)** · **[mengram.io](https://mengram.io)**
 
 </div>
+
+## Hosted deployment
+
+A hosted deployment is available on [Fronteir AI](https://fronteir.ai/mcp/alibaizhanov-mengram).
+
