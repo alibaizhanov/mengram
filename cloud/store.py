@@ -2353,7 +2353,7 @@ class CloudStore:
                     cur.execute(
                         f"""SELECT DISTINCT ON (e.id)
                                e.id, e.name, e.type,
-                               ts_rank(emb.tsv, plainto_tsquery('english', %s)) AS rank,
+                               ts_rank_cd(emb.tsv, plainto_tsquery('english', %s), 32) AS rank,
                                e.updated_at, e.metadata
                            FROM embeddings emb
                            JOIN entities e ON e.id = emb.entity_id
@@ -3868,7 +3868,7 @@ REFLECTIONS/PATTERNS:
             if query_text:
                 cur.execute(
                     """SELECT c.id, c.content, c.created_at,
-                              ts_rank(ce.tsv, plainto_tsquery('english', %s)) AS rank
+                              ts_rank_cd(ce.tsv, plainto_tsquery('english', %s), 32) AS rank
                        FROM chunk_embeddings ce
                        JOIN conversation_chunks c ON c.id = ce.chunk_id
                        WHERE c.user_id = %s AND c.sub_user_id = %s
@@ -3993,7 +3993,7 @@ REFLECTIONS/PATTERNS:
                 cur.execute("""
                     SELECT DISTINCT ON (ep.id)
                            ep.id,
-                           ts_rank(ee.tsv, plainto_tsquery('english', %s)) AS rank
+                           ts_rank_cd(ee.tsv, plainto_tsquery('english', %s), 32) AS rank
                     FROM episode_embeddings ee
                     JOIN episodes ep ON ep.id = ee.episode_id
                     WHERE ep.user_id = %s AND ep.sub_user_id = %s
@@ -4074,7 +4074,7 @@ REFLECTIONS/PATTERNS:
             SELECT ep.id, ep.summary, ep.context, ep.outcome, ep.participants,
                    ep.emotional_valence, ep.importance, ep.created_at,
                    ep.happened_at, ep.metadata,
-                   ts_rank(ee.tsv, plainto_tsquery('english', %s)) AS score
+                   ts_rank_cd(ee.tsv, plainto_tsquery('english', %s), 32) AS score
             FROM episode_embeddings ee
             JOIN episodes ep ON ep.id = ee.episode_id
             WHERE ep.user_id = %s AND ep.sub_user_id = %s
@@ -4259,7 +4259,7 @@ REFLECTIONS/PATTERNS:
                 cur.execute("""
                     SELECT DISTINCT ON (p.id)
                            p.id,
-                           ts_rank(pe.tsv, plainto_tsquery('english', %s)) AS rank
+                           ts_rank_cd(pe.tsv, plainto_tsquery('english', %s), 32) AS rank
                     FROM procedure_embeddings pe
                     JOIN procedures p ON p.id = pe.procedure_id
                     WHERE p.user_id = %s AND p.sub_user_id = %s
@@ -4328,7 +4328,7 @@ REFLECTIONS/PATTERNS:
         sql = """
             SELECT p.id, p.name, p.trigger_condition, p.steps, p.entity_names,
                    p.success_count, p.fail_count, p.version, p.updated_at, p.metadata,
-                   ts_rank(pe.tsv, plainto_tsquery('english', %s)) AS score
+                   ts_rank_cd(pe.tsv, plainto_tsquery('english', %s), 32) AS score
             FROM procedure_embeddings pe
             JOIN procedures p ON p.id = pe.procedure_id
             WHERE p.user_id = %s AND p.sub_user_id = %s
@@ -5745,7 +5745,7 @@ Return ONLY JSON (no markdown):
                     cur.execute(
                         f"""SELECT DISTINCT ON (e.id)
                                e.id, e.name, e.type, e.user_id, e.team_id,
-                               ts_rank(emb.tsv, plainto_tsquery('english', %s)) AS rank,
+                               ts_rank_cd(emb.tsv, plainto_tsquery('english', %s), 32) AS rank,
                                e.updated_at, e.metadata
                            FROM embeddings emb
                            JOIN entities e ON e.id = emb.entity_id
