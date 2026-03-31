@@ -42,20 +42,22 @@ from cloud.store import CloudStore
 class AuthContext:
     """Auth result with plan info for quota enforcement."""
     user_id: str
-    plan: str         # free, starter, pro, business
+    plan: str         # free, starter, pro, growth, business
     rate_limit: int   # per-minute rate limit
 
 PLAN_QUOTAS = {
     "free":     {"adds": 30,    "searches": 100,    "agents": 3,   "reflects": 3,   "dedups": 1,   "reindexes": 1,   "rules": 3,    "rate_limit": 20,  "webhooks": 0,  "teams": 0,  "sub_users": 3},
     "starter":  {"adds": 100,   "searches": 500,    "agents": 10,  "reflects": 30,  "dedups": 5,   "reindexes": 5,   "rules": 10,   "rate_limit": 60,  "webhooks": 2,  "teams": 1,  "sub_users": 10},
     "pro":      {"adds": 1_000, "searches": 10_000, "agents": 50,  "reflects": -1,  "dedups": 20,  "reindexes": 10,  "rules": -1,   "rate_limit": 120, "webhooks": 10, "teams": 5,  "sub_users": 50},
-    "business": {"adds": 5_000, "searches": 30_000, "agents": -1,  "reflects": -1,  "dedups": -1,  "reindexes": -1,  "rules": -1,   "rate_limit": 300, "webhooks": 50, "teams": -1, "sub_users": -1},
+    "growth":   {"adds": 3_000, "searches": 20_000, "agents": -1,  "reflects": -1,  "dedups": 50,  "reindexes": 20,  "rules": -1,   "rate_limit": 200, "webhooks": 25, "teams": 10, "sub_users": 100},
+    "business": {"adds": 8_000, "searches": 30_000, "agents": -1,  "reflects": -1,  "dedups": -1,  "reindexes": -1,  "rules": -1,   "rate_limit": 300, "webhooks": 50, "teams": -1, "sub_users": -1},
 }
 
 FILE_SIZE_LIMITS = {
     "free":     10 * 1024 * 1024,   # 10 MB
     "starter":  10 * 1024 * 1024,   # 10 MB
     "pro":      50 * 1024 * 1024,   # 50 MB
+    "growth":   100 * 1024 * 1024,  # 100 MB
     "business": 100 * 1024 * 1024,  # 100 MB
 }
 ALLOWED_EXTENSIONS = {"pdf", "docx", "txt", "md"}
@@ -314,7 +316,7 @@ profile = m.get_profile()             # instant system prompt
 
     def rerank_results(query: str, results: list[dict], plan: str = "business") -> list[dict]:
         """Re-rank search results based on subscription plan.
-        Free/Starter: no reranking.  Pro/Business: Cohere Rerank → LLM fallback."""
+        Free/Starter: no reranking.  Pro/Growth/Business: Cohere Rerank → LLM fallback."""
         if not results or len(results) <= 1:
             return results
 
@@ -323,7 +325,7 @@ profile = m.get_profile()             # instant system prompt
             return results
 
         # Try Cohere Rerank first — fact-level (cross-encoder, more precise)
-        cohere_key = os.environ.get("COHERE_API_KEY", "") if plan in ("pro", "business") else ""
+        cohere_key = os.environ.get("COHERE_API_KEY", "") if plan in ("pro", "growth", "business") else ""
         if cohere_key:
             try:
                 nonlocal _cohere_client
@@ -613,7 +615,7 @@ Be strict — only include entities that directly answer or relate to the query.
                 pass
         retry_after = _quota_month_end_ttl()
         # Build direct one-click checkout URL (same as quota email)
-        next_plan_key = {"free": "starter", "starter": "pro", "pro": "business"}.get(plan, "starter")
+        next_plan_key = {"free": "starter", "starter": "pro", "pro": "growth", "growth": "business"}.get(plan, "starter")
         upgrade_url = "https://mengram.io/#pricing"
         if user_id:
             token = _sign_checkout_token(user_id, next_plan_key)
@@ -656,11 +658,18 @@ Be strict — only include entities that directly answer or relate to the query.
             "features": "LLM-powered reranking, procedure evolution, and smart triggers",
         },
         "pro": {
+            "name": "Growth",
+            "price": "$59/mo",
+            "adds": "3,000",
+            "searches": "20,000",
+            "features": "unlimited agents, 200 req/min, and 25 webhooks",
+        },
+        "growth": {
             "name": "Business",
             "price": "$99/mo",
-            "adds": "5,000",
+            "adds": "8,000",
             "searches": "30,000",
-            "features": "unlimited agents, Cohere cross-encoder reranking, and unlimited teams",
+            "features": "Cohere cross-encoder reranking and unlimited teams",
         },
     }
 
@@ -682,7 +691,7 @@ Be strict — only include entities that directly answer or relate to the query.
         if next_plan:
             subject = f"You've reached your monthly {action_label} limit"
             next_limit = next_plan["adds"] if action == "add" else next_plan["searches"]
-            next_plan_key = {"free": "starter", "starter": "pro", "pro": "business"}.get(plan, "starter")
+            next_plan_key = {"free": "starter", "starter": "pro", "pro": "growth", "growth": "business"}.get(plan, "starter")
             checkout_token = _sign_checkout_token(user_id, next_plan_key)
             checkout_url = f"https://mengram.io/checkout?token={checkout_token}"
             body_html = f"""
@@ -761,7 +770,7 @@ Be strict — only include entities that directly answer or relate to the query.
         # Build upgrade button (only if there's a next plan)
         upgrade_html = ""
         if next_plan:
-            next_plan_key = {"free": "starter", "starter": "pro", "pro": "business"}.get(plan, "starter")
+            next_plan_key = {"free": "starter", "starter": "pro", "pro": "growth", "growth": "business"}.get(plan, "starter")
             checkout_token = _sign_checkout_token(user_id, next_plan_key)
             checkout_url = f"https://mengram.io/checkout?token={checkout_token}"
             next_limit = next_plan["adds"] if action == "add" else next_plan["searches"]
@@ -2771,7 +2780,8 @@ Cursor: [recalls: Next.js App Router, TypeScript, Supabase, existing route patte
 <ul>
 <li><strong>Starter</strong> ($5/mo) — 100 adds, 500 searches</li>
 <li><strong>Pro</strong> ($19/mo) — 1,000 adds, 10,000 searches, smart triggers</li>
-<li><strong>Business</strong> ($99/mo) — 5,000 adds, 30,000 searches, unlimited agents</li>
+<li><strong>Growth</strong> ($59/mo) — 3,000 adds, 20,000 searches, unlimited agents</li>
+<li><strong>Business</strong> ($99/mo) — 8,000 adds, 30,000 searches, unlimited teams</li>
 </ul>
 <p>See <a href="/#pricing">full pricing</a> or <a href="/#signup">get started free</a>.</p>
 
@@ -6789,11 +6799,13 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     PADDLE_PRICES = {
         "starter": os.environ.get("PADDLE_PRICE_STARTER", ""),
         "pro": os.environ.get("PADDLE_PRICE_PRO", ""),
+        "growth": os.environ.get("PADDLE_PRICE_GROWTH", ""),
         "business": os.environ.get("PADDLE_PRICE_BUSINESS", ""),
     }
     PADDLE_PRICES_ANNUAL = {
         "starter": os.environ.get("PADDLE_PRICE_STARTER_ANNUAL", ""),
         "pro": os.environ.get("PADDLE_PRICE_PRO_ANNUAL", ""),
+        "growth": os.environ.get("PADDLE_PRICE_GROWTH_ANNUAL", ""),
         "business": os.environ.get("PADDLE_PRICE_BUSINESS_ANNUAL", ""),
     }
 
@@ -6834,7 +6846,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         if len(parts) != 4:
             raise HTTPException(status_code=400, detail="Invalid checkout token")
         user_id, plan, month, sig = parts
-        if plan not in ("starter", "pro", "business"):
+        if plan not in ("starter", "pro", "growth", "business"):
             raise HTTPException(status_code=400, detail="Invalid plan")
         if not PADDLE_WEBHOOK_SECRET:
             raise HTTPException(status_code=503, detail="Billing not configured")
@@ -6889,7 +6901,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         sub = store.get_subscription(user_id)
         usage = store.get_all_usage_counts(user_id)
         quotas = PLAN_QUOTAS.get(ctx.plan, PLAN_QUOTAS["free"])
-        annual_available = any(PADDLE_PRICES_ANNUAL.get(p) for p in ("starter", "pro", "business"))
+        annual_available = any(PADDLE_PRICES_ANNUAL.get(p) for p in ("starter", "pro", "growth", "business"))
         return {
             "plan": ctx.plan,
             "status": sub.get("status", "active"),
@@ -6902,7 +6914,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
     @app.post("/v1/billing/checkout", tags=["Billing"])
     async def create_checkout(
-        plan: str = Query(..., pattern="^(starter|pro|business)$"),
+        plan: str = Query(..., pattern="^(starter|pro|growth|business)$"),
         billing: str = Query("monthly", pattern="^(monthly|annual)$"),
         ctx: AuthContext = Depends(auth),
     ):
@@ -6919,7 +6931,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             raise HTTPException(status_code=400, detail=f"Unknown plan: {plan}")
 
         # Prevent same-plan purchase and downgrades
-        plan_order = {"free": 0, "starter": 1, "pro": 2, "business": 3}
+        plan_order = {"free": 0, "starter": 1, "pro": 2, "growth": 3, "business": 4}
         if plan_order.get(plan, 0) <= plan_order.get(ctx.plan, 0):
             raise HTTPException(status_code=400, detail=f"Already on {ctx.plan} plan. Can only upgrade to a higher plan.")
 
@@ -7063,6 +7075,8 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                     price_id = items[0].get("price", {}).get("id", "")
                     if price_id in (PADDLE_PRICES.get("business"), PADDLE_PRICES_ANNUAL.get("business")):
                         plan = "business"
+                    elif price_id in (PADDLE_PRICES.get("growth"), PADDLE_PRICES_ANNUAL.get("growth")):
+                        plan = "growth"
                     elif price_id in (PADDLE_PRICES.get("pro"), PADDLE_PRICES_ANNUAL.get("pro")):
                         plan = "pro"
                     elif price_id in (PADDLE_PRICES.get("starter"), PADDLE_PRICES_ANNUAL.get("starter")):
@@ -7127,6 +7141,8 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                     price_id = items[0].get("price", {}).get("id", "")
                     if price_id in (PADDLE_PRICES.get("business"), PADDLE_PRICES_ANNUAL.get("business")):
                         updates["plan"] = "business"
+                    elif price_id in (PADDLE_PRICES.get("growth"), PADDLE_PRICES_ANNUAL.get("growth")):
+                        updates["plan"] = "growth"
                     elif price_id in (PADDLE_PRICES.get("pro"), PADDLE_PRICES_ANNUAL.get("pro")):
                         updates["plan"] = "pro"
                     elif price_id in (PADDLE_PRICES.get("starter"), PADDLE_PRICES_ANNUAL.get("starter")):

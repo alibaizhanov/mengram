@@ -1121,9 +1121,9 @@
         }
         .pricing-grid {
             display: grid;
-            grid-template-columns: repeat(5, 1fr);
+            grid-template-columns: repeat(3, 1fr);
             gap: 16px;
-            max-width: 1400px;
+            max-width: 900px;
             margin: 0 auto;
         }
         .price-card {
@@ -1592,6 +1592,7 @@
                     { "@type": "Offer", "price": "0", "priceCurrency": "USD", "name": "Free" },
                     { "@type": "Offer", "price": "5", "priceCurrency": "USD", "name": "Starter" },
                     { "@type": "Offer", "price": "19", "priceCurrency": "USD", "name": "Pro" },
+                    { "@type": "Offer", "price": "59", "priceCurrency": "USD", "name": "Growth" },
                     { "@type": "Offer", "price": "99", "priceCurrency": "USD", "name": "Business" },
                     { "@type": "Offer", "price": "0", "priceCurrency": "USD", "name": "Enterprise", "description": "Custom pricing — contact us" }
                 ],
@@ -2582,13 +2583,32 @@ POST /v1/add → {<span class="c-str">"messages"</span>: [...], <span class="c-s
                     </ul>
                     <a href="#signup" onclick="return pricingCTA('pro')" class="price-btn primary">Upgrade to Pro</a>
                 </div>
+                <!-- Growth -->
+                <div class="price-card reveal" data-plan="growth">
+                    <h3>Growth</h3>
+                    <div class="price-amount">$59 <span>/ month</span></div>
+                    <div class="price-desc">For scaling apps that need more volume.</div>
+                    <ul class="price-features">
+                        <li>3,000 memory adds / month</li>
+                        <li>20,000 searches / month</li>
+                        <li>Unlimited agent runs</li>
+                        <li>100 sub-users</li>
+                        <li>200 req/min rate limit</li>
+                        <li>Cohere cross-encoder reranking</li>
+                        <li>Procedure evolution</li>
+                        <li>Smart triggers</li>
+                        <li>25 webhooks</li>
+                        <li>10 teams</li>
+                    </ul>
+                    <a href="#signup" onclick="return pricingCTA('growth')" class="price-btn">Upgrade to Growth</a>
+                </div>
                 <!-- Business -->
                 <div class="price-card reveal" data-plan="business">
                     <h3>Business</h3>
                     <div class="price-amount">$99 <span>/ month</span></div>
                     <div class="price-desc">For teams and high-volume applications.</div>
                     <ul class="price-features">
-                        <li>5,000 memory adds / month</li>
+                        <li>8,000 memory adds / month</li>
                         <li>30,000 searches / month</li>
                         <li>Unlimited agent runs</li>
                         <li>Unlimited sub-users</li>
@@ -2819,6 +2839,7 @@ POST /v1/add → {<span class="c-str">"messages"</span>: [...], <span class="c-s
         const LP_PRICES = {
             starter:  { monthly: 5,  annual: 48 },
             pro:      { monthly: 19, annual: 180 },
+            growth:   { monthly: 59, annual: 566 },
             business: { monthly: 99, annual: 948 },
         };
         let _lpBilling = 'monthly';
@@ -3016,7 +3037,7 @@ POST /v1/add → {<span class="c-str">"messages"</span>: [...], <span class="c-s
                     `;
                     const wp = sessionStorage.getItem('wanted_plan');
                     if (wp && wp !== 'free') {
-                        const names = {starter:'Starter ($5/mo)',pro:'Pro ($19/mo)',business:'Business ($99/mo)'};
+                        const names = {starter:'Starter ($5/mo)',pro:'Pro ($19/mo)',growth:'Growth ($59/mo)',business:'Business ($99/mo)'};
                         result.innerHTML += `
                             <div style="margin-top:16px;padding:14px 18px;background:linear-gradient(135deg,rgba(168,85,247,0.12),rgba(124,58,237,0.08));border:1px solid rgba(168,85,247,0.3);border-radius:10px;">
                                 <p style="margin:0 0 10px;font-size:14px;color:var(--text);">Ready to upgrade to <strong>${esc(names[wp] || wp)}</strong>?</p>
