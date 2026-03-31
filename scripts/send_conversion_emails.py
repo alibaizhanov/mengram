@@ -6,8 +6,9 @@ Run:  python3 scripts/send_conversion_emails.py                    # preview all
       python3 scripts/send_conversion_emails.py --send all         # send all
 """
 import argparse
+import os
 
-RESEND_KEY = "re_918vn92M_GxZwVDVhQJZdDMeuN3BUUatv"
+RESEND_KEY = os.environ.get("RESEND_API_KEY", "")
 FROM = "Ali from Mengram <ali@mengram.io>"
 REPLY_TO = "the.baizhanov@gmail.com"
 
