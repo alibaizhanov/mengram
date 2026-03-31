@@ -35,6 +35,9 @@ config.yaml
 benchmarks/data/
 benchmarks/results/
 
+# Local scripts (may contain API keys)
+scripts/
+
 # OS
 .DS_Store
 Thumbs.db
