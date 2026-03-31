@@ -64,19 +64,19 @@ mengram hook uninstall  # remove all hooks
 
 Every AI memory tool stores facts. Mengram stores **3 types of memory** — and procedures **evolve when they fail**.
 
-|  | Mengram | Mem0 | Zep | Letta |
-|---|:---:|:---:|:---:|:---:|
-| Semantic memory (facts, preferences) | **Yes** | Yes | Yes | Yes |
-| **Episodic memory (events, decisions)** | **Yes** | No | No | Partial |
-| **Procedural memory (workflows)** | **Yes** | No | No | No |
-| **Procedures evolve from failures** | **Yes** | No | No | No |
-| **Cognitive Profile** | **Yes** | No | No | No |
-| Multi-user isolation | **Yes** | Yes | Yes | No |
-| Knowledge graph | **Yes** | Yes | Yes | Yes |
-| **Claude Code hooks (auto-save/recall)** | **Yes** | No | No | No |
-| LangChain + CrewAI + MCP | **Yes** | Partial | Partial | Partial |
-| **Import ChatGPT / Obsidian** | **Yes** | No | No | No |
-| Pricing | **Free tier** | $19-249/mo | Enterprise | Self-host |
+|  | Mengram | claude-mem | Mem0 | Zep | Letta |
+|---|:---:|:---:|:---:|:---:|:---:|
+| Semantic memory (facts, preferences) | **Yes** | Yes | Yes | Yes | Yes |
+| **Episodic memory (events, decisions)** | **Yes** | Partial | No | No | Partial |
+| **Procedural memory (workflows)** | **Yes** | No | No | No | No |
+| **Procedures evolve from failures** | **Yes** | No | No | No | No |
+| **Cognitive Profile** | **Yes** | No | No | No | No |
+| Multi-user isolation | **Yes** | No | Yes | Yes | No |
+| Knowledge graph | **Yes** | No | Yes | Yes | Yes |
+| Claude Code hooks (auto-save/recall) | **Yes** | **Yes** | No | No | No |
+| LangChain + CrewAI + MCP | **Yes** | No | Partial | Partial | Partial |
+| **Import ChatGPT / Obsidian** | **Yes** | No | No | No | No |
+| Pricing | **Free tier** | Free / OSS | $19-249/mo | Enterprise | Self-host |
 
 ## Get Started in 30 Seconds
 
