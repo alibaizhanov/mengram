@@ -34,6 +34,22 @@ except ImportError:
 logger = logging.getLogger("mengram")
 
 
+def _normalize_fact(f) -> str:
+    """Normalize a fact to string. LLM extraction sometimes returns dicts."""
+    if isinstance(f, str):
+        return f
+    logger.warning("Non-string fact from LLM extraction: type=%s value=%r", type(f).__name__, f)
+    if isinstance(f, dict):
+        # Known keys from common LLM output shapes
+        for key in ("fact", "text", "content", "value", "description", "summary"):
+            if key in f and isinstance(f[key], str) and f[key]:
+                return f[key]
+        # Unknown shape — join all string values to preserve data
+        parts = [str(v) for v in f.values() if v is not None and str(v)]
+        return "; ".join(parts) if parts else str(f)
+    return str(f)
+
+
 def _safe_parse_json(raw: str, fallback=None):
     """Parse JSON from LLM output with multiple fallback strategies."""
     clean = raw.strip()
@@ -2907,7 +2923,7 @@ Return ONLY JSON (no markdown):
         for e in entities:
             if not e["facts"]:
                 continue
-            facts_str = ", ".join(e["facts"][:15])  # cap at 15 per entity
+            facts_str = ", ".join(_normalize_fact(f) for f in e["facts"][:15])  # cap at 15 per entity
             facts_lines.append(f"- {e['entity']} ({e['type']}): {facts_str}")
         facts_text = "\n".join(facts_lines)
 
@@ -3179,7 +3195,7 @@ Return ONLY JSON (no markdown):
         for ent in entities:
             if not ent.get("facts"):
                 continue
-            facts_str = "\n".join(f"  - {f}" for f in ent["facts"][:20])
+            facts_str = "\n".join(f"  - {_normalize_fact(f)}" for f in ent["facts"][:20])
             rels_str = ""
             if ent.get("relations"):
                 rels_str = "\n  Relations: " + ", ".join(
@@ -3303,7 +3319,7 @@ SEMANTIC MEMORY (facts about the user):
         # Categorize entities
         tech_lines, project_lines, knowledge_lines = [], [], []
         for ent in entities:
-            facts_str = "; ".join(ent.get("facts", [])[:10])
+            facts_str = "; ".join(_normalize_fact(f) for f in ent.get("facts", [])[:10])
             if ent.get("type") == "technology":
                 tech_lines.append(f"- {ent['entity']}: {facts_str}")
             elif ent.get("type") == "project":
@@ -4732,7 +4748,7 @@ Be specific and personal, not generic. No markdown, just JSON."""
             if not e["facts"]:
                 continue
             total_facts += len(e["facts"])
-            facts_str = ", ".join(e["facts"][:15])  # max 15 facts per entity
+            facts_str = ", ".join(_normalize_fact(f) for f in e["facts"][:15])  # max 15 facts per entity
             facts_lines.append(f"- {e['entity']} ({e['type']}): {facts_str}")
         facts_text = "\n".join(facts_lines)
         # Hard cap on text size (~8K chars ≈ 2K tokens)
@@ -5022,7 +5038,7 @@ Return ONLY JSON (no markdown):
         for e in entities[:50]:  # max 50 entities
             if not e["facts"]:
                 continue
-            facts_str = ", ".join(e["facts"][:15])
+            facts_str = ", ".join(_normalize_fact(f) for f in e["facts"][:15])
             facts_lines.append(f"- {e['entity']} ({e['type']}): {facts_str}")
         facts_text = "\n".join(facts_lines)
         if len(facts_text) > 8000:
