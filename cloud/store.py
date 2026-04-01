@@ -50,6 +50,15 @@ def _normalize_fact(f) -> str:
     return str(f)
 
 
+def _normalize_step(s) -> str:
+    """Normalize a procedure step to string. Steps can be dicts like {"action": "...", "description": "..."}."""
+    if isinstance(s, str):
+        return s
+    if isinstance(s, dict):
+        return s.get("action", "") or s.get("step", "") or s.get("description", "") or str(s)
+    return str(s)
+
+
 def _safe_parse_json(raw: str, fallback=None):
     """Parse JSON from LLM output with multiple fallback strategies."""
     clean = raw.strip()
@@ -4759,7 +4768,7 @@ Be specific and personal, not generic. No markdown, just JSON."""
         procedures = self.get_procedures(user_id, limit=50, sub_user_id=sub_user_id)
         proc_lines = []
         for p in procedures:
-            steps_str = " → ".join(p["steps"][:10]) if p["steps"] else "(no steps)"
+            steps_str = " → ".join(_normalize_step(s) for s in p["steps"][:10]) if p["steps"] else "(no steps)"
             proc_lines.append(f"- {p['name']} (success={p['success_count']}, steps={len(p['steps'])}): {steps_str}")
         procedures_text = "\n".join(proc_lines) if proc_lines else "(no procedures)"
         if len(procedures_text) > 3000:
@@ -4905,7 +4914,7 @@ Be specific and personal, not generic. No markdown, just JSON."""
     def infer_entity_type(name: str, facts: list[str]) -> str:
         """Heuristic fallback for entity type when LLM returns 'unknown'."""
         name_lower = name.lower()
-        facts_text = " ".join(str(f) for f in facts).lower() if facts else ""
+        facts_text = " ".join(_normalize_fact(f) for f in facts).lower() if facts else ""
         all_text = f"{name_lower} {facts_text}"
 
         # Technology indicators
@@ -4973,7 +4982,7 @@ Be specific and personal, not generic. No markdown, just JSON."""
             lines = []
             for ent in batch:
                 facts = ent["sample_facts"] or []
-                facts_str = "; ".join(str(f) for f in facts[:5] if f)
+                facts_str = "; ".join(_normalize_fact(f) for f in facts[:5] if f)
                 lines.append(f"- {ent['name']}: {facts_str}" if facts_str else f"- {ent['name']}")
 
             prompt = f"""Classify each entity with the single most descriptive type.
