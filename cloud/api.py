@@ -1439,6 +1439,7 @@ m.add("I love hiking in the mountains")</code></pre>
             ("https://mengram.io/blog/ai-memory-for-crewai-langchain", "0.7", "monthly"),
             ("https://mengram.io/blog/claude-code-memory-hooks", "0.9", "weekly"),
             ("https://mengram.io/blog/cursor-ai-memory-mcp", "0.9", "weekly"),
+            ("https://mengram.io/blog/context-engineering-memory", "0.9", "weekly"),
             # Use cases
             ("https://mengram.io/usecase/customer-support", "0.7", "monthly"),
             ("https://mengram.io/usecase/personal-assistant", "0.7", "monthly"),
@@ -2791,6 +2792,206 @@ Cursor: [recalls: Next.js App Router, TypeScript, Supabase, existing route patte
 <p>Questions? <a href="https://github.com/alibaizhanov/mengram/issues">Open an issue</a> or reply at <a href="mailto:the.baizhanov@gmail.com">the.baizhanov@gmail.com</a>.</p>
 """,
             "related": ["claude-code-memory-hooks", "mcp-memory-server-setup"],
+        },
+        "context-engineering-memory": {
+            "slug": "context-engineering-memory",
+            "title": "Context Engineering for AI Agents: Why Memory Is the Missing Piece",
+            "date": "April 1, 2026",
+            "date_iso": "2026-04-01",
+            "read_time": "9",
+            "tags": ["Guide", "Architecture"],
+            "excerpt": "Context engineering is the new paradigm replacing prompt engineering. But most implementations miss the hardest pillar: persistent memory. Here's how to fix that.",
+            "seo_title": "Context Engineering for AI Agents: Why Memory Is the Missing Piece | Mengram",
+            "seo_description": "Context engineering has 6 pillars, but most guides skip the hardest one: persistent memory. Learn how semantic, episodic, and procedural memory complete your agent's context stack.",
+            "seo_keywords": "context engineering, context engineering AI agents, AI agent memory, context engineering guide, LLM memory, persistent memory, agent context, prompt engineering vs context engineering",
+            "content_html": """
+<h2>Prompt engineering is dead. Context engineering is here.</h2>
+<p>In 2024, every AI tutorial started with "write a better prompt." In 2026, that advice is obsolete. The new paradigm is <strong>context engineering</strong> — designing the entire information environment your AI agent operates in.</p>
+<p>The shift makes sense. A prompt is a single instruction. An agent needs an entire world: retrieved documents, tool outputs, conversation history, user preferences, past failures, learned workflows. Managing all of this is context engineering.</p>
+<p>But here's the problem: most context engineering guides list 5-6 "pillars" and then hand-wave through the hardest one — <strong>persistent memory</strong>.</p>
+
+<h2>The 6 pillars of context engineering</h2>
+<p>Every context engineering framework breaks down into roughly the same components:</p>
+<ol>
+<li><strong>System prompts</strong> — role, personality, constraints</li>
+<li><strong>Retrieval (RAG)</strong> — documents, knowledge bases, vector search</li>
+<li><strong>Tools</strong> — APIs, code execution, web access</li>
+<li><strong>Conversation history</strong> — the current session's messages</li>
+<li><strong>Query augmentation</strong> — rewriting, routing, decomposition</li>
+<li><strong>Memory</strong> — persistent knowledge that survives sessions</li>
+</ol>
+<p>Pillars 1-5 are well-solved. Every framework — LangChain, CrewAI, OpenAI Assistants — has good support for system prompts, RAG, tools, and conversation management.</p>
+<p>Pillar 6 is where it falls apart.</p>
+
+<h2>Why memory is the hardest pillar</h2>
+<p>Retrieval (RAG) feels like memory, but it isn't. RAG answers "what's in our documents?" Memory answers "what did this agent learn from experience?"</p>
+<p>The difference matters when your agent:</p>
+<ul>
+<li><strong>Repeats the same mistake</strong> — it debugged this exact error yesterday but can't remember</li>
+<li><strong>Forgets user preferences</strong> — you told it to use Python and Railway five sessions ago</li>
+<li><strong>Can't improve its workflows</strong> — deployment failed, but the procedure doesn't evolve</li>
+<li><strong>Loses cross-session continuity</strong> — every session starts from scratch</li>
+</ul>
+<p>These are not retrieval problems. They're memory problems. And context windows don't solve them — they reset between sessions, and even 200K-token windows suffer from "lost in the middle" degradation.</p>
+
+<h2>The three types of memory your agent needs</h2>
+<p>Human cognition uses three distinct memory systems. Effective AI memory mirrors this architecture:</p>
+
+<h3>Semantic memory — facts and knowledge</h3>
+<p>What your agent knows about the user, project, and domain. "User is a backend engineer. Uses Python 3.12, PostgreSQL, deploys to Railway."</p>
+<p>This is the only type most memory tools implement. It's necessary but not sufficient.</p>
+
+<h3>Episodic memory — events and decisions</h3>
+<p>What happened, when, and in what context. "On March 15, deployed v2.3 — Redis cache failed due to OOM, rolled back. Root cause: batch job ran during deployment window."</p>
+<p>Episodic memory gives your agent a narrative understanding. Not just what the user knows, but what they've been through.</p>
+
+<h3>Procedural memory — workflows that evolve</h3>
+<p>How to do things, learned from experience. This is the rarest and most powerful type:</p>
+<pre><code>Week 1:  "Deploy" → build → push → deploy
+                                      ↓ FAILURE: forgot migrations
+Week 2:  "Deploy" v2 → build → run migrations → push → deploy
+                                                         ↓ FAILURE: OOM
+Week 3:  "Deploy" v3 → build → run migrations → check memory → push → deploy ✓</code></pre>
+<p>Procedural memory captures workflows that <strong>automatically evolve when they fail</strong>. No other memory system does this.</p>
+
+<h2>Context engineering without memory: a broken pipeline</h2>
+<p>Let's trace what happens when a developer uses an AI coding agent without persistent memory:</p>
+
+<pre><code># Monday morning — Session 1
+Developer: "Set up a FastAPI project with PostgreSQL"
+Agent: Creates project from scratch, picks default settings
+
+# Monday afternoon — Session 2
+Developer: "Add user authentication"
+Agent: Doesn't know the project exists. Asks from scratch.
+Developer: Repeats project context. Again.
+
+# Tuesday — Session 3
+Developer: "Deploy to Railway"
+Agent: No memory of the stack, the auth decisions, or that
+       Railway needs a Procfile. Deployment fails.
+
+# Wednesday — Session 4
+Developer: "Fix the Railway deployment"
+Agent: What Railway deployment? What project?</code></pre>
+
+<p>Every session restarts the context engineering loop from zero. RAG doesn't help because there are no "documents" — just past conversations that should have been remembered.</p>
+
+<h2>Adding memory to the context stack</h2>
+<p>With a persistent memory layer, the same workflow transforms:</p>
+
+<pre><code>from mengram import Mengram
+
+m = Mengram(api_key="om-...")
+
+# Before generating any response — load the full context
+profile = m.get_profile(user_id="developer-123")
+# → "Backend engineer. Python 3.12, FastAPI, PostgreSQL.
+#    Deploys to Railway. Recently set up JWT auth.
+#    Had OOM issue with Railway — fixed by adding pre-deploy
+#    memory check to deployment procedure."
+
+relevant = m.search_all("deployment", user_id="developer-123")
+# → semantic: ["Uses Railway with Procfile", "PostgreSQL on Supabase"]
+#   episodic: ["Deployment failed Tuesday due to missing migrations"]
+#   procedural: ["Deploy v3: build → migrate → check memory → push"]
+
+# Inject into system prompt
+system_prompt = f"You are a coding assistant.\\n"
+system_prompt += f"Context: {{profile}}\\n"
+system_prompt += f"Past experience: {{relevant}}"</code></pre>
+
+<p>Now every session inherits the full context of every previous session. The agent knows the stack, remembers the failures, and follows evolved procedures.</p>
+
+<h2>The Claude Code example: zero-config context engineering</h2>
+<p>The most practical implementation of memory-enhanced context engineering is <a href="/blog/claude-code-memory-hooks">Claude Code with Mengram hooks</a>. Two commands:</p>
+
+<pre><code>pip install mengram-ai
+mengram setup</code></pre>
+
+<p>This installs three lifecycle hooks:</p>
+<ol>
+<li><strong>Session start</strong> — loads your cognitive profile (who you are, preferences, tech stack)</li>
+<li><strong>Every prompt</strong> — searches past sessions for relevant context before Claude responds</li>
+<li><strong>After response</strong> — saves new knowledge in the background</li>
+</ol>
+<p>No manual saves. No tool calls. Context engineering happens automatically.</p>
+<p>The result: Claude Code remembers what you worked on yesterday, what failed, what your deployment process looks like, and what you prefer. Across every session, permanently.</p>
+
+<h2>Architecture: where memory fits in the stack</h2>
+<p>Here's how memory integrates with the other context engineering pillars:</p>
+<pre><code>┌─────────────────────────────────────────┐
+│           Context Assembly              │
+│                                         │
+│  ┌──────────┐  ┌──────────┐  ┌────────┐│
+│  │  System   │  │   RAG    │  │ Tools  ││
+│  │  Prompt   │  │ (docs)   │  │ output ││
+│  └────┬─────┘  └────┬─────┘  └───┬────┘│
+│       │              │            │      │
+│       ▼              ▼            ▼      │
+│  ┌──────────────────────────────────────┐│
+│  │     PERSISTENT MEMORY LAYER          ││
+│  │  ┌──────────┬─────────┬───────────┐  ││
+│  │  │ Semantic │Episodic │Procedural │  ││
+│  │  │ (facts)  │(events) │(workflows)│  ││
+│  │  └──────────┴─────────┴───────────┘  ││
+│  │  + Cognitive Profile                 ││
+│  │  + Cross-session continuity          ││
+│  │  + Failure-driven evolution          ││
+│  └──────────────────────────────────────┘│
+│       │                                  │
+│       ▼                                  │
+│  ┌──────────────────────────────────────┐│
+│  │         LLM Generation               ││
+│  └──────────────────────────────────────┘│
+└─────────────────────────────────────────┘</code></pre>
+<p>Memory isn't a replacement for RAG or tools — it's the layer that ties everything together with persistent, evolving context.</p>
+
+<h2>Implementing memory-first context engineering</h2>
+<p>Whether you're building a custom agent or using a framework, the pattern is the same:</p>
+
+<h3>1. Capture: save after every interaction</h3>
+<pre><code># After each conversation turn
+m.add([
+    {{"role": "user", "content": user_message}},
+    {{"role": "assistant", "content": agent_response}},
+])</code></pre>
+<p>Mengram auto-extracts all three memory types from the conversation. No manual tagging.</p>
+
+<h3>2. Recall: search before every response</h3>
+<pre><code># Before generating a response
+context = m.search_all(user_message)
+# Returns semantic facts, relevant episodes, and matching procedures</code></pre>
+
+<h3>3. Personalize: load the cognitive profile</h3>
+<pre><code># On session start
+profile = m.get_profile()
+# Ready-to-use system prompt with everything known about the user</code></pre>
+
+<h3>4. Evolve: let procedures learn from failures</h3>
+<pre><code># When a workflow fails
+m.procedure_feedback(proc_id, success=False,
+                     context="OOM error on step 3", failed_at_step=3)
+# Procedure automatically evolves to handle this failure</code></pre>
+
+<p>This four-step loop — capture, recall, personalize, evolve — is the core of memory-first context engineering.</p>
+
+<h2>What changes when memory works</h2>
+<p>With persistent memory as part of your context engineering stack:</p>
+<ul>
+<li><strong>Agents stop repeating mistakes.</strong> Procedural memory captures failures and evolves workflows automatically.</li>
+<li><strong>Users stop repeating themselves.</strong> Semantic memory retains preferences, tech stack, and project context across sessions.</li>
+<li><strong>Context quality improves over time.</strong> Unlike static RAG, memory gets richer with every interaction.</li>
+<li><strong>New sessions start warm.</strong> The cognitive profile gives any LLM instant personalization from day one.</li>
+</ul>
+
+<h2>Getting started</h2>
+<p>Memory is the missing piece in most context engineering implementations. Adding it takes less than 5 minutes:</p>
+<pre><code>pip install mengram-ai</code></pre>
+<p>Get your free API key at <a href="/#signup">mengram.io</a>. Works with any LLM, any framework. Also available as an <a href="/blog/mcp-memory-server-setup">MCP server</a> and with <a href="/blog/claude-code-memory-hooks">Claude Code hooks</a> for zero-config setup.</p>
+<p>The question isn't whether your agent needs memory. It's how long you can afford to operate without it.</p>
+""",
+            "related": ["what-is-ai-memory", "claude-code-memory-hooks"],
         },
     }
 
