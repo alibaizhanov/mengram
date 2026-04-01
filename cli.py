@@ -484,7 +484,7 @@ def cmd_auto_save(args):
             output_hook_success()
 
         last_msg = input_data.get("last_assistant_message", "")
-        if not last_msg or len(last_msg) < 100:
+        if not last_msg or len(last_msg.strip()) < 10:
             output_hook_success()
 
         # Throttle: only save every Nth response
@@ -506,7 +506,7 @@ def cmd_auto_save(args):
         except Exception:
             pass
 
-        if count % every != 0:
+        if count > 1 and count % every != 0:
             output_hook_success()
 
         # Extract last user message from transcript
