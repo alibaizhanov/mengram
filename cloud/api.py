@@ -33,7 +33,7 @@ from fastapi.responses import HTMLResponse, FileResponse, PlainTextResponse, Red
 from dataclasses import dataclass
 from pydantic import BaseModel
 
-from cloud.store import CloudStore
+from cloud.store import CloudStore, _normalize_fact
 
 
 # ---- Auth Context ----
@@ -388,7 +388,7 @@ profile = m.get_profile()             # instant system prompt
 
             candidates = []
             for i, r in enumerate(results):
-                facts_str = "; ".join(r.get("facts", [])[:5])
+                facts_str = "; ".join(_normalize_fact(f) for f in r.get("facts", [])[:5])
                 rels_str = "; ".join(
                     f"{rel.get('type', '')} {rel.get('target', '')}"
                     for rel in r.get("relations", [])[:3]
