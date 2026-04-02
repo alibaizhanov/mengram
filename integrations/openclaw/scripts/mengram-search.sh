@@ -69,8 +69,8 @@ if episodic:
         line = ep.get('summary', '')
         if ep.get('outcome'):
             line += f' -> Outcome: {ep[\"outcome\"]}'
-        if ep.get('when'):
-            line += f' ({ep[\"when\"]})'
+        if ep.get('happened_at'):
+            line += f' ({ep[\"happened_at\"]})'
         events.append(line)
     if events:
         parts.append('PAST EVENTS:\n' + '\n'.join(f'- {e}' for e in events))
