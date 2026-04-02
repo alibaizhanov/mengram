@@ -5,4 +5,4 @@ from langchain_mengram.history import MengramChatMessageHistory
 from langchain_mengram.profile import get_mengram_profile
 
 __all__ = ["MengramRetriever", "MengramChatMessageHistory", "get_mengram_profile"]
-__version__ = "0.2.1"
+__version__ = "0.3.0"

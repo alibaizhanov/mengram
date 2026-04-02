@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "langchain-mengram"
-version = "0.2.1"
+version = "0.3.0"
 description = "LangChain integration for Mengram — AI memory with semantic, episodic, and procedural memory types."
 readme = "README.md"
 license = "Apache-2.0"
@@ -34,7 +34,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
-    "langchain-core>=0.2",
+    "langchain-core>=0.3,<2.0",
     "mengram-ai>=2.15",
 ]
 

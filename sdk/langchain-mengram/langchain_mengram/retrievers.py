@@ -8,7 +8,7 @@ from typing import List, Optional
 from langchain_core.callbacks import CallbackManagerForRetrieverRun
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
-from pydantic import Field, model_validator
+from pydantic import ConfigDict, Field, PrivateAttr, model_validator
 
 logger = logging.getLogger(__name__)
 
@@ -61,10 +61,9 @@ class MengramRetriever(BaseRetriever):
         description="Which memory types to search. Options: semantic, episodic, procedural.",
     )
 
-    _client: object = None
+    _client: object = PrivateAttr(default=None)
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     @model_validator(mode="after")
     def _init_client(self) -> "MengramRetriever":
