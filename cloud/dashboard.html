@@ -421,6 +421,28 @@
         .vm-evolved-dot { width: 6px; height: 6px; background: var(--accent); border-radius: 50%; animation: vm-pulse 2s infinite; }
         @keyframes vm-pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
 
+        /* Intelligence Dashboard */
+        .intel-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+        .intel-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 20px; text-align: center; transition: border-color 0.15s; }
+        .intel-card:hover { border-color: var(--accent); }
+        .intel-card-icon { font-size: 20px; margin-bottom: 8px; }
+        .intel-card-value { font-size: 28px; font-weight: 700; color: var(--text); font-family: 'JetBrains Mono', monospace; }
+        .intel-card-label { font-size: 12px; color: var(--text-3); margin-top: 2px; }
+        .intel-card-change { font-size: 11px; color: var(--green); margin-top: 6px; }
+        .intel-card-change.neutral { color: var(--text-3); }
+        .intel-section { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 24px; margin-bottom: 16px; }
+        .intel-section h3 { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 16px; }
+        .intel-evo-item { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+        .intel-evo-item:last-child { border-bottom: none; }
+        .intel-evo-name { flex: 1; font-size: 14px; color: var(--text); }
+        .intel-evo-badge { background: var(--green-dim); color: var(--green); padding: 3px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; font-family: 'JetBrains Mono', monospace; }
+        .intel-types { display: flex; flex-wrap: wrap; gap: 8px; }
+        .intel-type-tag { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 8px; padding: 6px 14px; font-size: 13px; color: var(--text-2); }
+        .intel-type-tag span { font-weight: 600; color: var(--text); margin-right: 4px; font-family: 'JetBrains Mono', monospace; }
+        .intel-empty { text-align: center; padding: 60px 20px; color: var(--text-3); }
+        .intel-empty h3 { color: var(--text-2); margin-bottom: 8px; }
+        @media (max-width: 768px) { .intel-grid { grid-template-columns: repeat(2, 1fr); } }
+
         /* Quota upgrade banner */
         .quota-banner { background:var(--bg-card); border:1px solid var(--border); border-radius:14px; padding:24px 28px; margin-bottom:20px; position:relative; overflow:hidden; }
         .quota-banner::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; }
@@ -614,6 +636,7 @@
             <div class="nav-group" data-group="intelligence">
                 <div class="nav-item" onclick="switchGroup(event,'intelligence')"><span class="icon"><svg viewBox="0 0 24 24"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg></span> Intelligence <span class="chevron">▸</span></div>
                 <div class="nav-sub-items">
+                    <div class="nav-sub" data-tab="overview" onclick="switchTab(event,'overview')">Overview</div>
                     <div class="nav-sub" data-tab="agents" onclick="switchTab(event,'agents')">Agents</div>
                     <div class="nav-sub" data-tab="insights" onclick="switchTab(event,'insights')">Insights</div>
                 </div>
@@ -769,6 +792,11 @@
                 <div id="agent-results" style="display:none;"></div>
                 <div id="agent-history" style="margin-top:20px;"></div>
             </div>
+        </div>
+
+        <div class="tab-content" id="tab-overview">
+            <div class="page-header"><h2>Intelligence Overview</h2></div>
+            <div id="intel-box"><div class="loading" style="text-align:center;padding:40px;color:var(--text-2);">Loading intelligence data...</div></div>
         </div>
 
         <div class="tab-content" id="tab-insights">
@@ -1054,6 +1082,7 @@ const CMD_NAV = [
     { icon: I.search, label: 'Memory — Search', action: () => switchTabDirect('search') },
     { icon: I.brain, label: 'Memory — Feed', action: () => switchTabDirect('feed') },
     { icon: I.brain, label: 'Memory — Entities', action: () => switchTabDirect('entities') },
+    { icon: I.sparkle, label: 'Intelligence — Overview', action: () => switchTabDirect('overview') },
     { icon: I.sparkle, label: 'Intelligence — Agents', action: () => switchTabDirect('agents') },
     { icon: I.sparkle, label: 'Intelligence — Insights', action: () => switchTabDirect('insights') },
     { icon: I.dna, label: 'Procedures', action: () => switchTabDirect('procedures') },
@@ -1152,7 +1181,7 @@ function _invalidateCache(key) { delete _tabCache[key]; delete _tabCacheTime[key
 // ---- Navigation groups (4 groups mapping to 8 tabs) ----
 const TAB_GROUPS = {
     memory:       { tabs: ['graph', 'search', 'feed', 'entities'], default: 'graph' },
-    intelligence: { tabs: ['agents', 'insights'], default: 'agents' },
+    intelligence: { tabs: ['overview', 'agents', 'insights'], default: 'overview' },
     procedures:   { tabs: ['procedures'], default: 'procedures' },
     account:      { tabs: ['billing', 'settings'], default: 'billing' }
 };
@@ -1192,6 +1221,7 @@ function switchTabDirect(t) {
     history.replaceState(null, '', url);
     if (t === 'graph' && !_isCached('graph')) loadGraph();
     if (t === 'entities' && !_isCached('entities')) loadEntities();
+    if (t === 'overview') loadIntelligence();
     if (t === 'insights') loadInsights();
     if (t === 'agents') loadAgentHistory();
     if (t === 'procedures') loadProcedures();
@@ -1311,7 +1341,7 @@ async function tryLogin(k) {
             let _tab = new URLSearchParams(location.search).get('tab');
             const _groupAlias = { memory: 'graph', intelligence: 'agents', account: 'billing' };
             if (_tab && _groupAlias[_tab]) _tab = _groupAlias[_tab];
-            if(_tab && ['feed','search','agents','insights','graph','entities','procedures','billing','settings'].includes(_tab)) {
+            if(_tab && ['feed','search','overview','agents','insights','graph','entities','procedures','billing','settings'].includes(_tab)) {
                 switchTabDirect(_tab);
             }
         } else { document.getElementById('login-error').style.display='block'; }
@@ -1339,6 +1369,7 @@ function switchTab(e, t) {
     if (sidebar.classList.contains('open')) toggleMobileMenu();
     if(t==='graph' && !_isCached('graph')) loadGraph();
     if(t==='entities' && !_isCached('entities')) loadEntities();
+    if(t==='overview') loadIntelligence();
     if(t==='insights') loadInsights();
     if(t==='agents') loadAgentHistory();
     if(t==='procedures') loadProcedures();
@@ -1504,10 +1535,10 @@ async function renderQuotaBanner(plan, usage, quotas) {
     }
 
     const title = anyAtLimit
-        ? (vmHtml ? 'Your agent\u2019s brain is growing' : 'Monthly usage limit reached')
+        ? (vmHtml ? 'Your memory keeps growing' : 'Monthly usage limit reached')
         : 'Approaching your usage limits';
     const desc = vmHtml
-        ? `Don\u2019t stop the momentum. Upgrade to ${esc(nextPlanLabel)} for ${esc(nextPlanLimits)}/mo.`
+        ? `You\u2019ve built real intelligence. Upgrade to ${esc(nextPlanLabel)} for ${esc(nextPlanLimits)}/mo.`
         : `Upgrade to ${esc(nextPlanLabel)} for ${esc(nextPlanLimits)}/mo.`;
 
     el.style.display = '';
@@ -1521,7 +1552,7 @@ async function renderQuotaBanner(plan, usage, quotas) {
         ${vmHtml}
         <div class="quota-banner-desc">${desc}</div>
         <div class="quota-banner-actions">
-            <button class="quota-banner-cta" onclick="upgradePlan('${nextPlanKey}')">${vmHtml ? 'Keep it growing' : 'Upgrade to ' + esc(nextPlanKey.charAt(0).toUpperCase() + nextPlanKey.slice(1))}</button>
+            <button class="quota-banner-cta" onclick="upgradePlan('${nextPlanKey}')">${vmHtml ? 'Keep it growing \u2014 Upgrade' : 'Upgrade to ' + esc(nextPlanKey.charAt(0).toUpperCase() + nextPlanKey.slice(1))}</button>
             <a href="/dashboard?tab=billing" class="quota-banner-link">See all plans \u2192</a>
         </div>
     </div>`;
@@ -1684,6 +1715,101 @@ async function loadAgentHistory() {
         box.innerHTML = html;
     } catch(e) { box.innerHTML = ''; }
 }
+async function loadIntelligence() {
+    const box = document.getElementById('intel-box');
+    try {
+        const res = await fetch(`${API}/v1/intelligence`, { headers: H() });
+        if (!res.ok) throw new Error('Failed to load');
+        const d = await res.json();
+
+        const total = (d.facts || 0) + (d.episodes || 0) + (d.knowledge || 0);
+        if (total === 0) {
+            box.innerHTML = `<div class="intel-empty">
+                <div style="font-size:48px;margin-bottom:16px;opacity:0.5;">
+                    <svg viewBox="0 0 24 24" style="width:48px;height:48px;stroke:var(--text-3);fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;">
+                        <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/>
+                    </svg>
+                </div>
+                <h3>No intelligence yet</h3>
+                <p>Add memories via the API and your intelligence dashboard will appear here.</p>
+            </div>`;
+            return;
+        }
+
+        // Growth calculation
+        const f7 = d.facts_7d || 0;
+        const fp = d.facts_prev_7d || 0;
+        const growthPct = fp > 0 ? Math.round(((f7 - fp) / fp) * 100) : (f7 > 0 ? 100 : 0);
+        const growthSign = growthPct > 0 ? '+' : '';
+        const growthClass = growthPct > 0 ? '' : 'neutral';
+
+        let html = `<div class="intel-grid">
+            <div class="intel-card">
+                <div class="intel-card-icon"><svg viewBox="0 0 24 24" style="width:22px;height:22px;stroke:var(--green);fill:none;stroke-width:1.5;stroke-linecap:round;"><path d="M12 20h9"/><path d="M16.5 3.5l4 4L7 21H3v-4L16.5 3.5z"/></svg></div>
+                <div class="intel-card-value">${d.facts}</div>
+                <div class="intel-card-label">Facts Learned</div>
+                ${f7 > 0 ? `<div class="intel-card-change">+${f7} this week</div>` : ''}
+            </div>
+            <div class="intel-card">
+                <div class="intel-card-icon"><svg viewBox="0 0 24 24" style="width:22px;height:22px;stroke:var(--accent);fill:none;stroke-width:1.5;stroke-linecap:round;"><circle cx="12" cy="7" r="4"/><path d="M5.5 21a6.5 6.5 0 0 1 13 0"/></svg></div>
+                <div class="intel-card-value">${d.entities}</div>
+                <div class="intel-card-label">Entities</div>
+            </div>
+            <div class="intel-card">
+                <div class="intel-card-icon"><svg viewBox="0 0 24 24" style="width:22px;height:22px;stroke:var(--blue);fill:none;stroke-width:1.5;stroke-linecap:round;"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><path d="M8.5 8.5l7 7"/></svg></div>
+                <div class="intel-card-value">${d.relations}</div>
+                <div class="intel-card-label">Relations</div>
+            </div>
+            <div class="intel-card">
+                <div class="intel-card-icon"><svg viewBox="0 0 24 24" style="width:22px;height:22px;stroke:var(--orange);fill:none;stroke-width:1.5;stroke-linecap:round;"><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M12 15V9"/><path d="m8.7 7.5 2.6 3"/><path d="m15.3 7.5-2.6 3"/></svg></div>
+                <div class="intel-card-value">${d.procedures}</div>
+                <div class="intel-card-label">Procedures</div>
+                ${d.evolved > 0 ? `<div class="intel-card-change">${d.evolved} evolved</div>` : ''}
+            </div>
+        </div>`;
+
+        // Growth summary bar
+        html += `<div class="intel-section" style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px;">
+            <div style="font-size:14px;color:var(--text-2);">
+                Weekly growth: <strong style="color:var(--text);">${growthSign}${growthPct}%</strong> facts
+                ${(d.episodes_7d || 0) > 0 ? ` &middot; <strong style="color:var(--text);">${d.episodes_7d}</strong> new episodes` : ''}
+            </div>
+            <div style="font-size:13px;color:var(--text-3);">${d.knowledge || 0} knowledge items &middot; ${d.episodes || 0} episodes</div>
+        </div>`;
+
+        // Evolved procedures
+        const evos = d.evolved_procedures || [];
+        if (evos.length > 0) {
+            html += `<div class="intel-section">
+                <h3>Evolved Procedures</h3>`;
+            for (const p of evos) {
+                html += `<div class="intel-evo-item">
+                    <div class="intel-evo-name">${esc(p.name)}</div>
+                    <div class="intel-evo-badge">v${p.version}</div>
+                </div>`;
+            }
+            html += `</div>`;
+        }
+
+        // Entity types breakdown
+        const types = d.by_type || {};
+        const typeKeys = Object.keys(types);
+        if (typeKeys.length > 0) {
+            html += `<div class="intel-section">
+                <h3>Entity Types</h3>
+                <div class="intel-types">`;
+            for (const t of typeKeys) {
+                html += `<div class="intel-type-tag"><span>${types[t]}</span>${esc(t)}</div>`;
+            }
+            html += `</div></div>`;
+        }
+
+        box.innerHTML = html;
+    } catch(e) {
+        box.innerHTML = `<div class="intel-empty"><h3>Failed to load</h3><p>${esc(e.message)}</p></div>`;
+    }
+}
+
 async function loadInsights() {
     const box = document.getElementById('insights-box');
     try {
@@ -2346,7 +2472,7 @@ async function doFullSearch(query) {
                     vmHtml = statsHtml + evolvedHtml;
                 }
                 box.innerHTML = `<div class="search-quota-banner">
-                    <h3>${vmHtml ? 'Your agent\u2019s brain is growing' : 'Search limit reached'}</h3>
+                    <h3>${vmHtml ? 'Your memory keeps growing' : 'Search limit reached'}</h3>
                     ${vmHtml || `<p>You've used all ${esc(String(d.detail.limit))} searches this month on the ${esc(String(d.detail.plan || 'free'))} plan.</p>`}
                     <a href="${safeHref(d.detail.upgrade_url, '/dashboard?tab=billing')}">${vmHtml ? 'Keep it growing \u2014 Upgrade' : 'Upgrade to search more'}</a>
                 </div>`;

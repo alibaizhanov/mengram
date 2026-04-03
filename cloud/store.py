@@ -3531,6 +3531,108 @@ REFLECTIONS/PATTERNS:
         self.cache.set(cache_key, result, ttl=300)
         return result
 
+    def get_intelligence_dashboard(self, user_id: str, sub_user_id: str = "default") -> dict:
+        """Full intelligence dashboard data. Cached 5 minutes."""
+        cache_key = f"intel_dash:{user_id}:{sub_user_id}"
+        cached = self.cache.get(cache_key)
+        if cached:
+            return cached
+
+        with self._cursor(dict_cursor=True) as cur:
+            # Core counts
+            cur.execute("""
+                SELECT
+                    (SELECT COUNT(*) FROM entities
+                     WHERE user_id = %s AND sub_user_id = %s) AS entities,
+                    (SELECT COUNT(*) FROM facts f
+                     JOIN entities e ON e.id = f.entity_id
+                     WHERE e.user_id = %s AND e.sub_user_id = %s
+                       AND f.archived = FALSE) AS facts,
+                    (SELECT COUNT(*) FROM relations r
+                     JOIN entities e ON e.id = r.source_id
+                     WHERE e.user_id = %s AND e.sub_user_id = %s) AS relations,
+                    (SELECT COUNT(*) FROM knowledge k
+                     JOIN entities e ON e.id = k.entity_id
+                     WHERE e.user_id = %s AND e.sub_user_id = %s) AS knowledge,
+                    (SELECT COUNT(*) FROM episodes
+                     WHERE user_id = %s AND sub_user_id = %s
+                       AND (expires_at IS NULL OR expires_at > NOW())) AS episodes,
+                    (SELECT COUNT(*) FROM procedures
+                     WHERE user_id = %s AND sub_user_id = %s
+                       AND is_current = TRUE
+                       AND (expires_at IS NULL OR expires_at > NOW())) AS procedures,
+                    (SELECT COUNT(*) FROM procedures
+                     WHERE user_id = %s AND sub_user_id = %s
+                       AND is_current = TRUE AND version > 1
+                       AND (expires_at IS NULL OR expires_at > NOW())) AS evolved
+            """, (user_id, sub_user_id) * 7)
+            counts = cur.fetchone()
+
+            # Entity type breakdown
+            cur.execute("""
+                SELECT type, COUNT(*) as cnt FROM entities
+                WHERE user_id = %s AND sub_user_id = %s
+                GROUP BY type ORDER BY cnt DESC
+            """, (user_id, sub_user_id))
+            by_type = {r["type"]: r["cnt"] for r in cur.fetchall()}
+
+            # Top evolved procedures (up to 5)
+            cur.execute("""
+                SELECT name, version FROM procedures
+                WHERE user_id = %s AND sub_user_id = %s
+                  AND is_current = TRUE AND version > 1
+                  AND (expires_at IS NULL OR expires_at > NOW())
+                ORDER BY version DESC LIMIT 5
+            """, (user_id, sub_user_id))
+            evolved_procs = [{"name": r["name"], "version": r["version"]} for r in cur.fetchall()]
+
+            # Facts added in last 7 days
+            cur.execute("""
+                SELECT COUNT(*) FROM facts f
+                JOIN entities e ON e.id = f.entity_id
+                WHERE e.user_id = %s AND e.sub_user_id = %s
+                  AND f.archived = FALSE
+                  AND f.created_at >= NOW() - INTERVAL '7 days'
+            """, (user_id, sub_user_id))
+            facts_7d = cur.fetchone()[0]
+
+            # Facts added in prior 7 days (for growth comparison)
+            cur.execute("""
+                SELECT COUNT(*) FROM facts f
+                JOIN entities e ON e.id = f.entity_id
+                WHERE e.user_id = %s AND e.sub_user_id = %s
+                  AND f.archived = FALSE
+                  AND f.created_at >= NOW() - INTERVAL '14 days'
+                  AND f.created_at < NOW() - INTERVAL '7 days'
+            """, (user_id, sub_user_id))
+            facts_prev_7d = cur.fetchone()[0]
+
+            # Episodes in last 7 days
+            cur.execute("""
+                SELECT COUNT(*) FROM episodes
+                WHERE user_id = %s AND sub_user_id = %s
+                  AND (expires_at IS NULL OR expires_at > NOW())
+                  AND created_at >= NOW() - INTERVAL '7 days'
+            """, (user_id, sub_user_id))
+            episodes_7d = cur.fetchone()[0]
+
+        result = {
+            "entities": counts["entities"],
+            "facts": counts["facts"],
+            "relations": counts["relations"],
+            "knowledge": counts["knowledge"],
+            "episodes": counts["episodes"],
+            "procedures": counts["procedures"],
+            "evolved": counts["evolved"],
+            "by_type": by_type,
+            "evolved_procedures": evolved_procs,
+            "facts_7d": facts_7d,
+            "facts_prev_7d": facts_prev_7d,
+            "episodes_7d": episodes_7d,
+        }
+        self.cache.set(cache_key, result, ttl=300)
+        return result
+
     # ---- Usage tracking ----
 
     def log_usage(self, user_id: str, action: str, tokens: int = 0):

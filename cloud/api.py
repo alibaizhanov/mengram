@@ -6465,6 +6465,11 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         user_id = ctx.user_id
         return store.get_stats(user_id, sub_user_id=sub_user_id)
 
+    @app.get("/v1/intelligence", tags=["System"])
+    async def intelligence(sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
+        """Intelligence dashboard — compound learning metrics."""
+        return store.get_intelligence_dashboard(ctx.user_id, sub_user_id=sub_user_id)
+
     @app.get("/v1/graph", tags=["Memory"])
     async def graph(sub_user_id: str = Query("default"),
                     limit: int = Query(150, ge=1, le=500),
