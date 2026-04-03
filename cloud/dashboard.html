@@ -408,11 +408,18 @@
         .search-empty { text-align: center; padding: 60px 20px; color: var(--text-3); }
         .search-empty h3 { color: var(--text-2); font-size: 16px; margin-bottom: 6px; }
         .search-empty p { font-size: 13px; max-width: 360px; margin: 0 auto; line-height: 1.5; }
-        .search-quota-banner { max-width: 560px; margin: 0 auto; background: var(--bg-card); border: 1px solid rgba(248,113,113,0.2); border-radius: 12px; padding: 20px 24px; text-align: center; }
-        .search-quota-banner h3 { color: var(--red); font-size: 15px; margin-bottom: 6px; }
+        .search-quota-banner { max-width: 560px; margin: 0 auto; background: var(--bg-card); border: 1px solid rgba(124,92,255,0.2); border-radius: 16px; padding: 28px; text-align: center; }
+        .search-quota-banner h3 { color: var(--text); font-size: 17px; margin-bottom: 16px; }
         .search-quota-banner p { font-size: 13px; color: var(--text-2); margin-bottom: 14px; }
         .search-quota-banner a { display: inline-block; padding: 10px 24px; background: var(--accent); color: #fff; border-radius: 10px; font-size: 14px; font-weight: 600; text-decoration: none; transition: background 0.15s; }
         .search-quota-banner a:hover { background: #9333ea; }
+        .vm-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; text-align: center; }
+        .vm-stat { background: var(--bg-elevated); border-radius: 10px; padding: 14px 8px; }
+        .vm-stat-value { font-size: 22px; font-weight: 700; color: var(--text); font-family: 'JetBrains Mono', monospace; }
+        .vm-stat-label { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+        .vm-evolved { display: inline-flex; align-items: center; gap: 6px; background: rgba(124,92,255,0.1); border: 1px solid rgba(124,92,255,0.2); border-radius: 8px; padding: 8px 14px; font-size: 12px; color: #b8a4ff; margin-bottom: 16px; }
+        .vm-evolved-dot { width: 6px; height: 6px; background: var(--accent); border-radius: 50%; animation: vm-pulse 2s infinite; }
+        @keyframes vm-pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
 
         /* Quota upgrade banner */
         .quota-banner { background:var(--bg-card); border:1px solid var(--border); border-radius:14px; padding:24px 28px; margin-bottom:20px; position:relative; overflow:hidden; }
@@ -1437,7 +1444,7 @@ async function loadAccount() {
     } catch(e) {}
 }
 
-function renderQuotaBanner(plan, usage, quotas) {
+async function renderQuotaBanner(plan, usage, quotas) {
     const el = document.getElementById('quota-banner');
     if (!el) return;
     const month = new Date().toISOString().slice(0, 7);
@@ -1463,8 +1470,6 @@ function renderQuotaBanner(plan, usage, quotas) {
     const nextPlanKey = { free: 'starter', starter: 'pro', pro: 'growth', growth: 'business' }[plan] || 'starter';
     const nextPlanLabel = { free: 'Starter ($5/mo)', starter: 'Pro ($19/mo)', pro: 'Growth ($59/mo)', growth: 'Business ($99/mo)' }[plan] || 'a higher plan';
     const nextPlanLimits = { starter: '100 adds, 500 searches', pro: '1K adds, 10K searches', growth: '3K adds, 20K searches', business: '8K adds, 30K searches' }[nextPlanKey] || '';
-    const title = anyAtLimit ? 'Monthly usage limit reached' : 'Approaching your usage limits';
-    const desc = `Upgrade to ${esc(nextPlanLabel)} for ${esc(nextPlanLimits)}/mo.`;
     const icon = anyAtLimit
         ? '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>'
         : '<svg viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>';
@@ -1477,17 +1482,46 @@ function renderQuotaBanner(plan, usage, quotas) {
         </div>`;
     }).join('');
 
+    // Fetch intelligence data for Value Mirror (non-blocking)
+    let vmHtml = '';
+    if (anyAtLimit) {
+        try {
+            const ir = await fetch(`${API}/v1/stats`, { headers: {'Authorization':`Bearer ${KEY}`} });
+            if (ir.ok) {
+                const stats = await ir.json();
+                const facts = stats.facts || 0;
+                const entities = stats.entities || 0;
+                const knowledge = stats.knowledge || 0;
+                if (facts > 0 || entities > 0) {
+                    vmHtml = `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0 4px;">
+                        <div class="vm-stat"><div class="vm-stat-value">${facts}</div><div class="vm-stat-label">facts learned</div></div>
+                        <div class="vm-stat"><div class="vm-stat-value">${entities}</div><div class="vm-stat-label">entities</div></div>
+                        <div class="vm-stat"><div class="vm-stat-value">${knowledge}</div><div class="vm-stat-label">knowledge items</div></div>
+                    </div>`;
+                }
+            }
+        } catch(e) {}
+    }
+
+    const title = anyAtLimit
+        ? (vmHtml ? 'Your agent\u2019s brain is growing' : 'Monthly usage limit reached')
+        : 'Approaching your usage limits';
+    const desc = vmHtml
+        ? `Don\u2019t stop the momentum. Upgrade to ${esc(nextPlanLabel)} for ${esc(nextPlanLimits)}/mo.`
+        : `Upgrade to ${esc(nextPlanLabel)} for ${esc(nextPlanLimits)}/mo.`;
+
     el.style.display = '';
-    el.innerHTML = `<div class="quota-banner ${cls}">
+    el.innerHTML = `<div class="quota-banner ${cls}" ${vmHtml ? 'style="border-color:rgba(124,92,255,0.25);"' : ''}>
         <button class="quota-banner-dismiss" onclick="dismissQuotaBanner()" title="Dismiss">\u2715</button>
         <div class="quota-banner-top">
-            <div class="quota-banner-icon">${icon}</div>
-            <div class="quota-banner-title">${title}</div>
+            <div class="quota-banner-icon" ${vmHtml ? 'style="background:rgba(124,92,255,0.12);"' : ''}>${vmHtml ? '<svg viewBox="0 0 24 24" style="stroke:var(--accent);"><path d="M12 2a7 7 0 0 1 7 7c0 2.38-1.19 4.47-3 5.74V17a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 0 1 7-7z"/><line x1="9" y1="21" x2="15" y2="21"/></svg>' : icon}</div>
+            <div class="quota-banner-title" ${vmHtml ? 'style="color:var(--text);"' : ''}>${title}</div>
         </div>
         ${bars}
+        ${vmHtml}
         <div class="quota-banner-desc">${desc}</div>
         <div class="quota-banner-actions">
-            <button class="quota-banner-cta" onclick="upgradePlan('${nextPlanKey}')">Upgrade to ${esc(nextPlanKey.charAt(0).toUpperCase() + nextPlanKey.slice(1))}</button>
+            <button class="quota-banner-cta" onclick="upgradePlan('${nextPlanKey}')">${vmHtml ? 'Keep it growing' : 'Upgrade to ' + esc(nextPlanKey.charAt(0).toUpperCase() + nextPlanKey.slice(1))}</button>
             <a href="/dashboard?tab=billing" class="quota-banner-link">See all plans \u2192</a>
         </div>
     </div>`;
@@ -2298,10 +2332,23 @@ async function doFullSearch(query) {
 
         if (!r.ok) {
             if (d.detail && typeof d.detail === 'object' && d.detail.error === 'quota_exceeded') {
+                const intel = d.detail.intelligence;
+                let vmHtml = '';
+                if (intel && (intel.facts_learned || intel.episodes_recorded || intel.procedures_mastered)) {
+                    const statsHtml = `<div class="vm-stats">
+                        <div class="vm-stat"><div class="vm-stat-value">${intel.facts_learned || 0}</div><div class="vm-stat-label">facts learned</div></div>
+                        <div class="vm-stat"><div class="vm-stat-value">${intel.episodes_recorded || 0}</div><div class="vm-stat-label">episodes recorded</div></div>
+                        <div class="vm-stat"><div class="vm-stat-value">${intel.procedures_mastered || 0}</div><div class="vm-stat-label">workflows mastered</div></div>
+                    </div>`;
+                    const evolvedHtml = intel.top_evolved
+                        ? `<div class="vm-evolved"><span class="vm-evolved-dot"></span>"${esc(intel.top_evolved.name)}" evolved to v${intel.top_evolved.version}</div>`
+                        : (intel.procedures_evolved ? `<div class="vm-evolved"><span class="vm-evolved-dot"></span>${intel.procedures_evolved} procedure${intel.procedures_evolved > 1 ? 's' : ''} evolved</div>` : '');
+                    vmHtml = statsHtml + evolvedHtml;
+                }
                 box.innerHTML = `<div class="search-quota-banner">
-                    <h3>Search limit reached</h3>
-                    <p>You've used all ${esc(String(d.detail.limit))} searches this month on the ${esc(String(d.detail.plan || 'free'))} plan.</p>
-                    <a href="${safeHref(d.detail.upgrade_url, '/dashboard?tab=billing')}">Upgrade to search more</a>
+                    <h3>${vmHtml ? 'Your agent\u2019s brain is growing' : 'Search limit reached'}</h3>
+                    ${vmHtml || `<p>You've used all ${esc(String(d.detail.limit))} searches this month on the ${esc(String(d.detail.plan || 'free'))} plan.</p>`}
+                    <a href="${safeHref(d.detail.upgrade_url, '/dashboard?tab=billing')}">${vmHtml ? 'Keep it growing \u2014 Upgrade' : 'Upgrade to search more'}</a>
                 </div>`;
             } else {
                 box.innerHTML = `<div class="search-empty"><h3>Something went wrong</h3><p>${esc(detailMsg(d.detail, 'Please try again.'))}</p></div>`;
