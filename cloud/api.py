@@ -623,6 +623,13 @@ Be strict — only include entities that directly answer or relate to the query.
                 upgrade_url = f"https://mengram.io/checkout?token={token}"
         next_plan = NEXT_PLAN_INFO.get(plan)
         upgrade_msg = f"Upgrade to {next_plan['name']} ({next_plan['price']})" if next_plan else "Upgrade your plan"
+        # Value mirror: show intelligence summary so clients can display accumulated value
+        intelligence = None
+        if user_id:
+            try:
+                intelligence = store.get_value_mirror(user_id)
+            except Exception:
+                pass
         raise HTTPException(
             status_code=402,
             detail={
@@ -634,6 +641,7 @@ Be strict — only include entities that directly answer or relate to the query.
                 "upgrade_url": upgrade_url,
                 "message": f"Monthly {action} limit reached ({max_allowed}). {upgrade_msg} at {upgrade_url}",
                 "retry_after": retry_after,
+                "intelligence": intelligence,
             },
             headers={
                 "Retry-After": str(retry_after),

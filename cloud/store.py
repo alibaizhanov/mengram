@@ -3486,6 +3486,51 @@ REFLECTIONS/PATTERNS:
                 "embeddings": embeddings,
             }
 
+    def get_value_mirror(self, user_id: str) -> dict:
+        """Lightweight intelligence summary for quota wall. Cached 5 minutes."""
+        cache_key = f"value_mirror:{user_id}"
+        cached = self.cache.get(cache_key)
+        if cached:
+            return cached
+
+        with self._cursor(dict_cursor=True) as cur:
+            cur.execute("""
+                SELECT
+                    (SELECT COUNT(*) FROM entities
+                     WHERE user_id = %s) AS entities_count,
+                    (SELECT COUNT(*) FROM facts f
+                     JOIN entities e ON e.id = f.entity_id
+                     WHERE e.user_id = %s AND f.archived = FALSE) AS facts_count,
+                    (SELECT COUNT(*) FROM episodes
+                     WHERE user_id = %s
+                       AND (expires_at IS NULL OR expires_at > NOW())) AS episodes_count,
+                    (SELECT COUNT(*) FROM procedures
+                     WHERE user_id = %s AND is_current = TRUE
+                       AND (expires_at IS NULL OR expires_at > NOW())) AS procedures_count,
+                    (SELECT COUNT(*) FROM procedures
+                     WHERE user_id = %s AND is_current = TRUE AND version > 1
+                       AND (expires_at IS NULL OR expires_at > NOW())) AS evolved_count
+            """, (user_id, user_id, user_id, user_id, user_id))
+            row = cur.fetchone()
+
+            cur.execute("""
+                SELECT name, version FROM procedures
+                WHERE user_id = %s AND is_current = TRUE AND version > 1
+                  AND (expires_at IS NULL OR expires_at > NOW())
+                ORDER BY version DESC LIMIT 1
+            """, (user_id,))
+            top = cur.fetchone()
+
+        result = {
+            "facts_learned": row["facts_count"],
+            "episodes_recorded": row["episodes_count"],
+            "procedures_mastered": row["procedures_count"],
+            "procedures_evolved": row["evolved_count"],
+            "top_evolved": {"name": top["name"], "version": top["version"]} if top else None,
+        }
+        self.cache.set(cache_key, result, ttl=300)
+        return result
+
     # ---- Usage tracking ----
 
     def log_usage(self, user_id: str, action: str, tokens: int = 0):
