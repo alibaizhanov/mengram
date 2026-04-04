@@ -61,11 +61,16 @@
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
+        html, body {
+            overflow-x: hidden;
+            width: 100%;
+            max-width: 100vw;
+        }
+
         body {
             background: var(--bg);
             color: var(--text);
             font-family: 'Sora', sans-serif;
-            overflow-x: hidden;
             -webkit-font-smoothing: antialiased;
         }
 
