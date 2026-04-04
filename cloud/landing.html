@@ -1559,9 +1559,12 @@
         .nav-cmd-hint:hover { border-color: var(--border-hover); color: var(--text-2); }
 
         /* ---- Responsive ---- */
+        .templates-grid { grid-template-columns: repeat(3, 1fr); }
+
         @media (max-width: 768px) {
             .hero { padding: 60px 0 40px; }
             .how-grid { grid-template-columns: 1fr; }
+            .templates-grid { grid-template-columns: 1fr !important; }
             .features-grid { grid-template-columns: 1fr; }
             .features-grid .feat-card,
             .features-grid .feat-card.feat-bento-large { grid-column: auto; }
@@ -1921,7 +1924,7 @@ results = m.search(<span class="c-str">"What does Ali prefer?"</span>)</div>
             </div>
             <h3 class="reveal" style="text-align:center;font-size:22px;margin-top:48px;margin-bottom:8px;">Ready-to-Run Templates</h3>
             <p class="reveal" style="text-align:center;color:var(--text-2);margin-bottom:24px;">Clone, set API key, run in 5 minutes.</p>
-            <div class="features-grid stagger" style="grid-template-columns: repeat(3, 1fr);">
+            <div class="features-grid stagger templates-grid">
                 <a href="https://github.com/alibaizhanov/mengram/tree/main/examples/devops-agent" target="_blank" rel="noopener noreferrer" style="text-decoration:none;">
                     <div class="feat-card reveal" style="cursor:pointer; border-color: var(--green); box-shadow: 0 0 20px rgba(52,211,153,0.15);">
                         <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg></div>
