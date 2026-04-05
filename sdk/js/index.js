@@ -21,12 +21,14 @@ class MengramClient {
    * @param {object} [options]
    * @param {string} [options.baseUrl] - API base URL (default: https://mengram.io)
    * @param {number} [options.timeout] - Request timeout in ms (default: 30000)
+   * @param {number} [options.retries] - Max retry attempts on transient errors (default: 3)
    */
   constructor(apiKey, options = {}) {
     if (!apiKey) throw new Error('API key is required');
     this.apiKey = apiKey;
     this.baseUrl = (options.baseUrl || 'https://mengram.io').replace(/\/$/, '');
     this.timeout = options.timeout || 30000;
+    this.retries = options.retries ?? 3;
   }
 
   get quota() {
@@ -60,8 +62,10 @@ class MengramClient {
       'Content-Type': 'application/json',
     };
 
+    const RETRY_STATUSES = [429, 500, 502, 503];
+    const maxAttempts = this.retries;
     let lastErr;
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), this.timeout);
 
@@ -77,9 +81,13 @@ class MengramClient {
         this._lastHeaders = res.headers;
         if (!res.ok) {
           // Retry on transient errors
-          if ([429, 502, 503, 504].includes(res.status) && attempt < 2) {
+          if (RETRY_STATUSES.includes(res.status) && attempt < maxAttempts - 1) {
             lastErr = new MengramError(data.detail || `HTTP ${res.status}`, res.status);
-            await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+            const retryAfter = res.headers.get('Retry-After');
+            const delay = retryAfter
+              ? Math.max(parseFloat(retryAfter) * 1000, 0)
+              : Math.pow(2, attempt) * 1000;
+            await new Promise(r => setTimeout(r, delay));
             continue;
           }
           // Quota exceeded — structured error
@@ -91,9 +99,9 @@ class MengramClient {
         return data;
       } catch (err) {
         if (err instanceof MengramError) {
-          if ([429, 502, 503, 504].includes(err.statusCode) && attempt < 2) {
+          if (RETRY_STATUSES.includes(err.statusCode) && attempt < maxAttempts - 1) {
             lastErr = err;
-            await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+            await new Promise(r => setTimeout(r, Math.pow(2, attempt) * 1000));
             continue;
           }
           throw err;
@@ -102,9 +110,9 @@ class MengramClient {
           throw new MengramError(`Request timeout after ${this.timeout}ms`, 408);
         }
         // Retry on network errors
-        if (attempt < 2) {
+        if (attempt < maxAttempts - 1) {
           lastErr = err;
-          await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+          await new Promise(r => setTimeout(r, Math.pow(2, attempt) * 1000));
           continue;
         }
         throw new MengramError(err.message, 0);
@@ -112,7 +120,7 @@ class MengramClient {
         clearTimeout(timer);
       }
     }
-    throw lastErr || new MengramError('Request failed after 3 attempts', 0);
+    throw lastErr || new MengramError(`Request failed after ${maxAttempts} attempts`, 0);
   }
 
   // ---- Memory ----
@@ -209,8 +217,10 @@ class MengramClient {
     if (options.runId) formData.append('run_id', options.runId);
     if (options.appId) formData.append('app_id', options.appId);
 
+    const RETRY_STATUSES = [429, 500, 502, 503];
+    const maxAttempts = this.retries;
     let lastErr;
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), this.timeout);
 
@@ -225,9 +235,13 @@ class MengramClient {
         const data = await res.json();
         this._lastHeaders = res.headers;
         if (!res.ok) {
-          if ([429, 502, 503, 504].includes(res.status) && attempt < 2) {
+          if (RETRY_STATUSES.includes(res.status) && attempt < maxAttempts - 1) {
             lastErr = new MengramError(data.detail || `HTTP ${res.status}`, res.status);
-            await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+            const retryAfter = res.headers.get('Retry-After');
+            const delay = retryAfter
+              ? Math.max(parseFloat(retryAfter) * 1000, 0)
+              : Math.pow(2, attempt) * 1000;
+            await new Promise(r => setTimeout(r, delay));
             continue;
           }
           if (res.status === 402 && data.detail && typeof data.detail === 'object') {
@@ -241,9 +255,9 @@ class MengramClient {
         if (err.name === 'AbortError') {
           throw new MengramError(`Request timeout after ${this.timeout}ms`, 408);
         }
-        if (attempt < 2) {
+        if (attempt < maxAttempts - 1) {
           lastErr = err;
-          await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+          await new Promise(r => setTimeout(r, Math.pow(2, attempt) * 1000));
           continue;
         }
         throw new MengramError(err.message, 0);
@@ -251,7 +265,7 @@ class MengramClient {
         clearTimeout(timer);
       }
     }
-    throw lastErr || new MengramError('Request failed after 3 attempts', 0);
+    throw lastErr || new MengramError(`Request failed after ${maxAttempts} attempts`, 0);
   }
 
   /**
