@@ -464,6 +464,24 @@ When running locally with Ollama, use models with **8B+ parameters** and **8K+ c
 
 Full interactive docs: **[mengram.io/docs](https://mengram.io/docs)**
 
+### Quota Headers
+
+Every authenticated response includes usage headers:
+
+| Header | Description |
+|--------|-------------|
+| `X-Quota-Add-Used` | Add calls used this month |
+| `X-Quota-Add-Limit` | Add calls allowed this month |
+| `X-Quota-Search-Used` | Search calls used this month |
+| `X-Quota-Search-Limit` | Search calls allowed this month |
+
+SDKs expose this via `.quota`:
+
+```python
+m.search("test")
+print(m.quota)  # {"add": {"used": 5, "limit": 30}, "search": {"used": 12, "limit": 100}}
+```
+
 ## Community
 
 - **[GitHub Issues](https://github.com/alibaizhanov/mengram/issues)** — bug reports, feature requests

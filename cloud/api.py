@@ -243,6 +243,13 @@ profile = m.get_profile()             # instant system prompt
                 response.headers["X-RateLimit-Limit"] = str(request.state.rate_limit)
                 response.headers["X-RateLimit-Remaining"] = str(request.state.rate_remaining)
                 response.headers["X-RateLimit-Reset"] = "60"
+            if hasattr(request.state, 'quota_info'):
+                qi = request.state.quota_info
+                for action in ("add", "search"):
+                    if action in qi:
+                        prefix = f"X-Quota-{action.capitalize()}"
+                        response.headers[f"{prefix}-Used"] = str(qi[action]["used"])
+                        response.headers[f"{prefix}-Limit"] = str(qi[action]["limit"])
             return response
 
     app.add_middleware(RateLimitHeaderMiddleware)
@@ -251,7 +258,11 @@ profile = m.get_profile()             # instant system prompt
         allow_origins=["*"],
         allow_methods=["*"],
         allow_headers=["*"],
-        expose_headers=["X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset"],
+        expose_headers=[
+            "X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset",
+            "X-Quota-Add-Used", "X-Quota-Add-Limit",
+            "X-Quota-Search-Used", "X-Quota-Search-Limit",
+        ],
     )
 
     store = CloudStore(DATABASE_URL, pool_min=2, pool_max=10, redis_url=REDIS_URL)
@@ -879,6 +890,25 @@ Be strict — only include entities that directly answer or relate to the query.
                 pass
         request.state.rate_limit = rate_limit
         request.state.rate_remaining = remaining
+
+        # Quota usage from Redis (same keys use_quota writes: qc:{user_id}:{action}:{YYYY-MM})
+        _plan_q = PLAN_QUOTAS.get(plan, PLAN_QUOTAS["free"])
+        quota_info = {}
+        if redis_client:
+            try:
+                _month = f"{datetime.date.today().year}-{datetime.date.today().month:02d}"
+                for _qa, _qk in [("add", "adds"), ("search", "searches")]:
+                    _cached = redis_client.get(f"qc:{user_id}:{_qa}:{_month}")
+                    _used = int(_cached) if _cached is not None else 0
+                    quota_info[_qa] = {"used": _used, "limit": _plan_q.get(_qk, 0)}
+            except Exception:
+                pass
+        if not quota_info:
+            quota_info = {
+                "add": {"used": 0, "limit": _plan_q.get("adds", 0)},
+                "search": {"used": 0, "limit": _plan_q.get("searches", 0)},
+            }
+        request.state.quota_info = quota_info
 
         key_prefix = key[:10] if len(key) > 10 else key[:4]
         # Suppress request log for quota-exhausted users (reduces log noise from MCP hooks)

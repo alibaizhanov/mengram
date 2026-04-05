@@ -184,8 +184,15 @@ export declare class QuotaExceededError extends MengramError {
   constructor(detail: { action: string; limit: number; current: number; plan: string });
 }
 
+export interface QuotaInfo {
+  add?: { used: number; limit: number };
+  search?: { used: number; limit: number };
+}
+
 export declare class MengramClient {
   constructor(apiKey: string, options?: MengramOptions);
+
+  readonly quota: QuotaInfo;
 
   // Memory
   add(messages: Message[], options?: MemoryOptions): Promise<AddResult>;

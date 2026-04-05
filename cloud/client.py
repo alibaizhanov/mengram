@@ -67,6 +67,21 @@ class CloudMemory:
         self.api_key = api_key
         self.base_url = (base_url or self.DEFAULT_BASE_URL).rstrip("/")
 
+    @property
+    def quota(self) -> dict:
+        """Quota usage from last API response headers.
+        Returns e.g. {"add": {"used": 5, "limit": 30}, "search": {"used": 12, "limit": 100}}
+        """
+        h = getattr(self, '_last_headers', {})
+        result = {}
+        for action in ("add", "search"):
+            prefix = f"X-Quota-{action.capitalize()}"
+            used = h.get(f"{prefix}-Used")
+            limit = h.get(f"{prefix}-Limit")
+            if used is not None and limit is not None:
+                result[action] = {"used": int(used), "limit": int(limit)}
+        return result
+
     def _request(self, method: str, path: str, data: dict = None,
                  params: dict = None) -> dict:
         """Make authenticated API request with retry for transient errors."""
@@ -92,6 +107,7 @@ class CloudMemory:
             )
             try:
                 with urllib.request.urlopen(req) as resp:
+                    self._last_headers = resp.headers
                     return json.loads(resp.read())
             except urllib.error.HTTPError as e:
                 resp_body = e.read().decode()
@@ -233,6 +249,7 @@ class CloudMemory:
             )
             try:
                 with urllib.request.urlopen(req) as resp:
+                    self._last_headers = resp.headers
                     return json.loads(resp.read())
             except urllib.error.HTTPError as e:
                 resp_body = e.read().decode()

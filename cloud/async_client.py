@@ -57,6 +57,21 @@ class AsyncCloudMemory:
         self.base_url = (base_url or self.DEFAULT_BASE_URL).rstrip("/")
         self._client: Optional[httpx.AsyncClient] = None
 
+    @property
+    def quota(self) -> dict:
+        """Quota usage from last API response headers.
+        Returns e.g. {"add": {"used": 5, "limit": 30}, "search": {"used": 12, "limit": 100}}
+        """
+        h = getattr(self, '_last_headers', {})
+        result = {}
+        for action in ("add", "search"):
+            prefix = f"X-Quota-{action.capitalize()}"
+            used = h.get(f"{prefix}-Used")
+            limit = h.get(f"{prefix}-Limit")
+            if used is not None and limit is not None:
+                result[action] = {"used": int(used), "limit": int(limit)}
+        return result
+
     def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
             self._client = httpx.AsyncClient(
@@ -96,6 +111,7 @@ class AsyncCloudMemory:
                     json=data,
                     params=clean_params if clean_params else None,
                 )
+                self._last_headers = resp.headers
                 if resp.status_code == 402:
                     detail = resp.json().get("detail", {})
                     if isinstance(detail, dict):

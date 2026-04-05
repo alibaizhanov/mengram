@@ -29,6 +29,21 @@ class MengramClient {
     this.timeout = options.timeout || 30000;
   }
 
+  get quota() {
+    const h = this._lastHeaders;
+    if (!h) return {};
+    const result = {};
+    for (const action of ['add', 'search']) {
+      const prefix = `X-Quota-${action.charAt(0).toUpperCase() + action.slice(1)}`;
+      const used = h.get(`${prefix}-Used`);
+      const limit = h.get(`${prefix}-Limit`);
+      if (used !== null && limit !== null) {
+        result[action] = { used: parseInt(used), limit: parseInt(limit) };
+      }
+    }
+    return result;
+  }
+
   async _request(method, path, body = null, params = null) {
     let url = `${this.baseUrl}${path}`;
 
@@ -59,6 +74,7 @@ class MengramClient {
         });
 
         const data = await res.json();
+        this._lastHeaders = res.headers;
         if (!res.ok) {
           // Retry on transient errors
           if ([429, 502, 503, 504].includes(res.status) && attempt < 2) {
@@ -207,6 +223,7 @@ class MengramClient {
         });
 
         const data = await res.json();
+        this._lastHeaders = res.headers;
         if (!res.ok) {
           if ([429, 502, 503, 504].includes(res.status) && attempt < 2) {
             lastErr = new MengramError(data.detail || `HTTP ${res.status}`, res.status);
