@@ -62,7 +62,7 @@ class MengramClient {
       'Content-Type': 'application/json',
     };
 
-    const RETRY_STATUSES = [429, 500, 502, 503];
+    const RETRY_STATUSES = [429, 500, 502, 503, 504];
     const maxAttempts = this.retries;
     let lastErr;
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -217,7 +217,7 @@ class MengramClient {
     if (options.runId) formData.append('run_id', options.runId);
     if (options.appId) formData.append('app_id', options.appId);
 
-    const RETRY_STATUSES = [429, 500, 502, 503];
+    const RETRY_STATUSES = [429, 500, 502, 503, 504];
     const maxAttempts = this.retries;
     let lastErr;
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
