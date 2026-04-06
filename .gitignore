@@ -37,6 +37,7 @@ benchmarks/results/
 
 # Local scripts (may contain API keys)
 scripts/
+!integrations/openclaw/scripts/
 
 # OS
 .DS_Store

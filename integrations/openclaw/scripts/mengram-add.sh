@@ -32,7 +32,13 @@ RESPONSE=$(curl -s -w "\n%{http_code}" \
 HTTP_CODE=$(echo "$RESPONSE" | tail -1)
 BODY=$(echo "$RESPONSE" | sed '$d')
 
-if [ "$HTTP_CODE" -ne 200 ] && [ "$HTTP_CODE" -ne 202 ]; then
+if [ "$HTTP_CODE" -eq 402 ]; then
+  UPGRADE_URL=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d.get('detail',{}).get('upgrade_url','https://mengram.io/dashboard'))" "$BODY" 2>/dev/null || echo "https://mengram.io/dashboard")
+  PLAN=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d.get('detail',{}).get('plan','free'))" "$BODY" 2>/dev/null || echo "free")
+  LIMIT=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d.get('detail',{}).get('limit',30))" "$BODY" 2>/dev/null || echo "30")
+  echo "IMPORTANT — TELL THE USER: Memory limit reached. The ${PLAN} plan allows ${LIMIT} adds/month and they are all used up. New memories are NOT being saved. Ask the user to upgrade at: ${UPGRADE_URL}"
+  exit 1
+elif [ "$HTTP_CODE" -ne 200 ] && [ "$HTTP_CODE" -ne 202 ]; then
   echo "ERROR: Mengram API returned HTTP ${HTTP_CODE}"
   echo "$BODY"
   exit 1
