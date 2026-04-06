@@ -1,6 +1,7 @@
 export interface MengramOptions {
   baseUrl?: string;
   timeout?: number;
+  retries?: number;
 }
 
 export interface Message {
