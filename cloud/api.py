@@ -1200,25 +1200,34 @@ m = Mengram("your-api-key")
 m.add("I love hiking in the mountains")</code></pre>
                     </div>
                     <p style="font-size:14px;color:#8888a8">That's it — 3 lines to give your AI persistent memory.</p>
+                    <p style="font-size:14px;color:#8888a8;margin-top:16px">Prefer zero-code? Run <code style="color:#22c55e">mengram setup</code> for Claude Code hooks, add Mengram to <a href="https://docs.mengram.io/openclaw" style="color:#7c3aed">OpenClaw</a>, or use the <a href="https://docs.mengram.io/mcp-server" style="color:#7c3aed">MCP server</a>.</p>
                     <div style="text-align:center;margin:24px 0">
                         <a href="https://docs.mengram.io/quickstart" style="background:#7c3aed;color:white;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Read quickstart guide</a>
                     </div>"""
 
             elif drip_type == "completed_72h":
-                subject = "3 ways to use Mengram"
+                subject = "5 ways to use Mengram"
                 body = """
-                    <p style="font-size:15px;color:#c8c8d8;line-height:1.6">Haven't tried Mengram yet? Here are 3 popular ways to get started:</p>
+                    <p style="font-size:15px;color:#c8c8d8;line-height:1.6">Haven't tried Mengram yet? Here are 5 popular ways to get started:</p>
                     <div style="margin:20px 0">
                         <div style="background:#12121e;border:1px solid #1a1a2e;border-radius:10px;padding:18px;margin:12px 0">
-                            <p style="color:#a78bfa;font-weight:600;margin:0 0 8px">1. MCP Server — works with Claude, Cursor, Windsurf</p>
-                            <p style="color:#8888a8;font-size:13px;margin:0">Add memory to any AI tool with zero code.</p>
+                            <p style="color:#a78bfa;font-weight:600;margin:0 0 8px">1. Claude Code Hooks</p>
+                            <p style="color:#8888a8;font-size:13px;margin:0">Auto-save and auto-recall memory in Claude Code. Run <code style="color:#22c55e">mengram setup</code> to install.</p>
                         </div>
                         <div style="background:#12121e;border:1px solid #1a1a2e;border-radius:10px;padding:18px;margin:12px 0">
-                            <p style="color:#a78bfa;font-weight:600;margin:0 0 8px">2. Python / JavaScript SDK</p>
+                            <p style="color:#a78bfa;font-weight:600;margin:0 0 8px">2. OpenClaw Plugin</p>
+                            <p style="color:#8888a8;font-size:13px;margin:0">12 tools for AI agents — auto-recall, auto-capture, Graph RAG across all channels.</p>
+                        </div>
+                        <div style="background:#12121e;border:1px solid #1a1a2e;border-radius:10px;padding:18px;margin:12px 0">
+                            <p style="color:#a78bfa;font-weight:600;margin:0 0 8px">3. MCP Server — works with Claude, Cursor, Windsurf</p>
+                            <p style="color:#8888a8;font-size:13px;margin:0">29 tools to add memory to any AI tool with zero code.</p>
+                        </div>
+                        <div style="background:#12121e;border:1px solid #1a1a2e;border-radius:10px;padding:18px;margin:12px 0">
+                            <p style="color:#a78bfa;font-weight:600;margin:0 0 8px">4. Python / JavaScript SDK</p>
                             <p style="color:#8888a8;font-size:13px;margin:0">Build apps with persistent AI memory in a few lines.</p>
                         </div>
                         <div style="background:#12121e;border:1px solid #1a1a2e;border-radius:10px;padding:18px;margin:12px 0">
-                            <p style="color:#a78bfa;font-weight:600;margin:0 0 8px">3. n8n / REST API</p>
+                            <p style="color:#a78bfa;font-weight:600;margin:0 0 8px">5. n8n / REST API</p>
                             <p style="color:#8888a8;font-size:13px;margin:0">Automate memory with workflows or direct API calls.</p>
                         </div>
                     </div>
@@ -1229,14 +1238,20 @@ m.add("I love hiking in the mountains")</code></pre>
             elif drip_type == "completed_7d":
                 subject = "Your memory vault is empty"
                 body = """
-                    <p style="font-size:15px;color:#c8c8d8;line-height:1.6">Your Mengram vault is still empty. Add your first memory and see the magic:</p>
+                    <p style="font-size:15px;color:#c8c8d8;line-height:1.6">Your Mengram vault is still empty. Here's the easiest way to start:</p>
                     <div style="background:#12121e;border:1px solid #1a1a2e;border-radius:10px;padding:18px;margin:20px 0">
-                        <p style="color:#a78bfa;font-weight:600;margin:0 0 8px">Try it right now</p>
+                        <p style="color:#a78bfa;font-weight:600;margin:0 0 8px">Claude Code (one command)</p>
+                        <pre style="margin:0;font-size:13px;color:#22c55e;white-space:pre-wrap"><code>mengram setup</code></pre>
+                        <p style="color:#8888a8;font-size:12px;margin:8px 0 0">Auto-saves and auto-recalls memory in every session.</p>
+                    </div>
+                    <div style="background:#12121e;border:1px solid #1a1a2e;border-radius:10px;padding:18px;margin:12px 0">
+                        <p style="color:#a78bfa;font-weight:600;margin:0 0 8px">Or use the REST API</p>
                         <pre style="margin:0;font-size:13px;color:#22c55e;white-space:pre-wrap"><code>curl -X POST https://mengram.io/v1/add \\
   -H "Authorization: Bearer YOUR_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{"messages":[{"role":"user","content":"I like coffee"}]}'</code></pre>
                     </div>
+                    <p style="font-size:14px;color:#8888a8">Also works with <a href="https://docs.mengram.io/openclaw" style="color:#7c3aed">OpenClaw</a>, <a href="https://docs.mengram.io/mcp-server" style="color:#7c3aed">MCP</a>, <a href="https://docs.mengram.io/langchain" style="color:#7c3aed">LangChain</a>, and <a href="https://docs.mengram.io/crewai" style="color:#7c3aed">CrewAI</a>.</p>
                     <div style="text-align:center;margin:24px 0">
                         <a href="https://mengram.io/dashboard" style="background:#7c3aed;color:white;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Open dashboard</a>
                     </div>"""

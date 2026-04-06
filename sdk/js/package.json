@@ -1,7 +1,7 @@
 {
   "name": "mengram-ai",
   "version": "2.22.0",
-  "description": "Human-like memory for AI — auto-save, auto-recall, cognitive profile. Claude Code hooks, MCP server (29 tools), semantic/episodic/procedural memory. Free Mem0 alternative.",
+  "description": "Human-like memory for AI agents — auto-save, auto-recall, cognitive profile. Claude Code hooks, MCP server (29 tools), OpenClaw plugin, semantic/episodic/procedural memory. Free Mem0 alternative.",
   "main": "index.js",
   "types": "index.d.ts",
   "license": "Apache-2.0",
@@ -10,7 +10,7 @@
     "url": "https://github.com/alibaizhanov/mengram"
   },
   "homepage": "https://mengram.io",
-  "keywords": ["ai", "memory", "llm", "agents", "knowledge-graph", "mcp", "mengram", "semantic-search", "episodic-memory", "procedural-memory", "cognitive-profile", "rag", "embeddings", "mem0-alternative", "webhooks", "second-brain", "claude-code", "auto-memory", "hooks"],
+  "keywords": ["ai", "memory", "llm", "agents", "knowledge-graph", "mcp", "mengram", "semantic-search", "episodic-memory", "procedural-memory", "cognitive-profile", "rag", "embeddings", "mem0-alternative", "webhooks", "second-brain", "claude-code", "auto-memory", "hooks", "openclaw", "ai-agents"],
   "author": "Ali Baizhanov",
   "files": ["index.js", "index.d.ts", "README.md"]
 }
