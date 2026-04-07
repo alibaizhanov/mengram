@@ -977,17 +977,19 @@ class CloudStore:
                             WHERE f2.entity_id = r.canonical_id AND f2.content = facts.content
                         );
                         DELETE FROM facts WHERE entity_id = ANY(r.ids[2:]);
-                        -- Move relations (source)
+                        -- Move relations (source), skip self-relations
                         UPDATE relations SET source_id = r.canonical_id
                         WHERE source_id = ANY(r.ids[2:])
+                        AND target_id != r.canonical_id
                         AND NOT EXISTS (
                             SELECT 1 FROM relations r2
                             WHERE r2.source_id = r.canonical_id AND r2.target_id = relations.target_id AND r2.type = relations.type
                         );
                         DELETE FROM relations WHERE source_id = ANY(r.ids[2:]);
-                        -- Move relations (target)
+                        -- Move relations (target), skip self-relations
                         UPDATE relations SET target_id = r.canonical_id
                         WHERE target_id = ANY(r.ids[2:])
+                        AND source_id != r.canonical_id
                         AND NOT EXISTS (
                             SELECT 1 FROM relations r2
                             WHERE r2.source_id = relations.source_id AND r2.target_id = r.canonical_id AND r2.type = relations.type
@@ -1579,24 +1581,26 @@ class CloudStore:
                 (target_id, source_id)
             )
 
-            # Move relations — update source_id references
+            # Move relations — update source_id references (skip self-relations)
             cur.execute(
-                """UPDATE relations SET source_id = %s 
-                   WHERE source_id = %s 
+                """UPDATE relations SET source_id = %s
+                   WHERE source_id = %s
+                   AND target_id != %s
                    AND NOT EXISTS (
-                       SELECT 1 FROM relations r2 
+                       SELECT 1 FROM relations r2
                        WHERE r2.source_id = %s AND r2.target_id = relations.target_id AND r2.type = relations.type
                    )""",
-                (target_id, source_id, target_id)
+                (target_id, source_id, target_id, target_id)
             )
             cur.execute(
-                """UPDATE relations SET target_id = %s 
-                   WHERE target_id = %s 
+                """UPDATE relations SET target_id = %s
+                   WHERE target_id = %s
+                   AND source_id != %s
                    AND NOT EXISTS (
-                       SELECT 1 FROM relations r2 
+                       SELECT 1 FROM relations r2
                        WHERE r2.source_id = relations.source_id AND r2.target_id = %s AND r2.type = relations.type
                    )""",
-                (target_id, source_id, target_id)
+                (target_id, source_id, target_id, target_id)
             )
 
             # Move embeddings
