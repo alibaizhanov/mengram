@@ -63,6 +63,12 @@ FILE_SIZE_LIMITS = {
 ALLOWED_EXTENSIONS = {"pdf", "docx", "txt", "md"}
 VISION_MODEL = os.environ.get("VISION_MODEL", "gpt-5.4")
 
+# ---- Version (single source of truth from pyproject.toml) ----
+try:
+    from importlib.metadata import version as _pkg_version
+    __version__ = _pkg_version("mengram-ai")
+except Exception:
+    __version__ = "2.23.0"  # fallback for dev/docker
 
 # ---- Config ----
 
@@ -72,6 +78,8 @@ DATABASE_URL = os.environ.get(
 )
 REDIS_URL = os.environ.get("REDIS_PUBLIC_URL") or os.environ.get("REDIS_URL")
 EMAIL_FROM = os.environ.get("EMAIL_FROM", "Mengram <onboarding@resend.dev>")
+BASE_URL = os.environ.get("BASE_URL", "https://mengram.io").rstrip("/")
+DISABLE_EMAIL_VERIFICATION = os.environ.get("DISABLE_EMAIL_VERIFICATION", "").lower() in ("true", "1", "yes")
 DEMO_USER_ID = os.environ.get("DEMO_USER_ID", "")
 
 # ---- Models ----
@@ -218,7 +226,7 @@ results = m.search_all("deployment")  # semantic + episodic + procedural
 profile = m.get_profile()             # instant system prompt
 ```
         """,
-        version="2.21.2",
+        version=__version__,
         docs_url="/swagger",
         redoc_url="/redoc",
         openapi_tags=[
@@ -627,11 +635,11 @@ Be strict — only include entities that directly answer or relate to the query.
         retry_after = _quota_month_end_ttl()
         # Build direct one-click checkout URL (same as quota email)
         next_plan_key = {"free": "starter", "starter": "pro", "pro": "growth", "growth": "business"}.get(plan, "starter")
-        upgrade_url = "https://mengram.io/#pricing"
+        upgrade_url = f"{BASE_URL}/#pricing"
         if user_id:
             token = _sign_checkout_token(user_id, next_plan_key)
             if token:
-                upgrade_url = f"https://mengram.io/checkout?token={token}"
+                upgrade_url = f"{BASE_URL}/checkout?token={token}"
         next_plan = NEXT_PLAN_INFO.get(plan)
         upgrade_msg = f"Upgrade to {next_plan['name']} ({next_plan['price']})" if next_plan else "Upgrade your plan"
         # Value mirror: show intelligence summary so clients can display accumulated value
@@ -712,7 +720,7 @@ Be strict — only include entities that directly answer or relate to the query.
             next_limit = next_plan["adds"] if action == "add" else next_plan["searches"]
             next_plan_key = {"free": "starter", "starter": "pro", "pro": "growth", "growth": "business"}.get(plan, "starter")
             checkout_token = _sign_checkout_token(user_id, next_plan_key)
-            checkout_url = f"https://mengram.io/checkout?token={checkout_token}"
+            checkout_url = f"{BASE_URL}/checkout?token={checkout_token}"
             body_html = f"""
             <p style="font-size:15px;color:#c8c8d8;line-height:1.6">
                 You've used all {max_allowed:,} {action_label} on your {plan} plan this month.
@@ -748,7 +756,7 @@ Be strict — only include entities that directly answer or relate to the query.
             {body_html}
             <hr style="border:none;border-top:1px solid #1a1a2e;margin:28px 0">
             <p style="font-size:12px;color:#55556a;text-align:center">
-                <a href="https://mengram.io/dashboard" style="color:#7c3aed;text-decoration:none">Console</a> &middot;
+                <a href="{BASE_URL}/dashboard" style="color:#7c3aed;text-decoration:none">Console</a> &middot;
                 <a href="https://docs.mengram.io" style="color:#7c3aed;text-decoration:none">Docs</a> &middot;
                 <a href="https://github.com/alibaizhanov/mengram" style="color:#7c3aed;text-decoration:none">GitHub</a>
             </p>
@@ -791,7 +799,7 @@ Be strict — only include entities that directly answer or relate to the query.
         if next_plan:
             next_plan_key = {"free": "starter", "starter": "pro", "pro": "growth", "growth": "business"}.get(plan, "starter")
             checkout_token = _sign_checkout_token(user_id, next_plan_key)
-            checkout_url = f"https://mengram.io/checkout?token={checkout_token}"
+            checkout_url = f"{BASE_URL}/checkout?token={checkout_token}"
             next_limit = next_plan["adds"] if action == "add" else next_plan["searches"]
             upgrade_html = f"""
             <div style="text-align:center;margin:24px 0">
@@ -819,7 +827,7 @@ Be strict — only include entities that directly answer or relate to the query.
             <p style="font-size:13px;color:#55556a;margin-top:20px">Your limits reset at the start of each month.</p>
             <hr style="border:none;border-top:1px solid #1a1a2e;margin:28px 0">
             <p style="font-size:12px;color:#55556a;text-align:center">
-                <a href="https://mengram.io/dashboard" style="color:#7c3aed;text-decoration:none">Console</a> &middot;
+                <a href="{BASE_URL}/dashboard" style="color:#7c3aed;text-decoration:none">Console</a> &middot;
                 <a href="https://docs.mengram.io" style="color:#7c3aed;text-decoration:none">Docs</a> &middot;
                 <a href="https://github.com/alibaizhanov/mengram" style="color:#7c3aed;text-decoration:none">GitHub</a>
             </p>
@@ -963,7 +971,7 @@ Be strict — only include entities that directly answer or relate to the query.
                 <p style="font-size:13px;color:#ef4444;font-weight:600">Save this key — it won't be shown again.</p>
                 <hr style="border:none;border-top:1px solid #1a1a2e;margin:28px 0">
                 <p style="font-size:12px;color:#55556a;text-align:center">
-                    <a href="https://mengram.io/dashboard" style="color:#7c3aed;text-decoration:none">Console</a> ·
+                    <a href="{BASE_URL}/dashboard" style="color:#7c3aed;text-decoration:none">Console</a> ·
                     <a href="https://docs.mengram.io" style="color:#7c3aed;text-decoration:none">Docs</a> ·
                     <a href="https://github.com/alibaizhanov/mengram" style="color:#7c3aed;text-decoration:none">GitHub</a>
                 </p>
@@ -988,16 +996,16 @@ Be strict — only include entities that directly answer or relate to the query.
                     <p style="color:#a78bfa;font-weight:700;font-size:16px;margin:0 0 10px">Try it now — 10 seconds</p>
                     <p style="color:#8888a8;font-size:12px;margin:0 0 12px">Save an agent conversation:</p>
                     <div style="background:#12121e;border:1px solid #1a1a2e;border-radius:8px;padding:14px;text-align:left">
-                        <code style="font-size:12px;color:#22c55e;word-break:break-all;line-height:1.6">curl -X POST https://mengram.io/v1/add -H "Authorization: Bearer {api_key}" -H "Content-Type: application/json" -d '{{"messages":[{{"role":"user","content":"Fix the auth timeout bug"}},{{"role":"assistant","content":"Fixed. Token TTL was 5min, changed to 30min."}}],"agent_id":"coding-assistant"}}'</code>
+                        <code style="font-size:12px;color:#22c55e;word-break:break-all;line-height:1.6">curl -X POST {BASE_URL}/v1/add -H "Authorization: Bearer {api_key}" -H "Content-Type: application/json" -d '{{"messages":[{{"role":"user","content":"Fix the auth timeout bug"}},{{"role":"assistant","content":"Fixed. Token TTL was 5min, changed to 30min."}}],"agent_id":"coding-assistant"}}'</code>
                     </div>
                     <p style="color:#8888a8;font-size:12px;margin:10px 0 0">Recall on the next run:</p>
                     <div style="background:#12121e;border:1px solid #1a1a2e;border-radius:8px;padding:14px;margin-top:8px;text-align:left">
-                        <code style="font-size:12px;color:#22c55e;word-break:break-all;line-height:1.6">curl -X POST https://mengram.io/v1/search -H "Authorization: Bearer {api_key}" -H "Content-Type: application/json" -d '{{"query":"auth timeout","agent_id":"coding-assistant"}}'</code>
+                        <code style="font-size:12px;color:#22c55e;word-break:break-all;line-height:1.6">curl -X POST {BASE_URL}/v1/search -H "Authorization: Bearer {api_key}" -H "Content-Type: application/json" -d '{{"query":"auth timeout","agent_id":"coding-assistant"}}'</code>
                     </div>
                 </div>
 
                 <div style="text-align:center;margin:24px 0">
-                    <a href="https://mengram.io/dashboard" style="background:#7c3aed;color:white;padding:14px 32px;border-radius:10px;text-decoration:none;font-size:15px;font-weight:700;display:inline-block">Open Dashboard</a>
+                    <a href="{BASE_URL}/dashboard" style="background:#7c3aed;color:white;padding:14px 32px;border-radius:10px;text-decoration:none;font-size:15px;font-weight:700;display:inline-block">Open Dashboard</a>
                 </div>
 
                 <div style="margin:24px 0">
@@ -1026,7 +1034,7 @@ m.search("query", agent_id="my-agent")</code></pre>
                 <p style="font-size:14px;color:#c8c8d8;margin:0 0 20px">— Ali</p>
                 <p style="font-size:12px;color:#55556a;text-align:center">
                     <a href="https://docs.mengram.io" style="color:#7c3aed;text-decoration:none">Docs</a> ·
-                    <a href="https://mengram.io/dashboard" style="color:#7c3aed;text-decoration:none">Dashboard</a> ·
+                    <a href="{BASE_URL}/dashboard" style="color:#7c3aed;text-decoration:none">Dashboard</a> ·
                     <a href="https://github.com/alibaizhanov/mengram" style="color:#7c3aed;text-decoration:none">GitHub</a>
                 </p>
             </div>
@@ -1128,7 +1136,7 @@ m.search("query", agent_id="my-agent")</code></pre>
         """Send 6-digit verification code via Resend."""
         resend_key = os.environ.get("RESEND_API_KEY")
         if not resend_key:
-            logger.warning("⚠️  RESEND_API_KEY not set, cannot send verification code")
+            logger.warning(f"⚠️  RESEND_API_KEY not set — verification code for {email}: {code}")
             return
         try:
             import resend
@@ -1165,7 +1173,7 @@ m.search("query", agent_id="my-agent")</code></pre>
             resend.api_key = resend_key
 
             import urllib.parse as _urlparse
-            unsub_url = f"https://mengram.io/unsubscribe?email={_urlparse.quote(email)}"
+            unsub_url = f"{BASE_URL}/unsubscribe?email={_urlparse.quote(email)}"
 
             # Common email wrapper
             def _wrap(subject: str, body_html: str):
@@ -1178,7 +1186,7 @@ m.search("query", agent_id="my-agent")</code></pre>
                     {body_html}
                     <hr style="border:none;border-top:1px solid #1a1a2e;margin:28px 0">
                     <p style="font-size:12px;color:#55556a;text-align:center">
-                        <a href="https://mengram.io/dashboard" style="color:#7c3aed;text-decoration:none">Console</a> &middot;
+                        <a href="{BASE_URL}/dashboard" style="color:#7c3aed;text-decoration:none">Console</a> &middot;
                         <a href="https://docs.mengram.io" style="color:#7c3aed;text-decoration:none">Docs</a> &middot;
                         <a href="https://github.com/alibaizhanov/mengram" style="color:#7c3aed;text-decoration:none">GitHub</a>
                     </p>
@@ -1237,7 +1245,7 @@ m.add("I love hiking in the mountains")</code></pre>
 
             elif drip_type == "completed_7d":
                 subject = "Your memory vault is empty"
-                body = """
+                body = f"""
                     <p style="font-size:15px;color:#c8c8d8;line-height:1.6">Your Mengram vault is still empty. Here's the easiest way to start:</p>
                     <div style="background:#12121e;border:1px solid #1a1a2e;border-radius:10px;padding:18px;margin:20px 0">
                         <p style="color:#a78bfa;font-weight:600;margin:0 0 8px">Claude Code (one command)</p>
@@ -1246,14 +1254,14 @@ m.add("I love hiking in the mountains")</code></pre>
                     </div>
                     <div style="background:#12121e;border:1px solid #1a1a2e;border-radius:10px;padding:18px;margin:12px 0">
                         <p style="color:#a78bfa;font-weight:600;margin:0 0 8px">Or use the REST API</p>
-                        <pre style="margin:0;font-size:13px;color:#22c55e;white-space:pre-wrap"><code>curl -X POST https://mengram.io/v1/add \\
+                        <pre style="margin:0;font-size:13px;color:#22c55e;white-space:pre-wrap"><code>curl -X POST {BASE_URL}/v1/add \\
   -H "Authorization: Bearer YOUR_KEY" \\
   -H "Content-Type: application/json" \\
-  -d '{"messages":[{"role":"user","content":"I like coffee"}]}'</code></pre>
+  -d '{{"messages":[{{"role":"user","content":"I like coffee"}}]}}'</code></pre>
                     </div>
                     <p style="font-size:14px;color:#8888a8">Also works with <a href="https://docs.mengram.io/openclaw" style="color:#7c3aed">OpenClaw</a>, <a href="https://docs.mengram.io/mcp-server" style="color:#7c3aed">MCP</a>, <a href="https://docs.mengram.io/langchain" style="color:#7c3aed">LangChain</a>, and <a href="https://docs.mengram.io/crewai" style="color:#7c3aed">CrewAI</a>.</p>
                     <div style="text-align:center;margin:24px 0">
-                        <a href="https://mengram.io/dashboard" style="background:#7c3aed;color:white;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Open dashboard</a>
+                        <a href="{BASE_URL}/dashboard" style="background:#7c3aed;color:white;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Open dashboard</a>
                     </div>"""
 
             elif drip_type == "incomplete_1h":
@@ -1263,7 +1271,7 @@ m.add("I love hiking in the mountains")</code></pre>
                     <div style="background:#f5f5f7;padding:16px 24px;border-radius:8px;text-align:center;margin:20px 0">
                         <span style="font-size:32px;font-weight:700;letter-spacing:8px;color:#1a1a2e">{code}</span>
                     </div>
-                    <p style="color:#8888a8;font-size:14px">This code expires in 10 minutes. Enter it at <a href="https://mengram.io/dashboard" style="color:#7c3aed">mengram.io/dashboard</a>.</p>"""
+                    <p style="color:#8888a8;font-size:14px">This code expires in 10 minutes. Enter it at <a href="{BASE_URL}/dashboard" style="color:#7c3aed">mengram.io/dashboard</a>.</p>"""
 
             elif drip_type == "incomplete_24h":
                 subject = "Still want to try Mengram?"
@@ -1272,32 +1280,32 @@ m.add("I love hiking in the mountains")</code></pre>
                     <div style="background:#f5f5f7;padding:16px 24px;border-radius:8px;text-align:center;margin:20px 0">
                         <span style="font-size:32px;font-weight:700;letter-spacing:8px;color:#1a1a2e">{code}</span>
                     </div>
-                    <p style="color:#8888a8;font-size:14px">This code expires in 10 minutes. Enter it at <a href="https://mengram.io/dashboard" style="color:#7c3aed">mengram.io/dashboard</a>.</p>
+                    <p style="color:#8888a8;font-size:14px">This code expires in 10 minutes. Enter it at <a href="{BASE_URL}/dashboard" style="color:#7c3aed">mengram.io/dashboard</a>.</p>
                     <p style="color:#55556a;font-size:12px;margin-top:16px">This is the last reminder we'll send.</p>"""
 
             elif drip_type == "added_no_search":
                 subject = "You added memories — now try searching them"
-                body = """
+                body = f"""
                     <p style="font-size:15px;color:#c8c8d8;line-height:1.6">You've been adding memories to Mengram — great start! But you haven't searched yet.</p>
                     <p style="font-size:15px;color:#c8c8d8;line-height:1.6">The real value kicks in when your AI can <strong style="color:#a78bfa">retrieve</strong> what it learned. Try it:</p>
                     <div style="background:#12121e;border:1px solid #1a1a2e;border-radius:10px;padding:18px;margin:20px 0">
-                        <pre style="margin:0;font-size:13px;color:#22c55e;white-space:pre-wrap"><code>curl -X POST https://mengram.io/v1/search \\
+                        <pre style="margin:0;font-size:13px;color:#22c55e;white-space:pre-wrap"><code>curl -X POST {BASE_URL}/v1/search \\
   -H "Authorization: Bearer YOUR_KEY" \\
   -H "Content-Type: application/json" \\
-  -d '{"query": "what do I know about..."}'</code></pre>
+  -d '{{"query": "what do I know about..."}}'</code></pre>
                     </div>
-                    <p style="font-size:14px;color:#8888a8">Or use the search bar in your <a href="https://mengram.io/dashboard" style="color:#7c3aed">dashboard</a>.</p>"""
+                    <p style="font-size:14px;color:#8888a8">Or use the search bar in your <a href="{BASE_URL}/dashboard" style="color:#7c3aed">dashboard</a>.</p>"""
 
             elif drip_type == "searched_no_add":
                 subject = "Your search returned empty — here's why"
-                body = """
+                body = f"""
                     <p style="font-size:15px;color:#c8c8d8;line-height:1.6">You've been searching Mengram, but your memory vault is empty — that's why you're getting no results.</p>
                     <p style="font-size:15px;color:#c8c8d8;line-height:1.6">Add your first memory and search will start working:</p>
                     <div style="background:#12121e;border:1px solid #1a1a2e;border-radius:10px;padding:18px;margin:20px 0">
-                        <pre style="margin:0;font-size:13px;color:#22c55e;white-space:pre-wrap"><code>curl -X POST https://mengram.io/v1/add \\
+                        <pre style="margin:0;font-size:13px;color:#22c55e;white-space:pre-wrap"><code>curl -X POST {BASE_URL}/v1/add \\
   -H "Authorization: Bearer YOUR_KEY" \\
   -H "Content-Type: application/json" \\
-  -d '{"messages":[{"role":"user","content":"I like coffee"}]}'</code></pre>
+  -d '{{"messages":[{{"role":"user","content":"I like coffee"}}]}}'</code></pre>
                     </div>
                     <p style="font-size:14px;color:#8888a8">Mengram extracts entities, facts, and relationships — then search finds them semantically.</p>
                     <div style="text-align:center;margin:24px 0">
@@ -1306,12 +1314,12 @@ m.add("I love hiking in the mountains")</code></pre>
 
             elif drip_type == "churned_7d":
                 subject = "Your Mengram memory is waiting"
-                body = """
+                body = f"""
                     <p style="font-size:15px;color:#c8c8d8;line-height:1.6">Hi,</p>
                     <p style="font-size:15px;color:#c8c8d8;line-height:1.6">Your Mengram account has been quiet for a while. Everything ok?</p>
                     <p style="font-size:15px;color:#c8c8d8;line-height:1.6">Your memories are still here — facts, events, and workflows your agents built up. They're ready whenever you are.</p>
                     <div style="text-align:center;margin:24px 0">
-                        <a href="https://mengram.io/dashboard" style="background:#7c3aed;color:white;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Open Dashboard</a>
+                        <a href="{BASE_URL}/dashboard" style="background:#7c3aed;color:white;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Open Dashboard</a>
                     </div>
                     <p style="font-size:13px;color:#8888a8">If you ran into any issues or have feedback, just reply to this email.</p>"""
 
@@ -1338,7 +1346,9 @@ m.add("I love hiking in the mountains")</code></pre>
     async def landing():
         """Landing page."""
         landing_path = Path(__file__).parent / "landing.html"
-        return landing_path.read_text(encoding="utf-8")
+        html = landing_path.read_text(encoding="utf-8")
+        html = html.replace("{{VERSION}}", __version__)
+        return html
 
     @app.get("/pricing")
     async def pricing():
@@ -4357,6 +4367,14 @@ m.delete_webhook(webhook_id=1)</code></pre>
         if existing:
             raise HTTPException(status_code=409, detail="Email already registered")
 
+        # Self-hosted: skip email verification, create account immediately
+        if DISABLE_EMAIL_VERIFICATION:
+            user_id = store.create_user(email)
+            api_key = store.create_api_key(user_id)
+            _seed_initial_memory(user_id, email)
+            logger.info(f"✅ Account created (email verification disabled) for {email}")
+            return {"message": "Account created! Save your API key.", "api_key": api_key}
+
         # Generate and send 6-digit OTP
         code = f"{secrets.randbelow(900000) + 100000}"
         store.save_email_code(email, code)
@@ -4416,6 +4434,12 @@ m.delete_webhook(webhook_id=1)</code></pre>
         # Don't reveal whether email exists — always say "code sent"
         user_id = store.get_user_by_email(email)
         if user_id:
+            # Self-hosted: skip verification, reset key immediately
+            if DISABLE_EMAIL_VERIFICATION:
+                new_key = store.reset_api_key(user_id)
+                logger.info(f"✅ API key reset (email verification disabled) for {email}")
+                return {"message": "New API key generated.", "api_key": new_key}
+
             code = f"{secrets.randbelow(900000) + 100000}"
             store.save_email_code(email, code)
             _send_verification_email(email, code)
@@ -4469,7 +4493,7 @@ m.delete_webhook(webhook_id=1)</code></pre>
         github_url = (
             f"https://github.com/login/oauth/authorize"
             f"?client_id={GITHUB_CLIENT_ID}"
-            f"&redirect_uri=https://mengram.io/auth/github/callback"
+            f"&redirect_uri={BASE_URL}/auth/github/callback"
             f"&scope=user:email"
             f"&state={state}"
         )
@@ -4947,10 +4971,11 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             "scope": "read write",
         }
 
+    @app.get("/health", include_in_schema=False)
     @app.get("/v1/health", tags=["System"])
     async def health(authorization: str = Header(None)):
         """Health check. Returns basic status for unauthenticated, detailed diagnostics for authenticated."""
-        result = {"status": "ok", "version": "2.21.2"}
+        result = {"status": "ok", "version": __version__}
 
         # Only expose detailed diagnostics to authenticated users
         if authorization:
@@ -5474,7 +5499,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                             "error": "quota_exceeded", "action": "sub_users",
                             "limit": max_sub_users, "used": distinct_sub_users, "plan": ctx.plan,
                             "message": f"Sub-user limit reached ({max_sub_users}). Upgrade your plan.",
-                            "upgrade_url": "https://mengram.io/#pricing",
+                            "upgrade_url": f"{BASE_URL}/#pricing",
                         })
         job_id = store.create_job(user_id, "add")
         # Build metadata from categories + provenance
@@ -5690,7 +5715,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                     "limit_mb": max_mb,
                     "plan": ctx.plan,
                     "message": f"File exceeds {max_mb}MB limit for {ctx.plan} plan. "
-                               f"Upgrade at https://mengram.io/#pricing",
+                               f"Upgrade at {BASE_URL}/#pricing",
                 },
             )
 
@@ -5756,7 +5781,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                             "plan": ctx.plan,
                             "message": f"Sub-user limit reached ({max_sub_users}). "
                                        f"Upgrade your plan.",
-                            "upgrade_url": "https://mengram.io/#pricing",
+                            "upgrade_url": f"{BASE_URL}/#pricing",
                         })
 
         # ---- Create job and return 202 ----
@@ -6272,7 +6297,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                     "error": "quota_exceeded", "action": "webhooks",
                     "limit": max_webhooks, "used": len(existing), "plan": ctx.plan,
                     "message": f"Webhook limit reached ({max_webhooks}). Upgrade your plan.",
-                    "upgrade_url": "https://mengram.io/#pricing",
+                    "upgrade_url": f"{BASE_URL}/#pricing",
                 })
 
         try:
@@ -6344,7 +6369,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                     "error": "quota_exceeded", "action": "teams",
                     "limit": max_teams, "used": len(owned), "plan": ctx.plan,
                     "message": f"Team limit reached ({max_teams}). Upgrade your plan.",
-                    "upgrade_url": "https://mengram.io/#pricing",
+                    "upgrade_url": f"{BASE_URL}/#pricing",
                 })
 
         team = store.create_team(user_id, name, req.get("description", ""))

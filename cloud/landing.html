@@ -2703,7 +2703,7 @@ POST /v1/add → {<span class="c-str">"messages"</span>: [...], <span class="c-s
         <!-- Footer -->
         <footer>
             <p>
-                Mengram — human-like memory for AI · v2.19.0
+                Mengram — human-like memory for AI · v{{VERSION}}
                 &nbsp;·&nbsp;
                 <a href="/blog">Blog</a>
                 &nbsp;·&nbsp;
@@ -2910,10 +2910,22 @@ POST /v1/add → {<span class="c-str">"messages"</span>: [...], <span class="c-s
             });
         })();
 
+        function _copyToClipboard(text) {
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text);
+            } else {
+                var ta = document.createElement('textarea');
+                ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+                document.body.appendChild(ta); ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+            }
+        }
+
         function copyCode(btn) {
             var box = btn.closest('.code-box');
             var code = box.querySelector('pre, code');
-            navigator.clipboard.writeText(code.textContent);
+            _copyToClipboard(code.textContent);
             btn.textContent = 'Copied!';
             setTimeout(function() { btn.textContent = 'Copy'; }, 2000);
 
@@ -2960,13 +2972,30 @@ POST /v1/add → {<span class="c-str">"messages"</span>: [...], <span class="c-s
                 const data = await resp.json();
 
                 if (resp.ok) {
-                    _signupEmail = email;
-                    document.getElementById("step-email").style.display = "none";
-                    document.getElementById("step-code").style.display = "flex";
-                    document.getElementById("signup-note").innerHTML = `Code sent to <strong>${esc(email)}</strong>. Check your inbox.`;
-                    result.className = "signup-result";
-                    result.innerHTML = "";
-                    document.getElementById("code-input").focus();
+                    if (data.api_key) {
+                        // Email verification disabled (self-hosted) — key returned directly
+                        document.getElementById("step-email").style.display = "none";
+                        document.getElementById("signup-note").style.display = "none";
+                        result.className = "signup-result show success";
+                        localStorage.setItem('mengram_key', data.api_key);
+                        result.innerHTML = `
+                            <strong style="color: var(--green);">Account created!</strong>
+                            <p style="margin-top:8px; color: var(--text-2); font-size:14px;">
+                                Your API key (save it — won't be shown again):
+                            </p>
+                            <div class="api-key-display">
+                                <span id="api-key-text">${esc(data.api_key)}</span>
+                                <button onclick="copyKey(event)">Copy</button>
+                            </div>`;
+                    } else {
+                        _signupEmail = email;
+                        document.getElementById("step-email").style.display = "none";
+                        document.getElementById("step-code").style.display = "flex";
+                        document.getElementById("signup-note").innerHTML = `Code sent to <strong>${esc(email)}</strong>. Check your inbox.`;
+                        result.className = "signup-result";
+                        result.innerHTML = "";
+                        document.getElementById("code-input").focus();
+                    }
                 } else {
                     result.className = "signup-result show error";
                     result.innerHTML = data.detail || "Something went wrong. Try again.";
@@ -3074,7 +3103,7 @@ POST /v1/add → {<span class="c-str">"messages"</span>: [...], <span class="c-s
 
         function copyKey(e) {
             const key = document.getElementById("api-key-text").textContent;
-            navigator.clipboard.writeText(key);
+            _copyToClipboard(key);
             const btn = e.target;
             btn.textContent = "Copied!";
             setTimeout(() => btn.textContent = "Copy", 2000);
@@ -3157,7 +3186,7 @@ POST /v1/add → {<span class="c-str">"messages"</span>: [...], <span class="c-s
 
         function copyCmd(btn) {
             const code = btn.parentElement.querySelector('code').textContent;
-            navigator.clipboard.writeText(code);
+            _copyToClipboard(code);
             const orig = btn.textContent;
             btn.textContent = 'Copied!';
             setTimeout(() => btn.textContent = orig, 1500);
