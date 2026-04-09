@@ -3114,10 +3114,24 @@ m.procedure_feedback(proc_id, success=False,
     }}
   ],
   "tools": [
-    {{"type": "agent_toolset_20260401"}},
-    {{"type": "mcp_toolset", "mcp_server_name": "mengram"}}
+    {{
+      "type": "agent_toolset_20260401",
+      "default_config": {{
+        "enabled": true,
+        "permission_policy": {{"type": "always_allow"}}
+      }}
+    }},
+    {{
+      "type": "mcp_toolset",
+      "mcp_server_name": "mengram",
+      "default_config": {{
+        "enabled": true,
+        "permission_policy": {{"type": "always_allow"}}
+      }}
+    }}
   ]
 }}</code></pre>
+<p><strong>Important:</strong> Set <code>permission_policy</code> to <code>always_allow</code> for the MCP toolset. The default (<code>always_ask</code>) requires manual tool confirmation — without it, memory tool calls will time out.</p>
 
 <h3>Step 3: Store your API key in a vault</h3>
 <p>Managed Agents use <a href="https://docs.anthropic.com/en/docs/agents/managed-agents#vaults">vaults</a> for secrets. Create a vault, add your Mengram API key as a <code>static_bearer</code> credential, then reference the vault when creating a session:</p>
@@ -3139,10 +3153,12 @@ client.beta.vaults.credentials.create(
     }},
 )
 
-# Create a session — Anthropic injects the token automatically
+# Create an environment and session
+env = client.beta.environments.create(display_name="Default")
 session = client.beta.sessions.create(
     agent=agent.id,
     vault_ids=[vault.id],
+    environment_id=env.id,
 )</code></pre>
 
 <h2>What your agent gets</h2>
@@ -3196,7 +3212,7 @@ session = client.beta.sessions.create(
 client = anthropic.Anthropic()
 
 # Create an agent with Mengram memory
-agent = client.agents.create(
+agent = client.beta.agents.create(
     name="support-agent",
     model="claude-sonnet-4-6",
     instructions="You are a customer support agent with persistent memory. "
@@ -3215,8 +3231,21 @@ agent = client.agents.create(
         }}
     ],
     tools=[
-        {{"type": "agent_toolset_20260401"}},
-        {{"type": "mcp_toolset", "mcp_server_name": "mengram"}}
+        {{
+            "type": "agent_toolset_20260401",
+            "default_config": {{
+                "enabled": True,
+                "permission_policy": {{"type": "always_allow"}}
+            }}
+        }},
+        {{
+            "type": "mcp_toolset",
+            "mcp_server_name": "mengram",
+            "default_config": {{
+                "enabled": True,
+                "permission_policy": {{"type": "always_allow"}}
+            }}
+        }}
     ]
 )
 
@@ -3232,23 +3261,22 @@ client.beta.vaults.credentials.create(
     }},
 )
 
-# Run a session — vault injects the API key automatically
+# Create environment and session
+env = client.beta.environments.create(display_name="Support")
 session = client.beta.sessions.create(
     agent=agent.id,
     vault_ids=[vault.id],
+    environment_id=env.id,
 )
 
-# Send a message
-turn = client.beta.turns.create(
-    agent_id=agent.id,
+# Send a message — agent recalls past context automatically
+client.beta.sessions.events.send(
     session_id=session.id,
-    messages=[{{
-        "role": "user",
-        "content": "I'm having trouble with my deployment again"
+    events=[{{
+        "type": "user.message",
+        "content": [{{"type": "text", "text": "I'm having trouble with my deployment again"}}]
     }}]
-)
-# Agent automatically recalls past deployment issues from Mengram
-# and uses learned procedures to help</code></pre>
+)</code></pre>
 
 <h2>Pricing</h2>
 <p>Mengram's free tier includes 30 memory adds and 100 searches per month — enough to prototype and test. Paid plans start at <strong>$5/month</strong> (Starter) with 100 adds and 500 searches. <a href="/#pricing">See all plans</a>.</p>
