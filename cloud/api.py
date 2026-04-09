@@ -7813,6 +7813,47 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         app.add_route("/mcp/messages/", _handle_mcp_messages, methods=["POST"])
         logger.info("✅ MCP HTTP (SSE) transport enabled at /mcp/sse")
 
+        # ---- Streamable HTTP transport (MCP 2025-03-26 spec) ----
+        try:
+            from mcp.server.streamable_http import StreamableHTTPServerTransport
+            import anyio
+
+            async def _handle_mcp_streamable(request: Request):
+                """Single endpoint for streamable HTTP MCP transport (POST/GET/DELETE)."""
+                key = _extract_mcp_key(request)
+                if not key:
+                    return _JSONResponse({"error": "Missing API key"}, status_code=401)
+                uid = store.verify_api_key(key)
+                if not uid:
+                    return _JSONResponse({"error": "Invalid API key"}, status_code=401)
+
+                base = os.environ.get("MENGRAM_URL", "https://mengram.io")
+                mem = _CloudMemory(api_key=key, base_url=base)
+                mcp_server = _create_mcp(mem)
+
+                transport = StreamableHTTPServerTransport(
+                    mcp_session_id=None,
+                    is_json_response_enabled=True,
+                )
+
+                async with transport.connect() as (read_stream, write_stream):
+                    async with anyio.create_task_group() as tg:
+                        async def _run_server():
+                            await mcp_server.run(
+                                read_stream, write_stream,
+                                mcp_server.create_initialization_options(),
+                            )
+                        tg.start_soon(_run_server)
+                        await transport.handle_request(
+                            request.scope, request.receive, request._send,
+                        )
+
+            app.add_route("/mcp", _handle_mcp_streamable, methods=["GET", "POST", "DELETE"])
+            logger.info("✅ MCP Streamable HTTP transport enabled at /mcp")
+
+        except ImportError:
+            logger.info("ℹ️  MCP Streamable HTTP not available (mcp>=1.26 required)")
+
     except ImportError:
         logger.info("ℹ️  MCP SSE transport not available (mcp package not installed)")
 
