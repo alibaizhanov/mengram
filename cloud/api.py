@@ -7818,56 +7818,39 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             from mcp.server.streamable_http import StreamableHTTPServerTransport
             import anyio
 
-            class _MCPStreamableASGI:
-                """Stateless ASGI handler for MCP streamable HTTP.
+            async def _handle_mcp_streamable(request: Request):
+                """Stateless MCP streamable HTTP — each request creates a fresh
+                server with stateless=True. Works across multiple gunicorn workers."""
+                key = _extract_mcp_key(request)
+                if not key:
+                    return _JSONResponse({"error": "Missing API key"}, status_code=401)
+                uid = store.verify_api_key(key)
+                if not uid:
+                    return _JSONResponse({"error": "Invalid API key"}, status_code=401)
 
-                Each request creates a fresh server with stateless=True so it
-                can handle any method (initialize/tools/list/tools/call) without
-                prior initialization. Works across multiple gunicorn workers.
-                """
-                async def __call__(self, scope, receive, send):
-                    request = Request(scope, receive, send)
-                    try:
-                        await self._handle(request, scope, receive, send)
-                    except Exception:
-                        logger.exception("MCP streamable HTTP error")
-                        resp = _JSONResponse({"error": "Internal MCP error"}, status_code=500)
-                        await resp(scope, receive, send)
+                base = os.environ.get("MENGRAM_URL", "https://mengram.io")
+                mem = _CloudMemory(api_key=key, base_url=base)
+                mcp_server = _create_mcp(mem)
 
-                async def _handle(self, request, scope, receive, send):
-                    key = _extract_mcp_key(request)
-                    if not key:
-                        resp = _JSONResponse({"error": "Missing API key"}, status_code=401)
-                        await resp(scope, receive, send)
-                        return
-                    uid = store.verify_api_key(key)
-                    if not uid:
-                        resp = _JSONResponse({"error": "Invalid API key"}, status_code=401)
-                        await resp(scope, receive, send)
-                        return
+                transport = StreamableHTTPServerTransport(
+                    mcp_session_id=None,
+                    is_json_response_enabled=True,
+                )
 
-                    base = os.environ.get("MENGRAM_URL", "https://mengram.io")
-                    mem = _CloudMemory(api_key=key, base_url=base)
-                    mcp_server = _create_mcp(mem)
+                async with transport.connect() as (read_stream, write_stream):
+                    async with anyio.create_task_group() as tg:
+                        async def _run():
+                            await mcp_server.run(
+                                read_stream, write_stream,
+                                mcp_server.create_initialization_options(),
+                                stateless=True,
+                            )
+                        tg.start_soon(_run)
+                        await transport.handle_request(
+                            request.scope, request.receive, request._send,
+                        )
 
-                    transport = StreamableHTTPServerTransport(
-                        mcp_session_id=None,
-                        is_json_response_enabled=True,
-                    )
-
-                    async with transport.connect() as (read_stream, write_stream):
-                        async with anyio.create_task_group() as tg:
-                            async def _run():
-                                await mcp_server.run(
-                                    read_stream, write_stream,
-                                    mcp_server.create_initialization_options(),
-                                    stateless=True,
-                                )
-                            tg.start_soon(_run)
-                            await transport.handle_request(scope, receive, send)
-
-            from starlette.routing import Route as _Route
-            app.routes.insert(0, _Route("/mcp", _MCPStreamableASGI(), methods=["GET", "POST", "DELETE"]))
+            app.add_route("/mcp", _handle_mcp_streamable, methods=["GET", "POST", "DELETE"])
             logger.info("✅ MCP Streamable HTTP transport enabled at /mcp")
 
         except ImportError:
