@@ -7815,27 +7815,16 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
         # ---- Streamable HTTP transport (MCP 2025-03-26 spec) ----
         try:
-            from mcp.server.streamable_http import StreamableHTTPServerTransport, MCP_SESSION_ID_HEADER
-            from uuid import uuid4
-            import asyncio as _asyncio
-            import time as _time
-
-            # Session registry: session_id -> {transport, task, created_at}
-            _mcp_sessions: dict = {}
-            _MCP_SESSION_TTL = 3600  # 1 hour max session lifetime
-
-            def _cleanup_expired_sessions():
-                """Remove sessions older than TTL."""
-                now = _time.time()
-                expired = [sid for sid, s in _mcp_sessions.items()
-                           if now - s["created_at"] > _MCP_SESSION_TTL]
-                for sid in expired:
-                    s = _mcp_sessions.pop(sid, None)
-                    if s and s.get("task"):
-                        s["task"].cancel()
+            from mcp.server.streamable_http import StreamableHTTPServerTransport
+            import anyio
 
             class _MCPStreamableASGI:
-                """ASGI app for MCP streamable HTTP — bypasses Starlette's request_response wrapper."""
+                """Stateless ASGI handler for MCP streamable HTTP.
+
+                Each request creates a fresh server with stateless=True so it
+                can handle any method (initialize/tools/list/tools/call) without
+                prior initialization. Works across multiple gunicorn workers.
+                """
                 async def __call__(self, scope, receive, send):
                     request = Request(scope, receive, send)
                     try:
@@ -7857,67 +7846,25 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                         await resp(scope, receive, send)
                         return
 
-                    _cleanup_expired_sessions()
-
-                    session_id = request.headers.get(MCP_SESSION_ID_HEADER)
-
-                    # --- Existing session: route to stored transport ---
-                    if session_id and session_id in _mcp_sessions:
-                        transport = _mcp_sessions[session_id]["transport"]
-                        await transport.handle_request(scope, receive, send)
-                        return
-
-                    # --- Unknown session ID: 404 ---
-                    if session_id:
-                        resp = _JSONResponse({"error": "Session not found or expired"}, status_code=404)
-                        await resp(scope, receive, send)
-                        return
-
-                    # --- New session (no mcp-session-id header) ---
-                    new_session_id = uuid4().hex
                     base = os.environ.get("MENGRAM_URL", "https://mengram.io")
                     mem = _CloudMemory(api_key=key, base_url=base)
                     mcp_server = _create_mcp(mem)
 
                     transport = StreamableHTTPServerTransport(
-                        mcp_session_id=new_session_id,
+                        mcp_session_id=None,
                         is_json_response_enabled=True,
                     )
 
-                    ready = _asyncio.Event()
-
-                    async def _session_runner():
-                        """Background task: keeps server + transport alive across requests."""
-                        try:
-                            async with transport.connect() as (read_stream, write_stream):
-                                ready.set()
+                    async with transport.connect() as (read_stream, write_stream):
+                        async with anyio.create_task_group() as tg:
+                            async def _run():
                                 await mcp_server.run(
                                     read_stream, write_stream,
                                     mcp_server.create_initialization_options(),
+                                    stateless=True,
                                 )
-                        except Exception:
-                            logger.exception(f"MCP session {new_session_id} error")
-                        finally:
-                            _mcp_sessions.pop(new_session_id, None)
-
-                    task = _asyncio.create_task(_session_runner())
-
-                    try:
-                        await _asyncio.wait_for(ready.wait(), timeout=5.0)
-                    except _asyncio.TimeoutError:
-                        task.cancel()
-                        resp = _JSONResponse({"error": "MCP session startup timeout"}, status_code=500)
-                        await resp(scope, receive, send)
-                        return
-
-                    _mcp_sessions[new_session_id] = {
-                        "transport": transport,
-                        "task": task,
-                        "created_at": _time.time(),
-                    }
-
-                    # Handle the first request (initialize)
-                    await transport.handle_request(scope, receive, send)
+                            tg.start_soon(_run)
+                            await transport.handle_request(scope, receive, send)
 
             from starlette.routing import Route as _Route
             app.routes.insert(0, _Route("/mcp", _MCPStreamableASGI(), methods=["GET", "POST", "DELETE"]))
