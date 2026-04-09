@@ -3119,15 +3119,30 @@ m.procedure_feedback(proc_id, success=False,
   ]
 }}</code></pre>
 
-<h3>Step 3: Pass your API key via vault</h3>
-<p>Managed Agents use <a href="https://docs.anthropic.com/en/docs/agents/managed-agents#vaults">vaults</a> for secrets. Store your Mengram API key in a vault and reference it when creating a session:</p>
+<h3>Step 3: Store your API key in a vault</h3>
+<p>Managed Agents use <a href="https://docs.anthropic.com/en/docs/agents/managed-agents#vaults">vaults</a> for secrets. Create a vault, add your Mengram API key as a <code>static_bearer</code> credential, then reference the vault when creating a session:</p>
 <pre><code>import anthropic
 
 client = anthropic.Anthropic()
 
-session = client.agents.sessions.create(
-    agent_id="agent-id",
-    vault_ids=["vault-with-mengram-key"]
+# Create a vault for this user
+vault = client.beta.vaults.create(display_name="My User")
+
+# Add Mengram API key as a credential
+client.beta.vaults.credentials.create(
+    vault_id=vault.id,
+    display_name="Mengram Memory",
+    auth={{
+        "type": "static_bearer",
+        "mcp_server_url": "https://mengram.io/mcp/sse",
+        "token": "om-your-mengram-api-key",
+    }},
+)
+
+# Create a session — Anthropic injects the token automatically
+session = client.beta.sessions.create(
+    agent=agent.id,
+    vault_ids=[vault.id],
 )</code></pre>
 
 <h2>What your agent gets</h2>
@@ -3205,14 +3220,26 @@ agent = client.agents.create(
     ]
 )
 
-# Run a session
-session = client.agents.sessions.create(
-    agent_id=agent.id,
-    vault_ids=["mengram-vault"]
+# Store Mengram API key in a vault
+vault = client.beta.vaults.create(display_name="Customer")
+client.beta.vaults.credentials.create(
+    vault_id=vault.id,
+    display_name="Mengram Memory",
+    auth={{
+        "type": "static_bearer",
+        "mcp_server_url": "https://mengram.io/mcp/sse",
+        "token": "om-your-mengram-api-key",
+    }},
+)
+
+# Run a session — vault injects the API key automatically
+session = client.beta.sessions.create(
+    agent=agent.id,
+    vault_ids=[vault.id],
 )
 
 # Send a message
-turn = client.agents.turns.create(
+turn = client.beta.turns.create(
     agent_id=agent.id,
     session_id=session.id,
     messages=[{{
