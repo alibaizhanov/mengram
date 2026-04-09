@@ -3110,7 +3110,7 @@ m.procedure_feedback(proc_id, success=False,
     {{
       "type": "url",
       "name": "mengram",
-      "url": "https://mengram.io/mcp/sse"
+      "url": "https://mengram.io/mcp"
     }}
   ],
   "tools": [
@@ -3134,7 +3134,7 @@ client.beta.vaults.credentials.create(
     display_name="Mengram Memory",
     auth={{
         "type": "static_bearer",
-        "mcp_server_url": "https://mengram.io/mcp/sse",
+        "mcp_server_url": "https://mengram.io/mcp",
         "token": "om-your-mengram-api-key",
     }},
 )
@@ -3211,7 +3211,7 @@ agent = client.agents.create(
         {{
             "type": "url",
             "name": "mengram",
-            "url": "https://mengram.io/mcp/sse"
+            "url": "https://mengram.io/mcp"
         }}
     ],
     tools=[
@@ -3227,7 +3227,7 @@ client.beta.vaults.credentials.create(
     display_name="Mengram Memory",
     auth={{
         "type": "static_bearer",
-        "mcp_server_url": "https://mengram.io/mcp/sse",
+        "mcp_server_url": "https://mengram.io/mcp",
         "token": "om-your-mengram-api-key",
     }},
 )
