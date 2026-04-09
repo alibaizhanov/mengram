@@ -7834,89 +7834,93 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                     if s and s.get("task"):
                         s["task"].cancel()
 
-            async def _handle_mcp_streamable(request: Request):
-                """Single endpoint for streamable HTTP MCP transport (POST/GET/DELETE)."""
-                try:
-                    return await _handle_mcp_streamable_inner(request)
-                except Exception:
-                    logger.exception("MCP streamable HTTP error")
-                    return _JSONResponse({"error": "Internal MCP error"}, status_code=500)
-
-            async def _handle_mcp_streamable_inner(request: Request):
-                key = _extract_mcp_key(request)
-                if not key:
-                    return _JSONResponse({"error": "Missing API key"}, status_code=401)
-                uid = store.verify_api_key(key)
-                if not uid:
-                    return _JSONResponse({"error": "Invalid API key"}, status_code=401)
-
-                _cleanup_expired_sessions()
-
-                session_id = request.headers.get(MCP_SESSION_ID_HEADER)
-
-                # --- Existing session: route to stored transport ---
-                if session_id and session_id in _mcp_sessions:
-                    transport = _mcp_sessions[session_id]["transport"]
-                    await transport.handle_request(
-                        request.scope, request.receive, request._send,
-                    )
-                    return
-
-                # --- Unknown session ID: 404 ---
-                if session_id:
-                    return _JSONResponse(
-                        {"error": "Session not found or expired"},
-                        status_code=404,
-                    )
-
-                # --- New session (no mcp-session-id header) ---
-                new_session_id = uuid4().hex
-                base = os.environ.get("MENGRAM_URL", "https://mengram.io")
-                mem = _CloudMemory(api_key=key, base_url=base)
-                mcp_server = _create_mcp(mem)
-
-                transport = StreamableHTTPServerTransport(
-                    mcp_session_id=new_session_id,
-                    is_json_response_enabled=True,
-                )
-
-                # Event to signal when streams are ready
-                ready = _asyncio.Event()
-
-                async def _session_runner():
-                    """Background task: keeps server + transport alive across requests."""
+            class _MCPStreamableASGI:
+                """ASGI app for MCP streamable HTTP — bypasses Starlette's request_response wrapper."""
+                async def __call__(self, scope, receive, send):
+                    request = Request(scope, receive, send)
                     try:
-                        async with transport.connect() as (read_stream, write_stream):
-                            ready.set()
-                            await mcp_server.run(
-                                read_stream, write_stream,
-                                mcp_server.create_initialization_options(),
-                            )
+                        await self._handle(request, scope, receive, send)
                     except Exception:
-                        logger.exception(f"MCP session {new_session_id} error")
-                    finally:
-                        _mcp_sessions.pop(new_session_id, None)
+                        logger.exception("MCP streamable HTTP error")
+                        resp = _JSONResponse({"error": "Internal MCP error"}, status_code=500)
+                        await resp(scope, receive, send)
 
-                task = _asyncio.create_task(_session_runner())
+                async def _handle(self, request, scope, receive, send):
+                    key = _extract_mcp_key(request)
+                    if not key:
+                        resp = _JSONResponse({"error": "Missing API key"}, status_code=401)
+                        await resp(scope, receive, send)
+                        return
+                    uid = store.verify_api_key(key)
+                    if not uid:
+                        resp = _JSONResponse({"error": "Invalid API key"}, status_code=401)
+                        await resp(scope, receive, send)
+                        return
 
-                try:
-                    await _asyncio.wait_for(ready.wait(), timeout=5.0)
-                except _asyncio.TimeoutError:
-                    task.cancel()
-                    return _JSONResponse({"error": "MCP session startup timeout"}, status_code=500)
+                    _cleanup_expired_sessions()
 
-                _mcp_sessions[new_session_id] = {
-                    "transport": transport,
-                    "task": task,
-                    "created_at": _time.time(),
-                }
+                    session_id = request.headers.get(MCP_SESSION_ID_HEADER)
 
-                # Handle the first request (initialize)
-                await transport.handle_request(
-                    request.scope, request.receive, request._send,
-                )
+                    # --- Existing session: route to stored transport ---
+                    if session_id and session_id in _mcp_sessions:
+                        transport = _mcp_sessions[session_id]["transport"]
+                        await transport.handle_request(scope, receive, send)
+                        return
 
-            app.add_route("/mcp", _handle_mcp_streamable, methods=["GET", "POST", "DELETE"])
+                    # --- Unknown session ID: 404 ---
+                    if session_id:
+                        resp = _JSONResponse({"error": "Session not found or expired"}, status_code=404)
+                        await resp(scope, receive, send)
+                        return
+
+                    # --- New session (no mcp-session-id header) ---
+                    new_session_id = uuid4().hex
+                    base = os.environ.get("MENGRAM_URL", "https://mengram.io")
+                    mem = _CloudMemory(api_key=key, base_url=base)
+                    mcp_server = _create_mcp(mem)
+
+                    transport = StreamableHTTPServerTransport(
+                        mcp_session_id=new_session_id,
+                        is_json_response_enabled=True,
+                    )
+
+                    ready = _asyncio.Event()
+
+                    async def _session_runner():
+                        """Background task: keeps server + transport alive across requests."""
+                        try:
+                            async with transport.connect() as (read_stream, write_stream):
+                                ready.set()
+                                await mcp_server.run(
+                                    read_stream, write_stream,
+                                    mcp_server.create_initialization_options(),
+                                )
+                        except Exception:
+                            logger.exception(f"MCP session {new_session_id} error")
+                        finally:
+                            _mcp_sessions.pop(new_session_id, None)
+
+                    task = _asyncio.create_task(_session_runner())
+
+                    try:
+                        await _asyncio.wait_for(ready.wait(), timeout=5.0)
+                    except _asyncio.TimeoutError:
+                        task.cancel()
+                        resp = _JSONResponse({"error": "MCP session startup timeout"}, status_code=500)
+                        await resp(scope, receive, send)
+                        return
+
+                    _mcp_sessions[new_session_id] = {
+                        "transport": transport,
+                        "task": task,
+                        "created_at": _time.time(),
+                    }
+
+                    # Handle the first request (initialize)
+                    await transport.handle_request(scope, receive, send)
+
+            from starlette.routing import Route as _Route
+            app.routes.insert(0, _Route("/mcp", _MCPStreamableASGI(), methods=["GET", "POST", "DELETE"]))
             logger.info("✅ MCP Streamable HTTP transport enabled at /mcp")
 
         except ImportError:
