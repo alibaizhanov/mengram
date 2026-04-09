@@ -7835,6 +7835,13 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
             async def _handle_mcp_streamable(request: Request):
                 """Single endpoint for streamable HTTP MCP transport (POST/GET/DELETE)."""
+                try:
+                    return await _handle_mcp_streamable_inner(request)
+                except Exception:
+                    logger.exception("MCP streamable HTTP error")
+                    return _JSONResponse({"error": "Internal MCP error"}, status_code=500)
+
+            async def _handle_mcp_streamable_inner(request: Request):
                 key = _extract_mcp_key(request)
                 if not key:
                     return _JSONResponse({"error": "Missing API key"}, status_code=401)
