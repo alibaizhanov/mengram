@@ -7818,6 +7818,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             from mcp.server.streamable_http import StreamableHTTPServerTransport, MCP_SESSION_ID_HEADER
             from uuid import uuid4
             import asyncio as _asyncio
+            import time as _time
 
             # Session registry: session_id -> {transport, task, created_at}
             _mcp_sessions: dict = {}
@@ -7825,7 +7826,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
             def _cleanup_expired_sessions():
                 """Remove sessions older than TTL."""
-                now = time.time()
+                now = _time.time()
                 expired = [sid for sid, s in _mcp_sessions.items()
                            if now - s["created_at"] > _MCP_SESSION_TTL]
                 for sid in expired:
@@ -7907,7 +7908,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 _mcp_sessions[new_session_id] = {
                     "transport": transport,
                     "task": task,
-                    "created_at": time.time(),
+                    "created_at": _time.time(),
                 }
 
                 # Handle the first request (initialize)
