@@ -1485,7 +1485,7 @@ async function loadAccount() {
             const planLabel = d.plan.charAt(0).toUpperCase() + d.plan.slice(1);
             planEl.innerHTML = d.plan === 'free' ? 'Free plan' : `<span>${planLabel}</span> plan`;
             document.getElementById('sidebar-account').style.display = 'block';
-            if (d.usage && d.quotas && d.plan !== 'business') {
+            if (d.usage && d.quotas && d.plan !== 'business' && d.plan !== 'selfhosted') {
                 renderQuotaBanner(d.plan, d.usage, d.quotas);
             }
         }
@@ -3040,7 +3040,7 @@ async function loadBilling() {
             statusEl.textContent = '';
         }
 
-        document.getElementById('plan-manage').style.display = plan !== 'free' ? 'block' : 'none';
+        document.getElementById('plan-manage').style.display = (plan !== 'free' && plan !== 'selfhosted') ? 'block' : 'none';
 
         function usageCard(label, used, limit) {
             if (limit === -1) {
@@ -3070,8 +3070,8 @@ async function loadBilling() {
             usageCard('Agents', usage.agent_count || 0, limits.agents) +
             usageCard('Reflects', usage.reflect_count || 0, limits.reflects);
 
-        // Hide upgrade section if already on business
-        document.getElementById('billing-upgrade').style.display = (plan === 'business') ? 'none' : 'block';
+        // Hide upgrade section if already on business or self-hosted
+        document.getElementById('billing-upgrade').style.display = (plan === 'business' || plan === 'selfhosted') ? 'none' : 'block';
         // Show annual toggle if available
         window._annualAvailable = d.annual_available || false;
         document.getElementById('billing-toggle').style.display = window._annualAvailable ? 'flex' : 'none';

@@ -40,6 +40,7 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       LLM_PROVIDER: openai
       LLM_MODEL: gpt-4o-mini
+      DISABLE_EMAIL_VERIFICATION: "true"
     depends_on:
       postgres:
         condition: service_healthy

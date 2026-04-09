@@ -50,7 +50,8 @@ PLAN_QUOTAS = {
     "starter":  {"adds": 100,   "searches": 500,    "agents": 10,  "reflects": 30,  "dedups": 5,   "reindexes": 5,   "rules": 10,   "rate_limit": 60,  "webhooks": 2,  "teams": 1,  "sub_users": 10},
     "pro":      {"adds": 1_000, "searches": 10_000, "agents": 50,  "reflects": -1,  "dedups": 20,  "reindexes": 10,  "rules": -1,   "rate_limit": 120, "webhooks": 10, "teams": 5,  "sub_users": 50},
     "growth":   {"adds": 3_000, "searches": 20_000, "agents": -1,  "reflects": -1,  "dedups": 50,  "reindexes": 20,  "rules": -1,   "rate_limit": 200, "webhooks": 25, "teams": 10, "sub_users": 100},
-    "business": {"adds": 8_000, "searches": 30_000, "agents": -1,  "reflects": -1,  "dedups": -1,  "reindexes": -1,  "rules": -1,   "rate_limit": 300, "webhooks": 50, "teams": -1, "sub_users": -1},
+    "business":   {"adds": 8_000, "searches": 30_000, "agents": -1,  "reflects": -1,  "dedups": -1,  "reindexes": -1,  "rules": -1,   "rate_limit": 300, "webhooks": 50, "teams": -1, "sub_users": -1},
+    "selfhosted": {"adds": -1,    "searches": -1,     "agents": -1,  "reflects": -1,  "dedups": -1,  "reindexes": -1,  "rules": -1,   "rate_limit": 600, "webhooks": -1, "teams": -1, "sub_users": -1},
 }
 
 FILE_SIZE_LIMITS = {
@@ -58,7 +59,8 @@ FILE_SIZE_LIMITS = {
     "starter":  10 * 1024 * 1024,   # 10 MB
     "pro":      50 * 1024 * 1024,   # 50 MB
     "growth":   100 * 1024 * 1024,  # 100 MB
-    "business": 100 * 1024 * 1024,  # 100 MB
+    "business":   100 * 1024 * 1024,  # 100 MB
+    "selfhosted": 500 * 1024 * 1024,  # 500 MB
 }
 ALLOWED_EXTENSIONS = {"pdf", "docx", "txt", "md"}
 VISION_MODEL = os.environ.get("VISION_MODEL", "gpt-5.4")
@@ -856,22 +858,26 @@ Be strict — only include entities that directly answer or relate to the query.
         if not user_id:
             raise HTTPException(status_code=401, detail="Invalid API key")
 
-        # Look up subscription (cached 5 min)
-        sub = store.get_subscription(user_id)
-        plan = sub.get("plan", "free") if sub else "free"
-        if plan not in PLAN_QUOTAS:
-            plan = "free"
-        # Canceled subscription past period end → downgrade to free
-        if sub and sub.get("status") == "canceled" and plan != "free":
-            period_end = sub.get("current_period_end")
-            if period_end:
-                try:
-                    end_dt = datetime.datetime.fromisoformat(str(period_end).replace("Z", "+00:00"))
-                    if end_dt < datetime.datetime.now(datetime.timezone.utc):
-                        plan = "free"
-                        store.update_subscription(user_id, plan="free")
-                except Exception:
-                    pass
+        # Self-hosted mode: unlimited plan, skip subscription lookup
+        if DISABLE_EMAIL_VERIFICATION:
+            plan = "selfhosted"
+        else:
+            # Look up subscription (cached 5 min)
+            sub = store.get_subscription(user_id)
+            plan = sub.get("plan", "free") if sub else "free"
+            if plan not in PLAN_QUOTAS:
+                plan = "free"
+            # Canceled subscription past period end → downgrade to free
+            if sub and sub.get("status") == "canceled" and plan != "free":
+                period_end = sub.get("current_period_end")
+                if period_end:
+                    try:
+                        end_dt = datetime.datetime.fromisoformat(str(period_end).replace("Z", "+00:00"))
+                        if end_dt < datetime.datetime.now(datetime.timezone.utc):
+                            plan = "free"
+                            store.update_subscription(user_id, plan="free")
+                    except Exception:
+                        pass
         rate_limit = PLAN_QUOTAS[plan]["rate_limit"]
 
         if not _check_rate_limit(user_id, rate_limit):
@@ -922,7 +928,7 @@ Be strict — only include entities that directly answer or relate to the query.
         # Suppress request log for quota-exhausted users (reduces log noise from MCP hooks)
         _skip_log = False
         _path = request.url.path
-        if redis_client and plan != "business":
+        if redis_client and plan not in ("business", "selfhosted"):
             try:
                 _month = f"{datetime.date.today().year}-{datetime.date.today().month:02d}"
                 # Only suppress log if the specific request type is over quota
@@ -4336,8 +4342,7 @@ m.delete_webhook(webhook_id=1)</code></pre>
         """Current account info."""
         user_id = ctx.user_id
         email = store.get_user_email(user_id)
-        sub = store.get_subscription(user_id)
-        plan = sub.get("plan", "free") if sub else "free"
+        plan = ctx.plan  # already resolved in auth() (selfhosted / cloud plan)
         usage = store.get_all_usage_counts(user_id)
         plan_quotas = PLAN_QUOTAS.get(plan, PLAN_QUOTAS["free"])
         return {
