@@ -1509,6 +1509,7 @@ m.add("I love hiking in the mountains")</code></pre>
             ("https://mengram.io/blog/claude-code-memory-hooks", "0.9", "weekly"),
             ("https://mengram.io/blog/cursor-ai-memory-mcp", "0.9", "weekly"),
             ("https://mengram.io/blog/context-engineering-memory", "0.9", "weekly"),
+            ("https://mengram.io/blog/claude-managed-agents-memory", "0.9", "weekly"),
             # Use cases
             ("https://mengram.io/usecase/customer-support", "0.7", "monthly"),
             ("https://mengram.io/usecase/personal-assistant", "0.7", "monthly"),
@@ -3061,6 +3062,180 @@ m.procedure_feedback(proc_id, success=False,
 <p>The question isn't whether your agent needs memory. It's how long you can afford to operate without it.</p>
 """,
             "related": ["what-is-ai-memory", "claude-code-memory-hooks"],
+        },
+        "claude-managed-agents-memory": {
+            "slug": "claude-managed-agents-memory",
+            "title": "Add Persistent Memory to Claude Managed Agents with Mengram",
+            "date": "April 9, 2026",
+            "date_iso": "2026-04-09",
+            "read_time": "6",
+            "tags": ["Tutorial", "Managed Agents"],
+            "excerpt": "Give your Claude Managed Agents long-term memory across sessions. Connect Mengram via MCP in 2 minutes — your agents remember users, learn from failures, and build cognitive profiles.",
+            "seo_title": "Add Persistent Memory to Claude Managed Agents | Mengram",
+            "seo_description": "Step-by-step guide to adding persistent memory to Anthropic's Claude Managed Agents using Mengram's MCP server. Semantic, episodic, and procedural memory for autonomous agents.",
+            "seo_keywords": "Claude Managed Agents memory, Managed Agents MCP, Anthropic Managed Agents persistent memory, Claude agent memory, Managed Agents long-term memory, Mengram Managed Agents",
+            "content_html": """
+<h2>What are Claude Managed Agents?</h2>
+<p><a href="https://docs.anthropic.com/en/docs/agents/managed-agents">Claude Managed Agents</a> is Anthropic's hosted platform for running autonomous AI agents. Launched in April 2026, it lets you define agents with custom tools, instructions, and MCP servers — then run them via API without managing infrastructure.</p>
+<p>But Managed Agents start every session from scratch. They don't remember past conversations, user preferences, or lessons learned. That's where Mengram comes in.</p>
+
+<h2>Why agents need memory</h2>
+<p>Without memory, your agent:</p>
+<ul>
+<li>Asks the same onboarding questions every session</li>
+<li>Repeats mistakes it already solved</li>
+<li>Can't personalize responses based on past interactions</li>
+<li>Loses context between runs — each session is isolated</li>
+</ul>
+<p>With Mengram, your agent gets <strong>3 types of memory</strong>:</p>
+<ul>
+<li><strong>Semantic</strong> — facts, preferences, knowledge ("uses Python, deploys to Railway")</li>
+<li><strong>Episodic</strong> — events and outcomes ("deployment crashed on March 5, fixed by adding migrations")</li>
+<li><strong>Procedural</strong> — workflows that evolve from failures ("deploy v3: build → migrate → check memory → push")</li>
+</ul>
+
+<h2>Connect Mengram to Managed Agents</h2>
+<p>Managed Agents support remote MCP servers via HTTP transport. Mengram's cloud MCP endpoint works out of the box.</p>
+
+<h3>Step 1: Get a Mengram API key</h3>
+<p>Sign up at <a href="/#signup">mengram.io</a> — it's free. You'll get an API key starting with <code>om-</code>.</p>
+
+<h3>Step 2: Add Mengram as an MCP server</h3>
+<p>In your Managed Agent definition, add Mengram's MCP endpoint:</p>
+<pre><code>{{
+  "name": "my-agent",
+  "model": "claude-sonnet-4-6",
+  "instructions": "You are a helpful assistant with persistent memory.",
+  "mcp_servers": [
+    {{
+      "type": "url",
+      "name": "mengram",
+      "url": "https://mengram.io/mcp/sse"
+    }}
+  ],
+  "tools": [
+    {{"type": "agent_toolset_20260401"}},
+    {{"type": "mcp_toolset", "mcp_server_name": "mengram"}}
+  ]
+}}</code></pre>
+
+<h3>Step 3: Pass your API key via vault</h3>
+<p>Managed Agents use <a href="https://docs.anthropic.com/en/docs/agents/managed-agents#vaults">vaults</a> for secrets. Store your Mengram API key in a vault and reference it when creating a session:</p>
+<pre><code>import anthropic
+
+client = anthropic.Anthropic()
+
+session = client.agents.sessions.create(
+    agent_id="agent-id",
+    vault_ids=["vault-with-mengram-key"]
+)</code></pre>
+
+<h2>What your agent gets</h2>
+<p>Once connected, your Managed Agent has access to <strong>29 memory tools</strong>:</p>
+<table style="width:100%; border-collapse:collapse; font-size:14px; margin:20px 0;">
+<thead>
+<tr style="border-bottom:1px solid #1a1a2e;">
+<th style="padding:10px; text-align:left; color:#9898b0;">Tool</th>
+<th style="padding:10px; text-align:left; color:#9898b0;">What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr style="border-bottom:1px solid #1a1a2e;"><td style="padding:10px;"><code>remember</code></td><td style="padding:10px;">Save conversation to memory — auto-extracts facts, events, procedures</td></tr>
+<tr style="border-bottom:1px solid #1a1a2e;"><td style="padding:10px;"><code>recall</code></td><td style="padding:10px;">Semantic search through past memories</td></tr>
+<tr style="border-bottom:1px solid #1a1a2e;"><td style="padding:10px;"><code>search_all</code></td><td style="padding:10px;">Unified search across all 3 memory types</td></tr>
+<tr style="border-bottom:1px solid #1a1a2e;"><td style="padding:10px;"><code>context_for</code></td><td style="padding:10px;">Get relevant context pack for a specific task</td></tr>
+<tr style="border-bottom:1px solid #1a1a2e;"><td style="padding:10px;"><code>list_procedures</code></td><td style="padding:10px;">Retrieve learned workflows with success/failure tracking</td></tr>
+<tr style="border-bottom:1px solid #1a1a2e;"><td style="padding:10px;"><code>procedure_feedback</code></td><td style="padding:10px;">Report outcomes — procedures evolve automatically on failure</td></tr>
+<tr><td style="padding:10px;"><code>reflect</code></td><td style="padding:10px;">Trigger AI reflection to find patterns across memories</td></tr>
+</tbody>
+</table>
+<p>Plus 22 more — entity management, knowledge graph, triggers, dedup, import/export, and more. <a href="/docs/mcp-server">Full tool reference</a>.</p>
+
+<h2>Mengram vs Anthropic's Memory Stores</h2>
+<p>Managed Agents have built-in <a href="https://docs.anthropic.com/en/docs/agents/memory-stores">Memory Stores</a> (research preview). Here's how they compare:</p>
+<table style="width:100%; border-collapse:collapse; font-size:14px; margin:20px 0;">
+<thead>
+<tr style="border-bottom:1px solid #1a1a2e;">
+<th style="padding:10px; text-align:left; color:#9898b0;">Feature</th>
+<th style="padding:10px; text-align:center; color:#a855f7; font-weight:600;">Mengram</th>
+<th style="padding:10px; text-align:center; color:#9898b0;">Memory Stores</th>
+</tr>
+</thead>
+<tbody>
+<tr style="border-bottom:1px solid #1a1a2e;"><td style="padding:10px;">Memory types</td><td style="text-align:center;"><strong>3</strong> (semantic + episodic + procedural)</td><td style="text-align:center;">1 (text documents)</td></tr>
+<tr style="border-bottom:1px solid #1a1a2e;"><td style="padding:10px;">Auto-extraction from conversations</td><td style="text-align:center;">&#x2705;</td><td style="text-align:center;">&#x274C; (manual text)</td></tr>
+<tr style="border-bottom:1px solid #1a1a2e;"><td style="padding:10px;">Procedural learning (evolving workflows)</td><td style="text-align:center;">&#x2705;</td><td style="text-align:center;">&#x274C;</td></tr>
+<tr style="border-bottom:1px solid #1a1a2e;"><td style="padding:10px;">Cognitive Profile</td><td style="text-align:center;">&#x2705;</td><td style="text-align:center;">&#x274C;</td></tr>
+<tr style="border-bottom:1px solid #1a1a2e;"><td style="padding:10px;">Knowledge graph</td><td style="text-align:center;">&#x2705;</td><td style="text-align:center;">&#x274C;</td></tr>
+<tr style="border-bottom:1px solid #1a1a2e;"><td style="padding:10px;">Semantic search</td><td style="text-align:center;">&#x2705;</td><td style="text-align:center;">&#x2705;</td></tr>
+<tr style="border-bottom:1px solid #1a1a2e;"><td style="padding:10px;">Multi-user isolation</td><td style="text-align:center;">&#x2705;</td><td style="text-align:center;">Per-agent only</td></tr>
+<tr style="border-bottom:1px solid #1a1a2e;"><td style="padding:10px;">Works beyond Anthropic</td><td style="text-align:center;">&#x2705; (any LLM)</td><td style="text-align:center;">&#x274C; (Managed Agents only)</td></tr>
+<tr><td style="padding:10px;">Status</td><td style="text-align:center;"><strong>Production</strong></td><td style="text-align:center;">Research preview</td></tr>
+</tbody>
+</table>
+<p>Memory Stores are simple text documents — you manually write and retrieve text. Mengram automatically extracts structured knowledge from conversations and builds a knowledge graph, cognitive profiles, and self-improving procedures.</p>
+
+<h2>Example: Support agent with memory</h2>
+<pre><code>import anthropic
+
+client = anthropic.Anthropic()
+
+# Create an agent with Mengram memory
+agent = client.agents.create(
+    name="support-agent",
+    model="claude-sonnet-4-6",
+    instructions="You are a customer support agent with persistent memory. "
+        "At the start of each conversation: "
+        "1) Use recall() to search for the customer's past interactions. "
+        "2) Use context_for() to get relevant procedures and knowledge. "
+        "After resolving issues: "
+        "1) Use remember() to save the conversation. "
+        "2) Use procedure_feedback() to report success/failure. "
+        "This way you learn from every interaction and never ask the same question twice.",
+    mcp_servers=[
+        {{
+            "type": "url",
+            "name": "mengram",
+            "url": "https://mengram.io/mcp/sse"
+        }}
+    ],
+    tools=[
+        {{"type": "agent_toolset_20260401"}},
+        {{"type": "mcp_toolset", "mcp_server_name": "mengram"}}
+    ]
+)
+
+# Run a session
+session = client.agents.sessions.create(
+    agent_id=agent.id,
+    vault_ids=["mengram-vault"]
+)
+
+# Send a message
+turn = client.agents.turns.create(
+    agent_id=agent.id,
+    session_id=session.id,
+    messages=[{{
+        "role": "user",
+        "content": "I'm having trouble with my deployment again"
+    }}]
+)
+# Agent automatically recalls past deployment issues from Mengram
+# and uses learned procedures to help</code></pre>
+
+<h2>Pricing</h2>
+<p>Mengram's free tier includes 30 memory adds and 100 searches per month — enough to prototype and test. Paid plans start at <strong>$5/month</strong> (Starter) with 100 adds and 500 searches. <a href="/#pricing">See all plans</a>.</p>
+
+<h2>Get started</h2>
+<ol>
+<li>Get a free API key at <a href="/#signup">mengram.io</a></li>
+<li>Add the MCP config to your Managed Agent definition</li>
+<li>Store your API key in a vault</li>
+<li>Your agent now has persistent memory across sessions</li>
+</ol>
+<p>Full documentation: <a href="/docs/managed-agents">Managed Agents integration guide</a> · <a href="/docs/mcp-server">MCP server reference</a> · <a href="/docs/agent-memory">Agent memory concepts</a></p>
+""",
+            "related": ["mcp-memory-server-setup", "how-to-add-memory-to-ai-agents"],
         },
     }
 

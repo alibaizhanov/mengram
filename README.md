@@ -339,6 +339,39 @@ mengram hook install
 
 </td>
 </tr>
+<tr>
+<td width="50%">
+
+**Claude Managed Agents** — MCP memory for hosted agents
+
+```json
+{
+  "mcp_servers": [{
+    "type": "url",
+    "name": "mengram",
+    "url": "https://mengram.io/mcp/sse"
+  }]
+}
+```
+
+29 memory tools via MCP. [Docs](https://mengram.io/docs/managed-agents)
+
+</td>
+<td width="50%">
+
+**n8n** — HTTP nodes for any workflow
+
+```
+POST https://mengram.io/v1/add
+POST https://mengram.io/v1/search
+```
+
+No code needed — drag and drop memory into any n8n workflow.
+
+[Docs](https://mengram.io/docs/n8n)
+
+</td>
+</tr>
 </table>
 
 ## Multi-User Isolation
