@@ -1659,6 +1659,20 @@ class CloudStore:
         # Normalize: if name is ALL CAPS and >3 chars, title-case it
         if name == name.upper() and len(name) > 3 and ' ' not in name:
             name = name.capitalize()
+        # Strip "(type)" suffixes that LLM sometimes copies from context
+        # e.g. "cyberfips (person) (person)" → "cyberfips"
+        _type_tags = ("person", "technology", "company", "project", "concept",
+                      "place", "activity", "event", "book", "tool", "food",
+                      "pet", "game", "language", "sport", "organization",
+                      "unknown", "service", "product", "framework", "platform")
+        _changed = True
+        while _changed:
+            _changed = False
+            for _t in _type_tags:
+                _suffix = f" ({_t})"
+                if name.lower().endswith(_suffix):
+                    name = name[:len(name) - len(_suffix)]
+                    _changed = True
 
         meta_json = json.dumps(metadata) if metadata else '{}'
 
