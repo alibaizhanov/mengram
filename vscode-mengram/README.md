@@ -40,7 +40,7 @@ This extension sends data to the Mengram API (`mengram.io`) for AI-powered knowl
 
 ## Pricing
 
-Mengram offers a free tier (30 adds/month, 100 searches/month). Paid plans start at $5/mo at [mengram.io/#pricing](https://mengram.io/#pricing).
+Mengram offers a free tier (40 adds/month, 200 searches/month). Paid plans start at $5/mo at [mengram.io/#pricing](https://mengram.io/#pricing).
 
 ## License
 
