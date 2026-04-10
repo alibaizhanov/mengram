@@ -7610,7 +7610,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                     "paddle_customer_id": customer_id,
                     "paddle_subscription_id": subscription_id,
                 }
-                current_period = data.get("current_billing_period", {})
+                current_period = data.get("current_billing_period") or {}
                 if current_period.get("starts_at"):
                     updates["current_period_start"] = current_period["starts_at"]
                 if current_period.get("ends_at"):
@@ -7666,7 +7666,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                         updates["plan"] = "pro"
                     elif price_id in (PADDLE_PRICES.get("starter"), PADDLE_PRICES_ANNUAL.get("starter")):
                         updates["plan"] = "starter"
-                current_period = data.get("current_billing_period", {})
+                current_period = data.get("current_billing_period") or {}
                 if current_period.get("starts_at"):
                     updates["current_period_start"] = current_period["starts_at"]
                 if current_period.get("ends_at"):
