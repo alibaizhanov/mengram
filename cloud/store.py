@@ -33,6 +33,13 @@ except ImportError:
 
 logger = logging.getLogger("mengram")
 
+ENTITY_TYPES = frozenset({
+    "person", "technology", "company", "project", "concept", "place",
+    "activity", "event", "book", "tool", "food", "pet", "game",
+    "language", "sport", "organization", "unknown", "service",
+    "product", "framework", "platform",
+})
+
 
 def _normalize_fact(f) -> str:
     """Normalize a fact to string. LLM extraction sometimes returns dicts."""
@@ -1661,18 +1668,14 @@ class CloudStore:
             name = name.capitalize()
         # Strip "(type)" suffixes that LLM sometimes copies from context
         # e.g. "cyberfips (person) (person)" → "cyberfips"
-        _type_tags = ("person", "technology", "company", "project", "concept",
-                      "place", "activity", "event", "book", "tool", "food",
-                      "pet", "game", "language", "sport", "organization",
-                      "unknown", "service", "product", "framework", "platform")
-        _changed = True
-        while _changed:
-            _changed = False
-            for _t in _type_tags:
-                _suffix = f" ({_t})"
-                if name.lower().endswith(_suffix):
-                    name = name[:len(name) - len(_suffix)]
-                    _changed = True
+        changed = True
+        while changed:
+            changed = False
+            for t in ENTITY_TYPES:
+                suffix = f" ({t})"
+                if name.lower().endswith(suffix):
+                    name = name[:len(name) - len(suffix)]
+                    changed = True
 
         meta_json = json.dumps(metadata) if metadata else '{}'
 
@@ -2177,9 +2180,9 @@ class CloudStore:
                 facts = facts_by_entity.get(eid, [])
                 if facts:
                     fact_strs = ", ".join(f[0] for f in facts)
-                    lines.append(f"- {name} ({e['type']}): {fact_strs}")
+                    lines.append(f"- {name} [type: {e['type']}]: {fact_strs}")
                 else:
-                    lines.append(f"- {name} ({e['type']})")
+                    lines.append(f"- {name} [type: {e['type']}]")
 
             # Add top reflections for richer context
             reflections = self.get_reflections(user_id, sub_user_id=sub_user_id)
@@ -2951,7 +2954,7 @@ Return ONLY JSON (no markdown):
             if not e["facts"]:
                 continue
             facts_str = ", ".join(_normalize_fact(f) for f in e["facts"][:15])  # cap at 15 per entity
-            facts_lines.append(f"- {e['entity']} ({e['type']}): {facts_str}")
+            facts_lines.append(f"- {e['entity']} [type: {e['type']}]: {facts_str}")
         facts_text = "\n".join(facts_lines)
 
         # Get previous reflections
@@ -3229,7 +3232,7 @@ Return ONLY JSON (no markdown):
                     f"{r.get('type', '')} → {r.get('target', '')}"
                     for r in ent["relations"][:5]
                 )
-            sections.append(f"{ent['entity']} ({ent['type']}):\n{facts_str}{rels_str}")
+            sections.append(f"{ent['entity']} [type: {ent['type']}]:\n{facts_str}{rels_str}")
             total_facts += len(ent["facts"][:20])
 
         if not sections:
@@ -4923,7 +4926,7 @@ Be specific and personal, not generic. No markdown, just JSON."""
                 continue
             total_facts += len(e["facts"])
             facts_str = ", ".join(_normalize_fact(f) for f in e["facts"][:15])  # max 15 facts per entity
-            facts_lines.append(f"- {e['entity']} ({e['type']}): {facts_str}")
+            facts_lines.append(f"- {e['entity']} [type: {e['type']}]: {facts_str}")
         facts_text = "\n".join(facts_lines)
         # Hard cap on text size (~8K chars ≈ 2K tokens)
         if len(facts_text) > 8000:
@@ -5213,7 +5216,7 @@ Return ONLY JSON (no markdown):
             if not e["facts"]:
                 continue
             facts_str = ", ".join(_normalize_fact(f) for f in e["facts"][:15])
-            facts_lines.append(f"- {e['entity']} ({e['type']}): {facts_str}")
+            facts_lines.append(f"- {e['entity']} [type: {e['type']}]: {facts_str}")
         facts_text = "\n".join(facts_lines)
         if len(facts_text) > 8000:
             facts_text = facts_text[:8000] + "\n... (truncated)"
