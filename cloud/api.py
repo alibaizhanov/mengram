@@ -367,7 +367,7 @@ profile = m.get_profile()             # instant system prompt
 
                 documents = [fd[2] for fd in fact_docs]
                 resp = co.rerank(
-                    model="rerank-v3.5",
+                    model="rerank-v4.0-fast",
                     query=query,
                     documents=documents,
                     top_n=min(len(documents), 50),
