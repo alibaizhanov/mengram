@@ -552,6 +552,107 @@
         .onboarding-step-cta:hover { background: #9333ea; }
         .onboarding-step.completed .onboarding-step-cta { display: none; }
         .onboarding-step.prechecked .onboarding-step-cta { display: none; }
+        /* Onboarding Wizard Modal */
+        .ob-wizard-overlay {
+            position: fixed; inset: 0;
+            background: rgba(5, 5, 10, 0.88);
+            backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+            z-index: 1000;
+            display: flex; align-items: center; justify-content: center;
+            padding: 20px;
+        }
+        .ob-wizard {
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: 20px; padding: 40px; max-width: 520px; width: 100%;
+            text-align: center; position: relative;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        }
+        .ob-wizard-progress {
+            display: flex; align-items: center; justify-content: center;
+            margin-bottom: 32px;
+        }
+        .ob-wizard-dot {
+            width: 10px; height: 10px; border-radius: 50%;
+            background: var(--border); transition: all 0.3s;
+        }
+        .ob-wizard-dot.active {
+            background: var(--accent);
+            box-shadow: 0 0 10px var(--accent-glow);
+        }
+        .ob-wizard-dot.done { background: var(--green); }
+        .ob-wizard-line {
+            width: 40px; height: 2px; background: var(--border); margin: 0 4px;
+        }
+        .ob-wizard-step h2 {
+            font-size: 22px; font-weight: 700; margin-bottom: 8px;
+        }
+        .ob-wizard-step > p {
+            color: var(--text-2); font-size: 14px; margin-bottom: 20px; line-height: 1.5;
+        }
+        .ob-wiz-icon { font-size: 40px; margin-bottom: 16px; }
+        #ob-wiz-text {
+            width: 100%; background: var(--bg); border: 1px solid var(--border);
+            border-radius: 12px; padding: 14px 16px; color: var(--text);
+            font-family: 'Sora', sans-serif; font-size: 14px; line-height: 1.6;
+            resize: none; margin-bottom: 20px; transition: border-color 0.2s;
+            box-sizing: border-box;
+        }
+        #ob-wiz-text:focus { outline: none; border-color: var(--accent); }
+        .ob-wiz-btn {
+            display: inline-block; background: var(--accent); color: #fff;
+            border: none; padding: 12px 32px; border-radius: 12px;
+            font-size: 15px; font-weight: 600; cursor: pointer;
+            font-family: 'Sora', sans-serif; transition: all 0.2s; width: 100%;
+        }
+        .ob-wiz-btn:hover { background: #9333ea; transform: translateY(-1px); }
+        .ob-wiz-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .ob-wiz-skip {
+            display: block; margin: 12px auto 0; background: none; border: none;
+            color: var(--text-3); font-size: 13px; cursor: pointer;
+            font-family: 'Sora', sans-serif; padding: 4px 8px;
+        }
+        .ob-wiz-skip:hover { color: var(--text-2); }
+        .ob-wiz-spinner {
+            width: 48px; height: 48px;
+            border: 3px solid var(--border); border-top-color: var(--accent);
+            border-radius: 50%; animation: obSpin 0.8s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes obSpin { to { transform: rotate(360deg); } }
+        .ob-wiz-result-card {
+            background: var(--bg); border: 1px solid var(--border);
+            border-radius: 10px; padding: 12px 16px; text-align: left; margin-bottom: 8px;
+        }
+        .ob-wiz-result-entity { font-weight: 600; font-size: 14px; }
+        .ob-wiz-result-type {
+            font-size: 11px; color: var(--text-3);
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .ob-wiz-result-facts {
+            font-size: 13px; color: var(--text-2); line-height: 1.5; margin-top: 4px;
+        }
+        .ob-wiz-code-block {
+            background: var(--bg); border: 1px solid var(--border);
+            border-radius: 12px; padding: 14px 16px;
+            display: flex; align-items: center; justify-content: space-between; gap: 12px;
+        }
+        .ob-wiz-code-block code {
+            font-family: 'JetBrains Mono', monospace; font-size: 13px;
+            color: var(--green); word-break: break-all;
+        }
+        .ob-wiz-copy {
+            background: var(--accent); color: #fff; border: none;
+            padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600;
+            cursor: pointer; font-family: 'Sora', sans-serif;
+            white-space: nowrap; flex-shrink: 0;
+        }
+        .ob-wiz-copy:hover { background: #9333ea; }
+        #ob-wiz-results-box { max-height: 220px; overflow-y: auto; margin-bottom: 20px; }
+        @media (max-width: 768px) {
+            .ob-wizard { padding: 28px 20px; }
+            .ob-wizard-step h2 { font-size: 18px; }
+            .ob-wiz-code-block { flex-direction: column; align-items: stretch; }
+        }
     </style>
 </head>
 <body>
@@ -945,6 +1046,59 @@
 
 <div class="modal-bg" id="modal-bg" onclick="if(event.target===this)closeModal()">
     <div class="modal" id="modal-body"></div>
+</div>
+
+<!-- Onboarding Wizard -->
+<div class="ob-wizard-overlay" id="ob-wizard-overlay" style="display:none;">
+    <div class="ob-wizard">
+        <div class="ob-wizard-progress">
+            <div class="ob-wizard-dot active" id="ob-wiz-dot-1"></div>
+            <div class="ob-wizard-line"></div>
+            <div class="ob-wizard-dot" id="ob-wiz-dot-2"></div>
+            <div class="ob-wizard-line"></div>
+            <div class="ob-wizard-dot" id="ob-wiz-dot-3"></div>
+        </div>
+        <!-- Step 1: Add Memory -->
+        <div class="ob-wizard-step" id="ob-wiz-step-1">
+            <div class="ob-wiz-icon"><svg viewBox="0 0 120 120" width="48" height="48"><path d="M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68" fill="none" stroke="#a855f7" stroke-width="8" stroke-linecap="round"/><circle cx="62" cy="68" r="8" fill="#a855f7"/><circle cx="62" cy="68" r="3.5" fill="#fff"/></svg></div>
+            <h2>Add your first memory</h2>
+            <p>Tell your AI something about yourself. Edit the text below or use our example.</p>
+            <textarea id="ob-wiz-text" rows="3">I'm a software engineer who uses Python and TypeScript. I work on web apps and deploy to the cloud. I'm exploring AI agents with persistent memory.</textarea>
+            <button class="ob-wiz-btn" id="ob-wiz-add-btn" onclick="obWizardAdd()">Add This Memory</button>
+            <button class="ob-wiz-skip" onclick="obWizardSkip()">Skip setup</button>
+        </div>
+        <!-- Step 2: See Results -->
+        <div class="ob-wizard-step" id="ob-wiz-step-2" style="display:none;">
+            <div id="ob-wiz-loading">
+                <div class="ob-wiz-spinner"></div>
+                <h2>Processing your memory...</h2>
+                <p>Extracting entities, facts, and relationships</p>
+            </div>
+            <div id="ob-wiz-results" style="display:none;">
+                <div class="ob-wiz-icon"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="#34d399" stroke-width="1.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
+                <h2>Here's what your AI remembers</h2>
+                <p>Any AI agent connected to Mengram will recall this about you</p>
+                <div id="ob-wiz-results-box"></div>
+                <button class="ob-wiz-btn" onclick="obWizardToStep3()">Continue</button>
+            </div>
+        </div>
+        <!-- Step 3: Connect -->
+        <div class="ob-wizard-step" id="ob-wiz-step-3" style="display:none;">
+            <div class="ob-wiz-icon"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="#a855f7" stroke-width="1.5" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+            <h2>Connect your tools</h2>
+            <p>Set up auto-save and auto-recall for Claude Code</p>
+            <div class="ob-wiz-code-block" style="margin-bottom:12px;">
+                <code>pip install mengram-ai</code>
+                <button class="ob-wiz-copy" onclick="obWizCopy(this,'pip install mengram-ai')">Copy</button>
+            </div>
+            <div class="ob-wiz-code-block">
+                <code>mengram setup</code>
+                <button class="ob-wiz-copy" onclick="obWizCopy(this,'mengram setup')">Copy</button>
+            </div>
+            <p style="font-size:13px;color:var(--text-3);margin-top:16px;margin-bottom:20px;">Also available as <a href="https://docs.mengram.io/mcp" style="color:var(--accent);">MCP server</a>, <a href="https://docs.mengram.io/sdks" style="color:var(--accent);">Python/JS SDKs</a>, and <a href="https://docs.mengram.io/api-reference" style="color:var(--accent);">REST API</a>.</p>
+            <button class="ob-wiz-btn" onclick="obWizardFinish()">Open Console</button>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -1409,15 +1563,21 @@ let _obState = { add: false, search: false, graph: false };
 
 function checkOnboardingVisibility(stats) {
     if (localStorage.getItem('mengram_onboarding_done')) return;
+    // Don't show wizard during auto-checkout flow (user arrived with ?plan=xxx)
+    if (new URLSearchParams(location.search).get('plan')) return;
     const el = document.getElementById('onboarding-checklist');
     if (!el) return;
     const total = (stats.entities||0) + (stats.facts||0) + (stats.relations||0) + (stats.knowledge||0);
     const inProgress = localStorage.getItem('mengram_ob_active') === '1';
+    if (total === 0 && !inProgress) {
+        // Brand new user — show interactive wizard
+        showOnboardingWizard();
+        return;
+    }
     if (total === 0 || inProgress) {
-        // New user OR mid-onboarding (added data but hasn't finished all steps)
+        // Mid-onboarding or returning from wizard skip — show checklist
         el.style.display = '';
         localStorage.setItem('mengram_ob_active', '1');
-        // Restore step state from localStorage on page reload
         if ((stats.entities||0) > 0) _obState.add = true;
         if (localStorage.getItem('mengram_ob_search') === '1') _obState.search = true;
         if (localStorage.getItem('mengram_ob_graph') === '1') _obState.graph = true;
@@ -1481,6 +1641,148 @@ function obClickSearch() {
     setTimeout(() => { const s = document.getElementById('full-search-input'); if (s) { s.placeholder = 'Try: what language do I use?'; s.focus(); } }, 150);
 }
 function obClickGraph() { switchTabDirect('graph'); }
+
+// ---- Onboarding Wizard (interactive first-time experience) ----
+function showOnboardingWizard() {
+    const el = document.getElementById('ob-wizard-overlay');
+    if (el) el.style.display = 'flex';
+    localStorage.setItem('mengram_ob_active', '1');
+    const old = document.getElementById('onboarding-checklist');
+    if (old) old.style.display = 'none';
+}
+
+async function obWizardAdd() {
+    const textarea = document.getElementById('ob-wiz-text');
+    const text = textarea.value.trim();
+    if (!text) { textarea.focus(); return; }
+    const btn = document.getElementById('ob-wiz-add-btn');
+    btn.disabled = true;
+    btn.textContent = 'Adding...';
+    // Transition to step 2 (loading)
+    document.getElementById('ob-wiz-step-1').style.display = 'none';
+    document.getElementById('ob-wiz-step-2').style.display = '';
+    document.getElementById('ob-wiz-dot-1').classList.remove('active');
+    document.getElementById('ob-wiz-dot-1').classList.add('done');
+    document.getElementById('ob-wiz-dot-2').classList.add('active');
+    try {
+        const r = await fetch(`${API}/v1/add_text`, {
+            method: 'POST', headers: H(),
+            body: JSON.stringify({ text })
+        });
+        const d = await r.json();
+        if (!r.ok && r.status !== 202) {
+            if (r.status === 402) {
+                document.getElementById('ob-wiz-loading').innerHTML = `
+                    <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="var(--orange)" stroke-width="1.5" stroke-linecap="round" style="margin-bottom:16px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    <h2>Subscribe to get started</h2>
+                    <p>Choose a plan to start building your AI memory.</p>
+                    <button class="ob-wiz-btn" onclick="obWizardFinish();setTimeout(()=>{switchTabDirect('billing');},300);" style="margin-top:12px;">Choose a Plan</button>`;
+            } else {
+                document.getElementById('ob-wiz-loading').innerHTML = `
+                    <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="var(--red)" stroke-width="1.5" stroke-linecap="round" style="margin-bottom:16px;"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                    <h2>Something went wrong</h2>
+                    <p>${esc(typeof d.detail === 'string' ? d.detail : (d.detail && d.detail.message) || 'Please try again.')}</p>
+                    <button class="ob-wiz-btn" onclick="obWizardRetry()" style="margin-top:12px;">Try Again</button>`;
+            }
+            return;
+        }
+        if (d.job_id) await pollJob(d.job_id, 20);
+        await obWizardShowResults();
+    } catch (e) {
+        document.getElementById('ob-wiz-loading').innerHTML = `
+            <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="var(--red)" stroke-width="1.5" stroke-linecap="round" style="margin-bottom:16px;"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+            <h2>Connection error</h2>
+            <p>Check your internet connection and try again.</p>
+            <button class="ob-wiz-btn" onclick="obWizardRetry()" style="margin-top:12px;">Try Again</button>`;
+    }
+}
+
+async function obWizardShowResults() {
+    try {
+        const r = await fetch(`${API}/v1/search`, {
+            method: 'POST', headers: H(),
+            body: JSON.stringify({ query: 'what technologies do I use?', limit: 5 })
+        });
+        const d = await r.json();
+        const box = document.getElementById('ob-wiz-results-box');
+        if (d.results && d.results.length > 0) {
+            box.innerHTML = d.results.map(function(r) {
+                const facts = (r.facts || []).slice(0, 3).map(function(f) { return esc(f); }).join('<br>');
+                return '<div class="ob-wiz-result-card">' +
+                    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">' +
+                    '<span class="ob-wiz-result-entity">' + esc(r.entity) + '</span>' +
+                    '<span class="ob-wiz-result-type">' + esc(r.type) + '</span>' +
+                    '</div>' +
+                    (facts ? '<div class="ob-wiz-result-facts">' + facts + '</div>' : '') +
+                    '</div>';
+            }).join('');
+        } else {
+            box.innerHTML = '<div class="ob-wiz-result-card">' +
+                '<div class="ob-wiz-result-entity">Memory saved successfully</div>' +
+                '<div class="ob-wiz-result-facts">Your AI will recall this information in future conversations.</div>' +
+                '</div>';
+        }
+    } catch (e) {
+        document.getElementById('ob-wiz-results-box').innerHTML =
+            '<div class="ob-wiz-result-card">' +
+            '<div class="ob-wiz-result-entity">Memory saved</div>' +
+            '<div class="ob-wiz-result-facts">Your AI memory is ready. Search results will appear in your console.</div>' +
+            '</div>';
+    }
+    document.getElementById('ob-wiz-loading').style.display = 'none';
+    document.getElementById('ob-wiz-results').style.display = '';
+    updateObStep('add', true);
+    updateObStep('search', true);
+    _invalidateCache('graph'); _invalidateCache('entities');
+    loadStats(); loadFeed();
+}
+
+function obWizardToStep3() {
+    document.getElementById('ob-wiz-step-2').style.display = 'none';
+    document.getElementById('ob-wiz-step-3').style.display = '';
+    document.getElementById('ob-wiz-dot-2').classList.remove('active');
+    document.getElementById('ob-wiz-dot-2').classList.add('done');
+    document.getElementById('ob-wiz-dot-3').classList.add('active');
+}
+
+function obWizardFinish() {
+    document.getElementById('ob-wizard-overlay').style.display = 'none';
+    localStorage.setItem('mengram_onboarding_done', '1');
+    localStorage.removeItem('mengram_ob_active');
+    const old = document.getElementById('onboarding-checklist');
+    if (old) old.style.display = 'none';
+    loadGraph();
+}
+
+function obWizardSkip() {
+    document.getElementById('ob-wizard-overlay').style.display = 'none';
+    // Show checklist as fallback
+    const ob = document.getElementById('onboarding-checklist');
+    if (ob) ob.style.display = '';
+}
+
+function obWizardRetry() {
+    document.getElementById('ob-wiz-step-2').style.display = 'none';
+    document.getElementById('ob-wiz-step-1').style.display = '';
+    document.getElementById('ob-wiz-dot-2').classList.remove('active');
+    document.getElementById('ob-wiz-dot-1').classList.remove('done');
+    document.getElementById('ob-wiz-dot-1').classList.add('active');
+    const btn = document.getElementById('ob-wiz-add-btn');
+    btn.disabled = false;
+    btn.textContent = 'Add This Memory';
+    // Reset step 2 loading state
+    document.getElementById('ob-wiz-loading').innerHTML =
+        '<div class="ob-wiz-spinner"></div><h2>Processing your memory...</h2><p>Extracting entities, facts, and relationships</p>';
+    document.getElementById('ob-wiz-loading').style.display = '';
+    document.getElementById('ob-wiz-results').style.display = 'none';
+}
+
+function obWizCopy(btn, text) {
+    navigator.clipboard.writeText(text).then(function() {
+        btn.textContent = 'Copied!';
+        setTimeout(function() { btn.textContent = 'Copy'; }, 2000);
+    });
+}
 
 async function loadAccount() {
     try {
