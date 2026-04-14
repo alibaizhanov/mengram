@@ -1175,13 +1175,22 @@ m.search("query", agent_id="my-agent")</code></pre>
                 "to": [email],
                 "subject": f"Mengram verification code: {code}",
                 "html": f"""
-                <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px;">
-                    <h2 style="color:#a855f7;">Mengram</h2>
-                    <p>Your verification code:</p>
-                    <div style="background:#f5f5f7;padding:16px 24px;border-radius:8px;text-align:center;margin:16px 0;">
-                        <span style="font-size:32px;font-weight:700;letter-spacing:8px;color:#1a1a2e;">{code}</span>
+                <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:0 auto;padding:40px 24px;color:#e8e8f0;background:#0a0a12;border-radius:16px">
+                    <div style="text-align:center;margin-bottom:32px">
+                        <svg width="36" height="36" viewBox="0 0 120 120"><path d="M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68" fill="none" stroke="#a855f7" stroke-width="8" stroke-linecap="round"/><circle cx="62" cy="68" r="8" fill="#a855f7"/><circle cx="62" cy="68" r="3.5" fill="white"/></svg>
+                        <h1 style="font-size:22px;font-weight:700;margin:8px 0 4px;color:#e8e8f0">Mengram</h1>
                     </div>
-                    <p style="color:#666;font-size:14px;">This code expires in 10 minutes.</p>
+                    <p style="font-size:15px;color:#c8c8d8;text-align:center;">Your verification code:</p>
+                    <div style="background:#12121e;border:1px solid #1a1a2e;border-radius:10px;padding:20px;text-align:center;margin:20px 0;">
+                        <span style="font-size:36px;font-weight:700;letter-spacing:10px;color:#a855f7;">{code}</span>
+                    </div>
+                    <p style="font-size:13px;color:#55556a;text-align:center;">This code expires in 10 minutes.</p>
+                    <hr style="border:none;border-top:1px solid #1a1a2e;margin:28px 0">
+                    <p style="font-size:12px;color:#55556a;text-align:center">
+                        <a href="{BASE_URL}/dashboard" style="color:#7c3aed;text-decoration:none">Console</a> &middot;
+                        <a href="https://docs.mengram.io" style="color:#7c3aed;text-decoration:none">Docs</a> &middot;
+                        <a href="https://github.com/alibaizhanov/mengram" style="color:#7c3aed;text-decoration:none">GitHub</a>
+                    </p>
                 </div>
                 """,
             })
