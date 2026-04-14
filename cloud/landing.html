@@ -1126,10 +1126,12 @@
         }
         .pricing-section > p {
             text-align: center;
-            color: var(--text-2);
-            font-size: 16px;
-            margin-bottom: 48px;
+            color: var(--text-1);
+            font-size: 20px;
+            font-weight: 500;
+            margin-bottom: 32px;
         }
+        .pricing-section > p .accent { color: var(--accent); }
         .pricing-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -2531,7 +2533,7 @@ POST /v1/add → {<span class="c-str">"messages"</span>: [...], <span class="c-s
         <!-- Pricing -->
         <section class="pricing-section" id="pricing">
             <h2 class="reveal">Simple, predictable pricing</h2>
-            <p class="reveal">Less than your morning coffee. More than any agent remembers.</p>
+            <p class="reveal">Less than your <span class="accent">morning coffee</span>. More than <span class="accent">any agent remembers</span>.</p>
             <div style="display:flex;justify-content:center;margin-bottom:32px;" class="reveal">
                 <div style="display:flex;align-items:center;gap:8px;">
                     <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:3px;">
