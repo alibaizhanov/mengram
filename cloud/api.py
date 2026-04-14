@@ -1366,7 +1366,7 @@ m.add("I love hiking in the mountains")</code></pre>
                 body = f"""
                     <p style="font-size:15px;color:#c8c8d8;line-height:1.6">Hi,</p>
                     <p style="font-size:15px;color:#c8c8d8;line-height:1.6">It's been two weeks since your last Mengram activity. Your entities, episodes, and procedures are still intact — but memory works best when it stays fresh.</p>
-                    <p style="font-size:15px;color:#c8c8d8;line-height:1.6">A quick <code style="color:#22c55e;background:#12121e;padding:2px 6px;border-radius:4px">mengram setup</code> reconnects Claude Code in seconds. Or open the dashboard to see what your AI still remembers about you.</p>
+                    <p style="font-size:15px;color:#c8c8d8;line-height:1.6">Pick up where you left off — open the dashboard, reconnect your tools, or just call the API. Your AI still remembers everything.</p>
                     <div style="text-align:center;margin:24px 0">
                         <a href="{BASE_URL}/dashboard" style="background:#7c3aed;color:white;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Open Dashboard</a>
                     </div>
