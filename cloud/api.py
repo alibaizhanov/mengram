@@ -1361,6 +1361,28 @@ m.add("I love hiking in the mountains")</code></pre>
                     </div>
                     <p style="font-size:13px;color:#8888a8">If you ran into any issues or have feedback, just reply to this email.</p>"""
 
+            elif drip_type == "churned_14d":
+                subject = "Your Mengram memories miss you"
+                body = f"""
+                    <p style="font-size:15px;color:#c8c8d8;line-height:1.6">Hi,</p>
+                    <p style="font-size:15px;color:#c8c8d8;line-height:1.6">It's been two weeks since your last Mengram activity. Your entities, episodes, and procedures are still intact — but memory works best when it stays fresh.</p>
+                    <p style="font-size:15px;color:#c8c8d8;line-height:1.6">A quick <code style="color:#22c55e;background:#12121e;padding:2px 6px;border-radius:4px">mengram setup</code> reconnects Claude Code in seconds. Or open the dashboard to see what your AI still remembers about you.</p>
+                    <div style="text-align:center;margin:24px 0">
+                        <a href="{BASE_URL}/dashboard" style="background:#7c3aed;color:white;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Open Dashboard</a>
+                    </div>
+                    <p style="font-size:13px;color:#8888a8">Questions or feedback? Just reply to this email.</p>"""
+
+            elif drip_type == "churned_30d":
+                subject = "Last call — re-activate your Mengram memory"
+                body = f"""
+                    <p style="font-size:15px;color:#c8c8d8;line-height:1.6">Hi,</p>
+                    <p style="font-size:15px;color:#c8c8d8;line-height:1.6">It's been a month since you last used Mengram. Your agent's memory is going stale — entities and procedures lose relevance without fresh context.</p>
+                    <p style="font-size:15px;color:#c8c8d8;line-height:1.6">One conversation is all it takes to bring everything back to life. Your data is still here.</p>
+                    <div style="text-align:center;margin:24px 0">
+                        <a href="{BASE_URL}/dashboard" style="background:#7c3aed;color:white;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Open Dashboard</a>
+                    </div>
+                    <p style="font-size:13px;color:#8888a8">If Mengram wasn't the right fit, I'd love to hear why — just reply.</p>"""
+
             else:
                 return
 
@@ -1371,7 +1393,7 @@ m.add("I love hiking in the mountains")</code></pre>
                 "subject": subject,
                 "html": html,
             }
-            if drip_type == "churned_7d":
+            if drip_type in ("churned_7d", "churned_14d", "churned_30d"):
                 payload["reply_to"] = "the.baizhanov@gmail.com"
             resend.Emails.send(payload)
             logger.info(f"📧 Drip email '{drip_type}' sent to {email}")
@@ -7337,10 +7359,20 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                         _send_drip_email(user["email"], "searched_no_add")
                         _time.sleep(0.5)
 
-                # Churned active users (were active, stopped for 7+ days)
+                # Churned active users (were active, stopped for 7/14/30 days)
                 for user in store.get_churned_active_users():
                     if store.try_record_drip(user["email"], "churned_7d", user["id"]):
                         _send_drip_email(user["email"], "churned_7d")
+                        _time.sleep(0.5)
+
+                for user in store.get_churned_active_users(inactive_hours=336, drip_type="churned_14d"):
+                    if store.try_record_drip(user["email"], "churned_14d", user["id"]):
+                        _send_drip_email(user["email"], "churned_14d")
+                        _time.sleep(0.5)
+
+                for user in store.get_churned_active_users(inactive_hours=720, drip_type="churned_30d"):
+                    if store.try_record_drip(user["email"], "churned_30d", user["id"]):
+                        _send_drip_email(user["email"], "churned_30d")
                         _time.sleep(0.5)
 
             except Exception as e:
