@@ -1361,6 +1361,14 @@ async function tryLogin(k) {
             if(_tab && ['feed','search','overview','agents','insights','graph','entities','procedures','billing','settings'].includes(_tab)) {
                 switchTabDirect(_tab);
             }
+            // Auto-trigger checkout if ?plan=xxx passed (from post-signup flow)
+            const _autoplan = new URLSearchParams(location.search).get('plan');
+            if (_autoplan && ['starter','pro','growth','business'].includes(_autoplan)) {
+                setTimeout(() => {
+                    switchTabDirect('billing');
+                    upgradePlan(_autoplan);
+                }, 800);
+            }
         } else { document.getElementById('login-error').style.display='block'; }
     } catch(e) { document.getElementById('login-error').style.display='block'; }
 }

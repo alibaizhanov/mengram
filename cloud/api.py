@@ -878,6 +878,29 @@ Be strict — only include entities that directly answer or relate to the query.
                             store.update_subscription(user_id, plan="free")
                     except Exception:
                         pass
+        # New users (after 2026-04-15) must subscribe — no free tier
+        _FREE_CUTOFF = datetime.datetime(2026, 4, 15, tzinfo=datetime.timezone.utc)
+        if plan == "free" and sub:
+            _created = sub.get("created_at")
+            if _created:
+                try:
+                    _created_dt = datetime.datetime.fromisoformat(str(_created).replace("Z", "+00:00"))
+                    if _created_dt >= _FREE_CUTOFF:
+                        # Allow read-only endpoints (GET /v1/me, billing, profile) but block writes
+                        _path = request.url.path.lower()
+                        _allowed = ("/v1/me", "/v1/billing", "/v1/signup", "/v1/verify", "/v1/reset-key", "/webhooks/")
+                        if not any(p in _path for p in _allowed):
+                            raise HTTPException(
+                                status_code=402,
+                                detail={
+                                    "error": "subscription_required",
+                                    "message": "Please subscribe to start using Mengram. Plans start at $5/mo.",
+                                    "upgrade_url": f"{BASE_URL}/#pricing",
+                                },
+                            )
+                except (ValueError, TypeError):
+                    pass
+
         rate_limit = PLAN_QUOTAS[plan]["rate_limit"]
 
         if not _check_rate_limit(user_id, rate_limit):
@@ -1610,17 +1633,17 @@ m.add("I love hiking in the mountains")</code></pre>
             "has_selfhost": "&#x2705;",
             "their_price": "$19–249/mo",
             "best_for_them": "Reliable fact storage with the largest community. Great if you only need to remember user preferences and personal details.",
-            "best_for_us": "Agents that learn from experience — remember facts AND events AND workflows. Free cloud API with 3 memory types, Cognitive Profile, and MCP.",
+            "best_for_us": "Agents that learn from experience — remember facts AND events AND workflows. Cloud API with 3 memory types, Cognitive Profile, and MCP.",
             "website": "https://mem0.ai",
             "seo_title": "Mengram vs Mem0 — AI Memory Comparison (2026)",
-            "seo_description": "Compare Mengram and Mem0 for AI agent memory. Mengram adds episodic memory, procedural memory that evolves from failures, and Cognitive Profile. Free alternative to Mem0.",
+            "seo_description": "Compare Mengram and Mem0 for AI agent memory. Mengram adds episodic memory, procedural memory that evolves from failures, and Cognitive Profile. Plans from $5/mo.",
             "seo_keywords": "Mem0 alternative, Mengram vs Mem0, AI memory comparison, mem0ai alternative, best AI memory tool",
         },
         "zep": {
             "slug": "zep",
             "name": "Zep",
             "tagline": "Zep tracks time. Mengram learns from experience.",
-            "description": "Zep is an enterprise AI memory tool with temporal knowledge graph and SOC2/HIPAA compliance. Mengram offers 3 memory types, procedural learning, and a free cloud API.",
+            "description": "Zep is an enterprise AI memory tool with temporal knowledge graph and SOC2/HIPAA compliance. Mengram offers 3 memory types, procedural learning, and a cloud API.",
             "their_good": [
                 "Temporal knowledge graph — tracks how facts change over time",
                 "SOC2 and HIPAA compliance",
@@ -1629,7 +1652,7 @@ m.add("I love hiking in the mountains")</code></pre>
             ],
             "their_missing": [
                 "Cloud-only (community edition deprecated)",
-                "Enterprise pricing only — no free tier",
+                "Enterprise pricing only — no affordable plans",
                 "No episodic memory",
                 "No procedural memory",
                 "No self-improving workflows",
@@ -1643,11 +1666,11 @@ m.add("I love hiking in the mountains")</code></pre>
             "has_selfhost": "&#x274C;",
             "their_price": "Enterprise",
             "best_for_them": "Enterprise apps in regulated industries (healthcare, finance) where SOC2/HIPAA and temporal reasoning are requirements.",
-            "best_for_us": "Agents that learn and improve over time. 3 memory types, free cloud API, self-hostable, MCP + LangChain + CrewAI integrations.",
+            "best_for_us": "Agents that learn and improve over time. 3 memory types, cloud API, self-hostable, MCP + LangChain + CrewAI integrations.",
             "website": "https://www.getzep.com",
             "seo_title": "Mengram vs Zep — AI Memory Comparison (2026)",
-            "seo_description": "Compare Mengram and Zep for AI agent memory. Mengram offers 3 memory types and procedural learning. Free open-source alternative to Zep's enterprise-only pricing.",
-            "seo_keywords": "Zep alternative, Mengram vs Zep, AI memory comparison, getzep alternative, free AI memory API",
+            "seo_description": "Compare Mengram and Zep for AI agent memory. Mengram offers 3 memory types and procedural learning. Open-source, plans from $5/mo vs Zep's enterprise-only pricing.",
+            "seo_keywords": "Zep alternative, Mengram vs Zep, AI memory comparison, getzep alternative, AI memory API",
         },
         "letta": {
             "slug": "letta",
@@ -1676,10 +1699,10 @@ m.add("I love hiking in the mountains")</code></pre>
             "has_selfhost": "&#x2705;",
             "their_price": "Free (self-host)",
             "best_for_them": "Long-running conversational agents where the agent should organically manage its own context and memory.",
-            "best_for_us": "Structured memory with 3 types that the developer controls. Procedures evolve from failures. Free cloud API + MCP + framework integrations.",
+            "best_for_us": "Structured memory with 3 types that the developer controls. Procedures evolve from failures. Cloud API + MCP + framework integrations.",
             "website": "https://www.letta.com",
             "seo_title": "Mengram vs Letta (MemGPT) — AI Memory Comparison (2026)",
-            "seo_description": "Compare Mengram and Letta (MemGPT) for AI agent memory. Mengram offers semantic + episodic + procedural memory with self-improving workflows. Free alternative.",
+            "seo_description": "Compare Mengram and Letta (MemGPT) for AI agent memory. Mengram offers semantic + episodic + procedural memory with self-improving workflows. Plans from $5/mo.",
             "seo_keywords": "Letta alternative, MemGPT alternative, Mengram vs Letta, AI memory comparison, best AI memory tool 2026",
         },
         "langmem": {
@@ -1709,7 +1732,7 @@ m.add("I love hiking in the mountains")</code></pre>
             "has_selfhost": "&#x2705;",
             "their_price": "Via LangSmith plans",
             "best_for_them": "Teams already using LangGraph and LangSmith who want memory deeply integrated into their LangChain workflow.",
-            "best_for_us": "Framework-agnostic memory with 3 types. Works with any LLM, any framework, any client. Free cloud API + MCP + Cognitive Profile.",
+            "best_for_us": "Framework-agnostic memory with 3 types. Works with any LLM, any framework, any client. Cloud API + MCP + Cognitive Profile.",
             "website": "https://langchain-ai.github.io/long-term-memory/",
             "seo_title": "Mengram vs LangMem — AI Memory Comparison (2026)",
             "seo_description": "Compare Mengram and LangMem for AI agent memory. Mengram offers 3 memory types, Cognitive Profile, and framework-agnostic API. Works beyond LangChain.",
@@ -1781,7 +1804,7 @@ m.add("I love hiking in the mountains")</code></pre>
             "best_for_us": "Full memory loop — auto-save, auto-recall, cognitive profile. Claude knows who you are, what you worked on, and brings relevant context on every prompt. Works across Claude Code, MCP, LangChain, CrewAI, and REST API.",
             "website": "https://github.com/anthropics/claude-code",
             "seo_title": "Mengram vs claude-mem — Claude Code Memory Comparison (2026)",
-            "seo_description": "Compare Mengram and claude-mem for Claude Code memory. claude-mem saves conversations. Mengram adds auto-recall, cognitive profile, 3 memory types, and cross-tool support. Free alternative.",
+            "seo_description": "Compare Mengram and claude-mem for Claude Code memory. claude-mem saves conversations. Mengram adds auto-recall, cognitive profile, 3 memory types, and cross-tool support. Plans from $5/mo.",
             "seo_keywords": "claude-mem alternative, Mengram vs claude-mem, Claude Code memory, Claude Code persistent memory, Claude Code hooks memory, best Claude Code memory tool, claude code auto save, claude code auto recall",
         },
     }
@@ -1864,7 +1887,7 @@ profile = m.profile(user_id="alice")
 <h2>Getting started</h2>
 <p>The fastest way to add AI memory to your application:</p>
 <pre><code>pip install mengram-ai</code></pre>
-<p>Get a free API key at <a href="/#signup">mengram.io</a> and start building. Works with any LLM — OpenAI, Anthropic, Google, open-source models. Also available as an <a href="/blog/mcp-memory-server-setup">MCP server for Claude Desktop</a>.</p>
+<p>Get an API key at <a href="/#signup">mengram.io</a> and start building. Works with any LLM — OpenAI, Anthropic, Google, open-source models. Also available as an <a href="/blog/mcp-memory-server-setup">MCP server for Claude Desktop</a>.</p>
 """,
             "related": ["ai-memory-vs-rag", "semantic-episodic-procedural-memory"],
         },
@@ -1928,7 +1951,7 @@ User memories: {{memories}}
 Question: {{user_query}}\"\"\"</code></pre>
 
 <h2>Getting started</h2>
-<p>Replace your pure-RAG setup with Mengram in 3 lines: <code>pip install mengram-ai</code>, get a <a href="/#signup">free API key</a>, and call <code>m.add()</code> after each conversation. Your AI will start learning from every interaction.</p>
+<p>Replace your pure-RAG setup with Mengram in 3 lines: <code>pip install mengram-ai</code>, get an <a href="/#signup">API key</a>, and call <code>m.add()</code> after each conversation. Your AI will start learning from every interaction.</p>
 """,
             "related": ["what-is-ai-memory", "how-to-add-memory-to-ai-agents"],
         },
@@ -2019,13 +2042,13 @@ profile = m.profile(user_id="alice")
             "tags": ["Tutorial", "Quick Start"],
             "excerpt": "Step-by-step tutorial to add persistent memory to any AI agent using Python or JavaScript. Works with OpenAI, Anthropic, and any LLM.",
             "seo_title": "How to Add Memory to AI Agents in 5 Minutes (Python & JS) | Mengram",
-            "seo_description": "Step-by-step tutorial: add persistent memory to AI agents in Python or JavaScript. Works with OpenAI, Anthropic, and any LLM. Free API, 5-minute setup.",
+            "seo_description": "Step-by-step tutorial: add persistent memory to AI agents in Python or JavaScript. Works with OpenAI, Anthropic, and any LLM. 5-minute setup, plans from $5/mo.",
             "seo_keywords": "add memory to AI agents, AI agent memory tutorial, Python AI memory, JavaScript AI memory, persistent memory for LLMs, Mengram tutorial",
             "content_html": """
 <h2>Prerequisites</h2>
 <ul>
 <li>Python 3.8+ or Node.js 18+</li>
-<li>A free Mengram API key — <a href="/#signup">get one here</a></li>
+<li>A Mengram API key — <a href="/#signup">get one here</a></li>
 <li>Any LLM API (OpenAI, Anthropic, etc.) or a local model</li>
 </ul>
 
@@ -2211,7 +2234,7 @@ response = client.messages.create(
 <li><strong>Multi-agent systems:</strong> Share user context across agents without manual prompt engineering</li>
 </ul>
 
-<p>Get started: <code>pip install mengram-ai</code>, grab a <a href="/#signup">free API key</a>, and call <code>m.profile(user_id)</code>. <a href="/blog/how-to-add-memory-to-ai-agents">Full quickstart tutorial here</a>.</p>
+<p>Get started: <code>pip install mengram-ai</code>, grab an <a href="/#signup">API key</a>, and call <code>m.profile(user_id)</code>. <a href="/blog/how-to-add-memory-to-ai-agents">Full quickstart tutorial here</a>.</p>
 """,
             "related": ["how-to-add-memory-to-ai-agents", "semantic-episodic-procedural-memory"],
         },
@@ -2232,7 +2255,7 @@ response = client.messages.create(
 <p>Mengram's MCP server gives Claude Desktop 29 memory tools — search, add, profile, knowledge graph, triggers, dedup, reflections, and more — turning it into an AI that remembers everything across sessions.</p>
 
 <h2>Installation</h2>
-<p>You need a Mengram API key (<a href="/#signup">get one free</a>) and Claude Desktop installed.</p>
+<p>You need a Mengram API key (<a href="/#signup">get one here</a>) and Claude Desktop installed.</p>
 
 <h3>Option 1: npx (recommended)</h3>
 <p>Add this to your Claude Desktop config file (<code>claude_desktop_config.json</code>):</p>
@@ -2317,8 +2340,8 @@ Claude: Since you use Railway with FastAPI, here's how I'd set up your CI/CD...
             "tags": ["Comparison", "Benchmark"],
             "excerpt": "Detailed feature-by-feature comparison of Mem0 and Mengram for AI agent memory. Pricing, memory types, API design, and performance benchmarks.",
             "seo_title": "Mem0 vs Mengram: Feature Comparison & Benchmark (2026)",
-            "seo_description": "Detailed comparison of Mem0 vs Mengram for AI memory. Compare memory types, pricing, API design, MCP support, and performance. Free Mem0 alternative with 3 memory types.",
-            "seo_keywords": "Mem0 vs Mengram, Mem0 alternative, best AI memory tool 2026, Mem0 comparison, AI memory benchmark, free Mem0 alternative",
+            "seo_description": "Detailed comparison of Mem0 vs Mengram for AI memory. Compare memory types, pricing, API design, MCP support, and performance. Open-source Mem0 alternative with 3 memory types.",
+            "seo_keywords": "Mem0 vs Mengram, Mem0 alternative, best AI memory tool 2026, Mem0 comparison, AI memory benchmark, open source Mem0 alternative",
             "content_html": """
 <h2>Overview</h2>
 <p><a href="/vs/mem0">Mem0</a> and Mengram are both AI memory solutions, but they take fundamentally different approaches. Mem0 focuses on semantic fact storage with a large community. Mengram adds episodic and procedural memory types plus Cognitive Profile.</p>
@@ -2344,8 +2367,7 @@ Claude: Since you use Railway with FastAPI, here's how I'd set up your CI/CD...
 <tr style="border-bottom:1px solid #1a1a2e;"><td style="padding:10px;">MCP server</td><td style="text-align:center;">&#x2705;</td><td style="text-align:center;">&#x2705;</td></tr>
 <tr style="border-bottom:1px solid #1a1a2e;"><td style="padding:10px;">Self-hostable</td><td style="text-align:center;">&#x2705;</td><td style="text-align:center;">&#x2705;</td></tr>
 <tr style="border-bottom:1px solid #1a1a2e;"><td style="padding:10px;">Open source</td><td style="text-align:center;">MIT</td><td style="text-align:center;">Apache 2.0</td></tr>
-<tr style="border-bottom:1px solid #1a1a2e;"><td style="padding:10px;">Free tier</td><td style="text-align:center; color:#34d399; font-weight:600;">30 adds / 100 searches</td><td style="text-align:center;">10K memories</td></tr>
-<tr><td style="padding:10px;">Paid plans</td><td style="text-align:center;">$19–99/mo</td><td style="text-align:center;">$19–249/mo</td></tr>
+<tr><td style="padding:10px;">Pricing</td><td style="text-align:center;">$5–99/mo</td><td style="text-align:center;">$19–249/mo</td></tr>
 </tbody>
 </table>
 
@@ -2375,7 +2397,7 @@ results = client.search("query", user_id="u1")
 <p>Mem0 is a strong choice if you need: the largest community and ecosystem, SOC2-compliant enterprise deployment, graph-based fact storage, or are already invested in their tooling.</p>
 
 <h2>When to choose Mengram</h2>
-<p>Mengram is better if you need: episodic and procedural memory, self-improving workflows, Cognitive Profile for instant personalization, or a free tier with all features. See the <a href="/vs/mem0">full comparison page</a>.</p>
+<p>Mengram is better if you need: episodic and procedural memory, self-improving workflows, Cognitive Profile for instant personalization, or affordable plans starting at $5/mo. See the <a href="/vs/mem0">full comparison page</a>.</p>
 """,
             "related": ["what-is-ai-memory", "ai-memory-vs-rag"],
         },
@@ -2472,7 +2494,7 @@ reviewer = Agent(role="Reviewer", memory=True)
 
 <p>This is the power of <a href="/blog/semantic-episodic-procedural-memory">three memory types</a> — the researcher stores facts (semantic), the writer references past articles (episodic), and the reviewer's feedback updates the writing process (procedural).</p>
 
-<p>Get started: <code>pip install mengram-ai</code> and grab a <a href="/#signup">free API key</a>. Full <a href="/blog/how-to-add-memory-to-ai-agents">quickstart tutorial here</a>.</p>
+<p>Get started: <code>pip install mengram-ai</code> and grab an <a href="/#signup">API key</a>. Full <a href="/blog/how-to-add-memory-to-ai-agents">quickstart tutorial here</a>.</p>
 """,
             "related": ["how-to-add-memory-to-ai-agents", "mcp-memory-server-setup"],
         },
@@ -2485,7 +2507,7 @@ reviewer = Agent(role="Reviewer", memory=True)
             "tags": ["Tutorial", "Claude Code"],
             "excerpt": "Give Claude Code persistent memory with one command. Auto-save conversations, auto-recall context on every prompt, and load your cognitive profile on session start.",
             "seo_title": "How to Add Persistent Memory to Claude Code — Auto-Save & Auto-Recall Hooks | Mengram",
-            "seo_description": "Step-by-step guide to adding persistent memory to Claude Code. Install auto-save, auto-recall, and cognitive profile hooks with one command. Free, open-source.",
+            "seo_description": "Step-by-step guide to adding persistent memory to Claude Code. Install auto-save, auto-recall, and cognitive profile hooks with one command. Open-source, plans from $5/mo.",
             "seo_keywords": "Claude Code memory, Claude Code persistent memory, Claude Code hooks, Claude Code auto-save, Claude Code auto-recall, Claude Code cognitive profile, claude-mem alternative, Claude Code plugins, Claude Code remember, add memory to Claude Code",
             "content_html": """
 <p>Claude Code is powerful, but it forgets everything when you start a new session. Your tech stack, your project structure, yesterday's debugging session — all gone. Let's fix that.</p>
@@ -2698,7 +2720,7 @@ while True:
 
 <h2>Get started</h2>
 <pre><code>pip install mengram-ai</code></pre>
-<p>Get a free API key at <a href="/#signup">mengram.io</a>. The recall → act → remember loop takes 10 minutes to set up and your agent starts learning from its first run.</p>
+<p>Get an API key at <a href="/#signup">mengram.io</a>. The recall → act → remember loop takes 10 minutes to set up and your agent starts learning from its first run.</p>
 """,
             "related": ["how-to-add-memory-to-ai-agents", "semantic-episodic-procedural-memory"],
         },
@@ -2732,7 +2754,7 @@ while True:
 <h2>Setup: 3 minutes</h2>
 
 <h3>Step 1: Get an API key</h3>
-<p>Sign up at <a href="/#signup">mengram.io</a> (free tier: 30 adds, 100 searches/month). Copy your API key from the dashboard.</p>
+<p>Sign up at <a href="/#signup">mengram.io</a> (plans from $5/mo). Copy your API key from the dashboard.</p>
 
 <h3>Step 2: Install the MCP server</h3>
 <pre><code>pip install mengram-ai</code></pre>
@@ -2847,18 +2869,18 @@ Cursor: [recalls: Next.js App Router, TypeScript, Supabase, existing route patte
 <p>Both work with the same Mengram backend, so your memories sync across tools.</p>
 
 <h2>Pricing</h2>
-<p>The free tier includes 30 memory adds and 100 searches per month — enough to try it out. For heavier usage:</p>
+<p>Plans start at $5/mo:</p>
 <ul>
 <li><strong>Starter</strong> ($5/mo) — 100 adds, 500 searches</li>
 <li><strong>Pro</strong> ($19/mo) — 1,000 adds, 10,000 searches, smart triggers</li>
 <li><strong>Growth</strong> ($59/mo) — 3,000 adds, 20,000 searches, unlimited agents</li>
 <li><strong>Business</strong> ($99/mo) — 8,000 adds, 30,000 searches, unlimited teams</li>
 </ul>
-<p>See <a href="/#pricing">full pricing</a> or <a href="/#signup">get started free</a>.</p>
+<p>See <a href="/#pricing">full pricing</a> or <a href="/#signup">get started</a>.</p>
 
 <h2>Get started</h2>
 <pre><code>pip install mengram-ai</code></pre>
-<p>Get your free API key at <a href="/#signup">mengram.io</a>, add the MCP config to Cursor, and your AI assistant starts building permanent memory from the first conversation.</p>
+<p>Get your API key at <a href="/#signup">mengram.io</a>, add the MCP config to Cursor, and your AI assistant starts building permanent memory from the first conversation.</p>
 <p>Questions? <a href="https://github.com/alibaizhanov/mengram/issues">Open an issue</a> or reply at <a href="mailto:the.baizhanov@gmail.com">the.baizhanov@gmail.com</a>.</p>
 """,
             "related": ["claude-code-memory-hooks", "mcp-memory-server-setup"],
@@ -3058,7 +3080,7 @@ m.procedure_feedback(proc_id, success=False,
 <h2>Getting started</h2>
 <p>Memory is the missing piece in most context engineering implementations. Adding it takes less than 5 minutes:</p>
 <pre><code>pip install mengram-ai</code></pre>
-<p>Get your free API key at <a href="/#signup">mengram.io</a>. Works with any LLM, any framework. Also available as an <a href="/blog/mcp-memory-server-setup">MCP server</a> and with <a href="/blog/claude-code-memory-hooks">Claude Code hooks</a> for zero-config setup.</p>
+<p>Get your API key at <a href="/#signup">mengram.io</a>. Works with any LLM, any framework. Also available as an <a href="/blog/mcp-memory-server-setup">MCP server</a> and with <a href="/blog/claude-code-memory-hooks">Claude Code hooks</a> for zero-config setup.</p>
 <p>The question isn't whether your agent needs memory. It's how long you can afford to operate without it.</p>
 """,
             "related": ["what-is-ai-memory", "claude-code-memory-hooks"],
@@ -3098,7 +3120,7 @@ m.procedure_feedback(proc_id, success=False,
 <p>Managed Agents support remote MCP servers via HTTP transport. Mengram's cloud MCP endpoint works out of the box.</p>
 
 <h3>Step 1: Get a Mengram API key</h3>
-<p>Sign up at <a href="/#signup">mengram.io</a> — it's free. You'll get an API key starting with <code>om-</code>.</p>
+<p>Sign up at <a href="/#signup">mengram.io</a> — plans from $5/mo. You'll get an API key starting with <code>om-</code>.</p>
 
 <h3>Step 2: Add Mengram as an MCP server</h3>
 <p>In your Managed Agent definition, add Mengram's MCP endpoint:</p>
@@ -3279,11 +3301,11 @@ client.beta.sessions.events.send(
 )</code></pre>
 
 <h2>Pricing</h2>
-<p>Mengram's free tier includes 30 memory adds and 100 searches per month — enough to prototype and test. Paid plans start at <strong>$5/month</strong> (Starter) with 100 adds and 500 searches. <a href="/#pricing">See all plans</a>.</p>
+<p>Plans start at <strong>$5/month</strong> (Starter) with 100 adds and 500 searches. Less than your morning coffee. <a href="/#pricing">See all plans</a>.</p>
 
 <h2>Get started</h2>
 <ol>
-<li>Get a free API key at <a href="/#signup">mengram.io</a></li>
+<li>Get an API key at <a href="/#signup">mengram.io</a></li>
 <li>Add the MCP config to your Managed Agent definition</li>
 <li>Store your API key in a vault</li>
 <li>Your agent now has persistent memory across sessions</li>
@@ -3636,7 +3658,7 @@ def after_call(prospect_id: str, notes: str):
             "description": "Get your API key and add your first memory in under 2 minutes.",
             "content": """
 <h2>1. Get an API key</h2>
-<p>Sign up at <a href="/#signup">mengram.io</a> to get your free API key. It starts with <code>om-</code>.</p>
+<p>Sign up at <a href="/#signup">mengram.io</a> to get your API key. It starts with <code>om-</code>.</p>
 
 <h2>2. Install the SDK</h2>
 <h3>Python</h3>
@@ -4908,9 +4930,19 @@ h1{{font-size:22px;margin-bottom:8px;color:#34d399;text-align:center}}
 
 <p class="bottom-tip">Restart Claude Code — it now remembers everything across sessions.</p>
 
-<div class="btns">
-<a class="btn-pri" href="/dashboard">Open Console</a>
-<a class="btn-sec" href="https://docs.mengram.io/claude-code">Full Guide</a>
+<div style="background:linear-gradient(135deg,rgba(168,85,247,0.15),rgba(124,58,237,0.08));border:1px solid rgba(168,85,247,0.3);border-radius:12px;padding:18px;margin-top:20px;">
+<p style="font-size:15px;font-weight:600;color:#e8e8f0;margin-bottom:4px;">Choose your plan to activate</p>
+<p style="font-size:13px;color:#888;margin-bottom:14px;">Your API key is ready — pick a plan to start using it.</p>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+<a class="btn-pri" href="/dashboard?tab=billing&plan=starter" style="font-size:13px;padding:10px;">Starter $5/mo</a>
+<a class="btn-pri" href="/dashboard?tab=billing&plan=pro" style="font-size:13px;padding:10px;">Pro $19/mo</a>
+<a class="btn-sec" href="/dashboard?tab=billing&plan=growth" style="font-size:13px;padding:10px;">Growth $59/mo</a>
+<a class="btn-sec" href="/dashboard?tab=billing&plan=business" style="font-size:13px;padding:10px;">Business $99/mo</a>
+</div>
+</div>
+
+<div class="btns" style="margin-top:12px;">
+<a class="btn-sec" href="https://docs.mengram.io/claude-code">Setup Guide</a>
 </div>
 </div>
 <script>
@@ -7687,7 +7719,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 "name": "mengram",
                 "title": "Mengram — AI Memory Layer",
                 "version": "2.21.2",
-                "description": "Give AI agents memory that actually learns. 3 memory types: semantic (facts & preferences), episodic (events & decisions), and procedural (workflows that evolve from failures). Cognitive Profile, Smart Triggers, Memory Agents, Knowledge Graph. Free cloud API.",
+                "description": "Give AI agents memory that actually learns. 3 memory types: semantic (facts & preferences), episodic (events & decisions), and procedural (workflows that evolve from failures). Cognitive Profile, Smart Triggers, Memory Agents, Knowledge Graph. Cloud API.",
                 "homepage": "https://mengram.io",
                 "icon": "https://mengram.io/static/icon-512.png",
             },
