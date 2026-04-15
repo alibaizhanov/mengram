@@ -494,12 +494,12 @@ Be strict — only include entities that directly answer or relate to the query.
     _playground_rate_limits = {}
     PLAYGROUND_RATE_WINDOW = 3600  # 1 hour
 
-    def _check_playground_rate_limit(client_ip: str, limit: int = 30) -> bool:
+    def _check_playground_rate_limit(client_ip: str, limit: int = 30, prefix: str = "playground") -> bool:
         """Hourly rate limit for playground. Returns True if allowed."""
         redis_client = getattr(store.cache, '_redis', None) if store else None
         if redis_client:
             try:
-                key = f"rl:playground:{client_ip}"
+                key = f"rl:{prefix}:{client_ip}"
                 count = redis_client.incr(key)
                 if count == 1:
                     redis_client.expire(key, PLAYGROUND_RATE_WINDOW)
@@ -508,10 +508,11 @@ Be strict — only include entities that directly answer or relate to the query.
                 pass
         import time as _time
         now = _time.time()
+        rate_key = f"{prefix}:{client_ip}"
         with _rate_lock:
-            entry = _playground_rate_limits.get(client_ip)
+            entry = _playground_rate_limits.get(rate_key)
             if not entry or now - entry["window_start"] >= PLAYGROUND_RATE_WINDOW:
-                _playground_rate_limits[client_ip] = {"count": 1, "window_start": now}
+                _playground_rate_limits[rate_key] = {"count": 1, "window_start": now}
                 return True
             if entry["count"] >= limit:
                 return False
@@ -1491,6 +1492,60 @@ m.add("I love hiking in the mountains")</code></pre>
         }
         store.cache.set(cache_key, result, ttl=300)
         return result
+
+    # ---- Playground Extract (unauthenticated, rate-limited) ----
+
+    @app.post("/api/playground/extract", tags=["System"])
+    async def playground_extract(request: Request):
+        """Public playground extraction — no auth required. Extracts memory from text without saving."""
+        try:
+            data = await request.json()
+        except Exception:
+            raise HTTPException(400, "Invalid request")
+
+        text = (data.get("text") or "").strip()
+        if not text:
+            raise HTTPException(400, "Text is required")
+        if len(text) > 2000:
+            raise HTTPException(400, "Text must be 2000 characters or less")
+
+        client_ip = request.client.host if request and request.client else "unknown"
+        if not _check_playground_rate_limit(client_ip, 5, prefix="pg_extract"):
+            raise HTTPException(
+                status_code=429,
+                detail="Rate limit reached (5 extractions/hour). Sign up for unlimited access!",
+                headers={"Retry-After": "3600"},
+            )
+
+        try:
+            extractor = get_llm()
+            conversation = [{"role": "user", "content": text}]
+            result = extractor.extract(conversation, existing_context="")
+            return {
+                "entities": [
+                    {"name": e.name, "type": e.entity_type,
+                     "facts": [{"fact": f.content, "when": f.event_date} for f in e.facts]}
+                    for e in result.entities if e.name
+                ],
+                "relations": [
+                    {"from": r.from_entity, "to": r.to_entity,
+                     "type": r.relation_type, "description": r.description}
+                    for r in result.relations
+                ],
+                "episodes": [
+                    {"summary": ep.summary, "context": ep.context, "outcome": ep.outcome,
+                     "participants": ep.participants, "importance": ep.importance}
+                    for ep in result.episodes if ep.summary
+                ],
+                "procedures": [
+                    {"name": p.name, "trigger": p.trigger,
+                     "steps": p.steps, "entities": p.entities}
+                    for p in result.procedures if p.name
+                ],
+            }
+        except Exception as e:
+            logger.error(f"Playground extraction failed: {e}")
+            raise HTTPException(500, "Extraction failed. Please try again.")
 
     # ---- Enterprise Inquiry ----
     @app.post("/enterprise-inquiry")

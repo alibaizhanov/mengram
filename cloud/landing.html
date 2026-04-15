@@ -598,25 +598,6 @@
         .features-grid .feat-card {
             grid-column: span 2;
         }
-        .feat-bento-large {
-            grid-column: span 3 !important;
-            display: grid !important;
-            grid-template-columns: 1fr 1fr;
-            align-items: start;
-        }
-        .feat-bento-content { padding: 28px 24px; }
-        .feat-bento-visual {
-            padding: 20px 16px;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 11px;
-            line-height: 1.6;
-            color: var(--text-3);
-            border-left: 1px solid var(--border);
-            align-self: stretch;
-            display: flex;
-            align-items: center;
-        }
-        .feat-bento-visual pre { white-space: pre; margin: 0; }
         .feat-card {
             background: var(--bg-card);
             border: 1px solid var(--border);
@@ -1109,10 +1090,93 @@
         .pg-cta { text-align:center;margin-top:28px;padding-top:20px;border-top:1px solid var(--border); }
         .pg-cta p { color:var(--text-2);font-size:14px;margin-bottom:12px; }
         .pg-error { color:#f87171;font-size:13px;text-align:center;padding:12px;background:rgba(239,68,68,.06);border-radius:8px; }
+        /* Playground tabs */
+        .pg-tabs { display:flex;gap:0;margin-bottom:24px;border-bottom:1px solid var(--border); }
+        .pg-tab {
+            padding:10px 20px;font-size:14px;font-weight:500;color:var(--text-3);cursor:pointer;
+            border-bottom:2px solid transparent;transition:all .2s;font-family:'Sora',sans-serif;
+            background:none;border-top:none;border-left:none;border-right:none;
+        }
+        .pg-tab:hover { color:var(--text-2); }
+        .pg-tab.active { color:var(--accent);border-bottom-color:var(--accent); }
+        .pg-tab-content { display:none; }
+        .pg-tab-content.active { display:block; }
+        /* Extract tab */
+        .pg-extract-area {
+            width:100%;min-height:120px;max-height:240px;padding:14px 18px;background:var(--bg);
+            border:1px solid var(--border);border-radius:12px;color:var(--text);font-size:14px;
+            font-family:'Sora',sans-serif;outline:none;transition:border-color .2s;resize:vertical;
+            line-height:1.6;
+        }
+        .pg-extract-area:focus { border-color:var(--accent); }
+        .pg-extract-area::placeholder { color:var(--text-3); }
+        .pg-samples { display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 16px; }
+        .pg-sample {
+            padding:6px 14px;background:var(--accent-dim);border:1px solid rgba(168,85,247,.2);
+            border-radius:20px;color:var(--accent);font-size:13px;cursor:pointer;transition:all .2s;
+        }
+        .pg-sample:hover { background:rgba(168,85,247,.2);border-color:var(--accent); }
+        .pg-extract-btn {
+            width:100%;padding:14px;background:var(--accent);color:white;border:none;border-radius:12px;
+            font-size:15px;font-weight:600;cursor:pointer;font-family:'Sora',sans-serif;
+            transition:all .2s;
+        }
+        .pg-extract-btn:hover { background:#9333ea; }
+        .pg-extract-btn:disabled { opacity:.5;cursor:not-allowed; }
+        .pg-extract-results { display:none;margin-top:24px; }
+        .pg-extract-results.show { display:block;animation:pgFadeIn .4s ease; }
+        @keyframes pgFadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+        /* Extraction result cards */
+        .pg-result-group { margin-bottom:20px; }
+        .pg-result-group-label {
+            font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;
+            color:var(--text-3);margin-bottom:10px;display:flex;align-items:center;gap:6px;
+        }
+        .pg-result-card {
+            background:var(--bg);border:1px solid var(--border);border-radius:10px;
+            padding:14px 16px;margin-bottom:8px;font-size:13px;line-height:1.6;
+        }
+        .pg-result-card h4 { font-size:14px;font-weight:600;color:var(--text);margin-bottom:6px; }
+        .pg-result-card .pg-type-badge {
+            font-size:10px;color:var(--text-3);background:var(--bg-elevated);padding:2px 8px;
+            border-radius:4px;margin-left:8px;font-weight:500;text-transform:uppercase;
+        }
+        .pg-result-card .pg-fact-item { color:var(--text-2);padding-left:12px;border-left:2px solid var(--border);margin:4px 0; }
+        .pg-result-card .pg-step { display:flex;gap:10px;margin:6px 0; }
+        .pg-result-card .pg-step-num {
+            width:22px;height:22px;border-radius:50%;background:var(--accent-dim);color:var(--accent);
+            font-size:11px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0;
+        }
+        .pg-result-card .pg-step-text { color:var(--text-2); }
+        .pg-result-card .pg-trigger { color:var(--text-3);font-size:12px;font-style:italic;margin-bottom:8px; }
+        .pg-result-card .pg-importance-bar {
+            height:4px;border-radius:2px;background:var(--border);width:100px;display:inline-block;position:relative;
+            vertical-align:middle;
+        }
+        .pg-result-card .pg-importance {
+            position:absolute;top:0;left:0;height:4px;border-radius:2px;background:var(--accent);
+        }
+        .pg-result-card .pg-context { color:var(--text-3);font-size:12px;margin-top:4px; }
+        /* Knowledge graph SVG */
+        .pg-graph-wrap { margin-bottom:20px; }
+        .pg-graph {
+            width:100%;height:280px;background:var(--bg);border:1px solid var(--border);border-radius:12px;
+            overflow:hidden;
+        }
+        .pg-graph text { font-family:'Sora',sans-serif;font-size:11px;fill:var(--text-2); }
+        .pg-graph .pg-node { fill:var(--accent);opacity:0;animation:pgNodeIn .4s ease forwards; }
+        .pg-graph .pg-node-label { fill:var(--text);font-weight:500;font-size:12px;opacity:0;animation:pgNodeIn .4s ease forwards; }
+        .pg-graph .pg-edge { stroke:var(--border-hover);stroke-width:1.5;opacity:0;animation:pgEdgeIn .5s ease forwards; }
+        .pg-graph .pg-edge-label { fill:var(--text-3);font-size:9px;opacity:0;animation:pgNodeIn .6s ease forwards; }
+        @keyframes pgNodeIn { to{opacity:1} }
+        @keyframes pgEdgeIn { to{opacity:.6} }
         @media(max-width:768px) {
             .playground-box { padding:24px 18px; }
             .pg-search-row { flex-direction:column; }
             .pg-search-btn { width:100%; }
+            .pg-tabs { gap:0; }
+            .pg-tab { padding:8px 14px;font-size:13px; }
+            .pg-graph { height:220px; }
         }
 
         /* ---- Pricing ---- */
@@ -1566,17 +1630,11 @@
         .nav-cmd-hint:hover { border-color: var(--border-hover); color: var(--text-2); }
 
         /* ---- Responsive ---- */
-        .templates-grid { grid-template-columns: repeat(3, 1fr); }
-
         @media (max-width: 768px) {
             .hero { padding: 60px 0 40px; }
             .how-grid { grid-template-columns: 1fr; }
-            .templates-grid { grid-template-columns: 1fr !important; }
             .features-grid { grid-template-columns: 1fr; }
-            .features-grid .feat-card,
-            .features-grid .feat-card.feat-bento-large { grid-column: auto; }
-            .feat-bento-large { grid-template-columns: 1fr !important; }
-            .feat-bento-visual { border-left: none; border-top: 1px solid var(--border); }
+            .features-grid .feat-card { grid-column: auto; }
             .install-tabs { flex-wrap: wrap; }
             .signup-form { flex-direction: column; }
             .hamburger { display: block; }
@@ -1726,8 +1784,6 @@
                 <a href="#features">Features</a>
                 <a href="#playground">Playground</a>
                 <a href="#pricing">Pricing</a>
-                <a href="/blog">Blog</a>
-                <a href="/dashboard">Console</a>
                 <a href="https://github.com/alibaizhanov/mengram">GitHub</a>
                 <a href="#signup" class="btn btn-ghost" style="padding:8px 18px; font-size:13px;">Get API Key</a>
                 <span class="nav-cmd-hint" onclick="toggleCmdPalette()">&#8984;K</span>
@@ -1738,7 +1794,7 @@
         <section class="hero">
             <div class="hero-badge reveal">
                 <span class="pulse"></span>
-                Trusted by 240+ developers · Open Source
+                Open Source · Apache 2.0
             </div>
             <h1 class="reveal" style="transition-delay:0.1s">Your agent forgets everything.<br><span class="brand">Mengram</span> fixes that.</h1>
             <p class="reveal" style="transition-delay:0.2s">Your agent learns from every session. Facts, workflows, and procedures — auto-saved, auto-recalled, auto-improved.</p>
@@ -1754,7 +1810,6 @@
             </div>
             <div class="hero-cta reveal" style="transition-delay:0.4s">
                 <a href="#signup" class="btn btn-primary">Get API Key</a>
-                <a href="https://docs.mengram.io" class="btn btn-secondary">Read the Docs</a>
                 <a href="https://github.com/alibaizhanov/mengram" class="btn btn-secondary" style="display:inline-flex;align-items:center;gap:6px;">
                     <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" style="flex-shrink:0;"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
                     GitHub
@@ -1780,7 +1835,7 @@
             </div>
         </div>
 
-        <!-- Trust Badges -->
+        <!-- Trust & Stats -->
         <div class="trust-badges reveal">
             <span class="trust-badge">
                 <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
@@ -1798,26 +1853,14 @@
                 <svg viewBox="0 0 16 16"><path d="M11 1a2 2 0 00-2 2v4a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2V9a2 2 0 012-2h1V3a4 4 0 118 0v2h-1V3a3 3 0 00-3-3zM4 9v5a1 1 0 001 1h4a1 1 0 001-1V9a1 1 0 00-1-1H5a1 1 0 00-1 1z"/></svg>
                 No Vendor Lock-in
             </span>
-        </div>
-
-        <!-- Metrics Bar -->
-        <div class="metrics-bar reveal" id="metrics-bar">
-            <div class="metric-item">
-                <div class="metric-value"><span data-count="3">0</span></div>
-                <div class="metric-label">Memory Types</div>
-            </div>
-            <div class="metric-item">
-                <div class="metric-value"><span data-count="29">0</span><span class="metric-suffix">+</span></div>
-                <div class="metric-label">MCP Tools</div>
-            </div>
-            <div class="metric-item">
-                <div class="metric-value"><span data-count="8">0</span></div>
-                <div class="metric-label">Integrations</div>
-            </div>
-            <div class="metric-item">
-                <div class="metric-value">&lt;<span data-count="50">0</span><span class="metric-suffix">ms</span></div>
-                <div class="metric-label">Search Latency</div>
-            </div>
+            <span class="trust-badge">
+                <svg viewBox="0 0 16 16"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 2a1 1 0 110 2 1 1 0 010-2zm2 8H6v-1h1.5V7H6V6h3v4h1.5v1z"/></svg>
+                3 Memory Types
+            </span>
+            <span class="trust-badge">
+                <svg viewBox="0 0 16 16"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zm1 10H7V7h2v4zm0-5H7V4h2v2z"/></svg>
+                &lt;50ms Latency
+            </span>
         </div>
 
         <!-- How it works -->
@@ -1838,19 +1881,6 @@
                     <div class="how-num n3">3</div>
                     <h3>Every AI knows you deeply</h3>
                     <p>One API call returns a Cognitive Profile — a ready-to-use system prompt from all 3 memory types. Zero effort personalization.</p>
-                </div>
-            </div>
-            <!-- Performance Card -->
-            <div class="perf-card reveal">
-                <h4>Live Performance</h4>
-                <div class="perf-stats">
-                    <div class="perf-row"><span class="perf-label">Search (p50)</span><span class="perf-val">~50ms</span></div>
-                    <div class="perf-row"><span class="perf-label">Extraction</span><span class="perf-val">~2s</span></div>
-                    <div class="perf-row"><span class="perf-label">Uptime</span><span class="perf-val">99.9%</span></div>
-                </div>
-                <div class="perf-status">
-                    <span class="perf-dot"></span>
-                    All systems operational
                 </div>
             </div>
         </section>
@@ -1887,6 +1917,205 @@ result = chain.run("What does Ali prefer?")</div>
 m = Mengram(api_key=<span class="c-str">"om-..."</span>)
 results = m.search(<span class="c-str">"What does Ali prefer?"</span>)</div>
                     <div class="ba-lines-label">3 lines &middot; 1 API key &middot; zero config</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Playground -->
+        <section class="playground-section" id="playground">
+            <h2 class="reveal">Try it now</h2>
+            <p class="reveal">Paste any text and see what Mengram extracts — no signup needed.</p>
+            <div class="playground-box reveal">
+                <div class="pg-tabs">
+                    <button class="pg-tab active" onclick="pgTabSwitch('extract')">Extract</button>
+                    <button class="pg-tab" onclick="pgTabSwitch('search')">Search</button>
+                </div>
+
+                <!-- Extract Tab -->
+                <div class="pg-tab-content active" id="pg-tab-extract">
+                    <textarea class="pg-extract-area" id="pg-extract-input"
+                              placeholder="Paste a conversation, meeting notes, email, or any text..."
+                              maxlength="2000"></textarea>
+                    <div class="pg-samples">
+                        <span class="pg-sample" onclick="pgSampleLoad(0)">DevOps standup</span>
+                        <span class="pg-sample" onclick="pgSampleLoad(1)">Project planning</span>
+                        <span class="pg-sample" onclick="pgSampleLoad(2)">Code review</span>
+                    </div>
+                    <button class="pg-extract-btn" id="pg-extract-btn" onclick="playgroundExtract()">Extract Memory</button>
+                    <div class="pg-extract-results" id="pg-extract-results"></div>
+                    <div class="pg-cta">
+                        <p>This is a live demo. Want unlimited extractions?</p>
+                        <a href="#signup" class="signup-btn" style="display:inline-block;text-decoration:none;padding:10px 24px;">Sign up &rarr;</a>
+                    </div>
+                </div>
+
+                <!-- Search Tab -->
+                <div class="pg-tab-content" id="pg-tab-search">
+                    <div class="pg-search-row">
+                        <input type="text" class="pg-search-input" id="pg-input"
+                               placeholder="what database do we use?"
+                               maxlength="200" autocomplete="off">
+                        <button class="pg-search-btn" id="pg-btn" onclick="playgroundSearch()">Search</button>
+                    </div>
+                    <div class="pg-suggestions">
+                        <span class="pg-suggestion" onclick="pgSuggest('what database do we use?')">what database do we use?</span>
+                        <span class="pg-suggestion" onclick="pgSuggest('how to deploy to production')">how to deploy</span>
+                        <span class="pg-suggestion" onclick="pgSuggest('recent incidents')">recent incidents</span>
+                        <span class="pg-suggestion" onclick="pgSuggest('monitoring setup')">monitoring setup</span>
+                    </div>
+                    <div class="pg-results" id="pg-results"></div>
+                    <div class="pg-cta">
+                        <p>This is a demo account with sample data. Want your own?</p>
+                        <a href="#signup" class="signup-btn" style="display:inline-block;text-decoration:none;padding:10px 24px;">Sign up &rarr;</a>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Pricing -->
+        <section class="pricing-section" id="pricing">
+            <h2 class="reveal">Simple, predictable pricing</h2>
+            <p class="reveal">Less than your <span class="accent">morning coffee</span>. More than <span class="accent">any agent remembers</span>.</p>
+            <div style="display:flex;justify-content:center;margin-bottom:32px;" class="reveal">
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:3px;">
+                        <button id="lp-toggle-monthly" onclick="setLandingBilling('monthly')" style="padding:6px 14px;border:none;border-radius:6px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;background:var(--accent);color:#fff;">Monthly</button>
+                        <button id="lp-toggle-annual" onclick="setLandingBilling('annual')" style="padding:6px 14px;border:none;border-radius:6px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:500;background:transparent;color:var(--text-2);">Annual</button>
+                    </div>
+                    <span style="background:#7c3aed22;color:var(--accent);font-size:12px;font-weight:600;padding:4px 10px;border-radius:6px;">Save 20%</span>
+                </div>
+            </div>
+            <div class="pricing-grid stagger">
+                <!-- Starter -->
+                <div class="price-card reveal" data-plan="starter">
+                    <h3>Starter</h3>
+                    <div class="price-amount">$5 <span>/ month</span></div>
+                    <div class="price-desc">For personal projects and indie developers.</div>
+                    <ul class="price-features">
+                        <li>100 memory adds / month</li>
+                        <li>500 searches / month</li>
+                        <li>10 agent runs</li>
+                        <li>10 sub-users</li>
+                        <li>60 req/min rate limit</li>
+                        <li>Vector search (no reranking)</li>
+                        <li>2 webhooks</li>
+                        <li>1 team</li>
+                    </ul>
+                    <a href="#signup" onclick="return pricingCTA('starter')" class="price-btn">Get Started</a>
+                </div>
+                <!-- Pro -->
+                <div class="price-card featured reveal" data-plan="pro">
+                    <div class="price-badge">Most Popular</div>
+                    <h3>Pro</h3>
+                    <div class="price-amount">$19 <span>/ month</span></div>
+                    <div class="price-desc">For production apps and power users.</div>
+                    <ul class="price-features">
+                        <li>1,000 memory adds / month</li>
+                        <li>10,000 searches / month</li>
+                        <li>50 agent runs</li>
+                        <li>50 sub-users</li>
+                        <li>120 req/min rate limit</li>
+                        <li>LLM-powered reranking</li>
+                        <li>Procedure evolution</li>
+                        <li>Smart triggers</li>
+                        <li>10 webhooks</li>
+                        <li>5 teams</li>
+                    </ul>
+                    <a href="#signup" onclick="return pricingCTA('pro')" class="price-btn primary">Upgrade to Pro</a>
+                </div>
+                <!-- Growth -->
+                <div class="price-card reveal" data-plan="growth">
+                    <h3>Growth</h3>
+                    <div class="price-amount">$59 <span>/ month</span></div>
+                    <div class="price-desc">For scaling apps that need more volume.</div>
+                    <ul class="price-features">
+                        <li>3,000 memory adds / month</li>
+                        <li>20,000 searches / month</li>
+                        <li>Unlimited agent runs</li>
+                        <li>100 sub-users</li>
+                        <li>200 req/min rate limit</li>
+                        <li>Cohere cross-encoder reranking</li>
+                        <li>Procedure evolution</li>
+                        <li>Smart triggers</li>
+                        <li>25 webhooks</li>
+                        <li>10 teams</li>
+                    </ul>
+                    <a href="#signup" onclick="return pricingCTA('growth')" class="price-btn">Upgrade to Growth</a>
+                </div>
+                <!-- Business -->
+                <div class="price-card reveal" data-plan="business">
+                    <h3>Business</h3>
+                    <div class="price-amount">$99 <span>/ month</span></div>
+                    <div class="price-desc">For teams and high-volume applications.</div>
+                    <ul class="price-features">
+                        <li>8,000 memory adds / month</li>
+                        <li>30,000 searches / month</li>
+                        <li>Unlimited agent runs</li>
+                        <li>Unlimited sub-users</li>
+                        <li>300 req/min rate limit</li>
+                        <li>Cohere cross-encoder reranking</li>
+                        <li>Procedure evolution</li>
+                        <li>Smart triggers</li>
+                        <li>50 webhooks</li>
+                        <li>Unlimited teams</li>
+                    </ul>
+                    <a href="#signup" onclick="return pricingCTA('business')" class="price-btn">Upgrade to Business</a>
+                </div>
+                <!-- Enterprise -->
+                <div class="price-card reveal">
+                    <h3>Enterprise</h3>
+                    <div class="price-amount">Custom</div>
+                    <div class="price-desc">For organizations with custom requirements.</div>
+                    <ul class="price-features">
+                        <li>Custom memory & search limits</li>
+                        <li>Dedicated infrastructure</li>
+                        <li>Custom rate limits</li>
+                        <li>SSO & access controls</li>
+                        <li>Priority support & SLA</li>
+                        <li>Custom integrations</li>
+                        <li>Data residency options</li>
+                        <li>On-premise deployment</li>
+                    </ul>
+                    <a href="#" class="price-btn" onclick="openEnterpriseModal(); return false;">Contact Us</a>
+                </div>
+            </div>
+        </section>
+
+        <section class="features-section" id="features">
+            <h2 class="reveal">What makes Mengram different</h2>
+            <p class="reveal">Others store facts. Mengram remembers like a human brain.</p>
+            <div class="features-grid stagger">
+                <div class="feat-card reveal">
+                    <div class="feat-icon"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="9" cy="16" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="16" r="1" fill="currentColor" stroke="none"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
+                    <h3>Memory Agents</h3>
+                    <p>Curator cleans contradictions. Connector finds hidden patterns. Digest gives weekly briefs. Runs autonomously.</p>
+                </div>
+                <div class="feat-card reveal" style="border-color: var(--green); box-shadow: 0 0 20px rgba(52,211,153,0.15);">
+                    <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+                    <h3>Multi-User Isolation</h3>
+                    <p>One API key, many users. Pass <code>user_id</code> to scope memories per end-user. Each user gets their own isolated facts, events, workflows, and cognitive profile.</p>
+                </div>
+                <div class="feat-card reveal">
+                    <div class="feat-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path d="m12 7v4"/><path d="m7.5 17.5 3-6.5"/><path d="m16.5 17.5-3-6.5"/><path d="M7 19h10"/></svg></div>
+                    <h3>Knowledge Graph</h3>
+                    <p>Entities, relations, facts — not just text. "Ali works_at Uzum Bank", not "the user mentioned a bank".</p>
+                </div>
+                <div class="feat-card feat-card-gradient reveal">
+                    <span class="feat-badge-unique">Only in Mengram</span>
+                    <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+                    <h3>Smart Triggers</h3>
+                    <p>Memory that raises its hand. Reminders from conversations, contradiction alerts, workflow pattern detection. Your AI proactively tells you what it remembers.</p>
+                </div>
+                <div class="feat-card reveal" style="border-color: var(--green); box-shadow: 0 0 20px rgba(52,211,153,0.15);">
+                    <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></div>
+                    <h3>Import Existing Data</h3>
+                    <p>One command to import ChatGPT exports, Obsidian vaults, or text files. No cold start — your memory is useful from day 1. CLI + Python + JS SDK.</p>
+                </div>
+                <div class="feat-card feat-card-gradient reveal">
+                    <span class="feat-badge-unique">Only in Mengram</span>
+                    <div class="feat-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M12 15V9"/><path d="m8.7 7.5 2.6 3"/><path d="m15.3 7.5-2.6 3"/></svg></div>
+                    <h3>Experience-Driven Procedures</h3>
+                    <p>Self-improving workflows. Failures auto-evolve procedures to new versions. 3+ similar successes auto-create new workflows. Version history + evolution log.</p>
                 </div>
             </div>
         </section>
@@ -1928,162 +2157,10 @@ results = m.search(<span class="c-str">"What does Ali prefer?"</span>)</div>
                     <p>CrewAI, LangChain, AutoGPT &mdash; shared memory between agents. One discovers, another executes, all remember.</p>
                 </div>
             </div>
-            <h3 class="reveal" style="text-align:center;font-size:22px;margin-top:48px;margin-bottom:8px;">Ready-to-Run Templates</h3>
-            <p class="reveal" style="text-align:center;color:var(--text-2);margin-bottom:24px;">Clone, set API key, run in 5 minutes.</p>
-            <div class="features-grid stagger templates-grid">
-                <a href="https://github.com/alibaizhanov/mengram/tree/main/examples/devops-agent" target="_blank" rel="noopener noreferrer" style="text-decoration:none;">
-                    <div class="feat-card reveal" style="cursor:pointer; border-color: var(--green); box-shadow: 0 0 20px rgba(52,211,153,0.15);">
-                        <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg></div>
-                        <h3>DevOps Agent</h3>
-                        <p><strong>CloudMemory SDK</strong> — Learns deployment procedures from conversations. Reports failure → procedure auto-evolves.</p>
-                        <span style="color:var(--green);font-size:12px;font-weight:600;">No LLM key needed →</span>
-                    </div>
-                </a>
-                <a href="https://github.com/alibaizhanov/mengram/tree/main/examples/customer-support-agent" target="_blank" rel="noopener noreferrer" style="text-decoration:none;">
-                    <div class="feat-card reveal" style="cursor:pointer;">
-                        <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
-                        <h3>Customer Support</h3>
-                        <p><strong>CrewAI + Mengram</strong> — Agent searches history, loads cognitive profile, saves new info.</p>
-                        <span style="color:var(--accent);font-size:12px;font-weight:600;">Interactive demo →</span>
-                    </div>
-                </a>
-                <a href="https://github.com/alibaizhanov/mengram/tree/main/examples/personal-assistant" target="_blank" rel="noopener noreferrer" style="text-decoration:none;">
-                    <div class="feat-card reveal" style="cursor:pointer;">
-                        <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
-                        <h3>Personal Assistant</h3>
-                        <p><strong>LangChain + Mengram</strong> — Cognitive profile as system prompt, retriever for RAG.</p>
-                        <span style="color:var(--accent);font-size:12px;font-weight:600;">Chat demo →</span>
-                    </div>
-                </a>
-            </div>
-        </section>
-
-        <section class="features-section" id="features">
-            <h2 class="reveal">What makes Mengram different</h2>
-            <p class="reveal">Others store facts. Mengram remembers like a human brain.</p>
-            <div class="features-grid stagger">
-                <div class="feat-card feat-card-gradient feat-bento-large reveal">
-                    <div class="feat-bento-content">
-                        <span class="feat-badge-unique">Only in Mengram</span>
-                        <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M12 2a9 9 0 0 1 9 9c0 3-1.5 5.5-3.8 7"/><path d="M12 2a9 9 0 0 0-9 9c0 3 1.5 5.5 3.8 7"/><path d="M9.4 18.4C10 19.4 10.9 20 12 20s2-.6 2.6-1.6"/><path d="M12 2v4"/><path d="M4.9 7.5l3.5 2"/><path d="M19.1 7.5l-3.5 2"/><path d="M8 22h8"/><path d="M10 22v-2"/><path d="M14 22v-2"/></svg></div>
-                        <h3>3 Memory Types</h3>
-                        <p><strong>Semantic</strong> — facts & preferences. <strong>Episodic</strong> — events & decisions. <strong>Procedural</strong> — learned workflows. Just like a human brain.</p>
-                    </div>
-                    <div class="feat-bento-visual">
-<pre><span class="c-cmt">// One add() extracts all 3:</span>
-{
-  <span class="c-str">"semantic"</span>: [<span class="c-str">"Ali prefers Railway"</span>],
-  <span class="c-str">"episodic"</span>: [<span class="c-str">"Deployed v2.15 today"</span>],
-  <span class="c-str">"procedural"</span>: [<span class="c-str">"Deploy: build→test→push"</span>]
-}</pre>
-                    </div>
-                </div>
-                <div class="feat-card feat-card-gradient feat-bento-large reveal">
-                    <div class="feat-bento-content">
-                        <span class="feat-badge-unique">Only in Mengram</span>
-                        <div class="feat-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg></div>
-                        <h3>Cognitive Profile</h3>
-                        <p>One API call generates a ready-to-use system prompt from all memories. Insert into any LLM for instant personalization.</p>
-                    </div>
-                    <div class="feat-bento-visual">
-<pre><span class="c-fn">GET</span> <span class="c-str">/v1/profile</span>
-
-<span class="c-cmt">// Returns:</span>
-<span class="c-str">"You are talking to Ali,
- a backend developer who
- prefers Python, deploys
- on Railway..."</span></pre>
-                    </div>
-                </div>
-                <div class="feat-card reveal">
-                    <div class="feat-icon"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="9" cy="16" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="16" r="1" fill="currentColor" stroke="none"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
-                    <h3>Memory Agents</h3>
-                    <p>Curator cleans contradictions. Connector finds hidden patterns. Digest gives weekly briefs. Runs autonomously.</p>
-                </div>
-                <div class="feat-card reveal" style="border-color: var(--green); box-shadow: 0 0 20px rgba(52,211,153,0.15);">
-                    <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
-                    <h3>Multi-User Isolation</h3>
-                    <p>One API key, many users. Pass <code>user_id</code> to scope memories per end-user. Each user gets their own isolated facts, events, workflows, and cognitive profile.</p>
-                </div>
-                <div class="feat-card reveal">
-                    <div class="feat-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path d="m12 7v4"/><path d="m7.5 17.5 3-6.5"/><path d="m16.5 17.5-3-6.5"/><path d="M7 19h10"/></svg></div>
-                    <h3>Knowledge Graph</h3>
-                    <p>Entities, relations, facts — not just text. "Ali works_at Uzum Bank", not "the user mentioned a bank".</p>
-                </div>
-                <div class="feat-card feat-card-gradient reveal">
-                    <span class="feat-badge-unique">Only in Mengram</span>
-                    <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
-                    <h3>Smart Triggers</h3>
-                    <p>Memory that raises its hand. Reminders from conversations, contradiction alerts, workflow pattern detection. Your AI proactively tells you what it remembers.</p>
-                </div>
-                <div class="feat-card reveal" style="border-color: var(--green); box-shadow: 0 0 20px rgba(52,211,153,0.15);">
-                    <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></div>
-                    <h3>Import Existing Data</h3>
-                    <p>One command to import ChatGPT exports, Obsidian vaults, or text files. No cold start — your memory is useful from day 1. CLI + Python + JS SDK.</p>
-                </div>
-                <div class="feat-card feat-card-gradient reveal">
-                    <span class="feat-badge-unique">Only in Mengram</span>
-                    <div class="feat-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M12 15V9"/><path d="m8.7 7.5 2.6 3"/><path d="m15.3 7.5-2.6 3"/></svg></div>
-                    <h3>Experience-Driven Procedures</h3>
-                    <p>Self-improving workflows. Failures auto-evolve procedures to new versions. 3+ similar successes auto-create new workflows. Version history + evolution log.</p>
-                </div>
-            </div>
-        </section>
-
-        <!-- CrewAI / OpenClaw Spotlight -->
-        <section class="features-section" style="padding-top: 0;">
-            <h2 class="reveal">Works with your agent framework</h2>
-            <p class="reveal">Add persistent memory to CrewAI or OpenClaw in under 2 minutes.</p>
-            <div class="fw-grid stagger">
-                <div class="feat-card feat-card-gradient fw-card reveal">
-                    <span class="fw-badge" style="background:var(--green);">Drop-in Memory</span>
-                    <h3>CrewAI</h3>
-                    <ul class="fw-benefits">
-                        <li><code>memory=MengramMemory()</code> — one line, zero config</li>
-                        <li>Agents auto-recall past runs and outcomes</li>
-                        <li>Procedural learning — workflows improve over time</li>
-                    </ul>
-                    <div class="code-box">
-                        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-<pre><span class="c-kw">from</span> <span class="c-fn">crewai</span> <span class="c-kw">import</span> Crew, Agent, Task
-<span class="c-kw">from</span> <span class="c-fn">integrations.crewai_memory</span> <span class="c-kw">import</span> MengramMemory
-
-crew = Crew(
-    agents=[agent], tasks=[task],
-    memory=MengramMemory(api_key=<span class="c-str">"om-..."</span>),
-)
-crew.kickoff() <span class="c-cmt"># Agents recall + learn</span></pre>
-                    </div>
-                    <a href="#signup" class="fw-cta">Get API Key</a>
-                </div>
-                <div class="feat-card feat-card-gradient fw-card reveal">
-                    <span class="fw-badge" style="background:var(--blue);">12 Tools + Auto-Recall</span>
-                    <h3>OpenClaw</h3>
-                    <ul class="fw-benefits">
-                        <li>Install plugin, add API key — done</li>
-                        <li>Auto-recall before every turn, auto-capture after</li>
-                        <li>Slash commands: /remember, /recall, /forget</li>
-                    </ul>
-                    <div class="code-box">
-                        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-<pre>{
-  <span class="c-str">"plugins"</span>: {
-    <span class="c-str">"entries"</span>: {
-      <span class="c-str">"openclaw-mengram"</span>: {
-        <span class="c-str">"enabled"</span>: <span class="c-kw">true</span>,
-        <span class="c-str">"config"</span>: { <span class="c-str">"apiKey"</span>: <span class="c-str">"om-..."</span> }
-      }
-    }
-  }
-}</pre>
-                    </div>
-                    <a href="#signup" class="fw-cta">Get API Key</a>
-                </div>
-            </div>
         </section>
 
         <!-- Comparison -->
-        <section class="features-section" style="padding-top: 0;">
+        <section class="features-section">
             <h2 class="reveal">Mengram vs Mem0 vs Supermemory</h2>
             <p class="reveal">Others store facts. Mengram remembers experiences and learns workflows.</p>
             <div style="max-width: 820px; margin: 30px auto 0; overflow-x: auto;">
@@ -2147,31 +2224,6 @@ crew.kickoff() <span class="c-cmt"># Agents recall + learn</span></pre>
                         </tr>
                     </tbody>
                 </table>
-            </div>
-        </section>
-
-        <!-- Playground -->
-        <section class="playground-section" id="playground">
-            <h2 class="reveal">Try it now</h2>
-            <p class="reveal">Search a DevOps agent's memory — no signup needed.</p>
-            <div class="playground-box reveal">
-                <div class="pg-search-row">
-                    <input type="text" class="pg-search-input" id="pg-input"
-                           placeholder="what database do we use?"
-                           maxlength="200" autocomplete="off">
-                    <button class="pg-search-btn" id="pg-btn" onclick="playgroundSearch()">Search</button>
-                </div>
-                <div class="pg-suggestions">
-                    <span class="pg-suggestion" onclick="pgSuggest('what database do we use?')">what database do we use?</span>
-                    <span class="pg-suggestion" onclick="pgSuggest('how to deploy to production')">how to deploy</span>
-                    <span class="pg-suggestion" onclick="pgSuggest('recent incidents')">recent incidents</span>
-                    <span class="pg-suggestion" onclick="pgSuggest('monitoring setup')">monitoring setup</span>
-                </div>
-                <div class="pg-results" id="pg-results"></div>
-                <div class="pg-cta">
-                    <p>This is a demo account with sample data. Want your own?</p>
-                    <a href="#signup" class="signup-btn" style="display:inline-block;text-decoration:none;padding:10px 24px;">Sign up &rarr;</a>
-                </div>
             </div>
         </section>
 
@@ -2526,115 +2578,6 @@ POST /v1/add → {<span class="c-str">"messages"</span>: [...], <span class="c-s
                             </div>
                         </div>
                     </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Pricing -->
-        <section class="pricing-section" id="pricing">
-            <h2 class="reveal">Simple, predictable pricing</h2>
-            <p class="reveal">Less than your <span class="accent">morning coffee</span>. More than <span class="accent">any agent remembers</span>.</p>
-            <div style="display:flex;justify-content:center;margin-bottom:32px;" class="reveal">
-                <div style="display:flex;align-items:center;gap:8px;">
-                    <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:3px;">
-                        <button id="lp-toggle-monthly" onclick="setLandingBilling('monthly')" style="padding:6px 14px;border:none;border-radius:6px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;background:var(--accent);color:#fff;">Monthly</button>
-                        <button id="lp-toggle-annual" onclick="setLandingBilling('annual')" style="padding:6px 14px;border:none;border-radius:6px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:500;background:transparent;color:var(--text-2);">Annual</button>
-                    </div>
-                    <span style="background:#7c3aed22;color:var(--accent);font-size:12px;font-weight:600;padding:4px 10px;border-radius:6px;">Save 20%</span>
-                </div>
-            </div>
-            <div class="pricing-grid stagger">
-                <!-- Starter -->
-                <div class="price-card reveal" data-plan="starter">
-                    <h3>Starter</h3>
-                    <div class="price-amount">$5 <span>/ month</span></div>
-                    <div class="price-desc">For personal projects and indie developers.</div>
-                    <ul class="price-features">
-                        <li>100 memory adds / month</li>
-                        <li>500 searches / month</li>
-                        <li>10 agent runs</li>
-                        <li>10 sub-users</li>
-                        <li>60 req/min rate limit</li>
-                        <li>Vector search (no reranking)</li>
-                        <li>2 webhooks</li>
-                        <li>1 team</li>
-                    </ul>
-                    <a href="#signup" onclick="return pricingCTA('starter')" class="price-btn">Get Started</a>
-                </div>
-                <!-- Pro -->
-                <div class="price-card featured reveal" data-plan="pro">
-                    <div class="price-badge">Most Popular</div>
-                    <h3>Pro</h3>
-                    <div class="price-amount">$19 <span>/ month</span></div>
-                    <div class="price-desc">For production apps and power users.</div>
-                    <ul class="price-features">
-                        <li>1,000 memory adds / month</li>
-                        <li>10,000 searches / month</li>
-                        <li>50 agent runs</li>
-                        <li>50 sub-users</li>
-                        <li>120 req/min rate limit</li>
-                        <li>LLM-powered reranking</li>
-                        <li>Procedure evolution</li>
-                        <li>Smart triggers</li>
-                        <li>10 webhooks</li>
-                        <li>5 teams</li>
-                    </ul>
-                    <a href="#signup" onclick="return pricingCTA('pro')" class="price-btn primary">Upgrade to Pro</a>
-                </div>
-                <!-- Growth -->
-                <div class="price-card reveal" data-plan="growth">
-                    <h3>Growth</h3>
-                    <div class="price-amount">$59 <span>/ month</span></div>
-                    <div class="price-desc">For scaling apps that need more volume.</div>
-                    <ul class="price-features">
-                        <li>3,000 memory adds / month</li>
-                        <li>20,000 searches / month</li>
-                        <li>Unlimited agent runs</li>
-                        <li>100 sub-users</li>
-                        <li>200 req/min rate limit</li>
-                        <li>Cohere cross-encoder reranking</li>
-                        <li>Procedure evolution</li>
-                        <li>Smart triggers</li>
-                        <li>25 webhooks</li>
-                        <li>10 teams</li>
-                    </ul>
-                    <a href="#signup" onclick="return pricingCTA('growth')" class="price-btn">Upgrade to Growth</a>
-                </div>
-                <!-- Business -->
-                <div class="price-card reveal" data-plan="business">
-                    <h3>Business</h3>
-                    <div class="price-amount">$99 <span>/ month</span></div>
-                    <div class="price-desc">For teams and high-volume applications.</div>
-                    <ul class="price-features">
-                        <li>8,000 memory adds / month</li>
-                        <li>30,000 searches / month</li>
-                        <li>Unlimited agent runs</li>
-                        <li>Unlimited sub-users</li>
-                        <li>300 req/min rate limit</li>
-                        <li>Cohere cross-encoder reranking</li>
-                        <li>Procedure evolution</li>
-                        <li>Smart triggers</li>
-                        <li>50 webhooks</li>
-                        <li>Unlimited teams</li>
-                    </ul>
-                    <a href="#signup" onclick="return pricingCTA('business')" class="price-btn">Upgrade to Business</a>
-                </div>
-                <!-- Enterprise -->
-                <div class="price-card reveal">
-                    <h3>Enterprise</h3>
-                    <div class="price-amount">Custom</div>
-                    <div class="price-desc">For organizations with custom requirements.</div>
-                    <ul class="price-features">
-                        <li>Custom memory & search limits</li>
-                        <li>Dedicated infrastructure</li>
-                        <li>Custom rate limits</li>
-                        <li>SSO & access controls</li>
-                        <li>Priority support & SLA</li>
-                        <li>Custom integrations</li>
-                        <li>Data residency options</li>
-                        <li>On-premise deployment</li>
-                    </ul>
-                    <a href="#" class="price-btn" onclick="openEnterpriseModal(); return false;">Contact Us</a>
                 </div>
             </div>
         </section>
@@ -3173,6 +3116,278 @@ POST /v1/add → {<span class="c-str">"messages"</span>: [...], <span class="c-s
             btn.disabled = false; btn.textContent = 'Search';
         }
         document.getElementById('pg-input').addEventListener('keydown', function(e) { if(e.key==='Enter') playgroundSearch(); });
+
+        // ---- Playground Extract ----
+        function pgTabSwitch(tab) {
+            document.querySelectorAll('.pg-tab').forEach(function(t) { t.classList.remove('active'); });
+            document.querySelectorAll('.pg-tab-content').forEach(function(c) { c.classList.remove('active'); });
+            document.getElementById('pg-tab-' + tab).classList.add('active');
+            document.querySelector('.pg-tab[onclick*="' + tab + '"]').classList.add('active');
+        }
+
+        var _pgExtractThrottle = false;
+        var _pgDemoData = [
+            // 0: DevOps standup
+            {
+                text: "Jake: Morning everyone. The PostgreSQL migration to v16 finished last night. Zero downtime, all indices rebuilt.\nMaria: Nice! I deployed the Redis cache layer for the /search endpoint. Latency dropped from 120ms to 18ms.\nJake: Should we update the runbook for rollbacks?\nMaria: Already did. Also set up Prometheus alerts for cache miss ratio above 30%.\nJake: Last thing — the staging K8s cluster had an OOM kill at 3am. Bumped memory limits to 2Gi.",
+                result: {
+                    entities: [
+                        {name:"PostgreSQL",type:"technology",facts:[{fact:"Migrated to version 16 with zero downtime",when:null},{fact:"All indices rebuilt during migration",when:null}]},
+                        {name:"Redis",type:"technology",facts:[{fact:"Cache layer deployed for /search endpoint",when:null},{fact:"Reduced latency from 120ms to 18ms",when:null}]},
+                        {name:"Kubernetes",type:"infrastructure",facts:[{fact:"Staging cluster had OOM kill at 3am",when:null},{fact:"Memory limits bumped to 2Gi",when:null}]},
+                        {name:"Jake",type:"person",facts:[{fact:"Led PostgreSQL migration",when:null}]},
+                        {name:"Maria",type:"person",facts:[{fact:"Deployed Redis cache layer",when:null},{fact:"Updated rollback runbook",when:null},{fact:"Set up Prometheus alerts for cache miss ratio",when:null}]}
+                    ],
+                    relations: [
+                        {from:"Redis",to:"PostgreSQL",type:"caches",description:"Redis caches /search queries backed by PostgreSQL"},
+                        {from:"Kubernetes",to:"Redis",type:"hosts",description:"Staging K8s cluster hosts Redis and app pods"},
+                        {from:"Maria",to:"Redis",type:"deployed",description:"Maria deployed the Redis cache layer"},
+                        {from:"Jake",to:"PostgreSQL",type:"migrated",description:"Jake led the PostgreSQL v16 migration"}
+                    ],
+                    episodes: [
+                        {summary:"PostgreSQL migrated to v16 with zero downtime",context:"Nightly migration completed successfully with all indices rebuilt",outcome:"Migration successful, no data loss",participants:["Jake"],importance:0.9},
+                        {summary:"Redis cache deployed, latency dropped 85%",context:"Maria deployed Redis cache for /search endpoint",outcome:"Latency reduced from 120ms to 18ms",participants:["Maria"],importance:0.85},
+                        {summary:"Staging K8s OOM kill at 3am",context:"Memory limits were insufficient for the workload",outcome:"Memory limits bumped to 2Gi to prevent recurrence",participants:["Jake"],importance:0.6}
+                    ],
+                    procedures: [
+                        {name:"Production database migration",trigger:"When a major PostgreSQL version upgrade is needed",steps:[{step:1,action:"Schedule migration during low-traffic window",detail:"Nightly window preferred"},{step:2,action:"Run migration with zero-downtime strategy",detail:"Use pg_upgrade or logical replication"},{step:3,action:"Rebuild all indices post-migration",detail:"Verify performance after rebuild"},{step:4,action:"Update rollback runbook",detail:"Document new version-specific rollback steps"}],entities:["PostgreSQL"]},
+                        {name:"Cache deployment for API endpoints",trigger:"When endpoint latency exceeds acceptable threshold",steps:[{step:1,action:"Deploy Redis cache layer",detail:"Configure TTL and eviction policy"},{step:2,action:"Measure latency improvement",detail:"Compare before/after metrics"},{step:3,action:"Set up monitoring alerts",detail:"Alert on cache miss ratio above 30%"}],entities:["Redis","Prometheus"]}
+                    ]
+                }
+            },
+            // 1: Project planning
+            {
+                text: "PM: Let's plan the sprint. Top priority is the auth refactor — we're moving from session cookies to JWT tokens.\nAlex: I can take that. The React frontend needs updates too — every API call goes through the auth middleware.\nPM: How long?\nAlex: Backend JWT implementation — 3 days. Frontend token refresh logic — 2 days. Testing — 1 day.\nPM: OK. Second priority is API v2 — we need pagination and rate limiting on all public endpoints.\nAlex: Rate limiting depends on auth being done first. I'll use a token bucket algorithm with Redis.",
+                result: {
+                    entities: [
+                        {name:"Auth Module",type:"system",facts:[{fact:"Being refactored from session cookies to JWT tokens",when:null},{fact:"Estimated 6 days total: 3 backend + 2 frontend + 1 testing",when:null}]},
+                        {name:"React Frontend",type:"technology",facts:[{fact:"All API calls go through auth middleware",when:null},{fact:"Needs token refresh logic updates",when:null}]},
+                        {name:"API v2",type:"system",facts:[{fact:"Needs pagination on all public endpoints",when:null},{fact:"Needs rate limiting using token bucket algorithm",when:null}]},
+                        {name:"Alex",type:"person",facts:[{fact:"Assigned to auth refactor and API v2",when:null}]},
+                        {name:"Redis",type:"technology",facts:[{fact:"Will be used for rate limiting storage",when:null}]}
+                    ],
+                    relations: [
+                        {from:"API v2",to:"Auth Module",type:"depends_on",description:"Rate limiting requires JWT auth to be completed first"},
+                        {from:"React Frontend",to:"Auth Module",type:"uses",description:"Frontend routes all API calls through auth middleware"},
+                        {from:"API v2",to:"Redis",type:"uses",description:"Token bucket rate limiter backed by Redis"},
+                        {from:"Alex",to:"Auth Module",type:"owns",description:"Alex is responsible for the auth refactor"}
+                    ],
+                    episodes: [
+                        {summary:"Sprint planning: auth refactor prioritized",context:"Team decided to move from session cookies to JWT tokens as top priority",outcome:"Alex assigned to auth refactor, estimated 6 days",participants:["Alex","PM"],importance:0.85},
+                        {summary:"API v2 scoped: pagination + rate limiting",context:"Second priority after auth, rate limiting depends on auth completion",outcome:"Will use token bucket algorithm with Redis",participants:["Alex","PM"],importance:0.7}
+                    ],
+                    procedures: [
+                        {name:"Auth migration: cookies to JWT",trigger:"When starting the auth refactor sprint",steps:[{step:1,action:"Implement JWT token generation and validation on backend",detail:"3 days estimated"},{step:2,action:"Update React frontend with token refresh logic",detail:"2 days estimated"},{step:3,action:"End-to-end testing of all auth flows",detail:"1 day estimated"},{step:4,action:"Deploy and monitor for auth failures",detail:"Watch error rates post-deploy"}],entities:["Auth Module","React Frontend"]},
+                        {name:"API rate limiting setup",trigger:"After auth refactor is complete",steps:[{step:1,action:"Implement token bucket algorithm",detail:"Track request counts per token in Redis"},{step:2,action:"Add rate limit headers to all responses",detail:"X-RateLimit-Limit, X-RateLimit-Remaining"},{step:3,action:"Add pagination to all list endpoints",detail:"Cursor-based pagination preferred"}],entities:["API v2","Redis"]}
+                    ]
+                }
+            },
+            // 2: Code review
+            {
+                text: "Reviewer: Looking at PR #342 — the rate limiter implementation.\nDev: It uses a sliding window counter in Redis. Each API key gets a sorted set with request timestamps.\nReviewer: I see you're using ZRANGEBYSCORE to count requests. What about the race condition on concurrent requests?\nDev: Good catch. I added a Lua script to make the check-and-increment atomic.\nReviewer: The fallback when Redis is down — you're allowing all requests through. That's risky.\nDev: Fair point. I'll add an in-memory fallback with a conservative limit of 10 req/min.\nReviewer: LGTM with that change. Also add unit tests for the Lua script edge cases.",
+                result: {
+                    entities: [
+                        {name:"Rate Limiter",type:"system",facts:[{fact:"Uses sliding window counter algorithm",when:null},{fact:"Stores request timestamps in Redis sorted sets",when:null},{fact:"Atomic check-and-increment via Lua script",when:null},{fact:"In-memory fallback with 10 req/min limit when Redis is down",when:null}]},
+                        {name:"Redis",type:"technology",facts:[{fact:"Sorted sets used for sliding window rate limiting",when:null},{fact:"ZRANGEBYSCORE used to count requests in window",when:null},{fact:"Lua scripts for atomic operations",when:null}]},
+                        {name:"PR #342",type:"artifact",facts:[{fact:"Rate limiter implementation",when:null},{fact:"Approved with changes: add in-memory fallback and unit tests",when:null}]}
+                    ],
+                    relations: [
+                        {from:"Rate Limiter",to:"Redis",type:"uses",description:"Rate limiter stores sliding window data in Redis sorted sets"},
+                        {from:"Rate Limiter",to:"PR #342",type:"implemented_in",description:"Rate limiter code is in PR #342"}
+                    ],
+                    episodes: [
+                        {summary:"Code review of rate limiter found race condition",context:"PR #342 review — concurrent requests could bypass limit without atomic operations",outcome:"Fixed with Lua script for atomic check-and-increment",participants:["Reviewer","Dev"],importance:0.8},
+                        {summary:"Redis fallback strategy revised",context:"Original implementation allowed all requests through when Redis is down",outcome:"Changed to in-memory fallback with conservative 10 req/min limit",participants:["Reviewer","Dev"],importance:0.75}
+                    ],
+                    procedures: [
+                        {name:"Rate limiter implementation checklist",trigger:"When implementing API rate limiting",steps:[{step:1,action:"Use sliding window counter (not fixed window)",detail:"Sorted sets with timestamps in Redis"},{step:2,action:"Make check-and-increment atomic",detail:"Use Lua script to prevent race conditions"},{step:3,action:"Add fallback for Redis downtime",detail:"In-memory counter with conservative limits"},{step:4,action:"Write unit tests for edge cases",detail:"Test Lua script, concurrent requests, Redis failure"}],entities:["Rate Limiter","Redis"]}
+                    ]
+                }
+            }
+        ];
+
+        function pgSampleLoad(idx) {
+            var sample = _pgDemoData[idx];
+            document.getElementById('pg-extract-input').value = sample.text;
+            renderExtraction(sample.result);
+        }
+
+        async function playgroundExtract() {
+            var textarea = document.getElementById('pg-extract-input');
+            var btn = document.getElementById('pg-extract-btn');
+            var resultsDiv = document.getElementById('pg-extract-results');
+            var text = textarea.value.trim();
+            if (!text) { textarea.focus(); return; }
+            if (_pgExtractThrottle) return;
+            _pgExtractThrottle = true;
+            setTimeout(function() { _pgExtractThrottle = false; }, 2000);
+
+            // Check if it matches a demo sample exactly
+            for (var i = 0; i < _pgDemoData.length; i++) {
+                if (text === _pgDemoData[i].text) {
+                    renderExtraction(_pgDemoData[i].result);
+                    return;
+                }
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Extracting...';
+            resultsDiv.className = 'pg-extract-results show';
+            resultsDiv.innerHTML = '<div class="pg-loading"><span class="spinner"></span>Extracting memories from your text...</div>';
+
+            try {
+                var resp = await fetch(API_URL + '/api/playground/extract', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({text: text})
+                });
+                var data = await resp.json();
+                if (!resp.ok) {
+                    resultsDiv.innerHTML = '<div class="pg-error">' + esc(data.detail || 'Extraction failed.') + '</div>';
+                    btn.disabled = false; btn.textContent = 'Extract Memory'; return;
+                }
+                renderExtraction(data);
+            } catch(err) {
+                resultsDiv.innerHTML = '<div class="pg-error">Network error. Try again.</div>';
+            }
+            btn.disabled = false; btn.textContent = 'Extract Memory';
+        }
+
+        function renderExtraction(data) {
+            var resultsDiv = document.getElementById('pg-extract-results');
+            var html = '';
+
+            // Knowledge Graph
+            if (data.entities && data.entities.length > 0 && data.relations && data.relations.length > 0) {
+                html += '<div class="pg-graph-wrap"><div class="pg-result-group-label"><span class="pg-dot pg-dot-semantic"></span>Knowledge Graph</div>';
+                html += renderKnowledgeGraph(data.entities, data.relations);
+                html += '</div>';
+            }
+
+            // Entities
+            if (data.entities && data.entities.length > 0) {
+                html += '<div class="pg-result-group"><div class="pg-result-group-label"><span class="pg-dot pg-dot-semantic"></span>Entities &amp; Facts</div>';
+                data.entities.forEach(function(e) {
+                    html += '<div class="pg-result-card"><h4>' + esc(e.name) + '<span class="pg-type-badge">' + esc(e.type) + '</span></h4>';
+                    (e.facts || []).forEach(function(f) {
+                        html += '<div class="pg-fact-item">' + esc(f.fact);
+                        if (f.when) html += ' <span style="color:var(--text-3);font-size:11px;">(' + esc(f.when) + ')</span>';
+                        html += '</div>';
+                    });
+                    html += '</div>';
+                });
+                html += '</div>';
+            }
+
+            // Episodes
+            if (data.episodes && data.episodes.length > 0) {
+                html += '<div class="pg-result-group"><div class="pg-result-group-label"><span class="pg-dot pg-dot-episodic"></span>Episodes (Events)</div>';
+                data.episodes.forEach(function(ep) {
+                    html += '<div class="pg-result-card"><h4>' + esc(ep.summary) + '</h4>';
+                    if (ep.context) html += '<div class="pg-context">' + esc(ep.context) + '</div>';
+                    if (ep.outcome) html += '<div class="pg-fact-item" style="border-left-color:var(--green)">' + esc(ep.outcome) + '</div>';
+                    if (ep.importance) {
+                        var pct = Math.round(ep.importance * 100);
+                        html += '<div style="margin-top:6px;font-size:11px;color:var(--text-3);">Importance: <span class="pg-importance-bar"><span class="pg-importance" style="width:' + pct + '%"></span></span> ' + pct + '%</div>';
+                    }
+                    html += '</div>';
+                });
+                html += '</div>';
+            }
+
+            // Procedures
+            if (data.procedures && data.procedures.length > 0) {
+                html += '<div class="pg-result-group"><div class="pg-result-group-label"><span class="pg-dot pg-dot-procedural"></span>Procedures (Workflows)</div>';
+                data.procedures.forEach(function(p) {
+                    html += '<div class="pg-result-card"><h4>' + esc(p.name) + '</h4>';
+                    if (p.trigger) html += '<div class="pg-trigger">Trigger: ' + esc(p.trigger) + '</div>';
+                    (p.steps || []).forEach(function(s) {
+                        var num = s.step || '';
+                        var action = s.action || (typeof s === 'string' ? s : '');
+                        html += '<div class="pg-step"><span class="pg-step-num">' + esc(String(num)) + '</span><span class="pg-step-text">' + esc(action);
+                        if (s.detail) html += ' <span style="color:var(--text-3);">— ' + esc(s.detail) + '</span>';
+                        html += '</span></div>';
+                    });
+                    html += '</div>';
+                });
+                html += '</div>';
+            }
+
+            if (!html) html = '<div class="pg-empty">No memories extracted. Try a longer or more detailed text.</div>';
+            resultsDiv.className = 'pg-extract-results show';
+            resultsDiv.innerHTML = html;
+        }
+
+        function renderKnowledgeGraph(entities, relations) {
+            var W = 740, H = 280;
+            // Collect unique entity names from entities + relations
+            var nameSet = {};
+            entities.forEach(function(e) { nameSet[e.name] = e.type; });
+            relations.forEach(function(r) {
+                if (!nameSet[r.from]) nameSet[r.from] = 'unknown';
+                if (!nameSet[r.to]) nameSet[r.to] = 'unknown';
+            });
+            var names = Object.keys(nameSet);
+            if (names.length === 0) return '';
+
+            // Position nodes in an ellipse
+            var cx = W / 2, cy = H / 2;
+            var rx = W * 0.36, ry = H * 0.34;
+            var nodePos = {};
+            var nodeR = 6;
+            names.forEach(function(name, i) {
+                var angle = (2 * Math.PI * i / names.length) - Math.PI / 2;
+                nodePos[name] = { x: cx + rx * Math.cos(angle), y: cy + ry * Math.sin(angle) };
+            });
+
+            // Color map for entity types
+            var typeColors = {
+                person: '#f472b6', technology: '#a855f7', system: '#60a5fa',
+                infrastructure: '#fb923c', artifact: '#34d399', unknown: '#9898b0'
+            };
+
+            var svg = '<svg class="pg-graph" viewBox="0 0 ' + W + ' ' + H + '">';
+
+            // Edges
+            relations.forEach(function(r, i) {
+                var from = nodePos[r.from], to = nodePos[r.to];
+                if (!from || !to) return;
+                var midX = (from.x + to.x) / 2;
+                var midY = (from.y + to.y) / 2;
+                // Curve offset
+                var dx = to.x - from.x, dy = to.y - from.y;
+                var len = Math.sqrt(dx*dx + dy*dy) || 1;
+                var off = Math.min(30, len * 0.15);
+                var cpX = midX + (-dy / len) * off;
+                var cpY = midY + (dx / len) * off;
+                svg += '<path class="pg-edge" d="M' + from.x + ',' + from.y + ' Q' + cpX + ',' + cpY + ' ' + to.x + ',' + to.y + '" fill="none" style="animation-delay:' + (i * 0.08) + 's"/>';
+                // Edge label
+                var lx = cpX, ly = cpY - 6;
+                svg += '<text class="pg-edge-label" x="' + lx + '" y="' + ly + '" text-anchor="middle" style="animation-delay:' + (i * 0.08 + 0.1) + 's">' + esc(r.type) + '</text>';
+            });
+
+            // Nodes
+            names.forEach(function(name, i) {
+                var p = nodePos[name];
+                var color = typeColors[nameSet[name]] || typeColors.unknown;
+                var delay = i * 0.06;
+                svg += '<circle class="pg-node" cx="' + p.x + '" cy="' + p.y + '" r="' + nodeR + '" fill="' + color + '" style="animation-delay:' + delay + 's"/>';
+                // Label — position based on angle to avoid overlap
+                var angle = Math.atan2(p.y - cy, p.x - cx);
+                var labelX = p.x + Math.cos(angle) * 16;
+                var labelY = p.y + Math.sin(angle) * 16;
+                var anchor = (Math.abs(angle) > Math.PI / 2) ? 'end' : 'start';
+                if (Math.abs(Math.cos(angle)) < 0.3) anchor = 'middle';
+                svg += '<text class="pg-node-label" x="' + labelX + '" y="' + (labelY + 4) + '" text-anchor="' + anchor + '" style="animation-delay:' + (delay + 0.05) + 's">' + esc(name) + '</text>';
+            });
+
+            svg += '</svg>';
+            return svg;
+        }
+
+        document.getElementById('pg-extract-input').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); playgroundExtract(); }
+        });
 
         function copyCmd(btn) {
             const code = btn.parentElement.querySelector('code').textContent;
