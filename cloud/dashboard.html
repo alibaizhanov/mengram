@@ -115,8 +115,8 @@
 
         /* Stats */
         .stats-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 28px; }
-        .stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; transition: border-color 0.15s, transform 0.15s; }
-        .stat-card:hover { border-color: var(--border-hover); transform: translateY(-1px); }
+        .stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s; cursor: pointer; }
+        .stat-card:hover { border-color: var(--border-hover); transform: translateY(-1px); box-shadow: 0 0 20px rgba(168,85,247,0.06); }
         .stat-label { font-size: 12px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; display: flex; align-items: center; gap: 5px; }
         .stat-label svg { width: 13px; height: 13px; opacity: 0.7; }
         .stat-value { font-size: 28px; font-weight: 700; }
@@ -170,7 +170,7 @@
         .b-concept { background: var(--pink-dim); color: var(--pink); }
         .b-place { background: var(--orange-dim); color: var(--orange); }
         .b-activity { background: var(--green-dim); color: var(--green); }
-        .b-unknown { background: rgba(148,163,184,0.1); color: #94a3b8; }
+        .b-unknown { background: var(--bg-elevated); color: var(--text-3); }
         .feed-content { flex: 1; }
         .feed-fact { font-size: 14px; line-height: 1.5; }
         .feed-meta { font-size: 11px; color: var(--text-3); margin-top: 4px; }
@@ -274,12 +274,8 @@
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
         /* Tab transitions */
-        .tab-content { opacity: 0; transition: opacity 0.15s ease; }
-        .tab-content.active { opacity: 1; }
-
-        /* Stat card hover */
-        .stat-card { transition: border-color 0.2s, box-shadow 0.2s; }
-        .stat-card:hover { border-color: var(--border-hover); box-shadow: 0 0 20px rgba(168,85,247,0.06); }
+        .tab-content { opacity: 0; transform: translateY(4px); transition: opacity 0.2s ease, transform 0.2s ease; }
+        .tab-content.active { opacity: 1; transform: translateY(0); }
 
         /* Toast notifications */
         .toast-container { position: fixed; bottom: 24px; right: 24px; display: flex; flex-direction: column; gap: 8px; z-index: 9999; pointer-events: none; }
@@ -294,6 +290,120 @@
         .toast.removing { animation: toastOut 0.2s ease forwards; }
         @keyframes toastIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
         @keyframes toastOut { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(40px); } }
+
+        /* Loading Skeletons */
+        .skel { background: var(--bg-elevated); border-radius: 8px; position: relative; overflow: hidden; }
+        .skel::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.04), transparent); animation: shimmer 1.5s infinite; }
+        [data-theme="light"] .skel::after { background: linear-gradient(90deg, transparent, rgba(0,0,0,0.04), transparent); }
+        @keyframes shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+
+        /* Graph Controls & Search */
+        .graph-controls { position: absolute; top: 16px; left: 16px; display: flex; gap: 6px; z-index: 10; }
+        .graph-ctrl { width: 32px; height: 32px; border-radius: 8px; background: var(--bg-card); border: 1px solid var(--border); color: var(--text-2); cursor: pointer; font-size: 15px; display: flex; align-items: center; justify-content: center; transition: all 0.15s; backdrop-filter: blur(8px); }
+        .graph-ctrl:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+        .graph-search { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); z-index: 10; }
+        .graph-search input { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 7px 12px 7px 32px; color: var(--text); font-size: 12px; font-family: 'Sora', sans-serif; outline: none; width: 200px; backdrop-filter: blur(8px); transition: border-color 0.15s, width 0.25s; }
+        .graph-search input:focus { border-color: var(--accent); width: 260px; }
+        .graph-search .gs-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); pointer-events: none; }
+        .graph-search .gs-icon svg { width: 14px; height: 14px; stroke: var(--text-3); fill: none; stroke-width: 1.5; }
+
+        /* Graph edge labels */
+        .graph-edge-label { font-size: 9px; fill: var(--text-3); pointer-events: none; font-family: 'Sora', sans-serif; }
+
+        /* Graph Panel Slide */
+        .graph-panel[style*="block"] { animation: slideInRight 0.25s ease; }
+        @keyframes slideInRight { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+
+        /* Feed Importance Bar */
+        .feed-imp { display: flex; align-items: center; gap: 6px; }
+        .feed-imp-bar { width: 48px; height: 4px; background: var(--bg-elevated); border-radius: 2px; overflow: hidden; flex-shrink: 0; }
+        .feed-imp-fill { height: 100%; border-radius: 2px; }
+        .feed-imp-label { font-size: 10px; color: var(--text-3); font-family: 'JetBrains Mono', monospace; min-width: 24px; }
+
+        /* Feed Delete Animation */
+        .feed-item.removing { opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; margin-bottom: 0; border-width: 0; overflow: hidden; transition: all 0.3s ease; }
+
+        /* Feed Relative Date Divider */
+        .feed-date-divider { font-size: 12px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; padding: 16px 0 6px; display: flex; align-items: center; gap: 12px; }
+        .feed-date-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+        /* Entity Card Enhancements */
+        .e-card { border-top: 2px solid transparent; transition: all 0.2s, border-top-color 0.2s; }
+        .e-card:hover { border-top-color: var(--accent); }
+        .e-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .e-icon svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+        .e-stats { display: flex; gap: 12px; margin-top: 10px; font-size: 11px; color: var(--text-3); }
+        .e-stats span { display: flex; align-items: center; gap: 4px; }
+
+        /* Procedure Cards */
+        .proc-list { display: flex; flex-direction: column; gap: 8px; }
+        .proc-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 16px 20px; cursor: pointer; transition: all 0.15s; }
+        .proc-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+        .proc-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+        .proc-name { font-size: 15px; font-weight: 600; }
+        .proc-version { background: var(--green-dim); color: var(--green); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500; }
+        .proc-trigger { color: var(--text-2); font-size: 13px; margin-bottom: 8px; line-height: 1.4; }
+        .proc-meta { display: flex; gap: 16px; font-size: 12px; color: var(--text-3); align-items: center; }
+        .proc-bar { height: 4px; background: var(--bg-elevated); border-radius: 2px; overflow: hidden; width: 80px; }
+        .proc-bar-fill { height: 100%; border-radius: 2px; background: var(--green); }
+        .proc-detail-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+        .proc-detail-card h4 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+        .proc-detail-steps { padding-left: 0; list-style: none; counter-reset: pstep; }
+        .proc-detail-steps li { padding: 10px 14px; display: flex; align-items: baseline; gap: 12px; border-bottom: 1px solid var(--border); color: var(--text-2); font-size: 13px; line-height: 1.5; }
+        .proc-detail-steps li:last-child { border-bottom: none; }
+        .proc-detail-steps li::before { counter-increment: pstep; content: counter(pstep); display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; background: var(--accent-dim); color: var(--accent); font-size: 11px; font-weight: 600; flex-shrink: 0; }
+        .proc-evo-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+        .proc-evo-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+        .proc-evo-type { padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; }
+        .proc-ver-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-size: 13px; cursor: pointer; transition: border-color 0.15s; }
+        .proc-ver-card:hover { border-color: var(--border-hover); }
+        .proc-ver-card.current { border-color: var(--accent); }
+        .proc-back { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; color: var(--text-2); cursor: pointer; font-size: 13px; transition: all 0.15s; font-family: 'Sora', sans-serif; }
+        .proc-back:hover { border-color: var(--border-hover); color: var(--text); }
+
+        /* Intelligence Charts */
+        .intel-chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+        .intel-chart-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 20px; }
+        .intel-chart-card h3 { font-size: 14px; font-weight: 600; margin-bottom: 16px; }
+        .intel-donut { display: flex; align-items: center; gap: 20px; }
+        .intel-donut-legend { display: flex; flex-direction: column; gap: 6px; }
+        .intel-donut-item { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-2); }
+        .intel-donut-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        .intel-bar-chart { display: flex; align-items: flex-end; gap: 6px; height: 100px; padding-top: 8px; }
+        .intel-bar-group { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+        .intel-bar { border-radius: 3px 3px 0 0; width: 100%; min-height: 2px; transition: height 0.5s ease; }
+        .intel-bar-label { font-size: 10px; color: var(--text-3); }
+
+        /* Stat Sparkline & Change Badge */
+        .stat-sparkline { margin-top: 8px; }
+        .stat-sparkline svg { display: block; }
+        .stat-change { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; margin-top: 6px; padding: 2px 6px; border-radius: 4px; font-weight: 500; }
+        .stat-change.up { background: var(--green-dim); color: var(--green); }
+        .stat-change.down { background: var(--red-dim); color: var(--red); }
+        .stat-change.flat { background: var(--bg-elevated); color: var(--text-3); }
+
+        /* Modal Enter Animation */
+        .modal-bg.show .modal { animation: modalIn 0.2s ease; }
+        @keyframes modalIn { from { opacity: 0; transform: scale(0.95) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+
+        /* Card Stagger Animation */
+        .stagger > * { animation: staggerIn 0.3s ease both; }
+        .stagger > *:nth-child(1) { animation-delay: 0s; }
+        .stagger > *:nth-child(2) { animation-delay: 0.04s; }
+        .stagger > *:nth-child(3) { animation-delay: 0.04s; }
+        .stagger > *:nth-child(4) { animation-delay: 0.08s; }
+        .stagger > *:nth-child(5) { animation-delay: 0.1s; }
+        .stagger > *:nth-child(6) { animation-delay: 0.12s; }
+        .stagger > *:nth-child(7) { animation-delay: 0.14s; }
+        .stagger > *:nth-child(8) { animation-delay: 0.16s; }
+        @keyframes staggerIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+        @media (max-width: 768px) {
+            .graph-search input { width: 140px; }
+            .graph-search input:focus { width: 180px; }
+            .graph-controls { top: 12px; left: 12px; }
+            .intel-chart-row { grid-template-columns: 1fr; }
+        }
 
         /* Confirm modal */
         .confirm-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 10000; align-items: center; justify-content: center; padding: 24px; backdrop-filter: blur(4px); }
@@ -727,7 +837,7 @@
         <div class="sidebar-nav">
             <div class="nav-group active" data-group="memory">
                 <div class="nav-item active" onclick="switchGroup(event,'memory')"><span class="icon"><svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7z"/><path d="M10 21h4"/></svg></span> Memory <span class="chevron">▸</span></div>
-                <div class="nav-sub-items" style="max-height:200px">
+                <div class="nav-sub-items">
                     <div class="nav-sub active" data-tab="graph" onclick="switchTab(event,'graph')">Knowledge Graph</div>
                     <div class="nav-sub" data-tab="search" onclick="switchTab(event,'search')">Search</div>
                     <div class="nav-sub" data-tab="feed" onclick="switchTab(event,'feed')">Feed</div>
@@ -768,10 +878,10 @@
     <div class="main">
         <div id="quota-banner" style="display:none;"></div>
         <div class="stats-strip">
-            <div class="stat-card" onclick="switchTabDirect('entities')" style="cursor:pointer"><div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="7" r="4"/><path d="M5.5 21a6.5 6.5 0 0 1 13 0"/></svg>Entities</div><div class="stat-value purple" id="s-ent">—</div></div>
-            <div class="stat-card" onclick="switchTabDirect('feed')" style="cursor:pointer"><div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5l4 4L7 21H3v-4L16.5 3.5z"/></svg>Facts</div><div class="stat-value green" id="s-facts">—</div></div>
-            <div class="stat-card" onclick="switchTabDirect('graph')" style="cursor:pointer"><div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><path d="M8.5 8.5l7 7"/></svg>Relations</div><div class="stat-value blue" id="s-rels">—</div></div>
-            <div class="stat-card" onclick="switchTabDirect('entities')" style="cursor:pointer"><div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke="var(--orange)" stroke-width="2" stroke-linecap="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>Knowledge</div><div class="stat-value orange" id="s-know">—</div></div>
+            <div class="stat-card" onclick="switchTabDirect('entities')"><div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="7" r="4"/><path d="M5.5 21a6.5 6.5 0 0 1 13 0"/></svg>Entities</div><div class="stat-value purple" id="s-ent">—</div><div id="s-ent-extra"></div></div>
+            <div class="stat-card" onclick="switchTabDirect('feed')"><div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5l4 4L7 21H3v-4L16.5 3.5z"/></svg>Facts</div><div class="stat-value green" id="s-facts">—</div><div id="s-facts-extra"></div></div>
+            <div class="stat-card" onclick="switchTabDirect('graph')"><div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><path d="M8.5 8.5l7 7"/></svg>Relations</div><div class="stat-value blue" id="s-rels">—</div><div id="s-rels-extra"></div></div>
+            <div class="stat-card" onclick="switchTabDirect('entities')"><div class="stat-label"><svg viewBox="0 0 24 24" fill="none" stroke="var(--orange)" stroke-width="2" stroke-linecap="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>Knowledge</div><div class="stat-value orange" id="s-know">—</div><div id="s-know-extra"></div></div>
         </div>
 
         <!-- Onboarding Checklist -->
@@ -854,7 +964,7 @@
                 <h2>Memory Feed</h2>
                 <div class="search-bar"><span><svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span><input id="search-input" placeholder="Semantic search..." onkeydown="if(event.key==='Enter')doSearch()"><div class="search-dropdown" id="search-dd"></div></div>
             </div>
-            <div id="feed-box" class="loading">Loading memories...</div>
+            <div id="feed-box"></div>
         </div>
 
         <div class="tab-content" id="tab-agents">
@@ -897,7 +1007,7 @@
 
         <div class="tab-content" id="tab-overview">
             <div class="page-header"><h2>Intelligence Overview</h2></div>
-            <div id="intel-box"><div class="loading" style="text-align:center;padding:40px;color:var(--text-2);">Loading intelligence data...</div></div>
+            <div id="intel-box"></div>
         </div>
 
         <div class="tab-content" id="tab-insights">
@@ -905,12 +1015,21 @@
                 <h2>AI Insights</h2>
                 <button onclick="triggerReflection()" style="background:var(--accent);color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;">Reflect Now</button>
             </div>
-            <div id="insights-box" class="loading">Analyzing your memories...</div>
+            <div id="insights-box"></div>
         </div>
 
         <div class="tab-content active" id="tab-graph">
             <div class="page-header"><h2>Knowledge Graph</h2></div>
             <div class="graph-box" id="graph-box">
+                <div class="graph-controls" id="graph-controls" style="display:none">
+                    <button class="graph-ctrl" onclick="graphZoom(1.3)" title="Zoom in">+</button>
+                    <button class="graph-ctrl" onclick="graphZoom(0.7)" title="Zoom out">−</button>
+                    <button class="graph-ctrl" onclick="graphFit()" title="Fit to screen"><svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg></button>
+                </div>
+                <div class="graph-search" id="graph-search-box" style="display:none">
+                    <span class="gs-icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+                    <input id="graph-search-input" placeholder="Search entities..." autocomplete="off" oninput="filterGraphNodes(this.value)">
+                </div>
                 <div class="graph-legend">
                     <span><span class="ldot" style="background:var(--blue)"></span>Person</span>
                     <span><span class="ldot" style="background:var(--accent)"></span>Project</span>
@@ -933,11 +1052,10 @@
         <div class="tab-content" id="tab-procedures">
             <div class="page-header"><h2>Procedures</h2></div>
             <div id="procedures-box">
-                <div class="loading" style="text-align:center;padding:40px;color:var(--text-2);">Loading procedures...</div>
             </div>
             <div id="procedure-detail" style="display:none;margin-top:20px;">
                 <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
-                    <button onclick="closeProcedureDetail()" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:6px 12px;color:var(--text-2);cursor:pointer;font-size:13px;">← Back</button>
+                    <button class="proc-back" onclick="closeProcedureDetail()">← Back</button>
                     <h3 id="proc-detail-name" style="font-size:18px;font-weight:600;"></h3>
                     <span id="proc-detail-version" style="background:var(--accent-dim);color:var(--accent);padding:2px 8px;border-radius:6px;font-size:12px;font-weight:500;"></span>
                 </div>
@@ -1159,6 +1277,126 @@ const I = {
     think:    '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
     stale:    '<svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>',
 };
+
+// ---- Entity type icons (for entity cards + graph nodes) ----
+const TYPE_ICONS = {
+    person:     '<svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M5.5 21a6.5 6.5 0 0 1 13 0"/></svg>',
+    project:    '<svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>',
+    technology: '<svg viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>',
+    company:    '<svg viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/></svg>',
+    concept:    '<svg viewBox="0 0 24 24"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/></svg>',
+    place:      '<svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>',
+    activity:   '<svg viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>',
+};
+function _typeIcon(type) { return TYPE_ICONS[type] || '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>'; }
+
+// ---- Skeleton templates ----
+function renderSkeleton(type) {
+    const row = (w) => `<div class="skel" style="height:14px;width:${w};margin-bottom:8px;border-radius:4px;"></div>`;
+    const card = (h) => `<div class="skel" style="height:${h||'120px'};border-radius:14px;"></div>`;
+    if (type === 'feed') {
+        return '<div style="padding:4px 0;">' + [1,2,3,4,5].map(() =>
+            `<div style="display:flex;gap:14px;align-items:center;padding:14px 18px;margin-bottom:2px;">
+                <div class="skel" style="width:80px;height:26px;border-radius:6px;"></div>
+                <div style="flex:1;">${row('90%')}${row('50%')}</div>
+            </div>`
+        ).join('') + '</div>';
+    }
+    if (type === 'entities') {
+        return '<div class="entities-grid">' + [1,2,3,4,5,6].map(() =>
+            `<div class="skel" style="height:140px;border-radius:14px;"></div>`
+        ).join('') + '</div>';
+    }
+    if (type === 'intel') {
+        return `<div class="intel-grid stagger">${[1,2,3,4].map(() => card('100px')).join('')}</div>
+            <div style="margin-top:16px;">${card('80px')}</div>`;
+    }
+    if (type === 'insights') {
+        return `<div class="insight-grid">${card('180px')}${card('160px')}${card('160px')}${card('180px')}</div>`;
+    }
+    if (type === 'procedures') {
+        return '<div class="proc-list">' + [1,2,3].map(() =>
+            `<div class="skel" style="height:90px;border-radius:12px;"></div>`
+        ).join('') + '</div>';
+    }
+    if (type === 'graph') {
+        return `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;">
+            <div style="display:flex;gap:24px;align-items:center;">
+                ${[40,28,52,36,44,30].map((s,i) => `<div class="skel" style="width:${s}px;height:${s}px;border-radius:50%;"></div>`).join('')}
+            </div>
+        </div>`;
+    }
+    return `<div style="padding:40px;">${row('60%')}${row('80%')}${row('40%')}</div>`;
+}
+
+// ---- Relative date helper ----
+function _relativeDate(dateStr) {
+    if (!dateStr) return 'Unknown';
+    const d = new Date(dateStr);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const target = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const diff = Math.floor((today - target) / 86400000);
+    if (diff === 0) return 'Today';
+    if (diff === 1) return 'Yesterday';
+    if (diff < 7) return d.toLocaleDateString('en-US', { weekday: 'long' });
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: now.getFullYear() !== d.getFullYear() ? 'numeric' : undefined });
+}
+
+// ---- Graph zoom/search ----
+let _graphZoomBehavior = null;
+let _graphSvg = null;
+let _graphG = null;
+let _graphNodeSelection = null;
+let _graphLinkSelection = null;
+
+function graphZoom(factor) {
+    if (!_graphSvg || !_graphZoomBehavior) return;
+    _graphSvg.transition().duration(300).call(_graphZoomBehavior.scaleBy, factor);
+}
+function graphFit() {
+    if (!_graphSvg || !_graphZoomBehavior) return;
+    _graphSvg.transition().duration(500).call(_graphZoomBehavior.transform, d3.zoomIdentity);
+}
+function filterGraphNodes(query) {
+    if (!_graphNodeSelection) return;
+    const q = query.toLowerCase().trim();
+    if (!q) {
+        _graphNodeSelection.attr('opacity', 1);
+        if (_graphLinkSelection) _graphLinkSelection.attr('opacity', 1);
+        return;
+    }
+    _graphNodeSelection.each(function(d) {
+        const match = d.id.toLowerCase().includes(q);
+        d3.select(this).attr('opacity', match ? 1 : 0.15);
+    });
+    if (_graphLinkSelection) _graphLinkSelection.attr('opacity', 0.1);
+}
+
+// ---- SVG donut chart helper ----
+function _renderDonut(data, size) {
+    size = size || 120;
+    const r = size / 2;
+    const ir = r * 0.6;
+    let total = 0;
+    for (const d of data) total += d.value;
+    if (total === 0) return '';
+    let angle = 0;
+    let paths = '';
+    for (const d of data) {
+        const pct = d.value / total;
+        const a1 = angle;
+        const a2 = angle + pct * Math.PI * 2;
+        const large = pct > 0.5 ? 1 : 0;
+        const x1o = r + Math.cos(a1) * r, y1o = r + Math.sin(a1) * r;
+        const x2o = r + Math.cos(a2) * r, y2o = r + Math.sin(a2) * r;
+        const x1i = r + Math.cos(a2) * ir, y1i = r + Math.sin(a2) * ir;
+        const x2i = r + Math.cos(a1) * ir, y2i = r + Math.sin(a1) * ir;
+        paths += `<path d="M${x1o},${y1o} A${r},${r} 0 ${large} 1 ${x2o},${y2o} L${x1i},${y1i} A${ir},${ir} 0 ${large} 0 ${x2i},${y2i} Z" fill="${d.color}" opacity="0.85"/>`;
+        angle = a2;
+    }
+    return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">${paths}</svg>`;
+}
 
 // ---- Helpers ----
 function safeHref(url, fallback) { return (url && (url.startsWith('/') || url.startsWith('https://'))) ? esc(url) : esc(fallback || '/dashboard?tab=billing'); }
@@ -1556,7 +1794,7 @@ function switchTab(e, t) {
     if(t==='settings') { loadWebhooks(); loadTeams(); loadKeys(); }
 }
 
-async function loadAll() { loadStats(); loadGraph(); loadFeed(); loadAccount(); }
+async function loadAll() { _updateNavHighlighting('graph'); loadStats(); loadGraph(); loadFeed(); loadAccount(); }
 
 // ---- Onboarding Checklist ----
 let _obState = { add: false, search: false, graph: false };
@@ -2044,6 +2282,7 @@ async function loadAgentHistory() {
 }
 async function loadIntelligence() {
     const box = document.getElementById('intel-box');
+    box.innerHTML = renderSkeleton('intel');
     try {
         const res = await fetch(`${API}/v1/intelligence`, { headers: H() });
         if (!res.ok) throw new Error('Failed to load');
@@ -2052,25 +2291,19 @@ async function loadIntelligence() {
         const total = (d.facts || 0) + (d.episodes || 0) + (d.knowledge || 0);
         if (total === 0) {
             box.innerHTML = `<div class="intel-empty">
-                <div style="font-size:48px;margin-bottom:16px;opacity:0.5;">
-                    <svg viewBox="0 0 24 24" style="width:48px;height:48px;stroke:var(--text-3);fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;">
-                        <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/>
-                    </svg>
-                </div>
+                <div style="font-size:48px;margin-bottom:16px;opacity:0.5;">${I.sparkle}</div>
                 <h3>No intelligence yet</h3>
                 <p>Add memories via the API and your intelligence dashboard will appear here.</p>
             </div>`;
             return;
         }
 
-        // Growth calculation
         const f7 = d.facts_7d || 0;
         const fp = d.facts_prev_7d || 0;
         const growthPct = fp > 0 ? Math.round(((f7 - fp) / fp) * 100) : (f7 > 0 ? 100 : 0);
         const growthSign = growthPct > 0 ? '+' : '';
-        const growthClass = growthPct > 0 ? '' : 'neutral';
 
-        let html = `<div class="intel-grid">
+        let html = `<div class="intel-grid stagger">
             <div class="intel-card">
                 <div class="intel-card-icon"><svg viewBox="0 0 24 24" style="width:22px;height:22px;stroke:var(--green);fill:none;stroke-width:1.5;stroke-linecap:round;"><path d="M12 20h9"/><path d="M16.5 3.5l4 4L7 21H3v-4L16.5 3.5z"/></svg></div>
                 <div class="intel-card-value">${d.facts}</div>
@@ -2095,14 +2328,60 @@ async function loadIntelligence() {
             </div>
         </div>`;
 
-        // Growth summary bar
-        html += `<div class="intel-section" style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px;">
-            <div style="font-size:14px;color:var(--text-2);">
-                Weekly growth: <strong style="color:var(--text);">${growthSign}${growthPct}%</strong> facts
-                ${(d.episodes_7d || 0) > 0 ? ` &middot; <strong style="color:var(--text);">${d.episodes_7d}</strong> new episodes` : ''}
+        // Charts row: entity type donut + growth bar
+        const types = d.by_type || {};
+        const typeKeys = Object.keys(types);
+        const typeColors = {person:'var(--blue)',project:'var(--accent)',technology:'var(--green)',company:'var(--orange)',concept:'var(--pink)',place:'var(--orange)',activity:'var(--green)'};
+
+        html += `<div class="intel-chart-row">`;
+
+        // Donut chart - entity types
+        if (typeKeys.length > 0) {
+            const donutData = typeKeys.map(t => ({
+                value: types[t],
+                color: typeColors[t] || 'var(--text-3)',
+                label: t
+            }));
+            // For SVG rendering, resolve CSS vars
+            const cs = getComputedStyle(document.documentElement);
+            const resolvedData = donutData.map(d => ({
+                ...d,
+                color: d.color.startsWith('var(') ? cs.getPropertyValue(d.color.slice(4,-1)).trim() || '#888' : d.color
+            }));
+            html += `<div class="intel-chart-card"><h3>Entity Distribution</h3>
+                <div class="intel-donut">
+                    ${_renderDonut(resolvedData, 110)}
+                    <div class="intel-donut-legend">
+                        ${donutData.map(d => `<div class="intel-donut-item"><span class="intel-donut-dot" style="background:${d.color}"></span><span style="font-weight:500;color:var(--text);margin-right:4px;">${types[d.label]}</span>${esc(d.label)}</div>`).join('')}
+                    </div>
+                </div>
+            </div>`;
+        }
+
+        // Weekly growth summary card
+        const e7 = d.episodes_7d || 0;
+        html += `<div class="intel-chart-card"><h3>Weekly Growth</h3>
+            <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:16px;">
+                <span style="font-size:32px;font-weight:700;font-family:'JetBrains Mono',monospace;color:${growthPct >= 0 ? 'var(--green)' : 'var(--red)'};">${growthSign}${growthPct}%</span>
+                <span style="font-size:13px;color:var(--text-3);">facts growth</span>
             </div>
-            <div style="font-size:13px;color:var(--text-3);">${d.knowledge || 0} knowledge items &middot; ${d.episodes || 0} episodes</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+                <div style="text-align:center;padding:8px;background:var(--bg);border-radius:8px;">
+                    <div style="font-size:18px;font-weight:700;font-family:'JetBrains Mono',monospace;">${f7}</div>
+                    <div style="font-size:10px;color:var(--text-3);">New facts</div>
+                </div>
+                <div style="text-align:center;padding:8px;background:var(--bg);border-radius:8px;">
+                    <div style="font-size:18px;font-weight:700;font-family:'JetBrains Mono',monospace;">${e7}</div>
+                    <div style="font-size:10px;color:var(--text-3);">Episodes</div>
+                </div>
+                <div style="text-align:center;padding:8px;background:var(--bg);border-radius:8px;">
+                    <div style="font-size:18px;font-weight:700;font-family:'JetBrains Mono',monospace;">${d.knowledge || 0}</div>
+                    <div style="font-size:10px;color:var(--text-3);">Knowledge</div>
+                </div>
+            </div>
         </div>`;
+
+        html += `</div>`;
 
         // Evolved procedures
         const evos = d.evolved_procedures || [];
@@ -2118,19 +2397,6 @@ async function loadIntelligence() {
             html += `</div>`;
         }
 
-        // Entity types breakdown
-        const types = d.by_type || {};
-        const typeKeys = Object.keys(types);
-        if (typeKeys.length > 0) {
-            html += `<div class="intel-section">
-                <h3>Entity Types</h3>
-                <div class="intel-types">`;
-            for (const t of typeKeys) {
-                html += `<div class="intel-type-tag"><span>${types[t]}</span>${esc(t)}</div>`;
-            }
-            html += `</div></div>`;
-        }
-
         box.innerHTML = html;
     } catch(e) {
         box.innerHTML = `<div class="intel-empty"><h3>Failed to load</h3><p>${esc(e.message)}</p></div>`;
@@ -2139,6 +2405,7 @@ async function loadIntelligence() {
 
 async function loadInsights() {
     const box = document.getElementById('insights-box');
+    box.innerHTML = renderSkeleton('insights');
     try {
         const d = await (await fetch(`${API}/v1/insights`,{headers:H()})).json();
         if(!d.has_insights) {
@@ -2251,6 +2518,26 @@ async function loadStats() {
         countUp(document.getElementById('s-know'), d.knowledge||0);
         checkOnboardingVisibility(d);
         if ((d.entities||0) > 0) updateObStep('add', true);
+
+        // Fetch weekly data for stat badges
+        try {
+            const intel = await (await fetch(`${API}/v1/intelligence`, { headers: H() })).json();
+            const f7 = intel.facts_7d || 0;
+            const fp = intel.facts_prev_7d || 0;
+            const e7 = intel.episodes_7d || 0;
+            const changePct = fp > 0 ? Math.round(((f7 - fp) / fp) * 100) : (f7 > 0 ? 100 : 0);
+
+            // Facts change badge
+            if (f7 > 0) {
+                const cls = changePct >= 0 ? 'up' : 'down';
+                const arrow = changePct >= 0 ? '↑' : '↓';
+                document.getElementById('s-facts-extra').innerHTML = `<div class="stat-change ${cls}">${arrow} +${f7} this week</div>`;
+            }
+            // Episodes in knowledge
+            if (e7 > 0) {
+                document.getElementById('s-know-extra').innerHTML = `<div class="stat-change up">↑ +${e7} episodes</div>`;
+            }
+        } catch(e2) {}
     } catch(e){}
 }
 
@@ -2354,12 +2641,12 @@ function _renderFeedItem(it) {
     const bc = 'b-'+_bt;
     const tm = it.created_at ? new Date(it.created_at).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}) : '';
     const imp = it.importance || 0.5;
-    const impColor = imp >= 0.8 ? '#a855f7' : imp >= 0.6 ? '#6366f1' : imp >= 0.4 ? '#64748b' : '#334155';
-    const impLabel = imp >= 0.8 ? '●●●' : imp >= 0.6 ? '●●○' : imp >= 0.4 ? '●○○' : '○○○';
+    const impPct = Math.round(imp * 100);
+    const impColor = imp >= 0.8 ? 'var(--accent)' : imp >= 0.6 ? 'var(--blue)' : imp >= 0.4 ? 'var(--text-3)' : 'var(--border)';
     const accInfo = it.access_count > 0 ? ` · recalled ${it.access_count}×` : '';
     return `<div class="feed-item">
         <span class="feed-badge ${bc}" style="${_badgeStyle(_bt)}">${esc(it.entity)}</span>
-        <div class="feed-content"><div class="feed-fact">${esc(it.fact)}</div><div class="feed-meta">${tm}<span style="color:${impColor};margin-left:8px" title="Importance: ${imp}">${impLabel}</span>${accInfo}</div></div>
+        <div class="feed-content"><div class="feed-fact">${esc(it.fact)}</div><div class="feed-meta">${tm}<span class="feed-imp" title="Importance: ${impPct}%"><span class="feed-imp-bar"><span class="feed-imp-fill" style="width:${impPct}%;background:${impColor}"></span></span><span class="feed-imp-label">${impPct}%</span></span>${accInfo}</div></div>
         <button class="feed-del" onclick="archFact('${escA(it.id)}','${escA(it.entity)}','${escA(it.fact)}',this)" title="Delete">✕</button>
     </div>`;
 }
@@ -2367,7 +2654,7 @@ function _renderFeedItem(it) {
 async function loadFeed() {
     _feedOffset = 0;
     const box = document.getElementById('feed-box');
-    box.innerHTML = `<div style="padding:16px;">${[1,2,3,4,5].map(()=>'<div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;"><div style="width:80px;height:24px;background:var(--bg-elevated);border-radius:6px;animation:pulse 1.5s infinite;"></div><div style="flex:1;height:16px;background:var(--bg-elevated);border-radius:4px;animation:pulse 1.5s infinite;"></div></div>').join('')}</div><style>@keyframes pulse{0%,100%{opacity:0.4}50%{opacity:0.8}}</style>`;
+    box.innerHTML = renderSkeleton('feed');
     try {
         const d = await (await fetch(`${API}/v1/feed?limit=${FEED_PAGE}&offset=0`,{headers:H()})).json();
         if(!d.feed||!d.feed.length) {
@@ -2377,8 +2664,8 @@ async function loadFeed() {
         _feedOffset = d.feed.length;
         let h='<div class="feed-list" id="feed-list">',last='';
         for(const it of d.feed) {
-            const dt = it.created_at ? new Date(it.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : 'Unknown';
-            if(dt!==last) { h+=`<div class="feed-date">${dt}</div>`; last=dt; }
+            const dt = _relativeDate(it.created_at);
+            if(dt!==last) { h+=`<div class="feed-date-divider">${dt}</div>`; last=dt; }
             h += _renderFeedItem(it);
         }
         h+='</div>';
@@ -2398,11 +2685,11 @@ async function loadMoreFeed() {
         const list = document.getElementById('feed-list');
         let h='',last='';
         // Get last date from existing feed
-        const dates = list.querySelectorAll('.feed-date');
+        const dates = list.querySelectorAll('.feed-date-divider');
         if(dates.length) last = dates[dates.length-1].textContent;
         for(const it of d.feed) {
-            const dt = it.created_at ? new Date(it.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : 'Unknown';
-            if(dt!==last) { h+=`<div class="feed-date">${dt}</div>`; last=dt; }
+            const dt = _relativeDate(it.created_at);
+            if(dt!==last) { h+=`<div class="feed-date-divider">${dt}</div>`; last=dt; }
             h += _renderFeedItem(it);
         }
         list.insertAdjacentHTML('beforeend', h);
@@ -2416,7 +2703,9 @@ async function archFact(id,entity,fact,btn) {
     showConfirm('Delete Fact', fact, async () => {
         try {
             await fetch(`${API}/v1/archive_fact`,{method:'POST',headers:H(),body:JSON.stringify({entity_name:entity,fact_content:fact})});
-            btn.closest('.feed-item').style.display='none';
+            const item = btn.closest('.feed-item');
+            item.classList.add('removing');
+            setTimeout(() => item.remove(), 300);
             _invalidateCache('graph'); _invalidateCache('entities');
             loadStats();
             showToast('Fact deleted', 'success');
@@ -2426,24 +2715,37 @@ async function archFact(id,entity,fact,btn) {
 
 // ---- Graph ----
 async function loadGraph() {
+    const box = document.getElementById('graph-box');
+    // Add loading skeleton
+    const skel = document.createElement('div');
+    skel.className = 'graph-skeleton';
+    skel.innerHTML = renderSkeleton('graph');
+    box.appendChild(skel);
     try {
         const d = await (await fetch(`${API}/v1/graph`,{headers:H()})).json();
         _tabCache.graph = d;
         _tabCacheTime.graph = Date.now();
         renderGraph(d);
-    } catch(e){}
+    } catch(e){
+        const sk = box.querySelector('.graph-skeleton');
+        if(sk) sk.remove();
+    }
 }
 
 function renderGraph(data) {
     const box = document.getElementById('graph-box');
-    box.querySelectorAll('svg').forEach(s=>s.remove());
-    // Remove old graph info badge / empty state
+    box.querySelectorAll('svg.graph-svg').forEach(s=>s.remove());
     const oldInfo = box.querySelector('.graph-info');
     if(oldInfo) oldInfo.remove();
     const oldEmpty = box.querySelector('.graph-empty');
     if(oldEmpty) oldEmpty.remove();
+    const oldSkel = box.querySelector('.graph-skeleton');
+    if(oldSkel) oldSkel.remove();
 
-    // Empty state for new users
+    // Hide controls/search for empty state
+    document.getElementById('graph-controls').style.display = 'none';
+    document.getElementById('graph-search-box').style.display = 'none';
+
     if (!data.nodes || data.nodes.length === 0) {
         const empty = document.createElement('div');
         empty.className = 'graph-empty';
@@ -2455,6 +2757,10 @@ function renderGraph(data) {
         return;
     }
 
+    // Show controls and search
+    document.getElementById('graph-controls').style.display = 'flex';
+    document.getElementById('graph-search-box').style.display = 'block';
+
     updateObStep('graph', true);
 
     const W=box.clientWidth, HH=box.clientHeight;
@@ -2463,39 +2769,54 @@ function renderGraph(data) {
     function _typeColor(t){if(tc[t])return tc[t];let h=0;for(let i=0;i<t.length;i++)h=t.charCodeAt(i)+((h<<5)-h);return`hsl(${((h%360)+360)%360},55%,60%)`;}
     const _borderColor = cs.getPropertyValue('--border').trim()||'#1a1a2e';
     const _textColor2 = cs.getPropertyValue('--text-2').trim()||'#9898b0';
+    const _textColor3 = cs.getPropertyValue('--text-3').trim()||'#5a5a78';
     const nodes = data.nodes.map(n=>({id:n.name,type:n.type,r:6+Math.min((n.facts_count||0)*1.5,18),c:_typeColor(n.type||'unknown')}));
     const ns = new Set(nodes.map(n=>n.id));
     const links = data.edges.filter(e=>ns.has(e.source)&&ns.has(e.target)).map(e=>({source:e.source,target:e.target,type:e.type,description:e.description}));
 
-    // Show info badge if graph is truncated
+    // Info badge for truncated graph
     if(data.total_nodes && data.total_nodes > nodes.length) {
         const info = document.createElement('div');
         info.className = 'graph-info';
-        info.style.cssText = 'position:absolute;top:16px;right:16px;background:var(--bg-card);color:var(--text-2);padding:6px 12px;border-radius:8px;font-size:12px;backdrop-filter:blur(8px);border:1px solid var(--border);';
+        info.style.cssText = 'position:absolute;top:16px;right:16px;background:var(--bg-card);color:var(--text-2);padding:6px 12px;border-radius:8px;font-size:12px;backdrop-filter:blur(8px);border:1px solid var(--border);z-index:10;';
         info.textContent = `Showing ${nodes.length} of ${data.total_nodes} entities`;
         box.appendChild(info);
     }
 
-    const svg = d3.select(box).append('svg').attr('width',W).attr('height',HH);
+    const svg = d3.select(box).append('svg').attr('class','graph-svg').attr('width',W).attr('height',HH);
     const g = svg.append('g');
 
-    // Zoom
-    svg.call(d3.zoom().scaleExtent([0.3,4]).on('zoom', e => g.attr('transform', e.transform)));
+    // Zoom behavior (stored globally for controls)
+    const zoom = d3.zoom().scaleExtent([0.3,4]).on('zoom', e => g.attr('transform', e.transform));
+    svg.call(zoom);
+    _graphZoomBehavior = zoom;
+    _graphSvg = svg;
+    _graphG = g;
+
     svg.on('click', () => { closeGraphPanel(); box.querySelectorAll('.gp-edge').forEach(t=>t.remove()); });
 
     const sim = d3.forceSimulation(nodes)
-        .force('link',d3.forceLink(links).id(d=>d.id).distance(90))
-        .force('charge',d3.forceManyBody().strength(-250))
+        .force('link',d3.forceLink(links).id(d=>d.id).distance(100))
+        .force('charge',d3.forceManyBody().strength(-280))
         .force('center',d3.forceCenter(W/2,HH/2))
-        .force('collision',d3.forceCollide().radius(d=>d.r+6));
+        .force('collision',d3.forceCollide().radius(d=>d.r+8));
 
     const link = g.append('g').selectAll('line').data(links).join('line')
         .attr('stroke',_borderColor).attr('stroke-width',1.2).style('cursor','pointer');
 
-    // Edge click → tooltip
+    // Edge labels (small text along edges, only for short labels)
+    const edgeLabels = g.append('g').selectAll('text').data(links).join('text')
+        .attr('class','graph-edge-label')
+        .text(d => {
+            const label = d.type || '';
+            return label.length <= 16 ? label : '';
+        })
+        .attr('text-anchor','middle')
+        .style('opacity', 0.6);
+
+    // Edge click tooltip
     link.on('click', function(ev, d) {
         ev.stopPropagation();
-        // Remove old edge tooltip
         box.querySelectorAll('.gp-edge').forEach(t=>t.remove());
         const src = typeof d.source === 'object' ? d.source.id : d.source;
         const tgt = typeof d.target === 'object' ? d.target.id : d.target;
@@ -2514,20 +2835,57 @@ function renderGraph(data) {
             .on('drag',(e,d)=>{d.fx=e.x;d.fy=e.y;})
             .on('end',(e,d)=>{if(!e.active)sim.alphaTarget(0);d.fx=null;d.fy=null;}));
 
+    // Outer glow circle
+    node.append('circle').attr('r',d=>d.r+4).attr('fill',d=>d.c).attr('fill-opacity',0)
+        .attr('class','node-glow');
+
+    // Main circle
     node.append('circle').attr('r',d=>d.r).attr('fill',d=>d.c).attr('fill-opacity',0.15)
         .attr('stroke',d=>d.c).attr('stroke-width',1.5).style('cursor','pointer')
         .on('click',(e,d)=>{e.stopPropagation();openGraphPanel(d.id, node, link, links);});
 
+    // Node type icon (only for nodes large enough)
+    node.each(function(d) {
+        if (d.r >= 10) {
+            const iconSize = Math.min(d.r * 0.8, 12);
+            const iconG = d3.select(this).append('g')
+                .attr('transform', `translate(${-iconSize/2},${-iconSize/2})`)
+                .style('pointer-events','none');
+            iconG.append('svg')
+                .attr('viewBox','0 0 24 24')
+                .attr('width', iconSize).attr('height', iconSize)
+                .attr('fill','none').attr('stroke',d.c).attr('stroke-width',2)
+                .attr('stroke-linecap','round').attr('stroke-linejoin','round')
+                .html((_typeIcon(d.type||'unknown')).replace(/<\/?svg[^>]*>/g,''));
+        }
+    });
+
     // Glow on hover
-    node.on('mouseenter', function(e,d) { d3.select(this).select('circle').attr('fill-opacity',0.35).attr('stroke-width',2.5); })
-        .on('mouseleave', function(e,d) { if(!d._selected) { d3.select(this).select('circle').attr('fill-opacity',0.15).attr('stroke-width',1.5); } });
+    node.on('mouseenter', function(e,d) {
+        d3.select(this).select('.node-glow').attr('fill-opacity',0.15);
+        d3.select(this).selectAll('circle').filter(':not(.node-glow)').attr('fill-opacity',0.35).attr('stroke-width',2.5);
+        d3.select(this).raise();
+    })
+    .on('mouseleave', function(e,d) {
+        if(!d._selected) {
+            d3.select(this).select('.node-glow').attr('fill-opacity',0);
+            d3.select(this).selectAll('circle').filter(':not(.node-glow)').attr('fill-opacity',0.15).attr('stroke-width',1.5);
+        }
+    });
 
     node.append('text').text(d=>d.id).attr('dy',d=>d.r+14).attr('text-anchor','middle')
         .attr('fill',_textColor2).attr('font-size','11px').attr('font-family','Sora,sans-serif');
 
+    // Store refs for search/zoom
+    _graphNodeSelection = node;
+    _graphLinkSelection = link;
+
     sim.on('tick',()=>{
         link.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y).attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);
         node.attr('transform',d=>`translate(${d.x},${d.y})`);
+        edgeLabels
+            .attr('x', d => (d.source.x + d.target.x) / 2)
+            .attr('y', d => (d.source.y + d.target.y) / 2 - 4);
     });
 }
 
@@ -2604,16 +2962,26 @@ function _renderEntityCard(e) {
     const _et=e.type||'concept';
     const bc='b-'+_et;
     const facts = (e.facts||[]).slice(0,3).join(' · ');
+    const fc = e.facts_count||e.facts?.length||0;
+    const rc = e.relations_count||0;
     return `<div class="e-card" onclick="openEntity('${escA(e.name)}')">
-        <div class="e-head"><span class="e-name">${esc(e.name)}</span><span class="e-tag ${bc}" style="${_badgeStyle(_et)}">${esc(e.type)}</span></div>
+        <div class="e-head">
+            <div class="e-icon ${bc}" style="${_badgeStyle(_et)}">${_typeIcon(_et)}</div>
+            <span class="e-name">${esc(e.name)}</span>
+            <span class="e-tag ${bc}" style="${_badgeStyle(_et)}">${esc(e.type)}</span>
+        </div>
         <div class="e-facts">${esc(facts)||'No facts yet'}</div>
-        <div class="e-count">${e.facts_count||e.facts?.length||0} facts</div>
+        <div class="e-stats">
+            <span><span class="di-svg">${I.list}</span> ${fc} facts</span>
+            ${rc > 0 ? `<span><span class="di-svg">${I.link}</span> ${rc} relations</span>` : ''}
+        </div>
     </div>`;
 }
 
 async function loadEntities() {
     _entOffset = 0;
     const grid = document.getElementById('ent-grid');
+    grid.innerHTML = renderSkeleton('entities');
     try {
         const d = await (await fetch(`${API}/v1/memories?limit=${ENT_PAGE}&offset=0`,{headers:H()})).json();
         const ents = d.memories||[];
@@ -2625,6 +2993,7 @@ async function loadEntities() {
             h+=`<div id="ent-more-wrap" style="grid-column:1/-1;text-align:center;padding:12px;"><button class="btn" onclick="loadMoreEntities()" id="ent-more-btn" style="background:var(--bg-elevated);color:var(--text-2);border:1px solid var(--border);padding:8px 24px;border-radius:8px;cursor:pointer;font-size:13px;">Load more (${_entTotal - _entOffset} remaining)</button></div>`;
         }
         grid.innerHTML = h;
+        grid.classList.add('stagger');
         _tabCache.entities = true;
         _tabCacheTime.entities = Date.now();
     } catch(e) { grid.innerHTML='<div class="empty"><p>Failed to load.</p></div>'; }
@@ -3183,42 +3552,44 @@ async function loadProcedures() {
     const box = document.getElementById('procedures-box');
     document.getElementById('procedure-detail').style.display = 'none';
     box.style.display = 'block';
+    box.innerHTML = renderSkeleton('procedures');
     try {
         const res = await fetch(`${API}/v1/procedures`, {headers: H()});
         const data = await res.json();
         const procs = data.procedures || [];
         if (!procs.length) {
-            box.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-2);">
-                <div style="margin-bottom:16px;"><svg viewBox="0 0 24 24" style="width:48px;height:48px;stroke:var(--text-2);fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;"><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M12 15V9"/><path d="m8.7 7.5 2.6 3"/><path d="m15.3 7.5-2.6 3"/></svg></div>
-                <h3 style="color:var(--text);margin-bottom:8px;">No procedures yet</h3>
+            box.innerHTML = `<div class="empty"><div class="eicon">${I.dna}</div><h3>No procedures yet</h3>
                 <p>Procedures are auto-extracted from conversations. They capture workflows, processes, and how-to knowledge.</p>
                 <p style="margin-top:8px;font-size:12px;">Add conversations via the API and procedures will appear here.</p>
             </div>`;
             return;
         }
-        let html = '<div style="display:flex;flex-direction:column;gap:8px;">';
+        let html = '<div class="proc-list stagger">';
         for (const p of procs) {
             const steps = (p.steps || []).length;
             const v = p.version || 1;
-            const vBadge = v > 1 ? `<span style="background:var(--green-dim);color:var(--green);padding:2px 6px;border-radius:4px;font-size:11px;font-weight:500;">v${v}</span>` : '';
+            const vBadge = v > 1 ? `<span class="proc-version">v${v}</span>` : '';
             const success = p.success_count || 0;
             const fail = p.failure_count || 0;
-            html += `<div onclick="showProcedureDetail('${p.id}')" style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px 20px;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
-                <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-                    <strong style="font-size:15px;">${esc(p.name)}</strong> ${vBadge}
+            const total = success + fail;
+            const ratio = total > 0 ? Math.round((success / total) * 100) : 0;
+            html += `<div class="proc-card" onclick="showProcedureDetail('${p.id}')">
+                <div class="proc-head">
+                    <span class="proc-name">${esc(p.name)}</span> ${vBadge}
                 </div>
-                <div style="color:var(--text-2);font-size:13px;margin-bottom:8px;">${esc(p.trigger_condition || p.trigger || '')}</div>
-                <div style="display:flex;gap:16px;font-size:12px;color:var(--text-3);">
+                <div class="proc-trigger">${esc(p.trigger_condition || p.trigger || '')}</div>
+                <div class="proc-meta">
                     <span>${steps} steps</span>
                     <span style="color:var(--green);">${success} success</span>
                     <span style="color:var(--red);">${fail} fail</span>
+                    ${total > 0 ? `<div class="proc-bar"><div class="proc-bar-fill" style="width:${ratio}%"></div></div>` : ''}
                 </div>
             </div>`;
         }
         html += '</div>';
         box.innerHTML = html;
     } catch(e) {
-        box.innerHTML = `<div style="color:var(--red);padding:20px;">Failed to load procedures: ${esc(e.message)}</div>`;
+        box.innerHTML = `<div class="empty"><div class="eicon">${I.warn}</div><h3>Failed to load</h3><p>${esc(e.message)}</p></div>`;
     }
 }
 
@@ -3227,7 +3598,7 @@ async function showProcedureDetail(id) {
     const detail = document.getElementById('procedure-detail');
     detail.style.display = 'block';
     const content = document.getElementById('proc-detail-content');
-    content.innerHTML = '<div class="loading" style="padding:20px;color:var(--text-2);">Loading...</div>';
+    content.innerHTML = renderSkeleton('procedures');
 
     try {
         const res = await fetch(`${API}/v1/procedures/${id}/history`, {headers: H()});
@@ -3243,22 +3614,22 @@ async function showProcedureDetail(id) {
         let html = '';
 
         // Current steps
-        html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px;">
-            <h4 style="margin-bottom:4px;">Trigger</h4>
-            <p style="color:var(--text-2);font-size:13px;margin-bottom:16px;">${esc(current.trigger_condition || current.trigger || 'N/A')}</p>
+        html += `<div class="proc-detail-card">
+            <h4>Trigger</h4>
+            <p>${esc(current.trigger_condition || current.trigger || 'N/A')}</p>
             <h4 style="margin-bottom:8px;">Steps</h4>
-            <ol style="padding-left:20px;color:var(--text-2);font-size:13px;line-height:1.8;">`;
+            <ol class="proc-detail-steps">`;
         for (const step of (current.steps || [])) {
             if (typeof step === 'object') {
                 const action = esc(step.action || step.description || step.text || JSON.stringify(step));
-                const detail = step.detail ? ` <span style="color:var(--text-3);">— ${esc(step.detail)}</span>` : '';
-                html += `<li>${action}${detail}</li>`;
+                const det = step.detail ? ` <span style="color:var(--text-3);">— ${esc(step.detail)}</span>` : '';
+                html += `<li>${action}${det}</li>`;
             } else {
                 html += `<li>${esc(step)}</li>`;
             }
         }
         html += `</ol>
-            <div style="display:flex;gap:16px;margin-top:16px;font-size:12px;color:var(--text-3);">
+            <div class="proc-meta" style="margin-top:16px;">
                 <span style="color:var(--green);">${current.success_count || 0} successes</span>
                 <span style="color:var(--red);">${current.failure_count || 0} failures</span>
             </div>
@@ -3272,9 +3643,9 @@ async function showProcedureDetail(id) {
                 const typeColors = {step_added:'var(--green)',step_removed:'var(--red)',step_modified:'var(--orange)',auto_created:'var(--accent)'};
                 const color = typeColors[ev.change_type] || 'var(--text-2)';
                 const diff = ev.diff || {};
-                html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;">
-                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-                        <span style="background:${color}22;color:${color};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:500;">${ev.change_type}</span>
+                html += `<div class="proc-evo-card">
+                    <div class="proc-evo-head">
+                        <span class="proc-evo-type" style="background:${color}22;color:${color};">${esc(ev.change_type)}</span>
                         <span style="color:var(--text-3);font-size:11px;">v${ev.version_before || '?'} → v${ev.version_after || '?'}</span>
                         <span style="color:var(--text-3);font-size:11px;margin-left:auto;">${new Date(ev.created_at).toLocaleDateString()}</span>
                     </div>
@@ -3289,26 +3660,25 @@ async function showProcedureDetail(id) {
             html += `<h4 style="margin-top:20px;margin-bottom:12px;">All Versions</h4>
             <div style="display:flex;flex-direction:column;gap:6px;">`;
             for (const v of versions) {
-                const borderStyle = v.is_current ? 'border-color:var(--accent);' : '';
                 const badge = v.is_current ? '<span style="background:var(--accent-dim);color:var(--accent);padding:1px 6px;border-radius:4px;font-size:10px;margin-left:6px;">current</span>' : '';
                 const vid = 'ver-' + (v.version || 1);
                 let stepsHtml = '';
                 for (const s of (v.steps || [])) {
                     if (typeof s === 'object') {
-                        const detail = s.detail ? ` <span style="color:var(--text-3);">— ${esc(s.detail)}</span>` : '';
-                        stepsHtml += `<li>${esc(s.action || s.description || JSON.stringify(s))}${detail}</li>`;
+                        const det = s.detail ? ` <span style="color:var(--text-3);">— ${esc(s.detail)}</span>` : '';
+                        stepsHtml += `<li>${esc(s.action || s.description || JSON.stringify(s))}${det}</li>`;
                     } else {
                         stepsHtml += `<li>${esc(s)}</li>`;
                     }
                 }
-                html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-size:13px;cursor:pointer;${borderStyle}" onclick="const el=document.getElementById('${vid}');el.style.display=el.style.display==='none'?'block':'none';">
+                html += `<div class="proc-ver-card${v.is_current ? ' current' : ''}" onclick="const el=document.getElementById('${vid}');el.style.display=el.style.display==='none'?'block':'none';">
                     <div style="display:flex;align-items:center;justify-content:space-between;">
                         <div><strong>v${v.version || 1}</strong>${badge}
                         <span style="color:var(--text-3);font-size:11px;margin-left:8px;">${(v.steps||[]).length} steps</span></div>
                         <span style="color:var(--text-3);font-size:11px;">▸</span>
                     </div>
                     <div id="${vid}" style="display:none;margin-top:10px;border-top:1px solid var(--border);padding-top:10px;" onclick="event.stopPropagation();">
-                        <ol style="padding-left:20px;color:var(--text-2);font-size:12px;line-height:1.8;">${stepsHtml}</ol>
+                        <ol class="proc-detail-steps" style="font-size:12px;">${stepsHtml}</ol>
                     </div>
                 </div>`;
             }
