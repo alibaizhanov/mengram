@@ -2811,7 +2811,7 @@ POST /v1/add → {<span class="c-str">"messages"</span>: [...], <span class="c-s
         function pricingCTA(plan) {
             if (localStorage.getItem('mengram_key')) {
                 const billing = _lpBilling === 'annual' ? '&billing=annual' : '';
-                window.location.href = '/dashboard?tab=billing' + billing;
+                window.location.href = '/dashboard?tab=billing&plan=' + plan + billing;
                 return false;
             }
             sessionStorage.setItem('wanted_plan', plan);

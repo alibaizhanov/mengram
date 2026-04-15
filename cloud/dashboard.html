@@ -6,8 +6,13 @@
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=AW-18039078844"></script>
     <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','AW-18039078844');</script>
-    <!-- Event snippet for Submit lead form conversion page -->
-    <script>gtag('event','conversion',{'send_to':'AW-18039078844/kWWaCPSR8o4cELz_2ZlD','value':1.0,'currency':'USD'});</script>
+    <!-- Event snippet for Submit lead form conversion — fire once per signup, not every pageload -->
+    <script>
+    if (new URLSearchParams(location.search).get('plan') && !sessionStorage.getItem('_gads_conv')) {
+        gtag('event','conversion',{'send_to':'AW-18039078844/kWWaCPSR8o4cELz_2ZlD','value':1.0,'currency':'USD'});
+        sessionStorage.setItem('_gads_conv','1');
+    }
+    </script>
     <!-- Privacy-friendly analytics by Plausible -->
     <script async src="https://plausible.io/js/pa-0hhr-Yt01J5NdtKDFK9iN.js"></script>
     <script>window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)},plausible.init=plausible.init||function(i){plausible.o=i||{}};plausible.init()</script>
@@ -1662,11 +1667,14 @@ document.addEventListener('keydown', e => {
 });
 
 document.getElementById('key-input').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
-// Pre-fill saved key but don't auto-login
+// Auto-login with saved key, or pre-fill input
 const saved = localStorage.getItem('mengram_key');
-if(saved) { document.getElementById('key-input').value = saved; }
+if(saved) {
+    document.getElementById('key-input').value = saved;
+    tryLogin(saved);
+}
 // Auto-open reset flow if ?reset in URL
-if(new URLSearchParams(location.search).has('reset')) { showResetFlow(); }
+if(!saved && new URLSearchParams(location.search).has('reset')) { showResetFlow(); }
 
 async function doLogin() { await tryLogin(document.getElementById('key-input').value.trim()); }
 function logout() {
@@ -1756,8 +1764,9 @@ async function tryLogin(k) {
             // Auto-trigger checkout if ?plan=xxx passed (from post-signup flow)
             const _autoplan = new URLSearchParams(location.search).get('plan');
             if (_autoplan && ['starter','pro','growth','business'].includes(_autoplan)) {
-                setTimeout(() => {
+                setTimeout(async () => {
                     switchTabDirect('billing');
+                    await loadBilling();
                     upgradePlan(_autoplan);
                 }, 800);
             }
@@ -3755,12 +3764,14 @@ async function loadBilling() {
         // Show annual toggle if available
         window._annualAvailable = d.annual_available || false;
         document.getElementById('billing-toggle').style.display = window._annualAvailable ? 'flex' : 'none';
+        // Sync toggle UI if URL had ?billing=annual
+        if (_billingCycle === 'annual' && window._annualAvailable) setBillingCycle('annual');
         window._currentPlan = plan;
         renderPricingCards();
     } catch(e) { console.error('loadBilling error:', e); }
 }
 
-let _billingCycle = 'monthly';
+let _billingCycle = new URLSearchParams(location.search).get('billing') === 'annual' ? 'annual' : 'monthly';
 const PLAN_PRICING = {
     starter:  { monthly: 5,  annual: 48,  adds: '100',  searches: '500',  desc: '100 adds, 500 searches' },
     pro:      { monthly: 19, annual: 180, adds: '1K',   searches: '10K',  desc: '1K adds, 10K searches, LLM rerank' },
