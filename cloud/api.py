@@ -4729,6 +4729,9 @@ m.delete_webhook(webhook_id=1)</code></pre>
 
         user_id = store.create_user(email)
         api_key = store.create_api_key(user_id)
+        # Eagerly create free subscription so user isn't stuck in no_sub state
+        # (lazy creation in get_subscription only happens on first API call)
+        store.get_subscription(user_id)
         _send_api_key_email(email, api_key, is_reset=False)
         _seed_initial_memory(user_id, email)
 
@@ -4898,6 +4901,8 @@ m.delete_webhook(webhook_id=1)</code></pre>
         # New user — create account + key
         user_id = store.create_user(email)
         api_key = store.create_api_key(user_id, name="github-oauth")
+        # Eagerly create free subscription so user isn't stuck in no_sub state
+        store.get_subscription(user_id)
         _send_api_key_email(email, api_key, is_reset=False)
         _seed_initial_memory(user_id, email)
         logger.info(f"🐙 GitHub OAuth signup: {email}")
