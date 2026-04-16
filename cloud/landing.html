@@ -2644,6 +2644,8 @@ POST /v1/add → {<span class="c-str">"messages"</span>: [...], <span class="c-s
                 <p style="color:#666;font-size:13px;margin-bottom:12px;">or with email:</p>
                 <div class="signup-form" id="step-email">
                     <input type="email" class="signup-input" id="email-input" placeholder="your@email.com">
+                    <!-- Honeypot — invisible field, real users leave empty, bots fill it and get silently rejected -->
+                    <input type="text" name="website" id="website-honeypot" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none">
                     <button class="signup-btn" id="signup-btn" onclick="sendCode()">Get Key</button>
                 </div>
                 <div class="signup-form" id="step-code" style="display:none">
@@ -2919,10 +2921,11 @@ POST /v1/add → {<span class="c-str">"messages"</span>: [...], <span class="c-s
             btn.textContent = "Sending...";
 
             try {
+                const website = (document.getElementById("website-honeypot") || {}).value || "";
                 const resp = await fetch(`${API_URL}/v1/signup`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ email }),
+                    body: JSON.stringify({ email, website }),
                 });
                 const data = await resp.json();
 

@@ -131,6 +131,34 @@ import re
 import ipaddress
 _EMAIL_RE = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
 
+# Curated list of the most common disposable / throwaway email providers.
+# Used to block bot signups from tempmail-style services. Kept conservative
+# to avoid false positives — real users can always reply to support if blocked.
+_DISPOSABLE_EMAIL_DOMAINS = frozenset({
+    "10minutemail.com", "10minutemail.net", "20minutemail.com",
+    "dispostable.com", "emailondeck.com", "fakeinbox.com",
+    "getairmail.com", "getnada.com", "guerrillamail.com", "guerrillamail.biz",
+    "guerrillamail.info", "guerrillamail.net", "guerrillamail.org",
+    "guerrillamailblock.com", "inboxbear.com", "inboxkitten.com",
+    "mailcatch.com", "maildrop.cc", "mailforspam.com", "mailinator.com",
+    "mailinator.net", "mailnesia.com", "mailtothis.com",
+    "mintemail.com", "minuteinbox.com", "mohmal.com", "mytemp.email",
+    "mytrashmail.com", "nowmymail.com", "sharklasers.com",
+    "spam4.me", "spambox.us", "tempail.com", "temp-mail.org",
+    "tempmail.com", "tempmail.net", "tempmailo.com", "tempinbox.com",
+    "tempmailaddress.com", "throwaway.email", "throwawayemailaddresses.com",
+    "trashmail.com", "trashmail.net", "trashmail.io", "trashmail.de",
+    "yopmail.com", "yopmail.net", "yopmail.fr",
+})
+
+def _is_disposable_email(email: str) -> bool:
+    """Check whether the email uses a known disposable provider."""
+    try:
+        domain = email.split("@", 1)[1].lower().strip()
+    except IndexError:
+        return False
+    return domain in _DISPOSABLE_EMAIL_DOMAINS
+
 def _is_private_url(url: str) -> bool:
     """Check if URL points to private/internal network (SSRF protection)."""
     import urllib.parse
@@ -157,6 +185,7 @@ def _is_private_url(url: str) -> bool:
 
 class SignupRequest(BaseModel):
     email: str
+    website: str = ""  # Honeypot — hidden form field, real users leave empty, bots fill
 
     @property
     def validated_email(self) -> str:
@@ -4704,8 +4733,23 @@ m.delete_webhook(webhook_id=1)</code></pre>
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid email address")
 
-        # Rate limit: 5/min per IP, 3/min per email
         client_ip = request.client.host if request.client else "unknown"
+
+        # Honeypot — bots fill this invisible field, real users don't. Respond
+        # with the usual success message so bots don't learn they were blocked.
+        if req.website.strip():
+            logger.warning(f"🤖 Signup honeypot triggered: email={email} ip={client_ip}")
+            return {"message": "Verification code sent to your email. Check your inbox."}
+
+        # Reject disposable / throwaway email providers commonly used by bots
+        if _is_disposable_email(email):
+            logger.warning(f"🚫 Disposable email rejected: email={email} ip={client_ip}")
+            raise HTTPException(
+                status_code=400,
+                detail="Please use a permanent email address. Disposable email providers are not supported."
+            )
+
+        # Rate limit: 5/min per IP, 3/min per email
         if not _check_rate_limit(f"signup:{client_ip}", 5):
             raise HTTPException(status_code=429, detail="Too many signup attempts. Try again in 60 seconds.")
         if not _check_rate_limit(f"signup_email:{email}", 3):
