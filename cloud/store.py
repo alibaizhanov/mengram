@@ -1489,6 +1489,91 @@ class CloudStore:
             )
             return [{"id": str(r["id"]), "email": r["email"]} for r in cur.fetchall()]
 
+    # ---- Paddle Checkout Abandonment Tracking ----
+
+    def ensure_checkout_sessions_table(self):
+        """Create checkout_sessions table if not exists. Tracks Paddle checkout
+        URLs so we can send drip emails to users who started checkout but did
+        not complete payment."""
+        with self._cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS checkout_sessions (
+                    transaction_id TEXT PRIMARY KEY,
+                    user_id UUID NOT NULL,
+                    email TEXT NOT NULL,
+                    plan TEXT NOT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    completed_at TIMESTAMPTZ
+                )
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS checkout_sessions_pending_idx
+                    ON checkout_sessions(created_at)
+                    WHERE completed_at IS NULL
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS checkout_sessions_user_idx
+                    ON checkout_sessions(user_id)
+            """)
+
+    def record_checkout_session(self, transaction_id: str, user_id: str, email: str, plan: str):
+        """Record a Paddle checkout URL creation. Idempotent on transaction_id."""
+        if not transaction_id or not user_id or not email or not plan:
+            return
+        self.ensure_checkout_sessions_table()
+        with self._cursor() as cur:
+            cur.execute(
+                """INSERT INTO checkout_sessions (transaction_id, user_id, email, plan)
+                   VALUES (%s, %s, %s, %s)
+                   ON CONFLICT (transaction_id) DO NOTHING""",
+                (transaction_id, user_id, email, plan)
+            )
+
+    def mark_user_checkouts_completed(self, user_id: str):
+        """Mark ALL pending checkout sessions for a user as completed.
+        Called on transaction.completed / subscription.activated webhooks so
+        drip abandonment emails are not sent after the user eventually pays."""
+        if not user_id:
+            return
+        self.ensure_checkout_sessions_table()
+        with self._cursor() as cur:
+            cur.execute(
+                """UPDATE checkout_sessions
+                   SET completed_at = NOW()
+                   WHERE user_id = %s AND completed_at IS NULL""",
+                (user_id,)
+            )
+
+    def get_abandoned_checkouts(self, hours: int, drip_type: str) -> list:
+        """Find checkout sessions created >= N hours ago where payment never
+        completed and no drip email of this type was sent.
+
+        Only looks at sessions from the last 7 days to avoid spamming stale
+        entries, and skips sessions where the user already has any active
+        paid subscription."""
+        self.ensure_drip_emails_table()
+        self.ensure_checkout_sessions_table()
+        with self._cursor(dict_cursor=True) as cur:
+            cur.execute(
+                """SELECT cs.user_id, cs.email, cs.plan
+                   FROM checkout_sessions cs
+                   LEFT JOIN subscriptions s ON s.user_id = cs.user_id
+                   WHERE cs.completed_at IS NULL
+                     AND cs.created_at < NOW() - make_interval(hours => %s)
+                     AND cs.created_at > NOW() - INTERVAL '7 days'
+                     AND COALESCE(s.plan, 'free') = 'free'
+                     AND NOT EXISTS (
+                         SELECT 1 FROM drip_emails de
+                         WHERE de.email = cs.email AND de.drip_type = %s
+                     )
+                   GROUP BY cs.user_id, cs.email, cs.plan""",
+                (hours, drip_type)
+            )
+            return [
+                {"user_id": str(r["user_id"]), "email": r["email"], "plan": r["plan"]}
+                for r in cur.fetchall()
+            ]
+
     def save_oauth_code(self, code: str, user_id: str, redirect_uri: str, state: str):
         """Save OAuth authorization code (expires in 5 min)."""
         with self._cursor() as cur:

@@ -1177,7 +1177,7 @@ m.search("query", agent_id="my-agent")</code></pre>
         except Exception as e:
             logger.error(f"⚠️  Verification email failed: {e}")
 
-    def _send_drip_email(email: str, drip_type: str, code: str = None):
+    def _send_drip_email(email: str, drip_type: str, code: str = None, user_id: str = None, plan: str = None):
         """Send an onboarding drip email."""
         resend_key = os.environ.get("RESEND_API_KEY")
         if not resend_key:
@@ -1361,6 +1361,33 @@ m.add("I love hiking in the mountains")</code></pre>
                         <a href="{BASE_URL}/dashboard" style="background:#7c3aed;color:white;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Open Dashboard</a>
                     </div>
                     <p style="font-size:13px;color:#8888a8">If Mengram wasn't the right fit, I'd love to hear why — just reply.</p>"""
+
+            elif drip_type in ("checkout_abandoned_1h", "checkout_abandoned_24h"):
+                # Build a fresh HMAC-signed checkout URL (robust — original Paddle URL may expire)
+                resume_url = f"{BASE_URL}/dashboard?tab=billing"
+                if user_id and plan:
+                    token = _sign_checkout_token(user_id, plan)
+                    if token:
+                        resume_url = f"{BASE_URL}/checkout?token={token}"
+                plan_name = {"starter": "Starter", "pro": "Pro", "growth": "Growth", "business": "Business"}.get(plan or "", "paid")
+                if drip_type == "checkout_abandoned_1h":
+                    subject = f"Finish upgrading to Mengram {plan_name}"
+                    body = f"""
+                        <p style="font-size:15px;color:#c8c8d8;line-height:1.6">You started upgrading to Mengram {plan_name} but didn't finish checkout.</p>
+                        <p style="font-size:15px;color:#c8c8d8;line-height:1.6">One click to pick up where you left off — no need to re-enter anything:</p>
+                        <div style="text-align:center;margin:24px 0">
+                            <a href="{resume_url}" style="background:#7c3aed;color:white;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Resume checkout</a>
+                        </div>
+                        <p style="font-size:13px;color:#8888a8">If something went wrong with payment, just reply to this email — happy to help.</p>"""
+                else:
+                    subject = f"Still thinking about Mengram {plan_name}?"
+                    body = f"""
+                        <p style="font-size:15px;color:#c8c8d8;line-height:1.6">Yesterday you started upgrading to Mengram {plan_name}. You can still finish — checkout is one click away:</p>
+                        <div style="text-align:center;margin:24px 0">
+                            <a href="{resume_url}" style="background:#7c3aed;color:white;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Resume checkout</a>
+                        </div>
+                        <p style="font-size:14px;color:#8888a8">Questions about the plan? Reply to this email and I'll answer personally.</p>
+                        <p style="font-size:12px;color:#55556a;margin-top:16px">If you changed your mind, you can ignore this — no more reminders after this one.</p>"""
 
             else:
                 return
@@ -7413,6 +7440,17 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                         _send_drip_email(user["email"], "churned_30d")
                         _time.sleep(0.5)
 
+                # Abandoned Paddle checkouts (started upgrade but never paid)
+                for row in store.get_abandoned_checkouts(hours=1, drip_type="checkout_abandoned_1h"):
+                    if store.try_record_drip(row["email"], "checkout_abandoned_1h", row["user_id"]):
+                        _send_drip_email(row["email"], "checkout_abandoned_1h", user_id=row["user_id"], plan=row["plan"])
+                        _time.sleep(0.5)
+
+                for row in store.get_abandoned_checkouts(hours=24, drip_type="checkout_abandoned_24h"):
+                    if store.try_record_drip(row["email"], "checkout_abandoned_24h", row["user_id"]):
+                        _send_drip_email(row["email"], "checkout_abandoned_24h", user_id=row["user_id"], plan=row["plan"])
+                        _time.sleep(0.5)
+
             except Exception as e:
                 logger.error(f"⚠️ Drip email cron error: {e}")
             _time.sleep(1800)  # Every 30 minutes
@@ -7513,9 +7551,18 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
         try:
             result = _paddle_request("POST", "/transactions", txn_body)
-            checkout_url = result.get("data", {}).get("checkout", {}).get("url", "")
+            data = result.get("data", {})
+            checkout_url = data.get("checkout", {}).get("url", "")
+            transaction_id = data.get("id", "")
             if not checkout_url:
                 raise HTTPException(status_code=502, detail="Paddle did not return checkout URL")
+            # Record abandoned-checkout tracking row
+            try:
+                email = store.get_user_email(user_id)
+                if email and transaction_id:
+                    store.record_checkout_session(transaction_id, user_id, email, plan)
+            except Exception as tracking_err:
+                logger.warning(f"Checkout session tracking failed: {tracking_err}")
             from starlette.responses import RedirectResponse
             return RedirectResponse(url=checkout_url, status_code=303)
         except Exception as e:
@@ -7601,6 +7648,13 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             transaction_id = data.get("id", "")
             if not checkout_url:
                 raise HTTPException(status_code=502, detail="Paddle did not return checkout URL")
+            # Record abandoned-checkout tracking row
+            try:
+                email = store.get_user_email(user_id)
+                if email and transaction_id:
+                    store.record_checkout_session(transaction_id, user_id, email, plan)
+            except Exception as tracking_err:
+                logger.warning(f"Checkout session tracking failed: {tracking_err}")
             return {"checkout_url": checkout_url, "transaction_id": transaction_id}
         except Exception as e:
             logger.error(f"Paddle checkout error: {e}")
@@ -7687,6 +7741,12 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             if user_id and customer_id:
                 store.update_subscription(user_id, paddle_customer_id=customer_id)
                 logger.info(f"Payment completed: user={user_id} customer={customer_id}")
+            # Clear pending checkout-abandonment rows so drip emails stop
+            if user_id:
+                try:
+                    store.mark_user_checkouts_completed(user_id)
+                except Exception as tracking_err:
+                    logger.warning(f"mark_user_checkouts_completed failed: {tracking_err}")
 
         elif event_type == "subscription.activated":
             custom = data.get("custom_data") or {}
@@ -7728,6 +7788,11 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                     updates["current_period_end"] = current_period["ends_at"]
                 store.update_subscription(user_id, **updates)
                 logger.info(f"Subscription activated: user={user_id} plan={plan}")
+                # Clear pending checkout-abandonment rows so drip emails stop
+                try:
+                    store.mark_user_checkouts_completed(user_id)
+                except Exception as tracking_err:
+                    logger.warning(f"mark_user_checkouts_completed failed: {tracking_err}")
             else:
                 logger.error(f"Subscription activated but no user found: customer={customer_id}")
 
