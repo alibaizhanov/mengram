@@ -879,28 +879,6 @@ Be strict — only include entities that directly answer or relate to the query.
                             store.update_subscription(user_id, plan="free")
                     except Exception:
                         pass
-        # New users (after 2026-04-15) must subscribe — no free tier
-        _FREE_CUTOFF = datetime.datetime(2026, 4, 15, tzinfo=datetime.timezone.utc)
-        if plan == "free" and sub:
-            _created = sub.get("created_at")
-            if _created:
-                try:
-                    _created_dt = datetime.datetime.fromisoformat(str(_created).replace("Z", "+00:00"))
-                    if _created_dt >= _FREE_CUTOFF:
-                        # Allow read-only endpoints (GET /v1/me, billing, profile) but block writes
-                        _path = request.url.path.lower()
-                        _allowed = ("/v1/me", "/v1/billing", "/v1/signup", "/v1/verify", "/v1/reset-key", "/webhooks/")
-                        if not any(p in _path for p in _allowed):
-                            raise HTTPException(
-                                status_code=402,
-                                detail={
-                                    "error": "subscription_required",
-                                    "message": "Please subscribe to start using Mengram. Plans start at $5/mo.",
-                                    "upgrade_url": f"{BASE_URL}/#pricing",
-                                },
-                            )
-                except (ValueError, TypeError):
-                    pass
 
         rate_limit = PLAN_QUOTAS[plan]["rate_limit"]
 
