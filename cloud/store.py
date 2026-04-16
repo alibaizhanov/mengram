@@ -1464,8 +1464,13 @@ class CloudStore:
             )
             return [{"id": str(r["id"]), "email": r["email"]} for r in cur.fetchall()]
 
-    def get_churned_active_users(self, min_actions: int = 10, inactive_hours: int = 168, drip_type: str = "churned_7d") -> list:
-        """Find users who were actively using the API but stopped for 7+ days."""
+    def get_churned_active_users(self, min_actions: int = 3, inactive_hours: int = 168, drip_type: str = "churned_7d") -> list:
+        """Find users who were actively using the API but stopped for 7+ days.
+
+        min_actions=3 captures low-activity users who tried the product a few
+        times then stopped — these are more salvageable than long-term power
+        users who churned for explicit reasons.
+        """
         self.ensure_drip_emails_table()
         with self._cursor(dict_cursor=True) as cur:
             cur.execute(
