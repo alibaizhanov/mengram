@@ -164,6 +164,18 @@ def _is_disposable_email(email: str) -> bool:
         return False
     return domain in _DISPOSABLE_EMAIL_DOMAINS
 
+_SURROGATE_RE = re.compile(r'[\ud800-\udfff]')
+
+def _sanitize_text(text: str) -> str:
+    """Strip characters that break UTF-8 encoding or PostgreSQL storage.
+
+    Only removes genuinely invalid characters — lone surrogates (U+D800-U+DFFF)
+    and NUL bytes. All real text (emoji, CJK, Arabic, etc.) passes through intact.
+    """
+    text = _SURROGATE_RE.sub('', text)
+    text = text.replace('\x00', '')
+    return text
+
 def _looks_like_bot_email(email: str) -> bool:
     """Heuristic detection of bot/throwaway email patterns.
 
@@ -5914,7 +5926,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 existing_context = store.get_existing_context(user_id, sub_user_id=sub_uid)
             except Exception:
                 pass
-            conversation = [{"role": m.role, "content": m.content} for m in req.messages]
+            conversation = [{"role": m.role, "content": _sanitize_text(m.content)} for m in req.messages]
             dry_prompt = "v1" if (req.agent_mode or req.agent_id) else req.prompt_version
             result = extractor.extract(conversation, existing_context=existing_context,
                                        prompt_version=dry_prompt)
@@ -5984,7 +5996,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             _run_extraction_pipeline(
                 user_id=user_id,
                 sub_uid=sub_uid,
-                conversation=[{"role": m.role, "content": m.content} for m in req.messages],
+                conversation=[{"role": m.role, "content": _sanitize_text(m.content)} for m in req.messages],
                 metadata=metadata,
                 expiration_date=req.expiration_date,
                 job_id=job_id,
