@@ -149,6 +149,11 @@ _DISPOSABLE_EMAIL_DOMAINS = frozenset({
     "tempmailaddress.com", "throwaway.email", "throwawayemailaddresses.com",
     "trashmail.com", "trashmail.net", "trashmail.io", "trashmail.de",
     "yopmail.com", "yopmail.net", "yopmail.fr",
+    # Added after 2026-04 audit (see /tmp logs): domains used by abuse accounts
+    "erine.email", "edny.net", "byom.de", "dropmail.me", "emlhub.com",
+    "emlpro.com", "emltmp.com", "mailpoof.com", "tempmail.plus",
+    "mail-temp.com", "mail-temporaire.fr", "luxusmail.org", "anonaddy.me",
+    "33mail.com", "moakt.com", "harakirimail.com", "tmail.ws",
 })
 
 def _is_disposable_email(email: str) -> bool:
@@ -158,6 +163,50 @@ def _is_disposable_email(email: str) -> bool:
     except IndexError:
         return False
     return domain in _DISPOSABLE_EMAIL_DOMAINS
+
+def _looks_like_bot_email(email: str) -> bool:
+    """Heuristic detection of bot/throwaway email patterns.
+
+    Catches gibberish like 'bsute5875hfhgdgf7489gd86@gmail.com' without
+    false-positiving on legitimate users. Intentionally conservative —
+    returns True only for clearly non-human patterns.
+    """
+    try:
+        local, domain = email.split("@", 1)
+    except ValueError:
+        return False
+    local = local.lower()
+
+    # Pattern 1: Very long gibberish local-part (16+ chars, mixed letters+digits,
+    # no vowels clustered together — suggests random generator output).
+    if len(local) >= 16:
+        digits = sum(c.isdigit() for c in local)
+        letters = sum(c.isalpha() for c in local)
+        vowels = sum(c in "aeiouy" for c in local)
+        # Mostly alphanumeric mash with < 15% vowels = likely random-generated
+        if digits >= 4 and letters >= 8 and vowels / max(1, letters) < 0.15:
+            return True
+
+    # Pattern 2: Extremely long digit runs (12+ consecutive digits) — bots
+    # often use timestamps or fake phone numbers as prefixes.
+    import re as _re
+    if _re.search(r"\d{12,}", local):
+        return True
+
+    # Pattern 3: Repeating digit spam (5+ same digit in a row) — e.g. '33333',
+    # '000000'. Very rare in real emails, common in lazy bot generators.
+    if _re.search(r"(\d)\1{4,}", local):
+        return True
+
+    # Pattern 4: Long prefix with digits dominating letters (suggests ID mash-up
+    # like 'queenking03705336564' — 9 letters + 14 digits).
+    if len(local) >= 15:
+        digits = sum(c.isdigit() for c in local)
+        letters = sum(c.isalpha() for c in local)
+        if letters >= 4 and digits > letters * 1.3:
+            return True
+
+    return False
 
 def _is_private_url(url: str) -> bool:
     """Check if URL points to private/internal network (SSRF protection)."""
@@ -4748,6 +4797,12 @@ m.delete_webhook(webhook_id=1)</code></pre>
                 status_code=400,
                 detail="Please use a permanent email address. Disposable email providers are not supported."
             )
+
+        # Flag obviously bot-generated email prefixes (gibberish, long digit runs).
+        # Log-only for now — don't block, to avoid false positives on real users.
+        # Review logs after 2 weeks and enable blocking if 0 false positives.
+        if _looks_like_bot_email(email):
+            logger.warning(f"🤖 Bot-pattern email flagged (NOT blocked): email={email} ip={client_ip}")
 
         # Rate limit: 5/min per IP, 3/min per email
         if not _check_rate_limit(f"signup:{client_ip}", 5):
