@@ -2821,54 +2821,87 @@ class CloudStore:
         if not old_facts or not new_facts:
             return []
 
-        # Ask LLM which old facts are contradicted
-        prompt = f"""Given these EXISTING facts about an entity:
-{json.dumps(old_facts)}
+        # Ask LLM which old facts are DIRECTLY contradicted by new ones.
+        # Dedup of similar-but-not-contradicting facts is handled separately in dedup_entity_facts.
+        prompt = f"""You decide which EXISTING facts are DIRECTLY CONTRADICTED by NEW facts.
 
-And these NEW facts being added:
-{json.dumps(new_facts)}
+EXISTING facts:
+{json.dumps(old_facts, ensure_ascii=False)}
 
-Which existing facts should be REMOVED? Remove facts that are:
-1. CONTRADICTED by new facts (e.g. old: "lives in Almaty" vs new: "relocated to Dubai")
-2. OBVIOUSLY WRONG given the new context (e.g. "is a programming language" on a person entity that has fact "is a colleague")
-3. DUPLICATED or redundant with new facts
+NEW facts:
+{json.dumps(new_facts, ensure_ascii=False)}
 
-Return ONLY JSON: {{"remove": ["old fact 1", "old fact 2"]}} or {{"remove": []}} if none.
+Rules:
+- Flag an EXISTING fact ONLY if a NEW fact directly contradicts it
+  (e.g. "lives in Almaty" vs "relocated to Dubai", "uses Python" vs "switched to Rust").
+- DO NOT flag facts that are merely similar, overlapping, or about the same topic.
+- DO NOT flag a detailed fact because a vaguer new fact covers the same subject.
+- DO NOT flag duplicates or redundant facts — that is handled elsewhere.
+- If unsure, keep the existing fact.
+
+For each real contradiction return the EXACT old string (from EXISTING) and the EXACT new string (from NEW) that replaces it.
+
+Return ONLY JSON:
+{{"pairs": [{{"old": "<exact string from EXISTING>", "new": "<exact string from NEW>"}}]}}
+or {{"pairs": []}} if no real contradictions.
 No markdown, no explanation."""
 
         try:
-            contradicted = None
+            pairs = None
             for attempt in range(2):
                 response = llm_client.complete(prompt, response_format={"type": "json_object"})
                 result = _safe_parse_json(response)
-                if isinstance(result, dict) and "remove" in result:
-                    contradicted = result["remove"]
-                    if isinstance(contradicted, list):
-                        break
-                elif isinstance(result, list):
-                    # Fallback: LLM returned bare array (non-OpenAI providers)
-                    contradicted = result
+                if isinstance(result, dict) and "pairs" in result and isinstance(result["pairs"], list):
+                    pairs = result["pairs"]
                     break
-            if not isinstance(contradicted, list):
+                # Backward-compat fallback: older prompt returned {"remove": [...]}.
+                # Treat as a list of olds with no explicit new; we will skip them below
+                # because guards require an explicit new replacement.
+                if isinstance(result, dict) and isinstance(result.get("remove"), list):
+                    pairs = [{"old": o, "new": None} for o in result["remove"]]
+                    break
+            if not isinstance(pairs, list):
                 return []
         except Exception as e:
             logger.error(f"⚠️ Conflict resolution failed: {e}")
             return []
 
-        # Archive contradicted facts
+        # Archive contradicted facts with explicit old->new mapping + guards
         archived = []
-        for old_fact in contradicted:
-            if old_fact in old_facts:
-                with self._cursor() as cur:
-                    # Find matching new fact for superseded_by
-                    superseded_by = new_facts[0] if new_facts else None
-                    cur.execute(
-                        """UPDATE facts SET archived = TRUE, superseded_by = %s
-                           WHERE entity_id = %s AND content = %s AND archived = FALSE AND (expires_at IS NULL OR expires_at > NOW())""",
-                        (superseded_by, entity_id, old_fact)
-                    )
-                archived.append(old_fact)
-                logger.info(f"📦 Archived: '{old_fact}' → superseded by '{superseded_by}'")
+        for pair in pairs:
+            if not isinstance(pair, dict):
+                continue
+            old_fact = pair.get("old")
+            new_fact = pair.get("new")
+
+            # Guard 1: must be an exact string from old_facts (no LLM paraphrase)
+            if not isinstance(old_fact, str) or old_fact not in old_facts:
+                logger.warning(f"⚠️ Supersede skipped: old_fact not in EXISTING: {str(old_fact)[:80]!r}")
+                continue
+            # Guard 2: must have an explicit new replacement that exists in new_facts
+            if not isinstance(new_fact, str) or new_fact not in new_facts:
+                logger.warning(f"⚠️ Supersede skipped: missing/invalid new_fact for old={old_fact[:80]!r}")
+                continue
+            # Guard 3: reject identical old==new (LLM hallucination / no-op)
+            if old_fact.strip().lower() == new_fact.strip().lower():
+                logger.warning(f"⚠️ Supersede skipped: identical old==new: {old_fact[:80]!r}")
+                continue
+            # Guard 4: reject severe truncation (new shorter than half of old) — prevents data loss
+            if len(new_fact) < len(old_fact) * 0.5:
+                logger.warning(
+                    f"⚠️ Supersede skipped: truncation (old={len(old_fact)}ch, new={len(new_fact)}ch): "
+                    f"old={old_fact[:80]!r} new={new_fact[:80]!r}"
+                )
+                continue
+
+            with self._cursor() as cur:
+                cur.execute(
+                    """UPDATE facts SET archived = TRUE, superseded_by = %s
+                       WHERE entity_id = %s AND content = %s AND archived = FALSE AND (expires_at IS NULL OR expires_at > NOW())""",
+                    (new_fact, entity_id, old_fact)
+                )
+            archived.append(old_fact)
+            logger.info(f"📦 Archived: '{old_fact}' → superseded by '{new_fact}'")
 
         return archived
 
