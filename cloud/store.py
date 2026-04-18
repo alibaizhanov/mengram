@@ -2886,8 +2886,10 @@ No markdown, no explanation."""
             if old_fact.strip().lower() == new_fact.strip().lower():
                 logger.warning(f"⚠️ Supersede skipped: identical old==new: {old_fact[:80]!r}")
                 continue
-            # Guard 4: reject severe truncation (new shorter than half of old) — prevents data loss
-            if len(new_fact) < len(old_fact) * 0.5:
+            # Guard 4: reject severe truncation (new < 30% of old length) — prevents data loss.
+            # 0.3 catches gross info loss (e.g. 326ch→46ch, 14%) while still allowing legitimate
+            # concise updates (e.g. "lives at <full address>" → "relocated to Dubai").
+            if len(new_fact) < len(old_fact) * 0.3:
                 logger.warning(
                     f"⚠️ Supersede skipped: truncation (old={len(old_fact)}ch, new={len(new_fact)}ch): "
                     f"old={old_fact[:80]!r} new={new_fact[:80]!r}"
