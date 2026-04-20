@@ -8106,7 +8106,10 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             if not uid:
                 return _JSONResponse({"error": "Invalid API key"}, status_code=401)
 
-            base = os.environ.get("MENGRAM_URL", "https://mengram.io")
+            # Bypass Cloudflare by calling our own REST API via localhost —
+            # server-to-self HTTP through mengram.io triggers CF error 1010 (Browser Integrity Check).
+            base = os.environ.get("MENGRAM_INTERNAL_URL") \
+                or f"http://127.0.0.1:{os.environ.get('PORT', '8000')}"
             mem = _CloudMemory(api_key=key, base_url=base)
             mcp_server = _create_mcp(mem)
 
@@ -8156,7 +8159,10 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                         await resp(scope, receive, send)
                         return
 
-                    base = os.environ.get("MENGRAM_URL", "https://mengram.io")
+                    # Bypass Cloudflare by calling our own REST API via localhost —
+                    # server-to-self HTTP through mengram.io triggers CF error 1010 (Browser Integrity Check).
+                    base = os.environ.get("MENGRAM_INTERNAL_URL") \
+                        or f"http://127.0.0.1:{os.environ.get('PORT', '8000')}"
                     mem = _CloudMemory(api_key=key, base_url=base)
                     mcp_server = _create_mcp(mem)
 
