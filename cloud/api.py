@@ -7965,6 +7965,59 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
     # ---- MCP over HTTP (SSE transport for Smithery / remote MCP clients) ----
 
+    # ---- MCP Discovery Manifest (well-known, for auto-discovery by agents/crawlers) ----
+    #
+    # Forward-compatible connection manifest describing this server's MCP endpoints,
+    # transports, and authentication. Complements the Smithery server-card.json
+    # (which is a tools catalog). When the Anthropic MCP discovery spec lands,
+    # we update fields here — path stays stable.
+    #
+    # Agents/browsers/marketplaces can fetch this to auto-discover how to connect.
+
+    @app.get("/.well-known/mcp")
+    async def mcp_discovery_manifest():
+        return {
+            "name": "mengram",
+            "title": "Mengram — AI Memory Layer",
+            "version": __version__,
+            "description": (
+                "Persistent memory layer for AI agents. Three memory types "
+                "(semantic facts, episodic events, procedural workflows), "
+                "knowledge graph, cognitive profile, smart triggers. "
+                "Works with Claude Desktop, Cursor, Windsurf, and any MCP client."
+            ),
+            "homepage": "https://mengram.io",
+            "documentation": "https://mengram.io/docs/mcp-server",
+            "icon": "https://mengram.io/static/icon-512.png",
+            "transports": [
+                {
+                    "type": "streamable-http",
+                    "url": "https://mengram.io/mcp",
+                },
+                {
+                    "type": "sse",
+                    "url": "https://mengram.io/mcp/sse",
+                    "messages_url": "https://mengram.io/mcp/messages/",
+                },
+            ],
+            "authentication": {
+                "required": True,
+                "schemes": ["bearer"],
+                "header": "Authorization",
+                "signup_url": "https://mengram.io/#signup",
+            },
+            "capabilities": {
+                "tools": True,
+                "resources": True,
+                "prompts": False,
+            },
+            "tools_card_url": "https://mengram.io/.well-known/mcp/server-card.json",
+            "contact": {
+                "support_email": "support@mengram.io",
+                "issues": "https://github.com/alibaizhanov/mengram/issues",
+            },
+        }
+
     # ---- MCP Server Card (for Smithery discovery) ----
 
     @app.get("/.well-known/mcp/server-card.json")
