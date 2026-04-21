@@ -313,6 +313,7 @@ def create_cloud_mcp_server(mem: CloudMemory, user_id: str = "default") -> "Serv
                                 "required": ["role", "content"],
                             },
                         },
+                        "user_id": {"type": "string", "description": "Optional user ID override"},
                     },
                     "required": ["conversation"],
                 },
@@ -324,6 +325,7 @@ def create_cloud_mcp_server(mem: CloudMemory, user_id: str = "default") -> "Serv
                     "type": "object",
                     "properties": {
                         "text": {"type": "string", "description": "Text to extract knowledge from and store in memory"},
+                        "user_id": {"type": "string", "description": "Optional user ID override"},
                     },
                     "required": ["text"],
                 },
@@ -335,6 +337,7 @@ def create_cloud_mcp_server(mem: CloudMemory, user_id: str = "default") -> "Serv
                     "type": "object",
                     "properties": {
                         "query": {"type": "string", "description": "Specific search query — use names, projects, technologies. NOT generic phrases."},
+                        "user_id": {"type": "string", "description": "Optional user ID override"},
                     },
                     "required": ["query"],
                 },
@@ -347,6 +350,7 @@ def create_cloud_mcp_server(mem: CloudMemory, user_id: str = "default") -> "Serv
                     "properties": {
                         "query": {"type": "string", "description": "Search query — names, topics, technologies, or natural language questions"},
                         "top_k": {"type": "integer", "default": 5, "description": "Number of results to return (default 5)"},
+                        "user_id": {"type": "string", "description": "Optional user ID override"},
                     },
                     "required": ["query"],
                 },
@@ -359,13 +363,19 @@ def create_cloud_mcp_server(mem: CloudMemory, user_id: str = "default") -> "Serv
                     "properties": {
                         "after": {"type": "string", "description": "ISO datetime — start of range (e.g. 2025-02-01T00:00:00Z)"},
                         "before": {"type": "string", "description": "ISO datetime — end of range"},
+                        "user_id": {"type": "string", "description": "Optional user ID override"},
                     },
                 },
             ),
             Tool(
                 name="vault_stats",
                 description="Get memory vault statistics — total entities, facts, relations, knowledge items, and storage usage. Use when user asks 'how much do you remember', 'memory stats', or 'how big is my vault'.",
-                inputSchema={"type": "object", "properties": {}},
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "user_id": {"type": "string", "description": "Optional user ID override"},
+                    },
+                },
             ),
             Tool(
                 name="run_agents",
@@ -375,13 +385,19 @@ def create_cloud_mcp_server(mem: CloudMemory, user_id: str = "default") -> "Serv
                     "properties": {
                         "agent": {"type": "string", "enum": ["curator", "connector", "digest", "all"], "default": "all"},
                         "auto_fix": {"type": "boolean", "default": True, "description": "Auto-archive low quality facts (curator)"},
+                        "user_id": {"type": "string", "description": "Optional user ID override"},
                     },
                 },
             ),
             Tool(
                 name="get_insights",
                 description="Get AI-generated insights about the user — patterns, connections, reflections from memory analysis. Call this when user asks 'what patterns do you see', 'what do you know about how I think', 'analyze my memory'.",
-                inputSchema={"type": "object", "properties": {}},
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "user_id": {"type": "string", "description": "Optional user ID override"},
+                    },
+                },
             ),
             Tool(
                 name="list_procedures",
@@ -391,6 +407,7 @@ def create_cloud_mcp_server(mem: CloudMemory, user_id: str = "default") -> "Serv
                     "properties": {
                         "query": {"type": "string", "description": "Optional search query to find specific procedures"},
                         "limit": {"type": "integer", "default": 10},
+                        "user_id": {"type": "string", "description": "Optional user ID override"},
                     },
                 },
             ),
@@ -404,6 +421,7 @@ def create_cloud_mcp_server(mem: CloudMemory, user_id: str = "default") -> "Serv
                         "success": {"type": "boolean", "description": "true if it worked, false if it failed"},
                         "context": {"type": "string", "description": "What went wrong (required when success=false to trigger evolution)"},
                         "failed_at_step": {"type": "integer", "description": "Which step number failed (optional)"},
+                        "user_id": {"type": "string", "description": "Optional user ID override"},
                     },
                     "required": ["procedure_id", "success"],
                 },
@@ -415,6 +433,7 @@ def create_cloud_mcp_server(mem: CloudMemory, user_id: str = "default") -> "Serv
                     "type": "object",
                     "properties": {
                         "procedure_id": {"type": "string", "description": "UUID of any version of the procedure"},
+                        "user_id": {"type": "string", "description": "Optional user ID override"},
                     },
                     "required": ["procedure_id"],
                 },
@@ -620,6 +639,7 @@ def create_cloud_mcp_server(mem: CloudMemory, user_id: str = "default") -> "Serv
                             "items": {"type": "string"},
                             "description": "What needs to happen next (saved as reminders)",
                         },
+                        "user_id": {"type": "string", "description": "Optional user ID override"},
                     },
                     "required": ["summary"],
                 },
@@ -631,6 +651,7 @@ def create_cloud_mcp_server(mem: CloudMemory, user_id: str = "default") -> "Serv
                     "type": "object",
                     "properties": {
                         "task": {"type": "string", "description": "Description of the task (e.g. 'deploy API to Railway', 'fix database connection pool issue')"},
+                        "user_id": {"type": "string", "description": "Optional user ID override"},
                     },
                     "required": ["task"],
                 },
@@ -647,6 +668,7 @@ def create_cloud_mcp_server(mem: CloudMemory, user_id: str = "default") -> "Serv
                             "default": "claude_md",
                             "description": "Output format: claude_md (Claude Code), cursorrules (Cursor), windsurf (Windsurf)",
                         },
+                        "user_id": {"type": "string", "description": "Optional user ID override"},
                     },
                 },
             ),
@@ -654,9 +676,12 @@ def create_cloud_mcp_server(mem: CloudMemory, user_id: str = "default") -> "Serv
 
     @server.call_tool()
     async def call_tool(name: str, arguments: dict):
+        if "user_id" in arguments:
+            print(f"[mcp] user_id override: tool={name} sub_uid={arguments['user_id']}", file=sys.stderr)
         try:
             if name == "remember":
-                result = mem.add(arguments["conversation"], user_id=user_id)
+                uid = arguments.get("user_id", user_id)
+                result = mem.add(arguments["conversation"], user_id=uid)
                 if result.get("status") == "accepted":
                     text = "✅ Accepted! Processing in background — memories will appear shortly."
                 else:
@@ -674,9 +699,10 @@ def create_cloud_mcp_server(mem: CloudMemory, user_id: str = "default") -> "Serv
                 return [TextContent(type="text", text=text)]
 
             elif name == "remember_text":
+                uid = arguments.get("user_id", user_id)
                 result = mem.add([
                     {"role": "user", "content": arguments["text"]},
-                ], user_id=user_id)
+                ], user_id=uid)
                 if result.get("status") == "accepted":
                     text = "✅ Accepted! Processing in background."
                 else:
@@ -693,7 +719,8 @@ def create_cloud_mcp_server(mem: CloudMemory, user_id: str = "default") -> "Serv
                 return [TextContent(type="text", text=text)]
 
             elif name == "recall":
-                results = mem.search(arguments["query"], user_id=user_id)
+                uid = arguments.get("user_id", user_id)
+                results = mem.search(arguments["query"], user_id=uid)
                 if not results:
                     return [TextContent(type="text", text="Nothing found in memory.")]
 
@@ -712,17 +739,19 @@ def create_cloud_mcp_server(mem: CloudMemory, user_id: str = "default") -> "Serv
 
             elif name == "search":
                 top_k = arguments.get("top_k", 5)
-                results = mem.search(arguments["query"], user_id=user_id, limit=top_k)
+                uid = arguments.get("user_id", user_id)
+                results = mem.search(arguments["query"], user_id=uid, limit=top_k)
                 return [TextContent(
                     type="text",
                     text=json.dumps(results, ensure_ascii=False, indent=2),
                 )]
 
             elif name == "timeline":
+                uid = arguments.get("user_id", user_id)
                 results = mem.timeline(
                     after=arguments.get("after"),
                     before=arguments.get("before"),
-                    user_id=user_id,
+                    user_id=uid,
                 )
                 if not results:
                     return [TextContent(type="text", text="No facts found in that time range.")]
@@ -735,7 +764,8 @@ def create_cloud_mcp_server(mem: CloudMemory, user_id: str = "default") -> "Serv
                 return [TextContent(type="text", text="\n".join(lines))]
 
             elif name == "vault_stats":
-                stats = mem.stats(user_id=user_id)
+                uid = arguments.get("user_id", user_id)
+                stats = mem.stats(user_id=uid)
                 return [TextContent(
                     type="text",
                     text=json.dumps(stats, ensure_ascii=False, indent=2),
@@ -744,7 +774,8 @@ def create_cloud_mcp_server(mem: CloudMemory, user_id: str = "default") -> "Serv
             elif name == "run_agents":
                 agent = arguments.get("agent", "all")
                 auto_fix = arguments.get("auto_fix", True)
-                result = mem.run_agents(agent=agent, auto_fix=auto_fix, user_id=user_id)
+                uid = arguments.get("user_id", user_id)
+                result = mem.run_agents(agent=agent, auto_fix=auto_fix, user_id=uid)
                 
                 lines = [f"🤖 Agent run complete ({agent})"]
                 
@@ -779,7 +810,8 @@ def create_cloud_mcp_server(mem: CloudMemory, user_id: str = "default") -> "Serv
                 return [TextContent(type="text", text="\n".join(lines))]
 
             elif name == "get_insights":
-                insights = mem.insights(user_id=user_id)
+                uid = arguments.get("user_id", user_id)
+                insights = mem.insights(user_id=uid)
                 
                 if not insights.get("has_insights"):
                     return [TextContent(type="text", text="No insights yet. Run agents first or add more memories.")]
@@ -798,7 +830,8 @@ def create_cloud_mcp_server(mem: CloudMemory, user_id: str = "default") -> "Serv
             elif name == "list_procedures":
                 query = arguments.get("query")
                 limit = arguments.get("limit", 10)
-                procs = mem.procedures(query=query, limit=limit, user_id=user_id)
+                uid = arguments.get("user_id", user_id)
+                procs = mem.procedures(query=query, limit=limit, user_id=uid)
                 if not procs:
                     return [TextContent(type="text", text="No learned procedures yet.")]
 
@@ -828,10 +861,11 @@ def create_cloud_mcp_server(mem: CloudMemory, user_id: str = "default") -> "Serv
                 context = arguments.get("context")
                 failed_at_step = arguments.get("failed_at_step")
 
+                uid = arguments.get("user_id", user_id)
                 result = mem.procedure_feedback(
                     proc_id, success=success,
                     context=context, failed_at_step=failed_at_step,
-                    user_id=user_id)
+                    user_id=uid)
 
                 sc = result.get("success_count", 0)
                 fc = result.get("fail_count", 0)
@@ -863,7 +897,8 @@ def create_cloud_mcp_server(mem: CloudMemory, user_id: str = "default") -> "Serv
 
             elif name == "procedure_history":
                 proc_id = arguments["procedure_id"]
-                history = mem.procedure_history(proc_id, user_id=user_id)
+                uid = arguments.get("user_id", user_id)
+                history = mem.procedure_history(proc_id, user_id=uid)
 
                 versions = history.get("versions", [])
                 evolution = history.get("evolution_log", [])
@@ -1228,10 +1263,11 @@ def create_cloud_mcp_server(mem: CloudMemory, user_id: str = "default") -> "Serv
                     parts.append("Next steps: " + "; ".join(next_steps))
 
                 checkpoint_text = "\n".join(parts)
+                uid = arguments.get("user_id", user_id)
                 result = mem.add([
                     {"role": "user", "content": checkpoint_text},
                     {"role": "assistant", "content": f"Checkpoint saved: {summary[:100]}"},
-                ], user_id=user_id)
+                ], user_id=uid)
 
                 saved_items = []
                 if decisions:
@@ -1265,7 +1301,8 @@ def create_cloud_mcp_server(mem: CloudMemory, user_id: str = "default") -> "Serv
 
             elif name == "context_for":
                 task = arguments["task"]
-                results = mem.search_all(task, limit=5, user_id=user_id)
+                uid = arguments.get("user_id", user_id)
+                results = mem.search_all(task, limit=5, user_id=uid)
 
                 lines = [f"# Context for: {task}\n"]
 
@@ -1305,7 +1342,8 @@ def create_cloud_mcp_server(mem: CloudMemory, user_id: str = "default") -> "Serv
 
             elif name == "generate_rules_file":
                 fmt = arguments.get("format", "claude_md")
-                result = mem.rules(format=fmt, user_id=user_id)
+                uid = arguments.get("user_id", user_id)
+                result = mem.rules(format=fmt, user_id=uid)
 
                 if result.get("status") != "ok":
                     return [TextContent(type="text", text=f"Could not generate rules file: {result.get('status', 'unknown error')}. {result.get('error', '')}")]
