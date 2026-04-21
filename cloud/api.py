@@ -1714,6 +1714,7 @@ m.add("I love hiking in the mountains")</code></pre>
             ("https://mengram.io/blog/cursor-ai-memory-mcp", "0.9", "weekly"),
             ("https://mengram.io/blog/context-engineering-memory", "0.9", "weekly"),
             ("https://mengram.io/blog/claude-managed-agents-memory", "0.9", "weekly"),
+            ("https://mengram.io/blog/multi-tenant-mcp-server", "0.9", "weekly"),
             # Use cases
             ("https://mengram.io/usecase/customer-support", "0.7", "monthly"),
             ("https://mengram.io/usecase/personal-assistant", "0.7", "monthly"),
@@ -3494,6 +3495,167 @@ client.beta.sessions.events.send(
 <p>Full documentation: <a href="/docs/managed-agents">Managed Agents integration guide</a> · <a href="/docs/mcp-server">MCP server reference</a> · <a href="/docs/agent-memory">Agent memory concepts</a></p>
 """,
             "related": ["mcp-memory-server-setup", "how-to-add-memory-to-ai-agents"],
+        },
+        "multi-tenant-mcp-server": {
+            "slug": "multi-tenant-mcp-server",
+            "title": "Multi-Tenant MCP Servers: How to Add user_id Isolation to Model Context Protocol",
+            "date": "April 22, 2026",
+            "date_iso": "2026-04-22",
+            "read_time": "8",
+            "tags": ["MCP", "Multi-Tenant", "Tutorial"],
+            "excerpt": "MCP servers are single-user by default. Here's why that breaks when you build SaaS on top of them — and the exact one-argument fix that makes every tool multi-tenant without breaking backward compatibility.",
+            "seo_title": "Multi-Tenant MCP Servers: Add user_id Isolation to MCP | Mengram",
+            "seo_description": "How to add multi-tenant user isolation to any Model Context Protocol (MCP) server. Two-tier identity model, working code, and the design decisions behind scoped tool calls.",
+            "seo_keywords": "mcp multi tenant, mcp user_id, mcp multi user, model context protocol multi tenant, mcp server user isolation, mcp sub user, claude desktop multi user",
+            "content_html": """
+<h2>The bug that lived in plain sight</h2>
+
+<p>Last week, <a href="https://github.com/alibaizhanov/mengram/discussions/30">a developer opened a discussion</a> on our repo with a simple question: "Can you add multi-user support to the MCP server like the REST API has?"</p>
+
+<p>We thought we already had it. We were wrong.</p>
+
+<p>The REST API had multi-user isolation baked in from day one — pass <code>user_id</code> in the request body, memories get scoped per end-user. The Python and JavaScript SDKs inherited it. But the MCP server — which is how Claude Desktop, Cursor, Windsurf, and a growing list of AI-native IDEs talk to memory — was half-wired. Some tools respected <code>user_id</code>. Fourteen did not.</p>
+
+<p>This post walks through why multi-tenancy matters for MCP, the specific design we used to fix it without breaking backward compatibility, and the exact code change so you can do the same in your own MCP server.</p>
+
+<h2>Why MCP is single-user by default</h2>
+
+<p>The <a href="https://modelcontextprotocol.io/">Model Context Protocol</a> was designed for a personal AI assistant on your laptop. The mental model is simple: one user, one server, one scope of memory. That's fine for <code>filesystem</code> or <code>github</code> MCP servers — they operate on resources you personally own.</p>
+
+<p>But memory is different. The moment you ship an MCP server that wraps a SaaS backend, every request arrives with the same credential (your API key), and the server has no way to know which human the query is <em>about</em>.</p>
+
+<p>Concretely: imagine you run a customer-support platform. Your AI agent — running through <a href="/blog/claude-managed-agents-memory">Claude Managed Agents</a>, Claude Desktop, or a Cursor workflow — handles tickets for thousands of end-users. If your memory MCP server stores everything under the API key owner's scope, you end up with one giant bucket of facts where Alice's allergies, Bob's deployment history, and Carol's billing preferences are mixed together. Search for "Alice" and you might get results from another customer who mentioned her name in passing.</p>
+
+<p>That's not a memory layer. That's a leak.</p>
+
+<h2>The two-tier model: tenant + end-user</h2>
+
+<p>The fix — already widely used in B2B SaaS but not yet baked into MCP conventions — is a <strong>two-tier identity model</strong>:</p>
+
+<ol>
+<li><strong>Tenant</strong> (from the API key): "Who is paying for this?"</li>
+<li><strong>End-user</strong> (from the request): "Which of this tenant's users is this about?"</li>
+</ol>
+
+<p>MCP doesn't define how to carry the second tier. The transport authenticates once via a bearer token, and every tool call inherits that scope. To add end-user identity, you have to pass it inside the tool arguments.</p>
+
+<p>Here's the pattern we settled on:</p>
+
+<pre><code>// Every tool accepts an optional user_id argument.
+// Without it: use the API key owner's default scope.
+// With it: scope the operation to that end-user.
+
+{{
+  "name": "remember",
+  "arguments": {{
+    "conversation": [
+      {{"role": "user", "content": "Alice prefers dark mode"}}
+    ],
+    "user_id": "alice"
+  }}
+}}</code></pre>
+
+<p>If <code>user_id</code> is absent, the tool falls back to the default scope — identical behavior to before we shipped this. Zero breakage for existing clients. Explicit opt-in for multi-tenant use.</p>
+
+<h2>The code change, exactly</h2>
+
+<p>Here's what the fix looks like in the MCP server. Before:</p>
+
+<pre><code>@server.call_tool()
+async def call_tool(name: str, arguments: dict):
+    if name == "remember":
+        result = mem.add(arguments["conversation"], user_id=user_id)
+        # ^^^^^^^^^^^^^^^^^^ hardcoded to server default
+        return [TextContent(type="text", text=format(result))]</code></pre>
+
+<p>After:</p>
+
+<pre><code>@server.call_tool()
+async def call_tool(name: str, arguments: dict):
+    if "user_id" in arguments:
+        print(f"[mcp] user_id override: tool={{name}} "
+              f"sub_uid={{arguments['user_id']}}", file=sys.stderr)
+
+    if name == "remember":
+        uid = arguments.get("user_id", user_id)  # fallback to default
+        result = mem.add(arguments["conversation"], user_id=uid)
+        return [TextContent(type="text", text=format(result))]</code></pre>
+
+<p>Three line changes per tool. One log line at the top to give you a clean audit trail when end-users are explicitly scoped — invaluable when debugging a customer report of "my users see each other's data."</p>
+
+<p>You also need to declare <code>user_id</code> in each tool's <code>inputSchema</code> so the MCP client can advertise it:</p>
+
+<pre><code>Tool(
+    name="remember",
+    description="Save knowledge from a conversation.",
+    inputSchema={{
+        "type": "object",
+        "properties": {{
+            "conversation": {{"type": "array", "items": {{...}}}},
+            "user_id": {{
+                "type": "string",
+                "description": "Optional user ID override"
+            }},
+        }},
+        "required": ["conversation"],
+    }},
+)</code></pre>
+
+<p>That's the entire design. Fourteen tools at Mengram needed this change. We shipped it as v2.23.0 and deployed to production the same day.</p>
+
+<h2>Alternatives we considered</h2>
+
+<h3>1. A separate API key per tenant</h3>
+<p>"Just make each customer use a different API key." This works but only solves tier 1. The end-user tier is still flat. Also creates a rotation nightmare if one customer has 50,000 end-users, and every key rotation means touching every MCP client config.</p>
+
+<h3>2. HTTP header for user_id</h3>
+<p>Technically possible on the streamable HTTP transport, but MCP clients (Claude Desktop, Cursor, etc.) don't let you add per-call headers. Tool arguments are the only channel the MCP spec guarantees across stdio, SSE, and streamable HTTP.</p>
+
+<h3>3. One MCP server process per end-user</h3>
+<p>Spawn-on-login works for a dozen users. Breaks past 100. Memory cost is linear, and you lose the ability to have a single persistent connection pool to your backend.</p>
+
+<h3>4. Encode user_id into the API key</h3>
+<p>"Use <code>apikey-alice</code>, <code>apikey-bob</code>." Nope — tenants don't want to provision a separate key per end-user. Plus the key becomes a security-sensitive identifier instead of an authentication secret.</p>
+
+<p>The two-tier model with <code>user_id</code> in tool arguments is the only approach that scales, stays backward-compatible, and works across every MCP transport.</p>
+
+<h2>What you get with multi-tenant MCP</h2>
+
+<p>Once every tool accepts <code>user_id</code>, you can build things that were impossible with a flat namespace:</p>
+
+<ul>
+<li><strong>Per-user cognitive profiles</strong> — Alice's system prompt is not Bob's.</li>
+<li><strong>Scoped search</strong> — <code>search("allergies", user_id="alice")</code> only returns Alice's data, even if Bob once mentioned her name.</li>
+<li><strong>Per-user procedures</strong> — Alice's deployment workflow evolves independently from Bob's. See <a href="/blog/semantic-episodic-procedural-memory">procedural memory</a>.</li>
+<li><strong>Per-user triggers</strong> — contradictions and reminders fire only for the right person.</li>
+<li><strong>Compliant data deletion</strong> — when a user leaves your platform, delete just their scope. GDPR Article 17 becomes a one-line operation instead of a database surgery.</li>
+</ul>
+
+<h2>A note on security</h2>
+
+<p>The two-tier model puts the burden of passing the <em>correct</em> <code>user_id</code> on the API caller. If your agent code accidentally mixes up <code>user_id</code> values between requests, you've leaked data. This is the same trust model as every multi-tenant SaaS, but it's worth stating explicitly.</p>
+
+<p>Mitigations we recommend:</p>
+
+<ul>
+<li>Derive <code>user_id</code> from your session/auth layer at the <em>agent</em> level, not from LLM output. The LLM should never choose which user's data to query.</li>
+<li>Log every <code>user_id</code> override at your MCP server (see the <code>print</code> line above) so you have an audit trail.</li>
+<li>Enforce a server-side allowlist of valid <code>user_id</code> values per API key if your threat model is strict.</li>
+</ul>
+
+<h2>Try it</h2>
+
+<p>Mengram's cloud MCP server now exposes multi-user scoping on every tool. Point your MCP client at the streamable HTTP endpoint, include <code>user_id</code> in your tool calls, and memories stay isolated per end-user:</p>
+
+<pre><code>Endpoint:  https://mengram.io/mcp
+Auth:      Authorization: Bearer &lt;MENGRAM_API_KEY&gt;
+Discovery: https://mengram.io/.well-known/mcp</code></pre>
+
+<p>Full reference: <a href="/docs/mcp-server">MCP server docs</a>. The original discussion thread that kicked this off: <a href="https://github.com/alibaizhanov/mengram/discussions/30">discussions/30</a>. Shipped in v2.23.0.</p>
+
+<p>If you're building an MCP server yourself and want to add multi-tenancy, or if you hit gotchas we missed, open a <a href="https://github.com/alibaizhanov/mengram/discussions">discussion on the repo</a>. The more MCP servers adopt this pattern, the easier it becomes for everyone downstream to build multi-user agents.</p>
+""",
+            "related": ["mcp-memory-server-setup", "claude-managed-agents-memory"],
         },
     }
 
