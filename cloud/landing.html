@@ -1023,6 +1023,148 @@
             margin-top: 4px;
         }
 
+        /* ---- Post-signup path cards (Pick your path) ---- */
+        .path-header {
+            margin-top: 24px;
+            margin-bottom: 14px;
+            text-align: left;
+        }
+        .path-header h4 {
+            color: var(--text);
+            font-size: 1rem;
+            margin: 0 0 4px;
+        }
+        .path-header p {
+            color: var(--text-3);
+            font-size: 0.82rem;
+            margin: 0;
+        }
+        .path-cards {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            text-align: left;
+        }
+        .path-card {
+            position: relative;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 18px 16px 16px;
+            display: flex;
+            flex-direction: column;
+            transition: border-color .2s, transform .2s;
+        }
+        .path-card:hover {
+            border-color: rgba(168,85,247,0.35);
+            transform: translateY(-2px);
+        }
+        .path-card.primary {
+            border-color: rgba(168,85,247,0.45);
+            background:
+                linear-gradient(135deg, rgba(168,85,247,0.10), rgba(124,58,237,0.04)),
+                var(--bg-card);
+            box-shadow: 0 0 24px rgba(168,85,247,0.10);
+        }
+        .path-badge {
+            position: absolute;
+            top: -9px;
+            right: 14px;
+            background: linear-gradient(135deg, #a855f7, #7c3aed);
+            color: #fff;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            padding: 3px 9px;
+            border-radius: 10px;
+            text-transform: uppercase;
+        }
+        .path-icon {
+            width: 34px;
+            height: 34px;
+            border-radius: 9px;
+            background: var(--accent-dim);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 10px;
+            color: var(--accent);
+        }
+        .path-icon svg { width: 18px; height: 18px; }
+        .path-title {
+            font-size: 14.5px;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 3px;
+        }
+        .path-sub {
+            font-size: 12px;
+            color: var(--text-3);
+            margin-bottom: 12px;
+            line-height: 1.45;
+            min-height: 34px;
+        }
+        .path-cmd {
+            background: rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 6px;
+            padding: 6px 8px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .path-cmd code {
+            flex: 1;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            color: var(--green);
+            word-break: break-all;
+        }
+        .path-cmd button {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            color: var(--text-2);
+            padding: 2px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 10px;
+            font-family: 'Sora', sans-serif;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .path-cmd button:hover { background: rgba(255,255,255,0.12); }
+        .path-cta {
+            margin-top: auto;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            padding: 9px 14px;
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            color: var(--text);
+            border-radius: 8px;
+            font-size: 12.5px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all .2s;
+        }
+        .path-cta:hover {
+            background: rgba(255,255,255,0.08);
+            border-color: rgba(255,255,255,0.18);
+        }
+        .path-card.primary .path-cta {
+            background: linear-gradient(135deg, #a855f7, #7c3aed);
+            color: #fff;
+            border-color: transparent;
+        }
+        .path-card.primary .path-cta:hover { filter: brightness(1.1); }
+        @media (max-width: 720px) {
+            .path-cards { grid-template-columns: 1fr; }
+            .path-sub { min-height: 0; }
+        }
+
         /* ---- Footer ---- */
         footer {
             padding: 40px 0;
@@ -3004,36 +3146,48 @@ POST /v1/add → {<span class="c-str">"messages"</span>: [...], <span class="c-s
                             <button onclick="copyKey(event)">Copy</button>
                         </div>
 
-                        <div class="setup-steps">
-                            <h4>Get started in 2 steps:</h4>
-                            <div class="setup-step">
-                                <span class="step-num">1</span>
-                                <div class="step-content">
-                                    <div class="step-label">Install</div>
-                                    <div class="step-cmd">
-                                        <code>pip install mengram-ai</code>
-                                        <button onclick="copyCmd(this)">Copy</button>
-                                    </div>
+                        <div class="path-header">
+                            <h4>Pick your path</h4>
+                            <p>Connect Mengram to the tool you already use.</p>
+                        </div>
+                        <div class="path-cards">
+                            <div class="path-card primary">
+                                <span class="path-badge">Recommended</span>
+                                <div class="path-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
                                 </div>
+                                <div class="path-title">Claude Desktop</div>
+                                <div class="path-sub">One-click config. No terminal needed.</div>
+                                <a href="/connect/claude" class="path-cta">Connect →</a>
                             </div>
-                            <div class="setup-step">
-                                <span class="step-num">2</span>
-                                <div class="step-content">
-                                    <div class="step-label">Setup (saves key + installs hooks)</div>
-                                    <div class="step-cmd">
-                                        <code>mengram setup</code>
-                                        <button onclick="copyCmd(this)">Copy</button>
-                                    </div>
-                                    <div class="step-tip">Already have a key? Use: <code>export MENGRAM_API_KEY=${esc(data.api_key)}</code></div>
+                            <div class="path-card">
+                                <div class="path-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
                                 </div>
+                                <div class="path-title">Claude Code</div>
+                                <div class="path-sub">Persistent memory for the CLI.</div>
+                                <div class="path-cmd">
+                                    <code>mengram setup</code>
+                                    <button onclick="copyCmd(this)">Copy</button>
+                                </div>
+                                <a href="https://docs.mengram.io/claude-code" class="path-cta">View guide →</a>
+                            </div>
+                            <div class="path-card">
+                                <div class="path-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h6a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z"/><path d="M20 17h-6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2z"/></svg>
+                                </div>
+                                <div class="path-title">Python SDK</div>
+                                <div class="path-sub">Build your own agents with memory.</div>
+                                <div class="path-cmd">
+                                    <code>pip install mengram-ai</code>
+                                    <button onclick="copyCmd(this)">Copy</button>
+                                </div>
+                                <a href="https://docs.mengram.io/python" class="path-cta">View docs →</a>
                             </div>
                         </div>
 
-                        <p class="step-tip" style="margin-top:16px;">Restart Claude Code — it now remembers everything across sessions.</p>
-
-                        <div style="display:flex; gap:10px; margin-top:16px; flex-wrap:wrap;">
-                            <a href="/dashboard" class="btn btn-primary" style="padding:10px 18px; font-size:13px;">Open Console</a>
-                            <a href="https://docs.mengram.io/claude-code" class="btn btn-secondary" style="padding:10px 18px; font-size:13px;">Full Guide</a>
+                        <div style="display:flex; gap:10px; margin-top:20px; flex-wrap:wrap;">
+                            <a href="/dashboard" class="btn btn-secondary" style="padding:10px 18px; font-size:13px;">Open Console</a>
                         </div>
                     `;
                     const wp = sessionStorage.getItem('wanted_plan');

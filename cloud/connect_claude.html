@@ -236,6 +236,285 @@
             font-size: 20px;
             margin: 0 0 12px;
         }
+
+        /* ---- Progress stepper ---- */
+        .stepper {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin: 0 auto 36px;
+            max-width: 480px;
+            position: relative;
+        }
+        .stepper::before {
+            content: '';
+            position: absolute;
+            top: 14px;
+            left: 14px;
+            right: 14px;
+            height: 2px;
+            background: var(--border);
+            z-index: 0;
+        }
+        .stepper-fill {
+            position: absolute;
+            top: 14px;
+            left: 14px;
+            height: 2px;
+            background: linear-gradient(90deg, var(--accent), var(--accent-2));
+            z-index: 1;
+            transition: width 0.35s ease;
+            width: 0;
+        }
+        .stepper-node {
+            position: relative;
+            z-index: 2;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: var(--bg);
+            border: 2px solid var(--border);
+            color: var(--text-3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.25s ease;
+        }
+        .stepper-node.active {
+            border-color: var(--accent);
+            color: #fff;
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            box-shadow: 0 0 0 4px rgba(168, 85, 247, 0.15);
+        }
+        .stepper-node.done {
+            border-color: var(--accent);
+            color: #fff;
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+        }
+        .stepper-node.done::after {
+            content: '✓';
+            position: absolute;
+            font-size: 14px;
+        }
+        .stepper-node.done .stepper-num { display: none; }
+
+        /* ---- Step card with numbered circle ---- */
+        .card { position: relative; }
+        .card.step-card {
+            padding-left: 70px;
+        }
+        .step-circle {
+            position: absolute;
+            left: 22px;
+            top: 26px;
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            background: var(--bg);
+            border: 2px solid var(--border);
+            color: var(--text-3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 700;
+            transition: all 0.25s ease;
+        }
+        .card.step-card.active .step-circle {
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            border-color: var(--accent);
+            color: #fff;
+            box-shadow: 0 0 0 4px rgba(168, 85, 247, 0.15);
+        }
+        .card.step-card.done .step-circle {
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            border-color: var(--accent);
+            color: #fff;
+        }
+        .card.step-card.done .step-circle::after {
+            content: '✓';
+            position: absolute;
+        }
+        .card.step-card.done .step-circle .step-num-inner { display: none; }
+        .card.step-card.done { opacity: 0.75; }
+        .step-title {
+            font-size: 17px;
+            font-weight: 600;
+            color: var(--text);
+            margin: 0 0 4px;
+        }
+        .step-desc {
+            color: var(--text-2);
+            font-size: 14px;
+            margin: 0 0 16px;
+        }
+
+        /* ---- Finder illustration (Step 2) ---- */
+        .finder-mock {
+            margin-top: 18px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            overflow: hidden;
+            background: #1e1e2b;
+        }
+        .finder-bar {
+            background: linear-gradient(180deg, #2d2d3d, #22222f);
+            padding: 10px 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border-bottom: 1px solid #111;
+        }
+        .finder-dot {
+            width: 11px;
+            height: 11px;
+            border-radius: 50%;
+        }
+        .finder-dot.r { background: #ff5f57; }
+        .finder-dot.y { background: #febc2e; }
+        .finder-dot.g { background: #28c840; }
+        .finder-title {
+            margin-left: 10px;
+            font-size: 12px;
+            color: #b0b0c0;
+            font-weight: 500;
+        }
+        .finder-body {
+            padding: 16px;
+            min-height: 120px;
+            position: relative;
+        }
+        .finder-dialog {
+            background: #2a2a38;
+            border: 1px solid #3a3a4a;
+            border-radius: 8px;
+            padding: 14px;
+            max-width: 380px;
+            margin: 0 auto;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+        }
+        .finder-dialog-label {
+            font-size: 11px;
+            color: #9090a0;
+            margin-bottom: 6px;
+        }
+        .finder-dialog-input {
+            background: #1a1a24;
+            border: 1px solid #404050;
+            border-radius: 5px;
+            padding: 6px 10px;
+            font-family: "SF Mono", Menlo, monospace;
+            font-size: 12px;
+            color: #e0e0f0;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .finder-caret {
+            width: 1px;
+            height: 14px;
+            background: var(--accent);
+            animation: blink 1s step-end infinite;
+        }
+        @keyframes blink { 50% { opacity: 0; } }
+        .finder-dialog-btn {
+            margin-top: 10px;
+            display: inline-block;
+            background: linear-gradient(180deg, #5a5a72, #404055);
+            color: #fff;
+            border-radius: 5px;
+            padding: 5px 14px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .finder-caption {
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-3);
+            margin-top: 10px;
+        }
+
+        /* ---- Step 3 "I restarted" button ---- */
+        .confirm-restart {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            color: var(--text-2);
+            border-radius: 8px;
+            padding: 10px 18px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            font-family: inherit;
+            margin-top: 12px;
+            transition: all 0.15s;
+        }
+        .confirm-restart:hover {
+            border-color: var(--accent);
+            color: var(--text);
+        }
+        .confirm-restart.done {
+            border-color: rgba(16, 185, 129, 0.4);
+            background: rgba(16, 185, 129, 0.08);
+            color: #86efac;
+            cursor: default;
+        }
+
+        /* ---- Example prompt (Step 4) ---- */
+        .example-prompt {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: linear-gradient(135deg, rgba(168,85,247,0.08), rgba(124,58,237,0.04));
+            border: 1px dashed rgba(168,85,247,0.35);
+            border-radius: 8px;
+            padding: 12px 14px;
+            margin: 14px 0 18px;
+        }
+        .example-prompt-text {
+            flex: 1;
+            font-size: 13.5px;
+            color: var(--text);
+            font-style: italic;
+        }
+        .example-prompt-text::before {
+            content: '"';
+            color: var(--accent);
+            margin-right: 2px;
+        }
+        .example-prompt-text::after {
+            content: '"';
+            color: var(--accent);
+            margin-left: 2px;
+        }
+
+        /* ---- Confetti canvas ---- */
+        #confetti {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 9999;
+            display: none;
+        }
+
+        /* ---- Success pulse ---- */
+        @keyframes pulse-success {
+            0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5); }
+            70% { box-shadow: 0 0 0 16px rgba(16, 185, 129, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+        .status.success.pulse {
+            animation: pulse-success 1.4s ease-out 2;
+        }
+
+        @media (max-width: 560px) {
+            .card.step-card { padding-left: 60px; }
+            .step-circle { left: 16px; }
+        }
     </style>
 </head>
 <body>
@@ -261,8 +540,19 @@
                 Claude Desktop will remember everything across chats. Takes ~30 seconds.
             </p>
 
-            <div class="card">
-                <div class="step-label">Step 1 · Download your config</div>
+            <!-- Progress stepper -->
+            <div class="stepper" id="stepper">
+                <div class="stepper-fill" id="stepper-fill"></div>
+                <div class="stepper-node" data-step="1"><span class="stepper-num">1</span></div>
+                <div class="stepper-node" data-step="2"><span class="stepper-num">2</span></div>
+                <div class="stepper-node" data-step="3"><span class="stepper-num">3</span></div>
+                <div class="stepper-node" data-step="4"><span class="stepper-num">4</span></div>
+            </div>
+
+            <div class="card step-card" data-step="1">
+                <div class="step-circle"><span class="step-num-inner">1</span></div>
+                <h3 class="step-title">Download your config</h3>
+                <p class="step-desc">One file with your API key. Generated in your browser.</p>
                 <div class="os-row" id="os-row">
                     <button type="button" class="os-pill" data-os="mac">🍎 macOS</button>
                     <button type="button" class="os-pill" data-os="win">🪟 Windows</button>
@@ -277,19 +567,40 @@
                 </p>
             </div>
 
-            <div class="card">
-                <div class="step-label">Step 2 · Place the file here</div>
-                <p style="margin:0 0 4px; color:var(--text-2); font-size:14px;">
+            <div class="card step-card" data-step="2">
+                <div class="step-circle"><span class="step-num-inner">2</span></div>
+                <h3 class="step-title">Place the file here</h3>
+                <p class="step-desc">
                     Move the downloaded file into this folder (create it if missing):
                 </p>
                 <div class="path-box">
                     <code id="path-display">~/Library/Application Support/Claude/</code>
                     <button type="button" class="copy-btn" onclick="copyPath()">Copy</button>
                 </div>
-                <p class="muted" id="path-tip" style="margin-top:12px;">
-                    <span id="path-help-mac">On macOS, press ⌘⇧G in Finder and paste the path.</span>
-                </p>
-                <p class="muted" style="margin-top:8px;">
+                <div class="finder-mock" id="finder-mock">
+                    <div class="finder-bar">
+                        <span class="finder-dot r"></span>
+                        <span class="finder-dot y"></span>
+                        <span class="finder-dot g"></span>
+                        <span class="finder-title" id="finder-title">Finder — Go to Folder</span>
+                    </div>
+                    <div class="finder-body">
+                        <div class="finder-dialog">
+                            <div class="finder-dialog-label" id="finder-dialog-label">Go to the folder:</div>
+                            <div class="finder-dialog-input">
+                                <span id="finder-path-text">~/Library/Application Support/Claude/</span>
+                                <span class="finder-caret"></span>
+                            </div>
+                            <div style="text-align:right;">
+                                <span class="finder-dialog-btn" id="finder-dialog-btn">Go</span>
+                            </div>
+                        </div>
+                        <div class="finder-caption" id="finder-caption">
+                            Press <code style="padding:1px 6px;font-size:11px;">⌘⇧G</code> in Finder, paste the path, hit Go.
+                        </div>
+                    </div>
+                </div>
+                <p class="muted" style="margin-top:14px;">
                     Already using MCP with other servers?
                     <a href="#" onclick="event.preventDefault(); showMergeHelp();">Merge instead of replace</a>
                 </p>
@@ -300,26 +611,34 @@
                     <pre id="merge-block" style="background:var(--bg-2); border:1px solid var(--border); border-radius:6px; padding:12px; overflow-x:auto; font-family:'SF Mono',Menlo,Monaco,monospace; font-size:12px; color:var(--text-2); margin:0;"></pre>
                     <button type="button" class="copy-btn" style="margin-top:10px;" onclick="copyMergeBlock()">Copy block</button>
                 </div>
+                <button type="button" class="confirm-restart" id="confirm-placed">I placed the file</button>
             </div>
 
-            <div class="card">
-                <div class="step-label">Step 3 · Restart Claude Desktop</div>
-                <p style="margin:0; color:var(--text-2); font-size:14px;">
+            <div class="card step-card" data-step="3">
+                <div class="step-circle"><span class="step-num-inner">3</span></div>
+                <h3 class="step-title">Restart Claude Desktop</h3>
+                <p class="step-desc">
                     Quit completely (<code>⌘Q</code> on Mac, <code>Alt+F4</code> on Windows) and open it again.
                 </p>
+                <button type="button" class="confirm-restart" id="confirm-restart">I restarted Claude</button>
             </div>
 
-            <div class="card">
-                <div class="step-label">Step 4 · Test the connection</div>
-                <p style="margin:0 0 16px; color:var(--text-2); font-size:14px;">
-                    Ask Claude: <em>"What do you remember about me?"</em> — then click below.
-                </p>
+            <div class="card step-card" data-step="4">
+                <div class="step-circle"><span class="step-num-inner">4</span></div>
+                <h3 class="step-title">Test the connection</h3>
+                <p class="step-desc">Copy this prompt and send it to Claude:</p>
+                <div class="example-prompt">
+                    <span class="example-prompt-text" id="example-prompt-text">Remember that I'm testing my Mengram memory setup right now.</span>
+                    <button type="button" class="copy-btn" onclick="copyExamplePrompt()">Copy</button>
+                </div>
                 <button id="test-btn" type="button" class="download-btn">
                     <span id="test-btn-icon">✓</span>
                     <span id="test-btn-text">Test connection</span>
                 </button>
                 <div id="test-status" class="status"></div>
             </div>
+
+            <canvas id="confetti"></canvas>
 
             <div class="help">
                 Need help? <a href="https://docs.mengram.io">Read the docs</a> ·
@@ -345,6 +664,57 @@
             initPage();
         }
 
+        // ---- Step state persistence ----
+        const STATE_KEY = 'mengram_connect_state';
+        function loadState() {
+            try { return JSON.parse(localStorage.getItem(STATE_KEY) || '{}'); }
+            catch { return {}; }
+        }
+        function saveState(s) {
+            try { localStorage.setItem(STATE_KEY, JSON.stringify(s)); } catch {}
+        }
+        function markStepDone(n) {
+            const s = loadState();
+            s['step' + n] = true;
+            saveState(s);
+            renderProgress();
+        }
+        function renderProgress() {
+            const s = loadState();
+            let activeStep = 1;
+            for (let i = 1; i <= 4; i++) {
+                const done = !!s['step' + i];
+                const node = document.querySelector('.stepper-node[data-step="' + i + '"]');
+                const card = document.querySelector('.card.step-card[data-step="' + i + '"]');
+                if (!node || !card) continue;
+                node.classList.toggle('done', done);
+                card.classList.toggle('done', done);
+                card.classList.remove('active');
+                if (done && activeStep === i) activeStep = i + 1;
+            }
+            if (activeStep > 4) activeStep = 4;
+            const activeNode = document.querySelector('.stepper-node[data-step="' + activeStep + '"]');
+            const activeCard = document.querySelector('.card.step-card[data-step="' + activeStep + '"]');
+            if (activeNode && !activeNode.classList.contains('done')) activeNode.classList.add('active');
+            if (activeCard && !activeCard.classList.contains('done')) activeCard.classList.add('active');
+
+            // Fill bar: percentage between nodes (0 = at node 1, 100 = at node 4)
+            const doneCount = [1,2,3,4].filter(i => s['step' + i]).length;
+            const fillPct = doneCount === 0 ? 0 : (doneCount / 3) * 100;
+            const fill = document.getElementById('stepper-fill');
+            if (fill) {
+                const stepperWidth = document.getElementById('stepper').offsetWidth;
+                const usableWidth = stepperWidth - 28; // minus 14px padding each side
+                fill.style.width = (usableWidth * Math.min(fillPct, 100) / 100) + 'px';
+            }
+
+            // Update confirm buttons visual state
+            const cPlaced = document.getElementById('confirm-placed');
+            if (cPlaced && s.step2) { cPlaced.classList.add('done'); cPlaced.textContent = '✓ File placed'; cPlaced.disabled = true; }
+            const cRestart = document.getElementById('confirm-restart');
+            if (cRestart && s.step3) { cRestart.classList.add('done'); cRestart.textContent = '✓ Restarted'; cRestart.disabled = true; }
+        }
+
         function initPage() {
             // Detect OS
             const ua = navigator.userAgent;
@@ -361,6 +731,16 @@
             // Wire download button
             document.getElementById('download-btn').addEventListener('click', downloadConfig);
 
+            // Wire step confirmation buttons
+            document.getElementById('confirm-placed').addEventListener('click', () => {
+                markStepDone(2);
+            });
+            document.getElementById('confirm-restart').addEventListener('click', () => {
+                markStepDone(3);
+                // Auto-scroll to step 4
+                document.querySelector('.card.step-card[data-step="4"]').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            });
+
             // Wire test button
             document.getElementById('test-btn').addEventListener('click', testConnection);
 
@@ -371,6 +751,10 @@
                     "headers": { "Authorization": "Bearer " + apiKey }
                 }
             }, null, 2);
+
+            // Initial render + update on resize (stepper fill width depends on layout)
+            renderProgress();
+            window.addEventListener('resize', renderProgress);
         }
 
         function selectOS(os) {
@@ -383,13 +767,28 @@
                 linux: '~/.config/Claude/'
             };
             document.getElementById('path-display').textContent = paths[os];
-            const tip = document.getElementById('path-tip');
+            document.getElementById('finder-path-text').textContent = paths[os];
+
+            // OS-aware Finder/Explorer mock
+            const finderTitle = document.getElementById('finder-title');
+            const dialogLabel = document.getElementById('finder-dialog-label');
+            const dialogBtn = document.getElementById('finder-dialog-btn');
+            const caption = document.getElementById('finder-caption');
             if (os === 'mac') {
-                tip.innerHTML = '<span>On macOS, press ⌘⇧G in Finder and paste the path.</span>';
+                finderTitle.textContent = 'Finder — Go to Folder';
+                dialogLabel.textContent = 'Go to the folder:';
+                dialogBtn.textContent = 'Go';
+                caption.innerHTML = 'Press <code style="padding:1px 6px;font-size:11px;">⌘⇧G</code> in Finder, paste the path, hit Go.';
             } else if (os === 'win') {
-                tip.innerHTML = '<span>On Windows, paste the path into File Explorer\'s address bar.</span>';
+                finderTitle.textContent = 'File Explorer';
+                dialogLabel.textContent = 'Address bar:';
+                dialogBtn.textContent = 'Go';
+                caption.innerHTML = 'Paste the path into File Explorer\'s address bar and press <code style="padding:1px 6px;font-size:11px;">Enter</code>.';
             } else {
-                tip.innerHTML = '<span>On Linux, open a terminal and <code>cd</code> into the path.</span>';
+                finderTitle.textContent = 'Files';
+                dialogLabel.textContent = 'Path:';
+                dialogBtn.textContent = 'Open';
+                caption.innerHTML = 'Open your file manager, paste the path (<code style="padding:1px 6px;font-size:11px;">Ctrl+L</code> in many distros).';
             }
             window._selectedOS = os;
         }
@@ -416,6 +815,14 @@
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
+            markStepDone(1);
+        }
+
+        function copyExamplePrompt() {
+            const text = document.getElementById('example-prompt-text').textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                flashButton(event.target, 'Copied!');
+            }).catch(() => {});
         }
 
         function copyPath() {
@@ -466,10 +873,12 @@
                 const data = await resp.json();
 
                 if (data.connected) {
-                    status.className = 'status show success';
+                    status.className = 'status show success pulse';
                     status.innerHTML = '✓ Connected! Claude Desktop is talking to Mengram. You can close this page.';
                     icon.textContent = '✓';
                     text.textContent = 'Connected';
+                    markStepDone(4);
+                    fireConfetti();
                 } else {
                     status.className = 'status show error';
                     if (data.last_call_at) {
@@ -488,6 +897,79 @@
                 text.textContent = 'Test connection';
                 btn.disabled = false;
             }
+        }
+
+        // ---- Confetti (canvas-based, no dependencies) ----
+        function fireConfetti() {
+            const canvas = document.getElementById('confetti');
+            if (!canvas) return;
+            canvas.style.display = 'block';
+            const ctx = canvas.getContext('2d');
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = window.innerWidth * dpr;
+            canvas.height = window.innerHeight * dpr;
+            canvas.style.width = window.innerWidth + 'px';
+            canvas.style.height = window.innerHeight + 'px';
+            ctx.scale(dpr, dpr);
+
+            const colors = ['#a855f7', '#7c3aed', '#10b981', '#f59e0b', '#ec4899', '#3b82f6'];
+            const particles = [];
+            const count = 120;
+            const originX = window.innerWidth / 2;
+            const originY = window.innerHeight / 3;
+            for (let i = 0; i < count; i++) {
+                const angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.3;
+                const speed = 4 + Math.random() * 6;
+                particles.push({
+                    x: originX,
+                    y: originY,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed - 3,
+                    w: 6 + Math.random() * 6,
+                    h: 10 + Math.random() * 6,
+                    rot: Math.random() * Math.PI * 2,
+                    vr: (Math.random() - 0.5) * 0.3,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    life: 1
+                });
+            }
+
+            const gravity = 0.18;
+            const drag = 0.994;
+            const start = performance.now();
+            const duration = 2600;
+
+            function frame(now) {
+                const elapsed = now - start;
+                ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+                let alive = 0;
+                for (const p of particles) {
+                    p.vy += gravity;
+                    p.vx *= drag;
+                    p.vy *= drag;
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.rot += p.vr;
+                    p.life = Math.max(0, 1 - elapsed / duration);
+                    if (p.life > 0 && p.y < window.innerHeight + 40) {
+                        alive++;
+                        ctx.save();
+                        ctx.translate(p.x, p.y);
+                        ctx.rotate(p.rot);
+                        ctx.globalAlpha = p.life;
+                        ctx.fillStyle = p.color;
+                        ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+                        ctx.restore();
+                    }
+                }
+                if (alive > 0 && elapsed < duration + 600) {
+                    requestAnimationFrame(frame);
+                } else {
+                    ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+                    canvas.style.display = 'none';
+                }
+            }
+            requestAnimationFrame(frame);
         }
     </script>
 </body>
