@@ -473,12 +473,22 @@ profile = m.get_profile()             # instant system prompt
                             entity_facts[eidx] = []
                         entity_facts[eidx].append((fact_text, item.relevance_score))
 
-                # Rebuild results: only entities with relevant facts, facts reordered
+                # Rebuild results: only entities with relevant facts, facts reordered.
+                # Sort entities by their BEST fact relevance (not by original vector order),
+                # so the entity with the most query-relevant fact comes first.
                 reranked = []
-                for eidx in sorted(entity_facts.keys()):
+                ordered_eidx = sorted(
+                    entity_facts.keys(),
+                    key=lambda e: max(s for _, s in entity_facts[e]),
+                    reverse=True,
+                )
+                for eidx in ordered_eidx:
                     r = dict(results[eidx])
                     scored_facts = sorted(entity_facts[eidx], key=lambda x: x[1], reverse=True)
                     r["facts"] = [f[0] for f in scored_facts[:7]]
+                    # Surface rerank confidence so downstream (and clients) see real relevance,
+                    # not the tiny RRF score.
+                    r["score"] = float(scored_facts[0][1])
                     reranked.append(r)
                 return reranked if reranked else results
 
@@ -6579,11 +6589,17 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         for r in results:
             r.pop("_graph", None)
 
-        # Prepend matching reflections for richer context (word overlap matching)
+        # Attach a matching reflection for richer context (word overlap matching).
+        # Needs a higher bar than before (0.5 was too loose — single-word overlap
+        # dominated short queries and pushed real entities down). Requires:
+        #   - at least 3 meaningful words in the query
+        #   - overlap >= 0.7
+        # Reflection is appended AFTER top entities, not prepended, so factual
+        # answers stay on top and the insight acts as optional extra context.
         reflections = store.get_reflections(user_id, sub_user_id=sub_uid)
         if reflections:
             query_words = set(w.lower() for w in req.query.split() if len(w) > 3)
-            if len(query_words) >= 2:
+            if len(query_words) >= 3:
                 best_match = None
                 best_overlap = 0.0
                 for r in reflections:
@@ -6593,8 +6609,8 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                     if overlap > best_overlap:
                         best_overlap = overlap
                         best_match = r
-                if best_match and best_overlap >= 0.5:
-                    results.insert(0, {
+                if best_match and best_overlap >= 0.7:
+                    insight = {
                         "entity": f"✨ Insight: {best_match['title']}",
                         "type": "reflection",
                         "scope": best_match["scope"],
@@ -6603,7 +6619,11 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                         "facts": [best_match["content"]],
                         "relations": [],
                         "knowledge": [],
-                    })
+                    }
+                    # Insert after the first 1-2 concrete entities so users see the
+                    # direct answer first, then the high-level insight below.
+                    insert_at = min(2, len(results))
+                    results.insert(insert_at, insight)
 
         # Cache results in Redis (TTL 30s)
         store.cache.set(cache_key, results, ttl=30)
