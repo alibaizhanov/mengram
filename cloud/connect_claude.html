@@ -565,6 +565,9 @@
                 <p class="muted" style="margin-top:14px;">
                     This file contains your API key. Don't share it publicly.
                 </p>
+                <p class="muted" style="margin-top:6px;font-size:12px;">
+                    Requires <a href="https://nodejs.org/" target="_blank" rel="noopener" style="color:var(--accent);">Node.js</a> (Claude Desktop uses <code>npx</code> to launch the bridge). Already installed? You're set.
+                </p>
             </div>
 
             <div class="card step-card" data-step="2">
@@ -747,8 +750,14 @@
             // Populate merge block
             document.getElementById('merge-block').textContent = JSON.stringify({
                 "mengram": {
-                    "url": "https://mengram.io/mcp",
-                    "headers": { "Authorization": "Bearer " + apiKey }
+                    "command": "npx",
+                    "args": [
+                        "-y",
+                        "mcp-remote",
+                        "https://mengram.io/mcp",
+                        "--header",
+                        "Authorization: Bearer " + apiKey
+                    ]
                 }
             }, null, 2);
 
@@ -797,10 +806,14 @@
             const config = {
                 mcpServers: {
                     mengram: {
-                        url: "https://mengram.io/mcp",
-                        headers: {
-                            Authorization: "Bearer " + apiKey
-                        }
+                        command: "npx",
+                        args: [
+                            "-y",
+                            "mcp-remote",
+                            "https://mengram.io/mcp",
+                            "--header",
+                            "Authorization: Bearer " + apiKey
+                        ]
                     }
                 }
             };
