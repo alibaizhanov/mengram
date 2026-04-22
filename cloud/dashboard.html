@@ -965,9 +965,6 @@
             <div class="nav-group" data-group="procedures">
                 <div class="nav-item" onclick="switchGroup(event,'procedures')"><span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M12 15V9"/><path d="m8.7 7.5 2.6 3"/><path d="m15.3 7.5-2.6 3"/></svg></span> Procedures</div>
             </div>
-            <div class="nav-group" data-group="connect">
-                <div class="nav-item" onclick="switchTab(event,'connect')"><span class="icon"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span> Connect</div>
-            </div>
             <div class="nav-group" data-group="account">
                 <div class="nav-item" onclick="switchGroup(event,'account')"><span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span> Account <span class="chevron">▸</span></div>
                 <div class="nav-sub-items">
@@ -1173,49 +1170,6 @@
                     <span id="proc-detail-version" style="background:var(--accent-dim);color:var(--accent);padding:2px 8px;border-radius:6px;font-size:12px;font-weight:500;"></span>
                 </div>
                 <div id="proc-detail-content"></div>
-            </div>
-        </div>
-
-        <div class="tab-content" id="tab-connect">
-            <div class="page-header"><h2>Connect</h2></div>
-            <div class="path-header">
-                <h3>Pick your path</h3>
-                <p>Connect Mengram to the tool you already use. You can use more than one.</p>
-            </div>
-            <div class="path-cards">
-                <div class="path-card primary">
-                    <span class="path-badge">Recommended</span>
-                    <div class="path-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-                    </div>
-                    <div class="path-title">Claude Desktop</div>
-                    <div class="path-sub">One-click config. No terminal needed.</div>
-                    <a href="/#install" class="path-cta" target="_blank" rel="noopener">View setup →</a>
-                </div>
-                <div class="path-card">
-                    <div class="path-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
-                    </div>
-                    <div class="path-title">Claude Code</div>
-                    <div class="path-sub">Persistent memory for the CLI.</div>
-                    <div class="path-cmd">
-                        <code>mengram setup</code>
-                        <button onclick="_copyPathCmd(this)">Copy</button>
-                    </div>
-                    <a href="https://docs.mengram.io/claude-code" class="path-cta" target="_blank" rel="noopener">View guide →</a>
-                </div>
-                <div class="path-card">
-                    <div class="path-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h6a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z"/><path d="M20 17h-6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2z"/></svg>
-                    </div>
-                    <div class="path-title">Python SDK</div>
-                    <div class="path-sub">Build your own agents with memory.</div>
-                    <div class="path-cmd">
-                        <code>pip install mengram-ai</code>
-                        <button onclick="_copyPathCmd(this)">Copy</button>
-                    </div>
-                    <a href="https://docs.mengram.io/python" class="path-cta" target="_blank" rel="noopener">View docs →</a>
-                </div>
             </div>
         </div>
 
@@ -1799,7 +1753,6 @@ const TAB_GROUPS = {
     memory:       { tabs: ['graph', 'search', 'feed', 'entities'], default: 'graph' },
     intelligence: { tabs: ['overview', 'agents', 'insights'], default: 'overview' },
     procedures:   { tabs: ['procedures'], default: 'procedures' },
-    connect:      { tabs: ['connect'], default: 'connect' },
     account:      { tabs: ['billing', 'settings'], default: 'billing' }
 };
 const TAB_TO_GROUP = {};
@@ -1971,7 +1924,7 @@ async function tryLogin(k) {
             let _tab = new URLSearchParams(location.search).get('tab');
             const _groupAlias = { memory: 'graph', intelligence: 'agents', account: 'billing' };
             if (_tab && _groupAlias[_tab]) _tab = _groupAlias[_tab];
-            if(_tab && ['feed','search','overview','agents','insights','graph','entities','procedures','connect','billing','settings'].includes(_tab)) {
+            if(_tab && ['feed','search','overview','agents','insights','graph','entities','procedures','billing','settings'].includes(_tab)) {
                 switchTabDirect(_tab);
             }
             // Auto-trigger checkout if ?plan=xxx passed (from post-signup flow)
