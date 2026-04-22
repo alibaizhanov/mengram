@@ -1249,8 +1249,8 @@ class CloudStore:
     def update_last_mcp_call(self, raw_key: str) -> None:
         """Mark that this API key was used for an MCP call. Non-blocking — failure is silent.
 
-        Used only by /connect/claude health check to confirm Claude Desktop is
-        reaching the server. Does NOT affect any existing auth or rate limiting.
+        Currently unused (previously powered the /connect/claude health check).
+        Kept for future "last active" indicators. Safe to call — never affects auth.
         """
         try:
             key_hash = hashlib.sha256(raw_key.encode()).hexdigest()

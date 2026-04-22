@@ -1512,37 +1512,6 @@ m.add("I love hiking in the mountains")</code></pre>
         from starlette.responses import RedirectResponse
         return RedirectResponse("/#pricing", status_code=301)
 
-    @app.get("/connect/claude", response_class=HTMLResponse)
-    async def connect_claude_page():
-        """One-click Claude Desktop setup page.
-
-        Reads user's API key from localStorage, generates claude_desktop_config.json
-        client-side, and polls /v1/connect/claude/check to confirm Claude Desktop
-        has successfully reached the MCP server. No changes to auth or /mcp endpoint.
-        """
-        path = Path(__file__).parent / "connect_claude.html"
-        return path.read_text(encoding="utf-8")
-
-    @app.get("/v1/connect/claude/check", tags=["System"])
-    async def connect_claude_check(ctx: AuthContext = Depends(auth)):
-        """Return whether the user's API key has been used for an MCP call recently.
-
-        Used by /connect/claude to confirm Claude Desktop configuration succeeded.
-        Reads api_keys.last_mcp_call_at, which is populated ONLY by the MCP handlers
-        — so it is not affected by this endpoint call itself.
-        """
-        last = store.get_last_mcp_call(ctx.user_id)
-        connected = False
-        if last:
-            try:
-                last_dt = datetime.datetime.fromisoformat(last)
-                delta = datetime.datetime.now(datetime.timezone.utc) - last_dt
-                # 2-minute window: user just configured and tested
-                connected = delta.total_seconds() < 120
-            except Exception:
-                pass
-        return {"connected": connected, "last_call_at": last}
-
     @app.get("/robots.txt", response_class=PlainTextResponse)
     async def robots():
         return (
@@ -8362,9 +8331,6 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             if not uid:
                 return _JSONResponse({"error": "Invalid API key"}, status_code=401)
 
-            # Track MCP connection for /connect/claude health check (non-blocking).
-            store.update_last_mcp_call(key)
-
             # Bypass Cloudflare by calling our own REST API via localhost —
             # server-to-self HTTP through mengram.io triggers CF error 1010 (Browser Integrity Check).
             base = os.environ.get("MENGRAM_INTERNAL_URL") \
@@ -8417,9 +8383,6 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                         resp = _JSONResponse({"error": "Invalid API key"}, status_code=401)
                         await resp(scope, receive, send)
                         return
-
-                    # Track MCP connection for /connect/claude health check (non-blocking).
-                    store.update_last_mcp_call(key)
 
                     # Bypass Cloudflare by calling our own REST API via localhost —
                     # server-to-self HTTP through mengram.io triggers CF error 1010 (Browser Integrity Check).
