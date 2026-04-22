@@ -7598,6 +7598,14 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         return results
 
     # ---- Background cron jobs (with PG advisory lock to run on one worker only) ----
+    # MENGRAM_ROLE: "api" = HTTP only (no cron), "cron" = cron only, "all" = both (default).
+    # Default "all" preserves existing behavior so this change is safe to deploy without
+    # any env var set. Set MENGRAM_ROLE=api on the web service + run a separate service
+    # with MENGRAM_ROLE=cron to split cron into a dedicated Railway service.
+    _MENGRAM_ROLE = os.environ.get("MENGRAM_ROLE", "all").lower()
+    _CRON_ENABLED = _MENGRAM_ROLE in ("all", "cron")
+    if not _CRON_ENABLED:
+        logger.info(f"⏭️  Cron jobs disabled on this instance (MENGRAM_ROLE={_MENGRAM_ROLE})")
     import threading, time as _time
 
     def _try_advisory_lock(lock_id: int):
@@ -7638,8 +7646,9 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 logger.error(f"⚠️ Trigger cron error: {e}")
             _time.sleep(300)  # Every 5 minutes
 
-    _cron_thread = threading.Thread(target=_trigger_cron_loop, daemon=True)
-    _cron_thread.start()
+    if _CRON_ENABLED:
+        _cron_thread = threading.Thread(target=_trigger_cron_loop, daemon=True)
+        _cron_thread.start()
 
     # ---- Background drip email cron ----
 
@@ -7728,8 +7737,9 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 logger.error(f"⚠️ Drip email cron error: {e}")
             _time.sleep(1800)  # Every 30 minutes
 
-    _drip_thread = threading.Thread(target=_drip_email_cron_loop, daemon=True)
-    _drip_thread.start()
+    if _CRON_ENABLED:
+        _drip_thread = threading.Thread(target=_drip_email_cron_loop, daemon=True)
+        _drip_thread.start()
 
     # ---- Billing & Subscription ----
 

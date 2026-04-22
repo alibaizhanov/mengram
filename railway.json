@@ -4,7 +4,7 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "gunicorn cloud.api:app -w 2 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT --timeout 300 --graceful-timeout 30",
+    "startCommand": "bash start.sh",
     "restartPolicyType": "ON_FAILURE"
   }
 }
