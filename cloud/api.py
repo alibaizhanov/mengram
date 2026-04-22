@@ -1242,18 +1242,37 @@ m.search("query", agent_id="my-agent")</code></pre>
             resend.Emails.send({
                 "from": EMAIL_FROM,
                 "to": [email],
-                "subject": f"Mengram verification code: {code}",
+                "reply_to": "the.baizhanov@gmail.com",
+                "subject": "Verify your Mengram account",
+                "text": (
+                    f"Hi,\n\n"
+                    f"Thanks for signing up for Mengram — long-term memory for AI agents.\n\n"
+                    f"Your one-time sign-in code is:\n\n"
+                    f"    {code}\n\n"
+                    f"Enter it on the verification page to finish creating your account. "
+                    f"The code expires in 10 minutes.\n\n"
+                    f"If you did not request this email, you can safely ignore it — "
+                    f"someone probably typed your address by mistake. No account will be created without the code.\n\n"
+                    f"Need help? Just reply to this email and we'll get back to you.\n\n"
+                    f"— The Mengram team\n"
+                    f"Console: {BASE_URL}/dashboard\n"
+                    f"Docs: https://docs.mengram.io\n"
+                    f"GitHub: https://github.com/alibaizhanov/mengram\n"
+                ),
                 "html": f"""
                 <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:0 auto;padding:40px 24px;color:#e8e8f0;background:#0a0a12;border-radius:16px">
                     <div style="text-align:center;margin-bottom:32px">
                         <svg width="36" height="36" viewBox="0 0 120 120"><path d="M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68" fill="none" stroke="#a855f7" stroke-width="8" stroke-linecap="round"/><circle cx="62" cy="68" r="8" fill="#a855f7"/><circle cx="62" cy="68" r="3.5" fill="white"/></svg>
                         <h1 style="font-size:22px;font-weight:700;margin:8px 0 4px;color:#e8e8f0">Mengram</h1>
                     </div>
-                    <p style="font-size:15px;color:#c8c8d8;text-align:center;">Your verification code:</p>
+                    <p style="font-size:15px;color:#c8c8d8;line-height:1.6">Hi,</p>
+                    <p style="font-size:15px;color:#c8c8d8;line-height:1.6">Thanks for signing up for Mengram — long-term memory for AI agents. Use the one-time code below to finish creating your account:</p>
                     <div style="background:#12121e;border:1px solid #1a1a2e;border-radius:10px;padding:20px;text-align:center;margin:20px 0;">
                         <span style="font-size:36px;font-weight:700;letter-spacing:10px;color:#a855f7;">{code}</span>
                     </div>
-                    <p style="font-size:13px;color:#55556a;text-align:center;">This code expires in 10 minutes.</p>
+                    <p style="font-size:14px;color:#8888a8;line-height:1.6">Enter this code on the verification page. It expires in 10 minutes.</p>
+                    <p style="font-size:13px;color:#55556a;line-height:1.6">If you did not request this email, you can safely ignore it — someone probably typed your address by mistake. No account will be created without the code.</p>
+                    <p style="font-size:13px;color:#55556a;line-height:1.6">Need help? Just reply to this email and we'll get back to you.</p>
                     <hr style="border:none;border-top:1px solid #1a1a2e;margin:28px 0">
                     <p style="font-size:12px;color:#55556a;text-align:center">
                         <a href="{BASE_URL}/dashboard" style="color:#7c3aed;text-decoration:none">Console</a> &middot;
