@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connect Mengram to Claude Desktop</title>
+    <meta name="description" content="One-click setup to give Claude Desktop persistent memory with Mengram.">
+    <meta name="robots" content="noindex, follow">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Cpath d='M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68' fill='none' stroke='%23a855f7' stroke-width='10' stroke-linecap='round'/%3E%3Ccircle cx='62' cy='68' r='10' fill='%23a855f7'/%3E%3Ccircle cx='62' cy='68' r='4.5' fill='%23fff'/%3E%3C/svg%3E">
+    <style>
+        :root {
+            --bg: #0a0a12;
+            --bg-2: #12121e;
+            --border: #1a1a2e;
+            --text: #e8e8f0;
+            --text-2: #c8c8d8;
+            --text-3: #8888a0;
+            --muted: #55556a;
+            --accent: #a855f7;
+            --accent-2: #7c3aed;
+            --green: #10b981;
+            --red: #ef4444;
+        }
+        * { box-sizing: border-box; }
+        html, body {
+            margin: 0;
+            padding: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            line-height: 1.55;
+        }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        code {
+            font-family: "SF Mono", Menlo, Monaco, "Courier New", monospace;
+            background: var(--bg-2);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 2px 8px;
+            font-size: 13px;
+            color: var(--text);
+        }
+        .wrap {
+            max-width: 640px;
+            margin: 0 auto;
+            padding: 48px 24px 80px;
+        }
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 700;
+            font-size: 16px;
+            margin-bottom: 40px;
+            color: var(--text);
+        }
+        .brand svg { flex-shrink: 0; }
+        h1 {
+            font-size: 28px;
+            font-weight: 700;
+            margin: 0 0 8px;
+            letter-spacing: -0.5px;
+        }
+        .subtitle {
+            color: var(--text-2);
+            font-size: 15px;
+            margin: 0 0 36px;
+        }
+        .card {
+            background: var(--bg-2);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 28px;
+            margin-bottom: 20px;
+        }
+        .download-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            padding: 14px 24px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.1s, box-shadow 0.2s;
+            font-family: inherit;
+        }
+        .download-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 24px rgba(168, 85, 247, 0.35);
+        }
+        .download-btn:active { transform: translateY(0); }
+        .download-btn:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        .btn-secondary {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--bg-2);
+            border: 1px solid var(--border);
+            color: var(--text);
+            border-radius: 8px;
+            padding: 10px 18px;
+            font-size: 13px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .btn-secondary:hover { border-color: var(--accent); }
+        .path-box {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 14px;
+            margin: 16px 0 0;
+            font-family: "SF Mono", Menlo, Monaco, monospace;
+            font-size: 13px;
+            color: var(--text-2);
+            overflow-x: auto;
+        }
+        .path-box code {
+            background: transparent;
+            border: none;
+            padding: 0;
+            white-space: nowrap;
+        }
+        .copy-btn {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-3);
+            border-radius: 6px;
+            padding: 4px 10px;
+            font-size: 12px;
+            cursor: pointer;
+            flex-shrink: 0;
+            font-family: inherit;
+        }
+        .copy-btn:hover { color: var(--text); border-color: var(--accent); }
+        .os-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .os-pill {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            color: var(--text-2);
+            border-radius: 20px;
+            padding: 6px 14px;
+            font-size: 13px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .os-pill.active {
+            background: rgba(168, 85, 247, 0.15);
+            border-color: var(--accent);
+            color: var(--text);
+        }
+        .muted { color: var(--muted); font-size: 13px; }
+        .step-label {
+            color: var(--text-3);
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+        .status {
+            margin-top: 16px;
+            padding: 14px 18px;
+            border-radius: 10px;
+            font-size: 14px;
+            display: none;
+        }
+        .status.show { display: block; }
+        .status.success {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.35);
+            color: #86efac;
+        }
+        .status.error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.35);
+            color: #fca5a5;
+        }
+        .status.info {
+            background: rgba(168, 85, 247, 0.1);
+            border: 1px solid rgba(168, 85, 247, 0.3);
+            color: var(--text-2);
+        }
+        .spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(168, 85, 247, 0.3);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            vertical-align: -2px;
+            margin-right: 6px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .help {
+            margin-top: 32px;
+            font-size: 13px;
+            color: var(--text-3);
+        }
+        .footer {
+            margin-top: 48px;
+            padding-top: 24px;
+            border-top: 1px solid var(--border);
+            font-size: 12px;
+            color: var(--muted);
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        .hidden { display: none !important; }
+        .logged-out {
+            text-align: center;
+            padding: 40px 20px;
+        }
+        .logged-out h2 {
+            font-size: 20px;
+            margin: 0 0 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <a href="/" class="brand">
+            <svg width="26" height="26" viewBox="0 0 120 120"><path d="M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68" fill="none" stroke="#a855f7" stroke-width="10" stroke-linecap="round"/><circle cx="62" cy="68" r="10" fill="#a855f7"/><circle cx="62" cy="68" r="4.5" fill="white"/></svg>
+            Mengram
+        </a>
+
+        <!-- Logged-out state -->
+        <div id="logged-out" class="card logged-out hidden">
+            <h2>Sign in to continue</h2>
+            <p class="muted" style="margin-bottom:24px;">
+                You need to be signed in to generate a Claude Desktop config with your API key.
+            </p>
+            <a href="/dashboard" class="download-btn">Open Dashboard</a>
+        </div>
+
+        <!-- Main state -->
+        <div id="main" class="hidden">
+            <h1>Connect Claude Desktop</h1>
+            <p class="subtitle">
+                Claude Desktop will remember everything across chats. Takes ~30 seconds.
+            </p>
+
+            <div class="card">
+                <div class="step-label">Step 1 · Download your config</div>
+                <div class="os-row" id="os-row">
+                    <button type="button" class="os-pill" data-os="mac">🍎 macOS</button>
+                    <button type="button" class="os-pill" data-os="win">🪟 Windows</button>
+                    <button type="button" class="os-pill" data-os="linux">🐧 Linux</button>
+                </div>
+                <button id="download-btn" type="button" class="download-btn">
+                    <span>📥</span>
+                    <span>Download claude_desktop_config.json</span>
+                </button>
+                <p class="muted" style="margin-top:14px;">
+                    This file contains your API key. Don't share it publicly.
+                </p>
+            </div>
+
+            <div class="card">
+                <div class="step-label">Step 2 · Place the file here</div>
+                <p style="margin:0 0 4px; color:var(--text-2); font-size:14px;">
+                    Move the downloaded file into this folder (create it if missing):
+                </p>
+                <div class="path-box">
+                    <code id="path-display">~/Library/Application Support/Claude/</code>
+                    <button type="button" class="copy-btn" onclick="copyPath()">Copy</button>
+                </div>
+                <p class="muted" id="path-tip" style="margin-top:12px;">
+                    <span id="path-help-mac">On macOS, press ⌘⇧G in Finder and paste the path.</span>
+                </p>
+                <p class="muted" style="margin-top:8px;">
+                    Already using MCP with other servers?
+                    <a href="#" onclick="event.preventDefault(); showMergeHelp();">Merge instead of replace</a>
+                </p>
+                <div id="merge-help" class="hidden" style="margin-top:16px; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:16px; font-size:13px;">
+                    <p style="margin:0 0 10px; color:var(--text-2);">
+                        Open your existing <code>claude_desktop_config.json</code> and add this block inside <code>"mcpServers"</code>:
+                    </p>
+                    <pre id="merge-block" style="background:var(--bg-2); border:1px solid var(--border); border-radius:6px; padding:12px; overflow-x:auto; font-family:'SF Mono',Menlo,Monaco,monospace; font-size:12px; color:var(--text-2); margin:0;"></pre>
+                    <button type="button" class="copy-btn" style="margin-top:10px;" onclick="copyMergeBlock()">Copy block</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="step-label">Step 3 · Restart Claude Desktop</div>
+                <p style="margin:0; color:var(--text-2); font-size:14px;">
+                    Quit completely (<code>⌘Q</code> on Mac, <code>Alt+F4</code> on Windows) and open it again.
+                </p>
+            </div>
+
+            <div class="card">
+                <div class="step-label">Step 4 · Test the connection</div>
+                <p style="margin:0 0 16px; color:var(--text-2); font-size:14px;">
+                    Ask Claude: <em>"What do you remember about me?"</em> — then click below.
+                </p>
+                <button id="test-btn" type="button" class="download-btn">
+                    <span id="test-btn-icon">✓</span>
+                    <span id="test-btn-text">Test connection</span>
+                </button>
+                <div id="test-status" class="status"></div>
+            </div>
+
+            <div class="help">
+                Need help? <a href="https://docs.mengram.io">Read the docs</a> ·
+                <a href="mailto:the.baizhanov@gmail.com">Email support</a>
+            </div>
+
+            <div class="footer">
+                <a href="/dashboard">Dashboard</a>
+                <a href="https://docs.mengram.io">Docs</a>
+                <a href="/">Home</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Read API key from localStorage (set at signup: landing.html:2996)
+        const apiKey = localStorage.getItem('mengram_key');
+
+        if (!apiKey) {
+            document.getElementById('logged-out').classList.remove('hidden');
+        } else {
+            document.getElementById('main').classList.remove('hidden');
+            initPage();
+        }
+
+        function initPage() {
+            // Detect OS
+            const ua = navigator.userAgent;
+            let os = 'mac';
+            if (/Win/i.test(ua)) os = 'win';
+            else if (/Linux/i.test(ua)) os = 'linux';
+            selectOS(os);
+
+            // Wire OS pills
+            document.querySelectorAll('.os-pill').forEach(btn => {
+                btn.addEventListener('click', () => selectOS(btn.dataset.os));
+            });
+
+            // Wire download button
+            document.getElementById('download-btn').addEventListener('click', downloadConfig);
+
+            // Wire test button
+            document.getElementById('test-btn').addEventListener('click', testConnection);
+
+            // Populate merge block
+            document.getElementById('merge-block').textContent = JSON.stringify({
+                "mengram": {
+                    "url": "https://mengram.io/mcp",
+                    "headers": { "Authorization": "Bearer " + apiKey }
+                }
+            }, null, 2);
+        }
+
+        function selectOS(os) {
+            document.querySelectorAll('.os-pill').forEach(p => {
+                p.classList.toggle('active', p.dataset.os === os);
+            });
+            const paths = {
+                mac: '~/Library/Application Support/Claude/',
+                win: '%APPDATA%\\Claude\\',
+                linux: '~/.config/Claude/'
+            };
+            document.getElementById('path-display').textContent = paths[os];
+            const tip = document.getElementById('path-tip');
+            if (os === 'mac') {
+                tip.innerHTML = '<span>On macOS, press ⌘⇧G in Finder and paste the path.</span>';
+            } else if (os === 'win') {
+                tip.innerHTML = '<span>On Windows, paste the path into File Explorer\'s address bar.</span>';
+            } else {
+                tip.innerHTML = '<span>On Linux, open a terminal and <code>cd</code> into the path.</span>';
+            }
+            window._selectedOS = os;
+        }
+
+        function downloadConfig() {
+            const config = {
+                mcpServers: {
+                    mengram: {
+                        url: "https://mengram.io/mcp",
+                        headers: {
+                            Authorization: "Bearer " + apiKey
+                        }
+                    }
+                }
+            };
+            const blob = new Blob([JSON.stringify(config, null, 2)], {
+                type: 'application/json'
+            });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'claude_desktop_config.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function copyPath() {
+            const path = document.getElementById('path-display').textContent;
+            navigator.clipboard.writeText(path).then(() => {
+                flashButton(event.target, 'Copied!');
+            }).catch(() => {});
+        }
+
+        function copyMergeBlock() {
+            const text = document.getElementById('merge-block').textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                flashButton(event.target, 'Copied!');
+            }).catch(() => {});
+        }
+
+        function flashButton(btn, text) {
+            const original = btn.textContent;
+            btn.textContent = text;
+            setTimeout(() => { btn.textContent = original; }, 1500);
+        }
+
+        function showMergeHelp() {
+            document.getElementById('merge-help').classList.remove('hidden');
+        }
+
+        async function testConnection() {
+            const btn = document.getElementById('test-btn');
+            const icon = document.getElementById('test-btn-icon');
+            const text = document.getElementById('test-btn-text');
+            const status = document.getElementById('test-status');
+
+            btn.disabled = true;
+            icon.innerHTML = '<span class="spinner"></span>';
+            text.textContent = 'Checking...';
+            status.className = 'status show info';
+            status.textContent = 'Looking for a recent MCP call from Claude Desktop...';
+
+            try {
+                const resp = await fetch('/v1/connect/claude/check', {
+                    headers: { 'Authorization': 'Bearer ' + apiKey }
+                });
+
+                if (!resp.ok) {
+                    throw new Error('HTTP ' + resp.status);
+                }
+
+                const data = await resp.json();
+
+                if (data.connected) {
+                    status.className = 'status show success';
+                    status.innerHTML = '✓ Connected! Claude Desktop is talking to Mengram. You can close this page.';
+                    icon.textContent = '✓';
+                    text.textContent = 'Connected';
+                } else {
+                    status.className = 'status show error';
+                    if (data.last_call_at) {
+                        status.innerHTML = 'Last MCP call was more than 2 minutes ago. Restart Claude Desktop, ask it "what do you remember about me?", then click Test again.';
+                    } else {
+                        status.innerHTML = 'No MCP calls received yet. Make sure you saved the config file in the right folder and restarted Claude Desktop.';
+                    }
+                    icon.textContent = '✓';
+                    text.textContent = 'Test connection';
+                    btn.disabled = false;
+                }
+            } catch (e) {
+                status.className = 'status show error';
+                status.textContent = 'Error checking connection: ' + (e.message || 'network error');
+                icon.textContent = '✓';
+                text.textContent = 'Test connection';
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

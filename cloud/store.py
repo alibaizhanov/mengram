@@ -579,6 +579,11 @@ class CloudStore:
                 ON procedures(user_id, is_current) WHERE is_current = TRUE
             """)
 
+            # --- v2.16: MCP connection tracking (for /connect/claude health check) ---
+            cur.execute("""
+                ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS last_mcp_call_at TIMESTAMPTZ
+            """)
+
             # Procedure evolution log
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS procedure_evolution (
@@ -1240,6 +1245,38 @@ class CloudStore:
             # Cache negative result too (prevents brute force DB hits)
             self.cache.set(cache_key, False, ttl=30)
             return None
+
+    def update_last_mcp_call(self, raw_key: str) -> None:
+        """Mark that this API key was used for an MCP call. Non-blocking — failure is silent.
+
+        Used only by /connect/claude health check to confirm Claude Desktop is
+        reaching the server. Does NOT affect any existing auth or rate limiting.
+        """
+        try:
+            key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+            with self._cursor() as cur:
+                cur.execute(
+                    "UPDATE api_keys SET last_mcp_call_at = NOW() WHERE key_hash = %s",
+                    (key_hash,)
+                )
+        except Exception:
+            pass  # never break MCP traffic on a tracking failure
+
+    def get_last_mcp_call(self, user_id: str) -> Optional[str]:
+        """Return ISO timestamp of most recent MCP call across user's active keys, or None."""
+        try:
+            with self._cursor() as cur:
+                cur.execute(
+                    """SELECT MAX(last_mcp_call_at) FROM api_keys
+                       WHERE user_id = %s AND is_active = TRUE""",
+                    (user_id,)
+                )
+                row = cur.fetchone()
+                if row and row[0]:
+                    return row[0].isoformat()
+        except Exception:
+            pass
+        return None
 
     def list_api_keys(self, user_id: str) -> list:
         """List all API keys for a user (without hashes)."""
