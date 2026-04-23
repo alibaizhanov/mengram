@@ -17,6 +17,7 @@ import logging
 import secrets
 import datetime
 import calendar
+import uuid as _uuid
 from pathlib import Path
 
 # Configure logging
@@ -243,6 +244,15 @@ def _is_private_url(url: str) -> bool:
     except (socket.gaierror, ValueError):
         pass  # Can't resolve — allow (will fail at send time)
     return False
+
+
+def _require_full_uuid(value: str, field_name: str = "id") -> None:
+    """Raise 400 if value is not a full UUID. Guards against clients passing 8-char prefix IDs."""
+    try:
+        _uuid.UUID(value)
+    except (ValueError, AttributeError, TypeError):
+        raise HTTPException(status_code=400, detail=f"{field_name} must be a full UUID")
+
 
 class SignupRequest(BaseModel):
     email: str
@@ -7348,6 +7358,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         On failure with context, triggers experience-driven evolution:
         creates a linked failure episode and evolves the procedure to a new version.
         """
+        _require_full_uuid(procedure_id, "procedure_id")
         user_id = ctx.user_id
         # Evolution on failure is Pro only
         if not success and body and body.context:
@@ -7402,6 +7413,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     @app.get("/v1/procedures/{procedure_id}/history", tags=["Procedural Memory"])
     async def procedure_history(procedure_id: str, sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
         """Get version history for a procedure. Shows how it evolved over time."""
+        _require_full_uuid(procedure_id, "procedure_id")
         user_id = ctx.user_id
         history = store.get_procedure_history(user_id, procedure_id, sub_user_id=sub_user_id)
         if not history:
@@ -7412,6 +7424,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     @app.get("/v1/procedures/{procedure_id}/evolution", tags=["Procedural Memory"])
     async def procedure_evolution(procedure_id: str, sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
         """Get the evolution log for a procedure — what changed and why."""
+        _require_full_uuid(procedure_id, "procedure_id")
         if ctx.plan in ("free", "starter"):
             raise HTTPException(status_code=403, detail="Procedure evolution log is a Pro feature. Upgrade at mengram.io/dashboard")
         user_id = ctx.user_id
