@@ -18,6 +18,7 @@ env/
 .idea/
 *.swp
 *.swo
+.claude/
 
 # Mengram data (user's vault — don't commit)
 vault/
