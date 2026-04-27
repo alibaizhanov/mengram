@@ -32,7 +32,7 @@ from fastapi import FastAPI, HTTPException, Depends, Header, Form, Query, Reques
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse, PlainTextResponse, RedirectResponse
 from dataclasses import dataclass
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from cloud.store import CloudStore, _normalize_fact
 
@@ -122,6 +122,7 @@ class SearchRequest(BaseModel):
     app_id: str | None = None
     limit: int = 5
     graph_depth: int = 2  # 0=no graph, 1=1-hop, 2=2-hop (default)
+    threshold: float | None = None  # min cosine 0..1; None = server defaults
     filters: dict | None = None  # metadata filters, e.g. {"agent_id": "support-bot"}
 
 class FeedbackRequest(BaseModel):
@@ -6547,9 +6548,14 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         if req.app_id:
             meta_filters["app_id"] = req.app_id
 
+        # Validate optional threshold (additive — None = server defaults)
+        if req.threshold is not None and not (0.0 <= req.threshold <= 1.0):
+            raise HTTPException(status_code=400, detail="threshold must be between 0.0 and 1.0")
+
         # ---- Redis cache: same query → instant response ----
         filter_str = json.dumps(meta_filters, sort_keys=True) if meta_filters else ""
-        cache_key = f"search:{user_id}:{sub_uid}:{_hashlib.md5(f'{req.query}:{req.limit}:{req.graph_depth}:{filter_str}'.encode('utf-8', errors='replace')).hexdigest()}"
+        cache_input = f'{req.query}:{req.limit}:{req.graph_depth}:{req.threshold}:{filter_str}'
+        cache_key = f"search:{user_id}:{sub_uid}:{_hashlib.md5(cache_input.encode('utf-8', errors='replace')).hexdigest()}"
         cached = store.cache.get(cache_key)
         if cached:
             store.log_usage(user_id, "search")
@@ -6569,11 +6575,15 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 results = store.search_text(user_id, req.query, top_k=search_limit, sub_user_id=sub_uid)
                 emb = None
             if emb is not None:
-                results = store.search_vector_with_teams(user_id, emb, top_k=search_limit,
-                                              query_text=req.query, graph_depth=req.graph_depth,
-                                              sub_user_id=sub_uid, meta_filters=meta_filters)
-                # Fallback: if nothing found, retry with lower threshold
-                if not results:
+                # If client supplied threshold, use it; otherwise let store use its default
+                vec_kwargs = dict(top_k=search_limit, query_text=req.query,
+                                  graph_depth=req.graph_depth, sub_user_id=sub_uid,
+                                  meta_filters=meta_filters)
+                if req.threshold is not None:
+                    vec_kwargs["min_score"] = req.threshold
+                results = store.search_vector_with_teams(user_id, emb, **vec_kwargs)
+                # Fallback to looser threshold ONLY when client didn't pin one
+                if not results and req.threshold is None:
                     results = store.search_vector_with_teams(user_id, emb, top_k=search_limit,
                                                   min_score=0.2, query_text=req.query,
                                                   graph_depth=req.graph_depth,
@@ -7452,9 +7462,14 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         if req.app_id:
             meta_filters["app_id"] = req.app_id
 
+        # Validate optional threshold (additive — None = server defaults)
+        if req.threshold is not None and not (0.0 <= req.threshold <= 1.0):
+            raise HTTPException(status_code=400, detail="threshold must be between 0.0 and 1.0")
+
         # ---- Redis cache ----
         filter_str = json.dumps(meta_filters, sort_keys=True) if meta_filters else ""
-        cache_key = f"searchall:{user_id}:{sub_uid}:{_hashlib.md5(f'{req.query}:{req.limit}:{req.graph_depth}:{filter_str}'.encode('utf-8', errors='replace')).hexdigest()}"
+        cache_input = f'{req.query}:{req.limit}:{req.graph_depth}:{req.threshold}:{filter_str}'
+        cache_key = f"searchall:{user_id}:{sub_uid}:{_hashlib.md5(cache_input.encode('utf-8', errors='replace')).hexdigest()}"
         cached = store.cache.get(cache_key)
         if cached:
             store.log_usage(user_id, "search_all")
@@ -7474,10 +7489,14 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 logger.error(f"Embedding failed in search_all: {e}")
 
         if emb is not None:
-            semantic = store.search_vector_with_teams(
-                user_id, emb, top_k=search_limit, query_text=req.query,
-                graph_depth=req.graph_depth, sub_user_id=sub_uid, meta_filters=meta_filters)
-            if not semantic:
+            sem_kwargs = dict(top_k=search_limit, query_text=req.query,
+                              graph_depth=req.graph_depth, sub_user_id=sub_uid,
+                              meta_filters=meta_filters)
+            if req.threshold is not None:
+                sem_kwargs["min_score"] = req.threshold
+            semantic = store.search_vector_with_teams(user_id, emb, **sem_kwargs)
+            # Fallback to looser threshold ONLY when client didn't pin one
+            if not semantic and req.threshold is None:
                 semantic = store.search_vector_with_teams(
                     user_id, emb, top_k=search_limit, min_score=0.2,
                     query_text=req.query, graph_depth=req.graph_depth, sub_user_id=sub_uid, meta_filters=meta_filters)
