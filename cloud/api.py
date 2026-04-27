@@ -7532,7 +7532,11 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         except Exception as e:
             logger.warning(f"Chunk search failed: {e}")
 
-        # Unified ranking: normalize scores across types (different scales) and merge
+        # Unified ranking: normalize scores across types (different scales) and merge.
+        # When `req.threshold` is set, filter items whose raw `score` is below it —
+        # so threshold applies uniformly across all memory types, not just semantic.
+        threshold_floor = req.threshold
+
         def _normalize_and_merge(sem, epi, proc, chk, limit):
             all_items = []
             for category, type_name in [(sem, "semantic"), (epi, "episodic"),
@@ -7541,6 +7545,8 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                     continue
                 max_s = max((r.get("score", 0) for r in category), default=0) or 1.0
                 for r in category:
+                    if threshold_floor is not None and r.get("score", 0) < threshold_floor:
+                        continue
                     entry = dict(r)
                     entry["memory_type"] = type_name
                     entry["_norm"] = r.get("score", 0) / max_s
