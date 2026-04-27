@@ -1924,6 +1924,11 @@ async function tryLogin(k) {
             if(_tab && ['feed','search','overview','agents','insights','graph','entities','procedures','billing','settings'].includes(_tab)) {
                 switchTabDirect(_tab);
             }
+            // Deep-link to a specific entity: ?entity=Foo opens its modal directly
+            const _entity = new URLSearchParams(location.search).get('entity');
+            if (_entity) {
+                setTimeout(() => openEntity(_entity), 400);
+            }
             // Auto-trigger checkout if ?plan=xxx passed (from post-signup flow)
             const _autoplan = new URLSearchParams(location.search).get('plan');
             if (_autoplan && ['starter','pro','growth','business'].includes(_autoplan)) {
