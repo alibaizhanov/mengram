@@ -405,10 +405,8 @@ profile = m.get_profile()             # instant system prompt
     def get_embedder():
         nonlocal _embedder
         if _embedder is None:
-            openai_key = os.environ.get("OPENAI_API_KEY", "")
-            if openai_key:
-                from cloud.embedder import CloudEmbedder
-                _embedder = CloudEmbedder(provider="openai", api_key=openai_key)
+            from cloud.embedder import create_embedder
+            _embedder = create_embedder()
         return _embedder
 
     # ---- Re-ranking (Cohere Rerank → LLM fallback) ----

@@ -1,8 +1,16 @@
 """
 Cloud Embedder — API-based embeddings (no PyTorch).
 
-Uses OpenAI or Anthropic API instead of local sentence-transformers.
+Uses OpenAI or Cohere API instead of local sentence-transformers.
 Result: ~200 MB Docker image instead of 8.7 GB.
+
+Provider selection:
+  EMBEDDING_PROVIDER=openai (default) — OpenAI text-embedding-3-large @ 1536D
+  EMBEDDING_PROVIDER=cohere           — Cohere embed-multilingual-v3.0 @ 1024D
+
+Cohere is recommended for products with non-English users (Russian, Chinese,
+Spanish, etc.) — its multilingual model has equal quality across 100+ languages,
+unlike OpenAI which is English-biased.
 """
 
 import logging
@@ -101,3 +109,85 @@ class CloudEmbedder:
                     time.sleep(wait)
                 else:
                     raise
+
+
+class CohereEmbedder:
+    """
+    Multilingual embeddings via Cohere embed-multilingual-v3.0 (1024 dim).
+    Equal quality across 100+ languages (incl. Russian, Chinese, Spanish);
+    handles cross-lingual retrieval (English query finds Russian doc).
+    Limits: 96 texts per request, ~512 tokens (~2000 chars) per text.
+    """
+
+    DIMENSIONS = 1024
+    MODEL = "embed-multilingual-v3.0"
+    MAX_BATCH = 96
+    MAX_CHARS = 2000  # conservative; Cohere truncates at 512 tokens
+
+    def __init__(self, api_key: Optional[str] = None):
+        self.api_key = api_key or os.environ.get("COHERE_API_KEY", "")
+        if not self.api_key:
+            raise ValueError("COHERE_API_KEY not set; cannot use CohereEmbedder")
+        self.dimensions = self.DIMENSIONS
+        self.model = self.MODEL
+        # Lazy import — cohere is a heavy dep, only imported when this class is used
+        import cohere
+        self._cohere = cohere
+        self._client = cohere.ClientV2(api_key=self.api_key)
+
+    def embed(self, text: str, input_type: str = "search_query") -> list[float]:
+        """Embed a single text. input_type='search_query' for queries (default
+        because most callers do .embed(query_text)), 'search_document' for stored facts."""
+        return self.embed_batch([text], input_type=input_type)[0]
+
+    def embed_batch(
+        self, texts: list[str], max_retries: int = 3, input_type: str = "search_document"
+    ) -> list[list[float]]:
+        """Batched embedding. Default input_type='search_document' since most batch
+        usage in Mengram is for storing entity/fact text."""
+        # Sanitize: empty/None → space, truncate to MAX_CHARS
+        clean = [(t[: self.MAX_CHARS] if t else " ") for t in texts]
+        # Cohere limit: 96 texts per request — split if needed
+        out: list[list[float]] = []
+        for i in range(0, len(clean), self.MAX_BATCH):
+            chunk = clean[i : i + self.MAX_BATCH]
+            for attempt in range(max_retries + 1):
+                try:
+                    resp = self._client.embed(
+                        model=self.model,
+                        texts=chunk,
+                        input_type=input_type,
+                        embedding_types=["float"],
+                    )
+                    out.extend(resp.embeddings.float)
+                    break
+                except Exception as e:
+                    is_rate_limit = "429" in str(e) or "rate" in str(e).lower()
+                    if attempt < max_retries:
+                        wait = 3 * (attempt + 1) if is_rate_limit else 2 * (attempt + 1)
+                        logger.warning(
+                            f"Cohere embedding attempt {attempt + 1} failed: {e}, "
+                            f"retrying in {wait}s"
+                        )
+                        time.sleep(wait)
+                    else:
+                        raise
+        return out
+
+
+def create_embedder():
+    """Factory that returns the embedder configured via EMBEDDING_PROVIDER env.
+
+    Returns None if no provider can be initialized (e.g. missing API key).
+    Caller is expected to handle None — most code paths already do for
+    self-host setups without OpenAI key.
+    """
+    provider = os.environ.get("EMBEDDING_PROVIDER", "openai").lower()
+    try:
+        if provider == "cohere":
+            return CohereEmbedder()
+        # default — openai (also fallback if unknown provider)
+        return CloudEmbedder(provider="openai")
+    except Exception as e:
+        logger.warning(f"Embedder init failed for provider={provider}: {e}")
+        return None

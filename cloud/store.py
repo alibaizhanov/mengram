@@ -1086,6 +1086,48 @@ class CloudStore:
             """)
         logger.info("✅ Migration complete (v2.19: entity/procedure CI dedup, relation cleanup)")
 
+        # --- v2.20: Cohere multilingual embeddings (1024-dim) — additive column ---
+        # Adds embedding_v2 vector(1024) NULL to all four embedding tables so we
+        # can dual-store / migrate to Cohere embed-multilingual-v3.0 without
+        # downtime. HNSW indexes on embedding_v2 are created lazily — only once
+        # backfill produces enough data that an index is meaningful.
+        with self._cursor() as cur:
+            cur.execute("ALTER TABLE embeddings           ADD COLUMN IF NOT EXISTS embedding_v2 vector(1024)")
+            cur.execute("ALTER TABLE episode_embeddings   ADD COLUMN IF NOT EXISTS embedding_v2 vector(1024)")
+            cur.execute("ALTER TABLE chunk_embeddings     ADD COLUMN IF NOT EXISTS embedding_v2 vector(1024)")
+            cur.execute("ALTER TABLE procedure_embeddings ADD COLUMN IF NOT EXISTS embedding_v2 vector(1024)")
+        logger.info("✅ Migration complete (v2.20: embedding_v2 column for Cohere multilingual)")
+
+        # --- v2.21: HNSW indexes on embedding_v2 (idempotent CREATE INDEX IF NOT EXISTS) ---
+        # Postgres skips index creation when the column has only NULLs — but the
+        # statement is safe to run repeatedly. After backfill these become active.
+        with self._cursor() as cur:
+            try:
+                cur.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_embeddings_v2_hnsw
+                    ON embeddings USING hnsw (embedding_v2 vector_cosine_ops)
+                    WITH (m = 16, ef_construction = 64)
+                """)
+                cur.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_ep_emb_v2_hnsw
+                    ON episode_embeddings USING hnsw (embedding_v2 vector_cosine_ops)
+                    WITH (m = 16, ef_construction = 64)
+                """)
+                cur.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_chunk_emb_v2_hnsw
+                    ON chunk_embeddings USING hnsw (embedding_v2 vector_cosine_ops)
+                    WITH (m = 16, ef_construction = 64)
+                """)
+                cur.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_proc_emb_v2_hnsw
+                    ON procedure_embeddings USING hnsw (embedding_v2 vector_cosine_ops)
+                    WITH (m = 16, ef_construction = 64)
+                """)
+            except Exception as e:
+                # Indexes can fail to build on empty/all-NULL columns in some pgvector versions
+                logger.warning(f"v2 HNSW index creation deferred: {e}")
+        logger.info("✅ Migration complete (v2.21: HNSW indexes on embedding_v2)")
+
         with self._cursor() as cur:
             cur.execute("SELECT pg_advisory_unlock(42)")
 
@@ -2480,8 +2522,12 @@ class CloudStore:
         3. Reciprocal Rank Fusion to merge results
         4. Graph expansion: follow relations to find connected entities
         5. Recency boost + dedup + limit
+
+        Routes to embedding (1536-dim, OpenAI) or embedding_v2 (1024-dim,
+        Cohere multilingual) based on the input vector size.
         """
         embedding_str = f"[{','.join(str(x) for x in embedding)}]"
+        emb_col = "embedding_v2" if len(embedding) == 1024 else "embedding"
 
         # Build metadata filter clause
         meta_clause = ""
@@ -2496,12 +2542,13 @@ class CloudStore:
             cur.execute(
                 f"""SELECT DISTINCT ON (e.id)
                        e.id, e.name, e.type,
-                       1 - (emb.embedding <=> %s::vector) AS score,
+                       1 - (emb.{emb_col} <=> %s::vector) AS score,
                        e.updated_at, e.metadata
                    FROM embeddings emb
                    JOIN entities e ON e.id = emb.entity_id
                    WHERE e.user_id = %s AND e.sub_user_id = %s
-                     AND 1 - (emb.embedding <=> %s::vector) > %s
+                     AND emb.{emb_col} IS NOT NULL
+                     AND 1 - (emb.{emb_col} <=> %s::vector) > %s
                      {meta_clause}
                    ORDER BY e.id, score DESC""",
                 (embedding_str, user_id, sub_user_id, embedding_str, min_score, *meta_params)
@@ -2671,10 +2718,11 @@ class CloudStore:
             chunk_relevance = {}  # eid → {fact_content → relevance_score}
             if entity_ids:
                 cur.execute(
-                    """SELECT entity_id, chunk_text,
-                              1 - (embedding <=> %s::vector) AS relevance
-                       FROM embeddings
-                       WHERE entity_id = ANY(%s::uuid[])""",
+                    f"""SELECT entity_id, chunk_text,
+                               1 - ({emb_col} <=> %s::vector) AS relevance
+                        FROM embeddings
+                        WHERE entity_id = ANY(%s::uuid[])
+                          AND {emb_col} IS NOT NULL""",
                     (embedding_str, entity_ids)
                 )
                 for row in cur.fetchall():
@@ -3330,12 +3378,15 @@ Return ONLY JSON (no markdown):
 
     def save_embedding(self, entity_id: str, chunk_text: str,
                        embedding: list[float]):
-        """Store vector embedding for an entity chunk."""
+        """Store vector embedding for an entity chunk.
+        Routes to `embedding` column (1536-dim, OpenAI) or `embedding_v2`
+        column (1024-dim, Cohere) based on the actual vector size."""
+        col = "embedding_v2" if len(embedding) == 1024 else "embedding"
         embedding_str = f"[{','.join(str(x) for x in embedding)}]"
         with self._cursor() as cur:
             cur.execute(
-                """INSERT INTO embeddings (entity_id, chunk_text, embedding, tsv)
-                   VALUES (%s, %s, %s::vector, to_tsvector('english', %s))""",
+                f"""INSERT INTO embeddings (entity_id, chunk_text, {col}, tsv)
+                    VALUES (%s, %s, %s::vector, to_tsvector('english', %s))""",
                 (entity_id, chunk_text, embedding_str, chunk_text)
             )
 
@@ -4180,11 +4231,12 @@ REFLECTIONS/PATTERNS:
         return episode_id
 
     def save_episode_embedding(self, episode_id: str, chunk_text: str, embedding: list[float]):
-        """Save embedding for an episode."""
+        """Save embedding for an episode. Routes to embedding/embedding_v2 by size."""
+        col = "embedding_v2" if len(embedding) == 1024 else "embedding"
         with self._cursor() as cur:
             cur.execute(
-                """INSERT INTO episode_embeddings (episode_id, chunk_text, embedding, tsv)
-                   VALUES (%s, %s, %s::vector, to_tsvector('english', %s))""",
+                f"""INSERT INTO episode_embeddings (episode_id, chunk_text, {col}, tsv)
+                    VALUES (%s, %s, %s::vector, to_tsvector('english', %s))""",
                 (episode_id, chunk_text, embedding, chunk_text)
             )
 
@@ -4206,11 +4258,12 @@ REFLECTIONS/PATTERNS:
             return str(cur.fetchone()[0])
 
     def save_chunk_embedding(self, chunk_id: str, chunk_text: str, embedding: list[float]):
-        """Save embedding for a conversation chunk."""
+        """Save embedding for a conversation chunk. Routes by vector size."""
+        col = "embedding_v2" if len(embedding) == 1024 else "embedding"
         with self._cursor() as cur:
             cur.execute(
-                """INSERT INTO chunk_embeddings (chunk_id, embedding, tsv)
-                   VALUES (%s, %s::vector, to_tsvector('english', %s))""",
+                f"""INSERT INTO chunk_embeddings (chunk_id, {col}, tsv)
+                    VALUES (%s, %s::vector, to_tsvector('english', %s))""",
                 (chunk_id, f"[{','.join(str(x) for x in embedding)}]", chunk_text)
             )
 
@@ -4218,19 +4271,22 @@ REFLECTIONS/PATTERNS:
                              query_text: str = "", top_k: int = 5,
                              min_score: float = 0.15,
                              sub_user_id: str = "default") -> list[dict]:
-        """Search raw conversation chunks via hybrid vector+BM25."""
+        """Search raw conversation chunks via hybrid vector+BM25.
+        Routes to embedding (1536) or embedding_v2 (1024) by query vector size."""
         embedding_str = f"[{','.join(str(x) for x in embedding)}]"
+        emb_col = "embedding_v2" if len(embedding) == 1024 else "embedding"
         with self._cursor(dict_cursor=True) as cur:
             # Vector search
             cur.execute(
-                """SELECT c.id, c.content, c.created_at,
-                          1 - (ce.embedding <=> %s::vector) AS score
-                   FROM chunk_embeddings ce
-                   JOIN conversation_chunks c ON c.id = ce.chunk_id
-                   WHERE c.user_id = %s AND c.sub_user_id = %s
-                     AND 1 - (ce.embedding <=> %s::vector) > %s
-                   ORDER BY score DESC
-                   LIMIT %s""",
+                f"""SELECT c.id, c.content, c.created_at,
+                           1 - (ce.{emb_col} <=> %s::vector) AS score
+                    FROM chunk_embeddings ce
+                    JOIN conversation_chunks c ON c.id = ce.chunk_id
+                    WHERE c.user_id = %s AND c.sub_user_id = %s
+                      AND ce.{emb_col} IS NOT NULL
+                      AND 1 - (ce.{emb_col} <=> %s::vector) > %s
+                    ORDER BY score DESC
+                    LIMIT %s""",
                 (embedding_str, user_id, sub_user_id, embedding_str, min_score, top_k * 2)
             )
             vector_rows = cur.fetchall()
@@ -4325,17 +4381,20 @@ REFLECTIONS/PATTERNS:
                                top_k: int = 5, after: str = None,
                                before: str = None, sub_user_id: str = "default",
                                query_text: str = "") -> list[dict]:
-        """Hybrid search over episodic memory: vector + BM25 + RRF + temporal decay."""
-        query = """
+        """Hybrid search over episodic memory: vector + BM25 + RRF + temporal decay.
+        Routes by query vector size: 1024 → embedding_v2, else embedding."""
+        emb_col = "embedding_v2" if len(embedding) == 1024 else "embedding"
+        query = f"""
             SELECT ep.id, ep.summary, ep.context, ep.outcome, ep.participants,
                    ep.emotional_valence, ep.importance, ep.created_at,
                    ep.happened_at, ep.metadata,
-                   1 - (ee.embedding <=> %s::vector) AS score
+                   1 - (ee.{emb_col} <=> %s::vector) AS score
             FROM episode_embeddings ee
             JOIN episodes ep ON ep.id = ee.episode_id
             WHERE ep.user_id = %s AND ep.sub_user_id = %s
               AND (ep.expires_at IS NULL OR ep.expires_at > NOW())
-              AND 1 - (ee.embedding <=> %s::vector) > 0.25
+              AND ee.{emb_col} IS NOT NULL
+              AND 1 - (ee.{emb_col} <=> %s::vector) > 0.25
         """
         params = [embedding, user_id, sub_user_id, embedding]
         if after:
@@ -4344,7 +4403,7 @@ REFLECTIONS/PATTERNS:
         if before:
             query += " AND ep.created_at <= %s"
             params.append(before)
-        query += " ORDER BY ee.embedding <=> %s::vector LIMIT %s"
+        query += f" ORDER BY ee.{emb_col} <=> %s::vector LIMIT %s"
         params.extend([embedding, top_k * 4])
 
         with self._cursor(dict_cursor=True) as cur:
@@ -4548,11 +4607,12 @@ REFLECTIONS/PATTERNS:
         return proc_id
 
     def save_procedure_embedding(self, procedure_id: str, chunk_text: str, embedding: list[float]):
-        """Save embedding for a procedure."""
+        """Save embedding for a procedure. Routes by vector size."""
+        col = "embedding_v2" if len(embedding) == 1024 else "embedding"
         with self._cursor() as cur:
             cur.execute(
-                """INSERT INTO procedure_embeddings (procedure_id, chunk_text, embedding, tsv)
-                   VALUES (%s, %s, %s::vector, to_tsvector('english', %s))""",
+                f"""INSERT INTO procedure_embeddings (procedure_id, chunk_text, {col}, tsv)
+                    VALUES (%s, %s, %s::vector, to_tsvector('english', %s))""",
                 (procedure_id, chunk_text, embedding, chunk_text)
             )
 
@@ -4599,18 +4659,21 @@ REFLECTIONS/PATTERNS:
     def search_procedures_vector(self, user_id: str, embedding: list[float],
                                  top_k: int = 5, sub_user_id: str = "default",
                                  query_text: str = "") -> list[dict]:
-        """Hybrid search over procedural memory: vector + BM25 + RRF (current versions only)."""
-        query = """
+        """Hybrid search over procedural memory: vector + BM25 + RRF (current versions only).
+        Routes by query vector size: 1024 → embedding_v2, else embedding."""
+        emb_col = "embedding_v2" if len(embedding) == 1024 else "embedding"
+        query = f"""
             SELECT p.id, p.name, p.trigger_condition, p.steps, p.entity_names,
                    p.success_count, p.fail_count, p.last_used, p.version, p.updated_at, p.metadata,
-                   1 - (pe.embedding <=> %s::vector) AS score
+                   1 - (pe.{emb_col} <=> %s::vector) AS score
             FROM procedure_embeddings pe
             JOIN procedures p ON p.id = pe.procedure_id
             WHERE p.user_id = %s AND p.sub_user_id = %s
               AND p.is_current = TRUE
               AND (p.expires_at IS NULL OR p.expires_at > NOW())
-              AND 1 - (pe.embedding <=> %s::vector) > 0.25
-            ORDER BY pe.embedding <=> %s::vector
+              AND pe.{emb_col} IS NOT NULL
+              AND 1 - (pe.{emb_col} <=> %s::vector) > 0.25
+            ORDER BY pe.{emb_col} <=> %s::vector
             LIMIT %s
         """
         with self._cursor(dict_cursor=True) as cur:
@@ -6077,6 +6140,7 @@ Return ONLY JSON (no markdown):
             return self.search_vector(user_id, embedding, top_k, min_score, query_text, graph_depth, sub_user_id=sub_user_id, meta_filters=meta_filters)
 
         embedding_str = f"[{','.join(str(x) for x in embedding)}]"
+        emb_col = "embedding_v2" if len(embedding) == 1024 else "embedding"
 
         # Build metadata filter clause
         meta_clause = ""
@@ -6090,12 +6154,13 @@ Return ONLY JSON (no markdown):
             cur.execute(
                 f"""SELECT DISTINCT ON (e.id)
                        e.id, e.name, e.type, e.user_id, e.team_id,
-                       1 - (emb.embedding <=> %s::vector) AS score,
+                       1 - (emb.{emb_col} <=> %s::vector) AS score,
                        e.updated_at, e.metadata
                    FROM embeddings emb
                    JOIN entities e ON e.id = emb.entity_id
                    WHERE ((e.user_id = %s AND e.sub_user_id = %s) OR e.team_id = ANY(%s))
-                     AND 1 - (emb.embedding <=> %s::vector) > %s
+                     AND emb.{emb_col} IS NOT NULL
+                     AND 1 - (emb.{emb_col} <=> %s::vector) > %s
                      {meta_clause}
                    ORDER BY e.id, score DESC""",
                 (embedding_str, user_id, sub_user_id, team_ids, embedding_str, min_score, *meta_params)
@@ -6208,10 +6273,11 @@ Return ONLY JSON (no markdown):
             chunk_relevance = {}  # eid → {fact_content → relevance_score}
             if entity_ids:
                 cur.execute(
-                    """SELECT entity_id, chunk_text,
-                              1 - (embedding <=> %s::vector) AS relevance
-                       FROM embeddings
-                       WHERE entity_id = ANY(%s::uuid[])""",
+                    f"""SELECT entity_id, chunk_text,
+                               1 - ({emb_col} <=> %s::vector) AS relevance
+                        FROM embeddings
+                        WHERE entity_id = ANY(%s::uuid[])
+                          AND {emb_col} IS NOT NULL""",
                     (embedding_str, entity_ids)
                 )
                 for row in cur.fetchall():
