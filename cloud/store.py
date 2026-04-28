@@ -2549,6 +2549,7 @@ class CloudStore:
                    WHERE e.user_id = %s AND e.sub_user_id = %s
                      AND emb.{emb_col} IS NOT NULL
                      AND 1 - (emb.{emb_col} <=> %s::vector) > %s
+                     AND LEFT(e.name, 1) != '_'
                      {meta_clause}
                    ORDER BY e.id, score DESC""",
                 (embedding_str, user_id, sub_user_id, embedding_str, min_score, *meta_params)
@@ -2579,6 +2580,7 @@ class CloudStore:
                            JOIN entities e ON e.id = emb.entity_id
                            WHERE e.user_id = %s AND e.sub_user_id = %s
                              AND emb.tsv @@ plainto_tsquery('english', %s)
+                             AND LEFT(e.name, 1) != '_'
                              {meta_clause}
                            ORDER BY e.id, rank DESC""",
                         (query_text, user_id, sub_user_id, query_text, *meta_params)
@@ -2822,7 +2824,9 @@ class CloudStore:
                    FROM entities e
                    LEFT JOIN facts f ON f.entity_id = e.id
                    LEFT JOIN knowledge k ON k.entity_id = e.id
-                   WHERE e.user_id = %s AND e.sub_user_id = %s AND (
+                   WHERE e.user_id = %s AND e.sub_user_id = %s
+                     AND LEFT(e.name, 1) != '_'
+                     AND (
                        e.name ILIKE %s
                        OR f.content ILIKE %s
                        OR k.content ILIKE %s
@@ -6161,6 +6165,7 @@ Return ONLY JSON (no markdown):
                    WHERE ((e.user_id = %s AND e.sub_user_id = %s) OR e.team_id = ANY(%s))
                      AND emb.{emb_col} IS NOT NULL
                      AND 1 - (emb.{emb_col} <=> %s::vector) > %s
+                     AND LEFT(e.name, 1) != '_'
                      {meta_clause}
                    ORDER BY e.id, score DESC""",
                 (embedding_str, user_id, sub_user_id, team_ids, embedding_str, min_score, *meta_params)
@@ -6188,6 +6193,7 @@ Return ONLY JSON (no markdown):
                            JOIN entities e ON e.id = emb.entity_id
                            WHERE ((e.user_id = %s AND e.sub_user_id = %s) OR e.team_id = ANY(%s))
                              AND emb.tsv @@ plainto_tsquery('english', %s)
+                             AND LEFT(e.name, 1) != '_'
                              {meta_clause}
                            ORDER BY e.id, rank DESC""",
                         (query_text, user_id, sub_user_id, team_ids, query_text, *meta_params)
