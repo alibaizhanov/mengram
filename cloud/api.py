@@ -125,6 +125,13 @@ class SearchRequest(BaseModel):
     threshold: float | None = None  # min cosine 0..1; None = server defaults
     filters: dict | None = None  # metadata filters, e.g. {"agent_id": "support-bot"}
 
+class AskRequest(BaseModel):
+    """RAG-style ask: synthesize an answer from memory with citations.
+    Premium feature (Pro+) — uses Cohere Chat API on top of vector search."""
+    query: str
+    user_id: str = "default"  # sub_user_id for multi-tenant scoping
+    max_facts: int = 15       # how many top facts to feed Cohere as documents
+
 class FeedbackRequest(BaseModel):
     context: str | None = None         # What went wrong (triggers evolution on failure)
     failed_at_step: int | None = None  # Which step failed
@@ -6670,6 +6677,132 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             except Exception:
                 response["hint"] = "No memories found. Add your first memory with POST /v1/add — then search will return results."
         return response
+
+    @app.post("/v1/ask", tags=["Search"])
+    async def ask(req: AskRequest, ctx: AuthContext = Depends(auth)):
+        """Ask your memory a question — get a synthesized answer with citations.
+
+        RAG flow: embed query → top-N facts via search → Cohere Chat with documents
+        → answer text with native source attribution.
+
+        Premium: Pro / Growth / Business only. Counts as 1 search against quota.
+        """
+        if ctx.plan in ("free", "starter"):
+            raise HTTPException(
+                status_code=403,
+                detail="Ask requires Pro plan. Upgrade at mengram.io/pricing"
+            )
+
+        user_id = ctx.user_id
+        use_quota(ctx, "search")
+        sub_uid = req.user_id or "default"
+
+        # 1. Embed query (Cohere multilingual / OpenAI fallback)
+        embedder = get_embedder()
+        if not embedder:
+            raise HTTPException(status_code=503, detail="Embedder not configured")
+        try:
+            emb = embedder.embed(req.query)
+        except Exception as e:
+            logger.error(f"Ask: embedding failed: {e}")
+            raise HTTPException(status_code=503, detail="Embedding service failed")
+
+        # 2. Retrieve top facts via existing search
+        results = store.search_vector_with_teams(
+            user_id, emb,
+            top_k=max(req.max_facts, 8),
+            query_text=req.query,
+            sub_user_id=sub_uid,
+        )
+
+        if not results:
+            return {
+                "answer": "I don't have any memories that match your question.",
+                "citations": [],
+                "facts_used": 0,
+            }
+
+        # 3. Format facts as Cohere documents (cap at 30 to control cost)
+        documents = []
+        fact_map = {}  # doc_id → fact metadata for citation lookup
+        MAX_DOCS = 30
+        for r in results:
+            entity_name = r.get("entity", "")
+            for fact in r.get("facts", []):
+                if len(documents) >= MAX_DOCS:
+                    break
+                doc_id = f"f_{len(documents)}"
+                # Cohere documents accept dict with string values; combine entity+fact
+                # so the model knows what entity each fact belongs to.
+                fact_text = fact if isinstance(fact, str) else str(fact)
+                documents.append({
+                    "id": doc_id,
+                    "data": {
+                        "entity": entity_name,
+                        "fact": fact_text,
+                    },
+                })
+                fact_map[doc_id] = {"entity": entity_name, "fact": fact_text}
+            if len(documents) >= MAX_DOCS:
+                break
+
+        if not documents:
+            return {
+                "answer": "I don't have any facts to answer that question yet.",
+                "citations": [],
+                "facts_used": 0,
+            }
+
+        # 4. Call Cohere Chat with documents (RAG with native citations)
+        nonlocal _cohere_client
+        cohere_key = os.environ.get("COHERE_API_KEY", "")
+        if not cohere_key:
+            raise HTTPException(status_code=503, detail="Cohere not configured")
+        if _cohere_client is None:
+            import cohere
+            _cohere_client = cohere.ClientV2(api_key=cohere_key)
+        co = _cohere_client
+
+        try:
+            chat_resp = co.chat(
+                model="command-a-03-2025",
+                messages=[{"role": "user", "content": req.query}],
+                documents=documents,
+            )
+        except Exception as e:
+            logger.error(f"Ask: Cohere chat failed: {e}")
+            raise HTTPException(status_code=503, detail="Answer generation failed")
+
+        # 5. Parse Cohere response — concat text blocks, surface citations
+        answer_text = ""
+        if chat_resp.message and chat_resp.message.content:
+            for block in chat_resp.message.content:
+                # Cohere v2 returns content as list of blocks; text blocks have .text
+                if hasattr(block, "text") and block.text:
+                    answer_text += block.text
+
+        citations_out = []
+        msg_citations = getattr(chat_resp.message, "citations", None) if chat_resp.message else None
+        if msg_citations:
+            for cit in msg_citations:
+                cited_sources = []
+                for src in (cit.sources or []):
+                    src_id = getattr(src, "id", None)
+                    if src_id and src_id in fact_map:
+                        cited_sources.append(fact_map[src_id])
+                citations_out.append({
+                    "text": cit.text,
+                    "start": cit.start,
+                    "end": cit.end,
+                    "sources": cited_sources,
+                })
+
+        store.log_usage(user_id, "ask")
+        return {
+            "answer": answer_text,
+            "citations": citations_out,
+            "facts_used": len(documents),
+        }
 
     @app.get("/v1/memories", tags=["Memory"])
     async def get_all(sub_user_id: str = Query("default"),
