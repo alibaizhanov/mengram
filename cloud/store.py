@@ -2528,6 +2528,10 @@ class CloudStore:
         """
         embedding_str = f"[{','.join(str(x) for x in embedding)}]"
         emb_col = "embedding_v2" if len(embedding) == 1024 else "embedding"
+        # Postgres rejects NUL (0x00) bytes in TEXT params; strip them from caller input
+        # (paste-from-PDF and some buggy SDK clients sneak them in).
+        if query_text:
+            query_text = query_text.replace("\x00", "")
 
         # Build metadata filter clause
         meta_clause = ""
@@ -4279,6 +4283,8 @@ REFLECTIONS/PATTERNS:
         Routes to embedding (1536) or embedding_v2 (1024) by query vector size."""
         embedding_str = f"[{','.join(str(x) for x in embedding)}]"
         emb_col = "embedding_v2" if len(embedding) == 1024 else "embedding"
+        if query_text:
+            query_text = query_text.replace("\x00", "")
         with self._cursor(dict_cursor=True) as cur:
             # Vector search
             cur.execute(
@@ -4388,6 +4394,8 @@ REFLECTIONS/PATTERNS:
         """Hybrid search over episodic memory: vector + BM25 + RRF + temporal decay.
         Routes by query vector size: 1024 → embedding_v2, else embedding."""
         emb_col = "embedding_v2" if len(embedding) == 1024 else "embedding"
+        if query_text:
+            query_text = query_text.replace("\x00", "")
         query = f"""
             SELECT ep.id, ep.summary, ep.context, ep.outcome, ep.participants,
                    ep.emotional_valence, ep.importance, ep.created_at,
@@ -4505,6 +4513,8 @@ REFLECTIONS/PATTERNS:
     def search_episodes_text(self, user_id: str, query: str,
                              top_k: int = 5, sub_user_id: str = "default") -> list[dict]:
         """BM25 text search over episodic memory."""
+        if query:
+            query = query.replace("\x00", "")
         sql = """
             SELECT ep.id, ep.summary, ep.context, ep.outcome, ep.participants,
                    ep.emotional_valence, ep.importance, ep.created_at,
@@ -4666,6 +4676,8 @@ REFLECTIONS/PATTERNS:
         """Hybrid search over procedural memory: vector + BM25 + RRF (current versions only).
         Routes by query vector size: 1024 → embedding_v2, else embedding."""
         emb_col = "embedding_v2" if len(embedding) == 1024 else "embedding"
+        if query_text:
+            query_text = query_text.replace("\x00", "")
         query = f"""
             SELECT p.id, p.name, p.trigger_condition, p.steps, p.entity_names,
                    p.success_count, p.fail_count, p.last_used, p.version, p.updated_at, p.metadata,
@@ -4764,6 +4776,8 @@ REFLECTIONS/PATTERNS:
     def search_procedures_text(self, user_id: str, query: str,
                                top_k: int = 5, sub_user_id: str = "default") -> list[dict]:
         """BM25 text search over procedural memory (current versions only)."""
+        if query:
+            query = query.replace("\x00", "")
         sql = """
             SELECT p.id, p.name, p.trigger_condition, p.steps, p.entity_names,
                    p.success_count, p.fail_count, p.version, p.updated_at, p.metadata,
@@ -6145,6 +6159,8 @@ Return ONLY JSON (no markdown):
 
         embedding_str = f"[{','.join(str(x) for x in embedding)}]"
         emb_col = "embedding_v2" if len(embedding) == 1024 else "embedding"
+        if query_text:
+            query_text = query_text.replace("\x00", "")
 
         # Build metadata filter clause
         meta_clause = ""
