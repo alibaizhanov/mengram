@@ -1816,7 +1816,7 @@
                 Open Source · Apache 2.0
             </div>
             <h1 class="reveal" style="transition-delay:0.1s">Your agent forgets everything.<br><span class="brand">Mengram</span> fixes that.</h1>
-            <p class="reveal" style="transition-delay:0.2s">Your agent learns from every session. Facts, workflows, and procedures — auto-saved, auto-recalled, auto-improved.</p>
+            <p class="reveal" style="transition-delay:0.2s">Your agent learns from every session. Facts, workflows, and procedures — auto-saved, auto-recalled, auto-improved. Works natively in 23 languages.</p>
             <div class="terminal reveal" style="transition-delay:0.3s">
                 <div class="terminal-header">
                     <span class="terminal-dot red"></span>
@@ -2154,6 +2154,18 @@ results = m.search(<span class="c-str">"What does Ali prefer?"</span>)</div>
                     <h3>Experience-Driven Procedures</h3>
                     <p>Self-improving workflows. Failures auto-evolve procedures to new versions. 3+ similar successes auto-create new workflows. Version history + evolution log.</p>
                 </div>
+                <div class="feat-card feat-card-gradient reveal">
+                    <span class="feat-badge-unique">Only in Mengram</span>
+                    <div class="feat-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>
+                    <h3>Native Multilingual</h3>
+                    <p>Equal retrieval quality across 23 languages — Russian, Chinese, Spanish, Japanese, Korean, Arabic. Cross-lingual works: English query finds Russian docs. Built on Cohere multilingual, not English-only OpenAI.</p>
+                </div>
+                <div class="feat-card feat-card-gradient reveal">
+                    <span class="feat-badge-unique">Only in Mengram</span>
+                    <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8"/><path d="M8 13h6"/></svg></div>
+                    <h3>Ask, Don't Search</h3>
+                    <p>POST <code>/v1/ask</code> returns a synthesized answer with citations — not raw results. Built-in RAG, no need to wire OpenAI yourself. Pro+ feature, gated for premium tiers.</p>
+                </div>
             </div>
         </section>
 
@@ -2249,6 +2261,18 @@ results = m.search(<span class="c-str">"What does Ali prefer?"</span>)</div>
                         </tr>
                         <tr style="border-bottom: 1px solid var(--border); background: rgba(168,85,247,0.05);">
                             <td style="padding:10px 16px;"><strong>Smart Triggers</strong></td>
+                            <td style="text-align:center;padding:10px;"><strong>✅</strong></td>
+                            <td style="text-align:center;padding:10px;">❌</td>
+                            <td style="text-align:center;padding:10px;">❌</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--border); background: rgba(168,85,247,0.05);">
+                            <td style="padding:10px 16px;"><strong>Multilingual</strong> <span style="color:var(--accent);font-size:11px;">(23 languages, native)</span></td>
+                            <td style="text-align:center;padding:10px;"><strong>✅</strong></td>
+                            <td style="text-align:center;padding:10px;">❌</td>
+                            <td style="text-align:center;padding:10px;">❌</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--border); background: rgba(168,85,247,0.05);">
+                            <td style="padding:10px 16px;"><strong>Ask &amp; Citations</strong> <span style="color:var(--accent);font-size:11px;">(synthesized answers)</span></td>
                             <td style="text-align:center;padding:10px;"><strong>✅</strong></td>
                             <td style="text-align:center;padding:10px;">❌</td>
                             <td style="text-align:center;padding:10px;">❌</td>
