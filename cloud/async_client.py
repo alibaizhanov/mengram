@@ -28,6 +28,16 @@ try:
 except ImportError:
     httpx = None
 
+# Cloudflare and similar gateways reject the default Python UA.
+# See GitHub issue #31.
+try:
+    from importlib.metadata import version as _pkg_version
+    _SDK_VERSION = _pkg_version("mengram-ai")
+except Exception:
+    _SDK_VERSION = "unknown"
+
+_USER_AGENT = f"Mengram-Python-SDK/{_SDK_VERSION}"
+
 
 class QuotaExceededError(Exception):
     """Raised when API quota is exceeded (HTTP 402)."""
@@ -79,6 +89,7 @@ class AsyncCloudMemory:
                 headers={
                     "Authorization": f"Bearer {self.api_key}",
                     "Content-Type": "application/json",
+                    "User-Agent": _USER_AGENT,
                 },
                 timeout=30.0,
             )

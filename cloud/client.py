@@ -39,6 +39,17 @@ import urllib.error
 import urllib.parse
 from typing import Optional
 
+# Some hosts (e.g. Cloudflare) reject the default urllib User-Agent
+# ("Python-urllib/X.Y") with HTTP 403 / error 1010 (Browser Integrity
+# Check). Always send a real product UA — see GitHub issue #31.
+try:
+    from importlib.metadata import version as _pkg_version
+    _SDK_VERSION = _pkg_version("mengram-ai")
+except Exception:
+    _SDK_VERSION = "unknown"
+
+_USER_AGENT = f"Mengram-Python-SDK/{_SDK_VERSION}"
+
 
 class QuotaExceededError(Exception):
     """Raised when API quota is exceeded (HTTP 402)."""
@@ -103,6 +114,7 @@ class CloudMemory:
                 headers={
                     "Authorization": f"Bearer {self.api_key}",
                     "Content-Type": "application/json",
+                    "User-Agent": _USER_AGENT,
                 }
             )
             try:
@@ -245,6 +257,7 @@ class CloudMemory:
                 headers={
                     "Authorization": f"Bearer {self.api_key}",
                     "Content-Type": f"multipart/form-data; boundary={boundary}",
+                    "User-Agent": _USER_AGENT,
                 }
             )
             try:
