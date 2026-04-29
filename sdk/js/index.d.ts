@@ -41,6 +41,29 @@ export interface SearchResult {
   metadata?: Record<string, any>;
 }
 
+export interface AskCitationSource {
+  entity: string;
+  fact: string;
+}
+
+export interface AskCitation {
+  text: string;
+  start: number;
+  end: number;
+  sources: AskCitationSource[];
+}
+
+export interface AskResult {
+  answer: string;
+  citations: AskCitation[];
+  facts_used: number;
+}
+
+export interface AskOptions {
+  userId?: string;
+  maxFacts?: number;
+}
+
 export interface Entity {
   name: string;
   type: string;
@@ -200,6 +223,7 @@ export declare class MengramClient {
   addText(text: string, options?: MemoryOptions): Promise<AddResult>;
   addFile(file: string | File | Blob, options?: MemoryOptions & { filename?: string }): Promise<AddResult & { file_type: string; page_count: number; quota_used: number }>;
   search(query: string, options?: SearchOptions): Promise<SearchResult[]>;
+  ask(query: string, options?: AskOptions): Promise<AskResult>;
   getAll(options?: MemoryOptions): Promise<Entity[]>;
   getAllFull(options?: { userId?: string }): Promise<Entity[]>;
   get(name: string, options?: { userId?: string }): Promise<Entity | null>;

@@ -337,6 +337,59 @@ class CloudMemory:
         result = self._request("POST", "/v1/search", body)
         return result.get("results", [])
 
+    def ask(self, query: str, user_id: str = "default",
+            max_facts: int = 15) -> dict:
+        """
+        Ask your memory a question — get a synthesized answer with citations.
+
+        RAG flow: embed query → retrieve top facts → Cohere Chat
+        (command-a-03-2025) generates a grounded answer with native source
+        attribution. Multilingual: query and answer flow through Cohere across
+        23 languages.
+
+        Premium feature: Pro / Growth / Business plans only. Free / Starter
+        receive HTTP 403. Counts as 1 search against your monthly quota.
+
+        Args:
+            query: Natural language question
+            user_id: Sub-user identifier for multi-tenant scoping
+            max_facts: How many top facts to feed Cohere as documents
+                (server caps at 30 internally)
+
+        Returns:
+            {
+                "answer": str,                  # synthesized text (may be empty
+                                                # if Cohere can't ground from
+                                                # retrieved facts)
+                "citations": [
+                    {
+                        "text": str,            # span in `answer`
+                        "start": int,           # char offset
+                        "end": int,             # char offset
+                        "sources": [
+                            {"entity": str, "fact": str},
+                            ...
+                        ],
+                    },
+                    ...
+                ],
+                "facts_used": int,              # how many facts went to Cohere
+            }
+
+        Raises:
+            MengramAPIError: 403 if plan is free/starter, 503 if Cohere/
+                embedder is down.
+
+        Example:
+            >>> result = m.ask("what programming languages do I use?")
+            >>> print(result["answer"])
+            'You use Python and Rust...'
+            >>> for cit in result["citations"]:
+            ...     print(f'  "{cit["text"]}" → {cit["sources"]}')
+        """
+        body = {"query": query, "user_id": user_id, "max_facts": max_facts}
+        return self._request("POST", "/v1/ask", body)
+
     def get_all(self, user_id: str = "default") -> list[dict]:
         """Get all memories for user."""
         params = {}

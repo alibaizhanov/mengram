@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mengram-ai"
-version = "2.23.0"
+version = "2.24.0"
 description = "Human-like memory for AI agents — auto-save, auto-recall, cognitive profile. Claude Code hooks, MCP server (29 tools), OpenClaw plugin, semantic/episodic/procedural memory. Free open-source Mem0 alternative."
 readme = "README.md"
 license = {text = "Apache-2.0"}

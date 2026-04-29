@@ -251,6 +251,22 @@ class AsyncCloudMemory:
                                    data={"query": query, "limit": limit,
                                          "user_id": user_id, "graph_depth": graph_depth})
 
+    async def ask(self, query: str, user_id: str = "default",
+                  max_facts: int = 15) -> dict:
+        """
+        Ask your memory a question — synthesized answer with citations.
+
+        Premium (Pro / Growth / Business). Counts as 1 search against quota.
+        See sync `CloudMemory.ask` for full docs.
+
+        Returns:
+            {"answer": str, "citations": [...], "facts_used": int}
+        """
+        return await self._request(
+            "POST", "/v1/ask",
+            data={"query": query, "user_id": user_id, "max_facts": max_facts},
+        )
+
     async def get_all(self, user_id: str = "default") -> list[dict]:
         """Get all memories for user."""
         params = {}

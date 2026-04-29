@@ -294,6 +294,45 @@ class MengramClient {
   }
 
   /**
+   * Ask your memory a question — get a synthesized answer with citations.
+   *
+   * RAG flow: embed query → top facts → Cohere Chat (command-a-03-2025)
+   * generates a grounded answer with native source attribution. Multilingual
+   * across 23 languages.
+   *
+   * Premium: Pro / Growth / Business plans only. Free / Starter receive
+   * HTTP 403. Counts as 1 search against monthly quota.
+   *
+   * @param {string} query - Natural language question
+   * @param {object} [options]
+   * @param {string} [options.userId] - Sub-user identifier (default: "default")
+   * @param {number} [options.maxFacts] - How many top facts to feed Cohere
+   *   (default 15, server caps at 30)
+   * @returns {Promise<{
+   *   answer: string,
+   *   citations: Array<{
+   *     text: string,
+   *     start: number,
+   *     end: number,
+   *     sources: Array<{ entity: string, fact: string }>
+   *   }>,
+   *   facts_used: number
+   * }>}
+   *
+   * @example
+   *   const r = await m.ask('what programming languages do I use?');
+   *   console.log(r.answer);
+   *   r.citations.forEach(c => console.log(`"${c.text}" →`, c.sources));
+   */
+  async ask(query, options = {}) {
+    return await this._request('POST', '/v1/ask', {
+      query,
+      user_id: options.userId || 'default',
+      max_facts: options.maxFacts || 15,
+    });
+  }
+
+  /**
    * Get all memories.
    * @param {object} [options]
    * @param {string} [options.userId]
