@@ -465,8 +465,12 @@ profile = m.get_profile()             # instant system prompt
                     return results
 
                 documents = [fd[2] for fd in fact_docs]
+                # rerank-v4.0-pro: 32k context, native multilingual (pairs with our
+                # Cohere multilingual embed). rerank-v4.0-fast was English-leaning.
+                # Override via env if rollback needed.
+                rerank_model = os.environ.get("COHERE_RERANK_MODEL", "rerank-v4.0-pro")
                 resp = co.rerank(
-                    model="rerank-v4.0-fast",
+                    model=rerank_model,
                     query=query,
                     documents=documents,
                     top_n=min(len(documents), 50),
