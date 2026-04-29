@@ -343,6 +343,19 @@ def create_cloud_mcp_server(mem: CloudMemory, user_id: str = "default") -> "Serv
                 },
             ),
             Tool(
+                name="ask",
+                description="Get a synthesized answer to a question, grounded in the user's memory with citations. Use INSTEAD of 'recall' when the user asks a direct question and wants a direct answer (e.g. 'what programming languages do I use?', 'what was the last deploy issue?'). Returns a written answer with inline source attribution — multilingual native (works in Russian, Chinese, Spanish, etc). Premium feature: requires Pro / Growth / Business plan; free / starter accounts will receive a 403.",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string", "description": "Natural language question — phrase as a question, not keywords"},
+                        "max_facts": {"type": "integer", "default": 15, "description": "How many top facts to feed the LLM as documents (1-30)"},
+                        "user_id": {"type": "string", "description": "Optional user ID override"},
+                    },
+                    "required": ["query"],
+                },
+            ),
+            Tool(
                 name="search",
                 description="Advanced structured search — returns entities with relevance scores, facts, and knowledge snippets. Use instead of 'recall' when you need detailed results with scores for comparison or analysis.",
                 inputSchema={
@@ -735,6 +748,54 @@ def create_cloud_mcp_server(mem: CloudMemory, user_id: str = "default") -> "Serv
                         if k.get("artifact"):
                             lines.append(f"```\n{k['artifact']}\n```")
                     lines.append("")
+                return [TextContent(type="text", text="\n".join(lines))]
+
+            elif name == "ask":
+                uid = arguments.get("user_id", user_id)
+                max_facts = int(arguments.get("max_facts", 15))
+                # Hard cap to match server-side limit
+                if max_facts < 1:
+                    max_facts = 1
+                if max_facts > 30:
+                    max_facts = 30
+                try:
+                    result = mem.ask(arguments["query"], user_id=uid, max_facts=max_facts)
+                except Exception as e:
+                    # Surface plan-gating (403) and other server errors as text the
+                    # LLM can reason about (and surface to the user).
+                    msg = str(e)
+                    if "403" in msg or "Pro plan" in msg:
+                        return [TextContent(
+                            type="text",
+                            text=("⚠️ The 'ask' tool requires a Pro / Growth / Business plan. "
+                                  "Use 'recall' instead, or upgrade at https://mengram.io/pricing.")
+                        )]
+                    return [TextContent(type="text", text=f"❌ Ask failed: {msg[:300]}")]
+
+                answer = (result.get("answer") or "").strip()
+                citations = result.get("citations") or []
+                facts_used = result.get("facts_used", 0)
+
+                if not answer:
+                    return [TextContent(
+                        type="text",
+                        text=(f"No grounded answer available — the {facts_used} retrieved facts "
+                              "didn't support a direct answer. Try 'recall' for raw results.")
+                    )]
+
+                lines = [answer, ""]
+                if citations:
+                    lines.append("---")
+                    lines.append(f"**Sources** ({len(citations)} citations from {facts_used} facts):")
+                    for i, cit in enumerate(citations, 1):
+                        srcs = cit.get("sources") or []
+                        if srcs:
+                            src = srcs[0]
+                            ent = src.get("entity", "?")
+                            fact = (src.get("fact") or "")[:120]
+                            lines.append(f"{i}. \"{cit.get('text', '')[:80]}\" → {ent}: {fact}")
+                        else:
+                            lines.append(f"{i}. \"{cit.get('text', '')[:80]}\"")
                 return [TextContent(type="text", text="\n".join(lines))]
 
             elif name == "search":

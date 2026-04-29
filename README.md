@@ -26,9 +26,14 @@ m = Mengram(api_key="om-...")           # Free key → mengram.io
 
 m.add([{"role": "user", "content": "I use Python and deploy to Railway"}])
 m.search("tech stack")                  # → facts
+m.ask("what's my tech stack?")          # → synthesized answer + citations
 m.episodes(query="deployment")          # → events
 m.procedures(query="deploy")            # → workflows that evolve from failures
 ```
+
+Native multilingual: ask in Russian, Chinese, Spanish, Japanese — Mengram retrieves and answers across 23 languages (Cohere multilingual embeddings + rerank).
+
+
 
 ---
 
@@ -71,6 +76,8 @@ Every AI memory tool stores facts. Mengram stores **3 types of memory** — and 
 | **Procedural memory (workflows)** | **Yes** | No | No | No | No |
 | **Procedures evolve from failures** | **Yes** | No | No | No | No |
 | **Cognitive Profile** | **Yes** | No | No | No | No |
+| **Native multilingual (23 languages)** | **Yes** | No | No | No | No |
+| **Ask & Citations (synthesized answer)** | **Yes** | No | No | No | No |
 | Multi-user isolation | **Yes** | No | Yes | Yes | No |
 | Knowledge graph | **Yes** | No | Yes | Yes | Yes |
 | Claude Code hooks (auto-save/recall) | **Yes** | **Yes** | No | No | No |
@@ -217,6 +224,29 @@ Or **fully automatic** — just add conversations and Mengram detects failures a
 m.add([{"role": "user", "content": "Deploy failed again — OOM on the build step"}])
 # → Episode created → linked to "Deploy" procedure → failure detected → v3 created
 ```
+
+## Ask Your Memory (RAG built-in)
+
+`m.ask()` returns a synthesized answer with citations — not a raw fact list.
+Mengram embeds your query, retrieves the top relevant facts, and uses
+Cohere Chat to write a grounded answer with native source attribution.
+
+```python
+result = m.ask("what programming languages do I use?")
+
+print(result["answer"])
+# 'You use Python and Rust. Python is your daily language [1] and
+#  Rust is your favorite [2]. You also know Java for enterprise
+#  systems [3].'
+
+for cit in result["citations"]:
+    print(f'  "{cit["text"]}" → {cit["sources"][0]["fact"]}')
+# "Python and Rust" → uses Python daily for backend development
+# "favorite [2]"   → Rust is favorite language
+# "Java"           → specializes in Java/Spring Boot
+```
+
+Multilingual: ask in any of 23 languages, get an answer in the same language with citations linking back to facts in the original language they were stored. Premium feature (Pro / Growth / Business).
 
 ## Cognitive Profile
 
