@@ -1128,6 +1128,38 @@ class CloudStore:
                 logger.warning(f"v2 HNSW index creation deferred: {e}")
         logger.info("✅ Migration complete (v2.21: HNSW indexes on embedding_v2)")
 
+        # ---- v2.22: Memory Health monitoring (per-search retrieval quality) ----
+        # Tracks cosine score + detected language per search query so we can
+        # surface "memory health" to customers (silent-churn detection).
+        # Inspired by feedback from @brianchase2882 on Reddit — most users
+        # don't complain when retrieval is bad, they just stop using it.
+        with self._cursor() as cur:
+            cur.execute("""
+                ALTER TABLE usage_log
+                ADD COLUMN IF NOT EXISTS query_score FLOAT,
+                ADD COLUMN IF NOT EXISTS query_language VARCHAR(8)
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_usage_search_health
+                ON usage_log(user_id, created_at DESC)
+                WHERE action = 'search' AND query_score IS NOT NULL
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS memory_health (
+                    user_id UUID PRIMARY KEY,
+                    computed_at TIMESTAMPTZ DEFAULT NOW(),
+                    overall_status VARCHAR(16),
+                    details JSONB,
+                    recommendations TEXT[],
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_health_status_time
+                ON memory_health(overall_status, computed_at DESC)
+            """)
+        logger.info("✅ Migration complete (v2.22: memory health tracking)")
+
         with self._cursor() as cur:
             cur.execute("SELECT pg_advisory_unlock(42)")
 
@@ -3891,13 +3923,16 @@ REFLECTIONS/PATTERNS:
 
     # ---- Usage tracking ----
 
-    def log_usage(self, user_id: str, action: str, tokens: int = 0):
-        """Log API usage."""
+    def log_usage(self, user_id: str, action: str, tokens: int = 0,
+                  query_score: float = None, query_language: str = None):
+        """Log API usage. Optional query_score + query_language let search
+        callers feed Memory Health monitoring (v2.22)."""
         with self._cursor() as cur:
             cur.execute(
-                """INSERT INTO usage_log (user_id, action, tokens_used)
-                   VALUES (%s, %s, %s)""",
-                (user_id, action, tokens)
+                """INSERT INTO usage_log
+                       (user_id, action, tokens_used, query_score, query_language)
+                   VALUES (%s, %s, %s, %s, %s)""",
+                (user_id, action, tokens, query_score, query_language)
             )
 
     # ---- Subscriptions ----

@@ -165,6 +165,65 @@ _DISPOSABLE_EMAIL_DOMAINS = frozenset({
     "33mail.com", "moakt.com", "harakirimail.com", "tmail.ws",
 })
 
+def _detect_query_language(text: str) -> str:
+    """Hybrid language detection for Memory Health bucketing.
+
+    Non-Latin scripts: deterministic via Unicode ranges (100% accurate
+    for the script — note "ru" buckets all Cyrillic, "zh" buckets pure
+    kanji Japanese alongside Chinese).
+
+    Latin-only text: defers to langdetect for Spanish / French / German /
+    Italian / Portuguese disambiguation. langdetect is unreliable on
+    very short queries (<20 chars), so we only trust it above that
+    threshold; otherwise default to 'en'.
+
+    Returns ISO 639-1-ish code (en, ru, zh, ja, ko, ar, he, th, es,
+    fr, de, it, pt, etc)."""
+    if not text or len(text.strip()) < 2:
+        return "en"
+    sample = text[:500]
+
+    # Definitive Japanese: hiragana/katakana never appear in Chinese.
+    # Check whole sample so kanji-heavy Japanese isn't tagged "zh"
+    # on the first kanji.
+    for c in sample:
+        if '぀' <= c <= 'ヿ':  # Hiragana + Katakana
+            return "ja"
+
+    # Other non-Latin scripts: first-script-wins
+    for c in sample:
+        if 'Ѐ' <= c <= 'ӿ':  # Cyrillic
+            return "ru"
+        if '一' <= c <= '鿿':  # CJK ideographs (Chinese, or pure kanji)
+            return "zh"
+        if '가' <= c <= '힯':  # Hangul (Korean)
+            return "ko"
+        if '؀' <= c <= 'ۿ':  # Arabic
+            return "ar"
+        if '֐' <= c <= '׿':  # Hebrew
+            return "he"
+        if '฀' <= c <= '๿':  # Thai
+            return "th"
+
+    # Latin-only path. Quick win first: ñ Ñ ¿ ¡ are uniquely Spanish
+    # (not in French/Italian/German/Portuguese), so a single one is
+    # enough to bucket as "es" — beats langdetect's Spanish/Portuguese
+    # confusion on short text.
+    if any(c in 'ñÑ¿¡' for c in sample):
+        return "es"
+
+    # Otherwise defer to langdetect for SP/FR/DE/IT/PT/etc disambiguation.
+    # Skip if too short — langdetect is unreliable on <20 chars.
+    if len(sample.strip()) < 20:
+        return "en"
+    try:
+        from langdetect import detect, DetectorFactory
+        DetectorFactory.seed = 0  # deterministic
+        return detect(sample)
+    except Exception:
+        return "en"
+
+
 def _is_disposable_email(email: str) -> bool:
     """Check whether the email uses a known disposable provider."""
     try:
@@ -6567,7 +6626,10 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         cache_key = f"search:{user_id}:{sub_uid}:{_hashlib.md5(cache_input.encode('utf-8', errors='replace')).hexdigest()}"
         cached = store.cache.get(cache_key)
         if cached:
-            store.log_usage(user_id, "search")
+            top_score = float(cached[0]["score"]) if cached and "score" in cached[0] else 0.0
+            store.log_usage(user_id, "search",
+                            query_score=top_score,
+                            query_language=_detect_query_language(req.query))
             return {"results": cached}
 
         embedder = get_embedder()
@@ -6656,7 +6718,12 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
         # Cache results in Redis (TTL 30s)
         store.cache.set(cache_key, results, ttl=30)
-        store.log_usage(user_id, "search")
+        # Log usage with retrieval score + detected language for
+        # Memory Health monitoring (v2.22, see /v1/health/retrieval).
+        top_score = float(results[0]["score"]) if results and "score" in results[0] else 0.0
+        store.log_usage(user_id, "search",
+                        query_score=top_score,
+                        query_language=_detect_query_language(req.query))
         # increment already done atomically in use_quota above
 
         response = {"results": results}
@@ -7607,7 +7674,11 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         cache_key = f"searchall:{user_id}:{sub_uid}:{_hashlib.md5(cache_input.encode('utf-8', errors='replace')).hexdigest()}"
         cached = store.cache.get(cache_key)
         if cached:
-            store.log_usage(user_id, "search_all")
+            sem = cached.get("semantic") or []
+            top_score = float(sem[0]["score"]) if sem and "score" in sem[0] else 0.0
+            store.log_usage(user_id, "search_all",
+                            query_score=top_score,
+                            query_language=_detect_query_language(req.query))
             return cached
 
         embedder = get_embedder()
@@ -7701,7 +7772,11 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
         # Cache in Redis (TTL 30s)
         store.cache.set(cache_key, result, ttl=30)
-        store.log_usage(user_id, "search_all")
+        # Memory Health: log top semantic score + detected language
+        top_score = float(semantic[0]["score"]) if semantic and "score" in semantic[0] else 0.0
+        store.log_usage(user_id, "search_all",
+                        query_score=top_score,
+                        query_language=_detect_query_language(req.query))
         # increment already done in use_quota above
         if not any(result.get(k) for k in ("semantic", "episodic", "procedural", "chunks")):
             try:
