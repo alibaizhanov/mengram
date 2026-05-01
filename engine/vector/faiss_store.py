@@ -32,12 +32,14 @@ class FAISSVectorStore(BaseVectorStore):
     For larger datasets, consider IndexIVFFlat or IndexHNSW.
     """
 
-    def __init__(self, dimension: int = 1536, index_type: str = "flat",
-                 nlist: int = 100, metric=faiss.METRIC_INNER_PRODUCT):
+    def __init__(self, dimension: int = 384, index_type: str = "flat",
+                 nlist: int = 100, metric=None):
         if not _FAISS_AVAILABLE:
             raise ImportError(
                 "FAISS not installed. Run: pip install faiss-cpu"
             )
+        if metric is None:
+            metric = faiss.METRIC_INNER_PRODUCT
 
         super().__init__(dimension=dimension)
         self.index_type = index_type.lower()
@@ -190,6 +192,51 @@ class FAISSVectorStore(BaseVectorStore):
             "backend_type": f"faiss_{self.index_type}",
             "dimension": self.dimension,
         }
+
+    def get_indexed_entity_names(self) -> set:
+        """Return all entity names currently stored in this backend."""
+        return {m["entity_name"] for m in self._metadata.values()}
+
+    def delete_entity(self, entity_id: str) -> None:
+        """
+        Remove all chunks for an entity and rebuild the FAISS index.
+
+        IndexFlatIP supports reconstruct(), so we can recover stored vectors
+        without keeping a separate copy in memory.
+        """
+        to_remove = {
+            cid for cid, m in self._metadata.items()
+            if m["entity_id"] == entity_id
+        }
+        if not to_remove:
+            return
+
+        keep_ids = [cid for cid in self._id_to_idx if cid not in to_remove]
+
+        # Reconstruct vectors for the chunks we want to keep
+        kept_vectors = []
+        for cid in keep_ids:
+            idx = self._id_to_idx[cid]
+            vec = np.zeros(self.dimension, dtype=np.float32)
+            self._index.reconstruct(idx, vec)
+            kept_vectors.append(vec)
+
+        # Rebuild index and metadata from scratch
+        self._index = self._create_index()
+        kept_meta = {cid: self._metadata[cid] for cid in keep_ids}
+        self._metadata = kept_meta
+        self._id_to_idx = {}
+        self._idx_to_id = {}
+        self._next_idx = 0
+
+        if kept_vectors:
+            vec_array = np.array(kept_vectors, dtype=np.float32)
+            self._train_if_needed(vec_array)
+            self._index.add(vec_array)
+            for new_idx, cid in enumerate(keep_ids):
+                self._id_to_idx[cid] = new_idx
+                self._idx_to_id[new_idx] = cid
+            self._next_idx = len(keep_ids)
 
     def close(self) -> None:
         """Clean up FAISS index"""

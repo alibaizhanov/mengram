@@ -29,8 +29,8 @@ class SQLiteVectorStore(BaseVectorStore):
     At scale, switch to FAISS or HNSW backends.
     """
 
-    def __init__(self, db_path: str = ":memory:", embedder: Optional[Embedder] = None,
-                 dimension: int = 1536):
+    def __init__(self, db_path: str = ":memory:", embedder=None,
+                 dimension: int = 384):
         super().__init__(dimension=dimension, embedder=embedder)
         self.db_path = db_path
         self.conn = sqlite3.connect(db_path)
@@ -158,6 +158,21 @@ class SQLiteVectorStore(BaseVectorStore):
             "db_path": self.db_path,
         }
 
+    def get_indexed_entity_names(self) -> set:
+        """Return all entity names currently stored in this backend."""
+        rows = self.conn.execute(
+            "SELECT DISTINCT entity_name FROM chunks"
+        ).fetchall()
+        return {r["entity_name"] for r in rows}
+
+    def delete_entity(self, entity_id: str) -> None:
+        """Remove all chunks for a given entity and invalidate the cache."""
+        self.conn.execute(
+            "DELETE FROM chunks WHERE entity_id = ?", (entity_id,)
+        )
+        self.conn.commit()
+        self._invalidate_cache()
+
     def close(self) -> None:
         """Close database connection"""
         self.conn.close()
@@ -183,12 +198,3 @@ class SQLiteVectorStore(BaseVectorStore):
         """Reset cache when data changes"""
         self._vectors = None
         self._chunk_ids = []
-
-    def _validate_embedding(self, embedding: np.ndarray) -> np.ndarray:
-        """Override to validate dimension"""
-        if embedding.shape[0] != self.dimension:
-            raise ValueError(
-                f"Embedding dimension mismatch: expected {self.dimension}, "
-                f"got {embedding.shape[0]}"
-            )
-        return embedding

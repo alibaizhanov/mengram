@@ -37,11 +37,11 @@ class BaseVectorStore(ABC):
     - Stats and lifecycle management
     """
 
-    def __init__(self, dimension: int = 1536, embedder=None):
+    def __init__(self, dimension: int = 384, embedder=None):
         """
         Args:
-            dimension: Vector dimension (default 1536 for OpenAI embeddings)
-            embedder: Optional embedder instance for automatic embedding generation
+            dimension: Vector dimension (default 384 for all-MiniLM-L6-v2)
+            embedder: Optional embedder instance (used by facade, not backends directly)
         """
         self.dimension = dimension
         self.embedder = embedder
@@ -110,6 +110,28 @@ class BaseVectorStore(ABC):
         
         Returns:
             Dict with keys like: total_chunks, total_entities, backend_type
+        """
+        pass
+
+    @abstractmethod
+    def get_indexed_entity_names(self) -> set:
+        """
+        Return the set of entity names currently indexed.
+
+        Used by Brain to detect missing/new entities without direct DB access.
+
+        Returns:
+            Set of entity name strings
+        """
+        pass
+
+    @abstractmethod
+    def delete_entity(self, entity_id: str) -> None:
+        """
+        Remove all chunks belonging to a given entity.
+
+        Args:
+            entity_id: The entity identifier whose chunks should be deleted
         """
         pass
 

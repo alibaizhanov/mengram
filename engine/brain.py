@@ -90,14 +90,10 @@ class MengramBrain:
                 self._reindex_vault()
             elif len(vault_notes) > indexed_entities:
                 # Find which entities are missing
-                indexed_ids = set()
                 try:
-                    rows = self._vector_store.conn.execute(
-                        "SELECT DISTINCT entity_name FROM chunks"
-                    ).fetchall()
-                    indexed_ids = {r[0] for r in rows}
+                    indexed_ids = self._vector_store.get_indexed_entity_names()
                 except Exception:
-                    pass
+                    indexed_ids = set()
                 missing = [f.stem for f in vault_notes if f.stem not in indexed_ids]
                 if missing:
                     print(f"📝 Indexing {len(missing)} new notes...", file=sys.stderr)
@@ -650,9 +646,7 @@ class MengramBrain:
                 if not note:
                     continue
                 entity_id = note.name.lower().replace(" ", "_")
-                self._vector_store.conn.execute(
-                    "DELETE FROM chunks WHERE entity_id = ?", (entity_id,)
-                )
+                self._vector_store.delete_entity(entity_id)
                 for chunk in note.chunks:
                     chunks.append({
                         "chunk_id": f"{entity_id}:{chunk.position}",
