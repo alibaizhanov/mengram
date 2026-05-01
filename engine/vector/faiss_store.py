@@ -78,10 +78,42 @@ class FAISSVectorStore(BaseVectorStore):
             else:
                 self._index.train(vectors.astype(np.float32))
 
+    def _rebuild_excluding(self, chunk_ids_to_remove: set) -> None:
+        """
+        Rebuild the FAISS index keeping every chunk whose id is NOT in
+        ``chunk_ids_to_remove``.  Also updates all internal mappings.
+        """
+        keep_ids = [cid for cid in self._id_to_idx if cid not in chunk_ids_to_remove]
+
+        kept_vectors = []
+        for cid in keep_ids:
+            vec = np.zeros(self.dimension, dtype=np.float32)
+            self._index.reconstruct(self._id_to_idx[cid], vec)
+            kept_vectors.append(vec)
+
+        self._index = self._create_index()
+        self._metadata = {cid: self._metadata[cid] for cid in keep_ids}
+        self._id_to_idx = {}
+        self._idx_to_id = {}
+        self._next_idx = 0
+
+        if kept_vectors:
+            vec_array = np.array(kept_vectors, dtype=np.float32)
+            self._train_if_needed(vec_array)
+            self._index.add(vec_array)
+            for new_idx, cid in enumerate(keep_ids):
+                self._id_to_idx[cid] = new_idx
+                self._idx_to_id[new_idx] = cid
+            self._next_idx = len(keep_ids)
+
     def add_chunk(self, chunk_id: str, entity_id: str, entity_name: str,
                   section: str, content: str, embedding: np.ndarray,
                   position: int = 0) -> None:
-        """Add single chunk with metadata"""
+        """Add single chunk with metadata (upsert — overwrites if chunk_id exists)."""
+        # Enforce upsert semantics: remove old copy if present
+        if chunk_id in self._id_to_idx:
+            self._rebuild_excluding({chunk_id})
+
         vector = self._validate_embedding(embedding)
 
         # Add to FAISS index
@@ -200,9 +232,6 @@ class FAISSVectorStore(BaseVectorStore):
     def delete_entity(self, entity_id: str) -> None:
         """
         Remove all chunks for an entity and rebuild the FAISS index.
-
-        IndexFlatIP supports reconstruct(), so we can recover stored vectors
-        without keeping a separate copy in memory.
         """
         to_remove = {
             cid for cid, m in self._metadata.items()
@@ -210,33 +239,7 @@ class FAISSVectorStore(BaseVectorStore):
         }
         if not to_remove:
             return
-
-        keep_ids = [cid for cid in self._id_to_idx if cid not in to_remove]
-
-        # Reconstruct vectors for the chunks we want to keep
-        kept_vectors = []
-        for cid in keep_ids:
-            idx = self._id_to_idx[cid]
-            vec = np.zeros(self.dimension, dtype=np.float32)
-            self._index.reconstruct(idx, vec)
-            kept_vectors.append(vec)
-
-        # Rebuild index and metadata from scratch
-        self._index = self._create_index()
-        kept_meta = {cid: self._metadata[cid] for cid in keep_ids}
-        self._metadata = kept_meta
-        self._id_to_idx = {}
-        self._idx_to_id = {}
-        self._next_idx = 0
-
-        if kept_vectors:
-            vec_array = np.array(kept_vectors, dtype=np.float32)
-            self._train_if_needed(vec_array)
-            self._index.add(vec_array)
-            for new_idx, cid in enumerate(keep_ids):
-                self._id_to_idx[cid] = new_idx
-                self._idx_to_id[new_idx] = cid
-            self._next_idx = len(keep_ids)
+        self._rebuild_excluding(to_remove)
 
     def close(self) -> None:
         """Clean up FAISS index"""
