@@ -9,13 +9,18 @@ Usage:
     store.add_chunks_batch([{"chunk_id": "a:0", ...}])   # no embedding needed
     results = store.search("my query")                    # text in, SearchResult out
 
-    # FAISS (fast ANN, good for >1K chunks)
+    # FAISS (fast ANN, good for >1K chunks) — install faiss-cpu first
     store = VectorStoreFactory.create("faiss")
 
 Backends:
     - sqlite: SQLite with in-memory caching (default)
-    - faiss: Facebook AI Similarity Search (high performance)
-    - hnsw: Hierarchical Navigable Small World (future)
+    - faiss:  Facebook AI Similarity Search (requires: pip install faiss-cpu)
+    - hnsw:   Hierarchical Navigable Small World (future)
+
+Exception contract:
+    VectorStoreFactory.create() raises:
+    - ValueError:   backend name is completely unknown
+    - ImportError:  backend is known but its optional dependency is not installed
 """
 
 import inspect
@@ -26,11 +31,12 @@ import numpy as np
 from engine.vector.base import BaseVectorStore, SearchResult
 from engine.vector.sqlite_store import SQLiteVectorStore
 
-# Optional: FAISS backend (only if installed)
+# Optional: FAISS backend — requires 'faiss-cpu' to be installed
 try:
+    import faiss  # noqa: F401 — verify faiss is actually importable
     from engine.vector.faiss_store import FAISSVectorStore
     _FAISS_AVAILABLE = True
-except (ImportError, ModuleNotFoundError, NameError):
+except (ImportError, ModuleNotFoundError):
     _FAISS_AVAILABLE = False
 
 
@@ -155,6 +161,14 @@ class VectorStoreFactory:
         backend_type = backend_type.lower()
 
         if backend_type not in cls._backends:
+            # Known optional backends whose dep is simply not installed
+            _OPTIONAL_DEPS = {"faiss": "faiss-cpu", "hnsw": "hnswlib"}
+            if backend_type in _OPTIONAL_DEPS:
+                pkg = _OPTIONAL_DEPS[backend_type]
+                raise ImportError(
+                    f"Backend '{backend_type}' requires {pkg}. "
+                    f"Run: pip install {pkg}"
+                )
             available = ", ".join(cls._backends.keys())
             raise ValueError(
                 f"Unknown backend: '{backend_type}'. "

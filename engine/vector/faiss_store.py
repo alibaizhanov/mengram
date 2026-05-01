@@ -10,9 +10,9 @@ Features:
 - Metadata stored in-memory (FAISS stores only vectors)
 """
 
-import json
+import sys
 import numpy as np
-from typing import Optional, List, Dict
+from typing import Dict
 
 from engine.vector.base import BaseVectorStore, SearchResult
 
@@ -82,17 +82,30 @@ class FAISSVectorStore(BaseVectorStore):
         """
         Rebuild the FAISS index keeping every chunk whose id is NOT in
         ``chunk_ids_to_remove``.  Also updates all internal mappings.
+
+        WARNING: faiss.Index.reconstruct() only works reliably for IndexFlat*
+        variants.  IVF and other compressed indices may raise RuntimeError —
+        in that case the affected vector is skipped with a warning.
         """
         keep_ids = [cid for cid in self._id_to_idx if cid not in chunk_ids_to_remove]
 
         kept_vectors = []
+        surviving_ids = []
         for cid in keep_ids:
             vec = np.zeros(self.dimension, dtype=np.float32)
-            self._index.reconstruct(self._id_to_idx[cid], vec)
-            kept_vectors.append(vec)
+            try:
+                self._index.reconstruct(self._id_to_idx[cid], vec)
+                kept_vectors.append(vec)
+                surviving_ids.append(cid)
+            except RuntimeError:
+                print(
+                    f"   [WARN] reconstruct() failed for chunk '{cid}' "
+                    "(IVF index?); skipping",
+                    file=sys.stderr,
+                )
 
         self._index = self._create_index()
-        self._metadata = {cid: self._metadata[cid] for cid in keep_ids}
+        self._metadata = {cid: self._metadata[cid] for cid in surviving_ids}
         self._id_to_idx = {}
         self._idx_to_id = {}
         self._next_idx = 0
@@ -101,10 +114,10 @@ class FAISSVectorStore(BaseVectorStore):
             vec_array = np.array(kept_vectors, dtype=np.float32)
             self._train_if_needed(vec_array)
             self._index.add(vec_array)
-            for new_idx, cid in enumerate(keep_ids):
+            for new_idx, cid in enumerate(surviving_ids):
                 self._id_to_idx[cid] = new_idx
                 self._idx_to_id[new_idx] = cid
-            self._next_idx = len(keep_ids)
+            self._next_idx = len(surviving_ids)
 
     def add_chunk(self, chunk_id: str, entity_id: str, entity_name: str,
                   section: str, content: str, embedding: np.ndarray,
@@ -134,10 +147,15 @@ class FAISSVectorStore(BaseVectorStore):
         }
         self._next_idx += 1
 
-    def add_chunks_batch(self, chunks: List[dict]) -> None:
-        """Batch-add chunks efficiently"""
+    def add_chunks_batch(self, chunks: list) -> None:
+        """Batch-add chunks efficiently (upsert — removes existing chunk_ids first)"""
         if not chunks:
             return
+
+        # Upsert: rebuild excluding any chunk_ids that already exist in the index
+        existing = {c["chunk_id"] for c in chunks if c["chunk_id"] in self._id_to_idx}
+        if existing:
+            self._rebuild_excluding(existing)
 
         # Collect vectors
         vectors = []
@@ -168,7 +186,7 @@ class FAISSVectorStore(BaseVectorStore):
         print(f"   [OK] Indexed {len(chunks)} chunks (FAISS)")
 
     def search(self, query_embedding: np.ndarray, top_k: int = 5,
-               min_score: float = 0.0) -> List[SearchResult]:
+               min_score: float = 0.0) -> list:
         """Search using FAISS ANN"""
         if self._index.ntotal == 0:
             return []
@@ -203,7 +221,7 @@ class FAISSVectorStore(BaseVectorStore):
 
         return results
 
-    def search_by_entity(self, entity_id: str) -> List[dict]:
+    def search_by_entity(self, entity_id: str) -> list:
         """Get all chunks for entity (brute force — FAISS doesn't support this natively)"""
         results = []
         for chunk_id, meta in self._metadata.items():
@@ -212,6 +230,7 @@ class FAISSVectorStore(BaseVectorStore):
                     "id": chunk_id,
                     **meta,
                 })
+        results.sort(key=lambda r: (r.get("position", 0), r["id"]))
         return results
 
     def stats(self) -> dict:

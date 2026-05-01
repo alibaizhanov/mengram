@@ -7,7 +7,7 @@ This enables swapping backends without changing Brain or retrieval logic.
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Optional, List
+from typing import List
 import numpy as np
 
 

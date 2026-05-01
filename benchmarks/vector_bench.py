@@ -29,7 +29,7 @@ except ImportError:
     print("⚠️  FAISS not installed. Run: pip install faiss-cpu")
 
 
-def generate_vectors(n: int, dim: int = 1536) -> np.ndarray:
+def generate_vectors(n: int, dim: int = 384) -> np.ndarray:
     """Generate random normalized vectors"""
     vectors = np.random.randn(n, dim).astype(np.float32)
     # Normalize
@@ -77,9 +77,8 @@ def benchmark_search(store, query_vectors: np.ndarray, top_k: int = 5) -> dict:
     }
 
 
-def run_benchmark(vector_counts: list = [100, 500, 1000]):
+def run_benchmark(vector_counts: list = [100, 500, 1000], dim: int = 384):
     """Run full benchmark suite"""
-    dim = 1536
     query_count = 100
 
     print("=" * 60)
@@ -132,6 +131,11 @@ def run_benchmark(vector_counts: list = [100, 500, 1000]):
 
 
 if __name__ == "__main__":
-    # Default: test with 100, 500, 1000 vectors
-    # For quick test: [100]
-    run_benchmark(vector_counts=[100, 500, 1000])
+    import argparse
+    parser = argparse.ArgumentParser(description="Vector store benchmark")
+    parser.add_argument(
+        "--dim", type=int, default=384,
+        help="Embedding dimension (default: 384, matches all-MiniLM-L6-v2)",
+    )
+    args = parser.parse_args()
+    run_benchmark(vector_counts=[100, 500, 1000], dim=args.dim)

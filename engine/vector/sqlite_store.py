@@ -5,20 +5,11 @@ Migrates the original VectorStore logic to the pluggable interface.
 Uses SQLite with in-memory caching for fast cosine similarity search.
 """
 
-import json
 import sqlite3
 import numpy as np
 from typing import Optional, List
 
 from engine.vector.base import BaseVectorStore, SearchResult
-
-# Optional embedder (may not be installed in all environments)
-try:
-    from engine.vector.embedder import Embedder
-    _EMBEDDER_AVAILABLE = True
-except ImportError:
-    _EMBEDDER_AVAILABLE = False
-    Embedder = None
 
 
 class SQLiteVectorStore(BaseVectorStore):
@@ -114,17 +105,29 @@ class SQLiteVectorStore(BaseVectorStore):
         # Top-K
         top_indices = np.argsort(scores)[::-1][:top_k]
 
-        results = []
+        # Collect candidate chunk_ids and scores in score order
+        candidates = []
         for idx in top_indices:
             score = float(scores[idx])
             if score < min_score:
                 break
+            candidates.append((self._chunk_ids[idx], score))
 
-            chunk_id = self._chunk_ids[idx]
-            row = self.conn.execute(
-                "SELECT * FROM chunks WHERE id = ?", (chunk_id,)
-            ).fetchone()
+        if not candidates:
+            return []
 
+        # Batch fetch all rows in one query — avoids N+1 per-loop SELECT
+        candidate_ids = [c[0] for c in candidates]
+        placeholders = ",".join("?" * len(candidate_ids))
+        rows = self.conn.execute(
+            f"SELECT * FROM chunks WHERE id IN ({placeholders})",
+            candidate_ids,
+        ).fetchall()
+        row_by_id = {r["id"]: r for r in rows}
+
+        results = []
+        for chunk_id, score in candidates:
+            row = row_by_id.get(chunk_id)
             if row:
                 results.append(SearchResult(
                     chunk_id=row["id"],
