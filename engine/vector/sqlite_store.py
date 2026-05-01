@@ -95,7 +95,7 @@ class SQLiteVectorStore(BaseVectorStore):
         )
         self.conn.commit()
         self._invalidate_cache()
-        print(f"   ✅ Indexed {len(chunks)} chunks (SQLite)")
+        print(f"   [OK] Indexed {len(chunks)} chunks (SQLite)")
 
     def search(self, query_embedding: np.ndarray, top_k: int = 5,
                min_score: float = 0.0) -> List[SearchResult]:

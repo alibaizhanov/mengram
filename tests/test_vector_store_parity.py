@@ -256,7 +256,7 @@ class TestParityStats:
 
 class TestBenchmarkScaffolding:
 
-    @pytest.mark.skip(reason="Benchmark: enable manually with -m benchmark")
+    @pytest.mark.benchmark
     def test_indexing_throughput(self, raw_backend):
         """Index 1 000 chunks; must sustain >10 chunks/s."""
         n = 1_000
@@ -279,7 +279,7 @@ class TestBenchmarkScaffolding:
         print(f"\n[{raw_backend.__class__.__name__}] indexing: {throughput:.0f} chunks/s")
         assert throughput > 10, f"Too slow: {throughput:.1f} chunks/s"
 
-    @pytest.mark.skip(reason="Benchmark: enable manually with -m benchmark")
+    @pytest.mark.benchmark
     def test_search_latency(self, raw_backend):
         """Index 1 000 chunks; 100 queries must average <100 ms each."""
         n = 1_000

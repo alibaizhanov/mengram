@@ -165,7 +165,7 @@ class FAISSVectorStore(BaseVectorStore):
             }
 
         self._next_idx += len(chunks)
-        print(f"   ✅ Indexed {len(chunks)} chunks (FAISS)")
+        print(f"   [OK] Indexed {len(chunks)} chunks (FAISS)")
 
     def search(self, query_embedding: np.ndarray, top_k: int = 5,
                min_score: float = 0.0) -> List[SearchResult]:
