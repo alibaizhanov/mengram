@@ -1,9 +1,8 @@
 """
-Parity tests — Phase 2.
+Parity tests — Phase 1.
 
-Verifies that SQLiteVectorStore and FAISSVectorStore behave identically
-through the BaseVectorStore interface.  All tests are parametrised so
-they run against both backends automatically.
+Verifies that SQLiteVectorStore conforms to the BaseVectorStore ABC.
+All tests run against the sqlite backend (FAISS removed per Phase 1 scope).
 """
 
 import tempfile
@@ -21,11 +20,6 @@ from engine.vector.base import BaseVectorStore, SearchResult
 # ---------------------------------------------------------------------------
 
 _BACKENDS = ["sqlite"]
-try:
-    import faiss  # noqa: F401
-    _BACKENDS.append("faiss")
-except ImportError:
-    pass
 _DIM = 384
 
 
@@ -255,7 +249,7 @@ class TestParityStats:
 
 
 # ---------------------------------------------------------------------------
-# TestBenchmarkScaffolding — disabled, enable manually
+# TestBenchmarkScaffolding - disabled, enable manually
 # ---------------------------------------------------------------------------
 
 
