@@ -8,29 +8,13 @@ Sufficient for vaults up to ~10K notes.
 At scale, can be replaced with FAISS/pgvector.
 """
 
-import json
 import sqlite3
 import numpy as np
-from dataclasses import dataclass
 from typing import Optional
 
 from engine.vector.embedder import Embedder
+from engine.vector.base import SearchResult  # noqa: F401 — re-exported for backward compat
 from engine.parser.markdown_parser import ParsedNote, parse_vault
-
-
-@dataclass
-class SearchResult:
-    """Search result"""
-    chunk_id: str
-    entity_id: str
-    entity_name: str
-    section: str
-    content: str
-    score: float
-
-    def __repr__(self):
-        preview = self.content[:60] + "..." if len(self.content) > 60 else self.content
-        return f"Result({self.score:.3f} | {self.entity_name}/{self.section}: {preview})"
 
 
 class VectorStore:

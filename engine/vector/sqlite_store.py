@@ -20,8 +20,8 @@ class SQLiteVectorStore(BaseVectorStore):
     At scale, switch to FAISS or HNSW backends.
     """
 
-    def __init__(self, db_path: str = ":memory:", embedder=None,
-                 dimension: int = 384):
+    def __init__(self, db_path: str = ":memory:", dimension: int = 384,
+                 embedder=None):
         super().__init__(dimension=dimension, embedder=embedder)
         self.db_path = db_path
         self.conn = sqlite3.connect(db_path)

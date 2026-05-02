@@ -5,7 +5,7 @@ Usage:
     python scripts/bench_vector_store.py
 
 Measures (Phase 1 — SQLite baseline):
-- add_chunk throughput (vectors/sec)
+- add_chunks_batch throughput (vectors/sec)
 - search latency (ms/query)
 - memory usage (MB)
 
@@ -42,19 +42,22 @@ def generate_vectors(n: int, dim: int = 384) -> np.ndarray:
 
 
 def benchmark_add(store, vectors: np.ndarray, entity_ids: list) -> dict:
-    """Benchmark add_chunk throughput."""
+    """Benchmark add_chunks_batch throughput (the typical write path)."""
     n = len(vectors)
+    chunks = [
+        {
+            "chunk_id": f"chunk_{i}",
+            "entity_id": entity_ids[i],
+            "entity_name": f"Entity_{entity_ids[i]}",
+            "section": "default",
+            "content": f"Content {i}",
+            "embedding": vectors[i],
+            "position": i,
+        }
+        for i in range(n)
+    ]
     start = time.perf_counter()
-    for i, vec in enumerate(vectors):
-        store.add_chunk(
-            chunk_id=f"chunk_{i}",
-            entity_id=entity_ids[i],
-            entity_name=f"Entity_{entity_ids[i]}",
-            section="default",
-            content=f"Content {i}",
-            embedding=vec,
-            position=i,
-        )
+    store.add_chunks_batch(chunks)
     elapsed = time.perf_counter() - start
     return {
         "total": n,
