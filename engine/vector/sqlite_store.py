@@ -117,13 +117,19 @@ class SQLiteVectorStore(BaseVectorStore):
             return []
 
         # Batch fetch all rows in one query — avoids N+1 per-loop SELECT
+        # Chunk into batches of 900 to stay under SQLite 999 parameter limit
         candidate_ids = [c[0] for c in candidates]
-        placeholders = ",".join("?" * len(candidate_ids))
-        rows = self.conn.execute(
-            f"SELECT * FROM chunks WHERE id IN ({placeholders})",
-            candidate_ids,
-        ).fetchall()
-        row_by_id = {r["id"]: r for r in rows}
+        row_by_id = {}
+        SQLITE_MAX_PARAMS = 900
+        for i in range(0, len(candidate_ids), SQLITE_MAX_PARAMS):
+            batch = candidate_ids[i:i + SQLITE_MAX_PARAMS]
+            placeholders = ",".join("?" * len(batch))
+            rows = self.conn.execute(
+                f"SELECT * FROM chunks WHERE id IN ({placeholders})",
+                batch,
+            ).fetchall()
+            for r in rows:
+                row_by_id[r["id"]] = r
 
         results = []
         for chunk_id, score in candidates:

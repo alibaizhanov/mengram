@@ -139,11 +139,11 @@ class VectorStoreFactory:
             backend_class = getattr(module, class_name)
             cls._backends[name] = backend_class
             return backend_class
-        except ImportError:
+        except (ImportError, AttributeError) as e:
             raise ImportError(
                 f"Backend '{name}' requires {pkg}. "
                 f"Run: pip install {pkg}"
-            )
+            ) from e
 
     @classmethod
     def create(cls, backend_type: str = None,

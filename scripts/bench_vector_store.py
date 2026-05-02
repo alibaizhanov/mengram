@@ -42,19 +42,21 @@ def generate_vectors(n: int, dim: int = 384) -> np.ndarray:
 
 
 def benchmark_add(store, vectors: np.ndarray, entity_ids: list) -> dict:
-    """Benchmark add_chunk throughput."""
+    """Benchmark add_chunks_batch throughput."""
     n = len(vectors)
-    start = time.perf_counter()
+    chunks = []
     for i, vec in enumerate(vectors):
-        store.add_chunk(
-            chunk_id=f"chunk_{i}",
-            entity_id=entity_ids[i],
-            entity_name=f"Entity_{entity_ids[i]}",
-            section="default",
-            content=f"Content {i}",
-            embedding=vec,
-            position=i,
-        )
+        chunks.append({
+            "chunk_id": f"chunk_{i}",
+            "entity_id": entity_ids[i],
+            "entity_name": f"Entity_{entity_ids[i]}",
+            "section": "default",
+            "content": f"Content {i}",
+            "embedding": vec,
+            "position": i,
+        })
+    start = time.perf_counter()
+    store.add_chunks_batch(chunks)
     elapsed = time.perf_counter() - start
     return {
         "total": n,
@@ -127,36 +129,36 @@ def run_benchmark(vector_counts: list = [100, 1000, 5000, 10000], dim: int = 384
         queries = generate_vectors(query_count, dim)
         
         # Create backend directly (no embedder needed for benchmark)
-        tmpdir = tempfile.mkdtemp()
-        db_path = Path(tmpdir) / "bench.db"
-        store = SQLiteVectorStore(db_path=str(db_path), dimension=dim)
-        
-        # Measure memory before indexing
-        tracemalloc.start()
-        
-        # Benchmark add
-        add_stats = benchmark_add(store, vectors, entity_ids)
-        
-        # Benchmark search
-        search_stats = benchmark_search(store, queries, top_k=10)
-        
-        # Measure recall@10
-        recall = measure_recall_at_k(store, vectors, queries, k=10)
-        
-        # Memory
-        current, peak = tracemalloc.get_traced_memory()
-        tracemalloc.stop()
-        
-        # Stats
-        stats = store.stats()
-        
-        print(f"  Indexing: {add_stats['vectors_per_sec']:,.0f} vec/sec  ({add_stats['time_sec']:.2f}s)")
-        print(f"  Search:   {search_stats['ms_per_query']:.3f} ms/query  ({search_stats['time_sec']:.2f}s total)")
-        print(f"  Recall@10: {recall:.1f}%  (vs brute-force ground truth)")
-        print(f"  Memory:   {peak / 1024 / 1024:.1f} MB peak")
-        print(f"  Chunks:   {stats['total_chunks']:,}")
-        
-        store.close()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "bench.db"
+            store = SQLiteVectorStore(db_path=str(db_path), dimension=dim)
+            
+            # Measure memory before indexing
+            tracemalloc.start()
+            
+            # Benchmark add
+            add_stats = benchmark_add(store, vectors, entity_ids)
+            
+            # Benchmark search
+            search_stats = benchmark_search(store, queries, top_k=10)
+            
+            # Measure recall@10
+            recall = measure_recall_at_k(store, vectors, queries, k=10)
+            
+            # Memory
+            current, peak = tracemalloc.get_traced_memory()
+            tracemalloc.stop()
+            
+            # Stats
+            stats = store.stats()
+            
+            print(f"  Indexing: {add_stats['vectors_per_sec']:,.0f} vec/sec  ({add_stats['time_sec']:.2f}s)")
+            print(f"  Search:   {search_stats['ms_per_query']:.3f} ms/query  ({search_stats['time_sec']:.2f}s total)")
+            print(f"  Recall@10: {recall:.1f}%  (vs brute-force ground truth)")
+            print(f"  Memory:   {peak / 1024 / 1024:.1f} MB peak")
+            print(f"  Chunks:   {stats['total_chunks']:,}")
+            
+            store.close()
         
         print()
     

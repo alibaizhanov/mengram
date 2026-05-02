@@ -18,19 +18,7 @@ from engine.vector.embedder import Embedder
 from engine.parser.markdown_parser import ParsedNote, parse_vault
 
 
-@dataclass
-class SearchResult:
-    """Search result"""
-    chunk_id: str
-    entity_id: str
-    entity_name: str
-    section: str
-    content: str
-    score: float
-
-    def __repr__(self):
-        preview = self.content[:60] + "..." if len(self.content) > 60 else self.content
-        return f"Result({self.score:.3f} | {self.entity_name}/{self.section}: {preview})"
+from engine.vector.base import SearchResult
 
 
 class VectorStore:
