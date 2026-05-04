@@ -2320,18 +2320,24 @@ results = m.search(<span class="c-str">"What does Ali prefer?"</span>)</div>
                         <div class="step-num">2</div>
                         <div>
                             <h4>Find mengram path</h4>
+                            <p style="margin-bottom: 8px;"><strong>macOS / Linux:</strong></p>
                             <div class="code-box">
                                 <button class="copy-btn" onclick="copyCode(this)">Copy</button>
                                 <code>which mengram</code>
                             </div>
-                            <p style="margin-top: 6px;">Copy the output — you'll need it in the next step.</p>
+                            <p style="margin: 10px 0 8px;"><strong>Windows (PowerShell):</strong></p>
+                            <div class="code-box">
+                                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                                <code>(Get-Command mengram).Source</code>
+                            </div>
+                            <p style="margin-top: 6px;">Copy the output — you'll paste it in the next step.</p>
                         </div>
                     </div>
                     <div class="step">
                         <div class="step-num">3</div>
                         <div>
-                            <h4>Add to Claude Desktop config</h4>
-                            <p>Open Settings → Developer → Edit Config, and add:</p>
+                            <h4>Add the MCP config</h4>
+                            <p>Same JSON works for <strong>Claude Desktop, Cursor, Continue, and Windsurf</strong>:</p>
                             <div class="code-box">
                                 <button class="copy-btn" onclick="copyCode(this)">Copy</button>
 <pre>{
@@ -2347,13 +2353,20 @@ results = m.search(<span class="c-str">"What does Ali prefer?"</span>)</div>
   }
 }</pre>
                             </div>
+                            <p style="margin-top: 12px;"><strong>Where to paste:</strong></p>
+                            <ul style="margin: 6px 0 0 20px; line-height: 1.7;">
+                                <li><strong>Claude Desktop:</strong> Settings → Developer → Edit Config</li>
+                                <li><strong>Cursor:</strong> <code>~/.cursor/mcp.json</code> (or Settings → Cursor Settings → MCP)</li>
+                                <li><strong>Continue.dev:</strong> save as <code>.continue/mcpServers/mengram.yaml</code> in your workspace (YAML — see <a href="https://docs.mengram.io/mcp-server" style="color:var(--accent);">docs</a>)</li>
+                                <li><strong>Windsurf:</strong> <code>~/.codeium/windsurf/mcp_config.json</code> (or Settings → Cascade → MCP)</li>
+                            </ul>
                         </div>
                     </div>
                     <div class="step">
                         <div class="step-num">4</div>
                         <div>
-                            <h4>Restart Claude Desktop</h4>
-                            <p>Claude now has persistent memory. It remembers you across all conversations.</p>
+                            <h4>Restart your AI client</h4>
+                            <p>Claude / Cursor / Continue / Windsurf now have persistent memory. They remember you across all conversations.</p>
                         </div>
                     </div>
                 </div>
