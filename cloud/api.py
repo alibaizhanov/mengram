@@ -1823,6 +1823,8 @@ m.add("I love hiking in the mountains")</code></pre>
             ("https://mengram.io/blog/context-engineering-memory", "0.9", "weekly"),
             ("https://mengram.io/blog/claude-managed-agents-memory", "0.9", "weekly"),
             ("https://mengram.io/blog/multi-tenant-mcp-server", "0.9", "weekly"),
+            ("https://mengram.io/blog/multilingual-ai-memory", "0.9", "weekly"),
+            ("https://mengram.io/blog/openai-agent-builder-memory", "0.9", "weekly"),
             # Use cases
             ("https://mengram.io/usecase/customer-support", "0.7", "monthly"),
             ("https://mengram.io/usecase/personal-assistant", "0.7", "monthly"),
@@ -3770,6 +3772,199 @@ Discovery: https://mengram.io/.well-known/mcp</code></pre>
 <p>If you're building an MCP server yourself and want to add multi-tenancy, or if you hit gotchas we missed, open a <a href="https://github.com/alibaizhanov/mengram/discussions">discussion on the repo</a>. The more MCP servers adopt this pattern, the easier it becomes for everyone downstream to build multi-user agents.</p>
 """,
             "related": ["mcp-memory-server-setup", "claude-managed-agents-memory"],
+        },
+        "multilingual-ai-memory": {
+            "slug": "multilingual-ai-memory",
+            "title": "Multilingual AI Memory: How Mengram Retrieves in 23 Languages (and Why English-Only Memory Fails)",
+            "date": "May 4, 2026",
+            "date_iso": "2026-05-04",
+            "read_time": "9",
+            "tags": ["Multilingual", "Embeddings", "Architecture"],
+            "excerpt": "Most AI memory layers — Mem0, Letta, Zep — use OpenAI embeddings. OpenAI embeddings are English-biased. So when your agent's user writes in Russian, Spanish, or Chinese, retrieval quality silently collapses. Here's how we fixed it with Cohere multilingual-v3 — and why \"native multilingual\" is more than translating queries.",
+            "seo_title": "Multilingual AI Memory: 23 Languages, Cross-Lingual Search | Mengram",
+            "seo_description": "Most AI memory tools are English-biased because they use OpenAI embeddings. Mengram uses Cohere multilingual-v3 — equal retrieval quality across 23+ languages, cross-lingual search built in. How and why.",
+            "seo_keywords": "multilingual AI memory, AI memory non-English, cross-lingual retrieval, Cohere multilingual embeddings, AI memory Russian, AI memory Spanish, AI memory Chinese, multilingual LLM memory, agent memory non English",
+            "content_html": """
+<h2>The bug nobody talks about</h2>
+
+<p>Last month, a developer in Mexico opened a support ticket with us. He had built a customer-service agent on top of Mengram for a Spanish-speaking SaaS. Things were working — until they weren't. Customers said something in Spanish; the agent retrieved facts in English from previous chats; relevance scores looked fine on paper but the answers were drifting, sometimes badly.</p>
+
+<p>It wasn't his code. It was the embedding model under the hood — the same model nearly every AI memory layer ships with by default.</p>
+
+<p>OpenAI's <code>text-embedding-3-large</code> is excellent for English. It's mediocre for Russian, Chinese, and Arabic. It's worse than mediocre for cross-lingual search — when your query is in one language and your stored memory is in another. <a href="https://huggingface.co/spaces/mteb/leaderboard">MTEB leaderboard data</a> confirms this: on the MIRACL multilingual benchmark, OpenAI's flagship embeddings score 54.9; Cohere's <code>embed-multilingual-v3</code> scores 67.0 on the same task. That's a 22% relative quality gap on the exact problem AI agents face every day in non-English markets.</p>
+
+<p>Most AI memory layers (Mem0, Letta, Zep, MemGPT) use OpenAI by default. So if you build a memory-enabled agent for users outside the English internet, retrieval quality silently collapses. Customers don't get the right context. The agent looks dumb. You blame the LLM.</p>
+
+<p>It's not the LLM. It's the embedding step that runs <em>before</em> the LLM ever sees the memory.</p>
+
+<h2>What "native multilingual" actually means</h2>
+
+<p>There are three architectures people call "multilingual," only one of which actually works:</p>
+
+<h3>1. Translate-then-embed (broken)</h3>
+<p>Take Russian input → run it through GPT translation → embed the English version → store. At query time: translate query → search English vectors. Two extra LLM calls per operation, latency triples, and translation introduces semantic drift. Compound that across thousands of memories, and search quality is worse than just using a multilingual model directly. Several wrappers do this and call themselves "multilingual." They're not — they're "auto-translating," which is different.</p>
+
+<h3>2. One model per language (broken at scale)</h3>
+<p>Maintain separate vector indexes per language. Detect input language, route to the matching index. This works inside a single language but breaks the moment a user mixes languages in one conversation (which they do constantly — code-switching, English technical terms inside non-English prose, brand names). And cross-lingual search ("query in English, find Russian memories") becomes impossible.</p>
+
+<h3>3. Native multilingual embeddings (the actual answer)</h3>
+<p>One model, one vector space, semantically equivalent text in <em>any</em> language maps to nearby vectors. "I love coffee" in English and "Я люблю кофе" in Russian land within ~0.1 cosine distance. The model was trained from scratch on multilingual text, not retrofitted with translation. This is what Cohere's <code>embed-multilingual-v3</code> does — and it's why we migrated Mengram's entire embedding pipeline to it earlier this year.</p>
+
+<h2>How Mengram does it now</h2>
+
+<p>Every fact, episode, and procedure stored in Mengram gets a 1024-dim vector from <code>cohere.embed-multilingual-v3.0</code>. Same model for the input query. PostgreSQL with pgvector indexes the result. There is no translation step. There are no per-language partitions. There is one vector space, and it speaks 100+ languages — we test against 23 of the most common to set quality SLAs (Russian, Mandarin Chinese, Spanish, Portuguese, French, German, Italian, Polish, Japanese, Korean, Arabic, Hindi, Bengali, Tamil, Turkish, Vietnamese, Thai, Indonesian, Dutch, Hebrew, Greek, Czech, English).</p>
+
+<p>That's the whole feature. There's no language flag in the API. You don't tell Mengram what language your input is in. It just works:</p>
+
+<pre><code># Store a memory in Russian
+m.add([{{"role": "user", "content": "я фронтенд-разработчик в Stripe, переезжаю в Сан-Франциско"}}])
+
+# Search in English — still finds the Russian memory
+results = m.search("Where does the user live?")
+# → returns: "переезжаю в Сан-Франциско" (San Francisco), score 0.84
+
+# Or search in Russian — finds the same fact
+results = m.search("Где живёт пользователь?")
+# → score 0.91 (slightly higher because same-language query is always tighter)
+</code></pre>
+
+<p>Cross-lingual works because in a properly trained multilingual embedding space, the <em>concept</em> of "moving to San Francisco" is encoded the same way regardless of the surface language used to express it. The query and the document don't need to share words. They share meaning.</p>
+
+<h2>What this enables</h2>
+
+<p>The interesting part isn't the benchmark number. It's the use cases that were impossible before:</p>
+
+<h3>Customer service across languages</h3>
+<p>A SaaS based in Berlin has English-, German-, and Turkish-speaking customers. Each customer's history is stored in whatever language they wrote it. When a German customer reaches out and the agent searches for "billing issues," it pulls relevant memories from <em>all</em> their conversations — including the ones in Turkish or English. No language filter, no translation pipeline.</p>
+
+<h3>Code-switching in real conversations</h3>
+<p>Half the world's developers write code-switched: "Я делаю refactor на FastAPI, но <code>SQLAlchemy session</code> теряется." Translate-then-embed pipelines mangle this kind of input badly. Native multilingual embeddings handle it as one continuous semantic stream — exactly the way the writer thinks.</p>
+
+<h3>Multilingual agents without infrastructure</h3>
+<p>Without multilingual memory, building a non-English AI agent means provisioning per-language Pinecone indexes, writing language detection routers, maintaining translation fallbacks, and praying the latencies stay reasonable. With native multilingual memory, you point your agent at one Mengram endpoint and it works for every user, every language, every topic. The infrastructure complexity collapses to zero.</p>
+
+<h3>The non-English long tail</h3>
+<p>About 75% of internet users live outside the English-first AI ecosystem. The vast majority of AI memory tools optimize for the 25%. Mengram is the rare exception that benchmarks <em>against</em> the long tail — Russian, Indonesian, Tamil, Hebrew — and treats English as one of 23 supported languages, not the default.</p>
+
+<h2>The trade-off</h2>
+
+<p>Cohere multilingual embeddings are not free, and they're not always better than OpenAI for English-only workloads. On purely English benchmarks, OpenAI's <code>text-embedding-3-large</code> wins by a small margin. If your agent only ever sees English text, you don't need multilingual.</p>
+
+<p>The moment a single non-English user shows up — or a single English user pastes a Russian quote, a Chinese product name, a Spanish customer review — the math flips. Cohere multilingual handles English well enough (within 2-3% of OpenAI on English MTEB) <em>and</em> dominates on everything else. For a memory layer that has to work across an unknown user population, that's the right trade.</p>
+
+<p>Cohere also charges per token, like OpenAI. Costs are comparable; we measured ~$0.10 per million input tokens on production load.</p>
+
+<h2>Why most memory tools won't switch</h2>
+
+<p>Switching embedding models is not a config change. It's a data migration. Every existing vector in the database was computed with the old model and is incompatible with the new one. You either re-embed everything (expensive, slow, requires zero-downtime dual-write logic) or you partition by model version and route queries (complex, breaks cross-fact relevance).</p>
+
+<p>We did the migration in March of this year — dual-column schema (<code>embedding</code> for OpenAI 1536-dim, <code>embedding_v2</code> for Cohere 1024-dim), background backfill of 81,499 vectors at $0.84 total cost, atomic cutover. Took about a week of careful work. Most memory startups won't do this until enough non-English customers complain to make it a P0. We did it pre-emptively because every customer of ours who wasn't on English support was getting silently mediocre results.</p>
+
+<h2>Try it</h2>
+
+<p>If you're building an agent that touches more than one language — or if you've been blaming your LLM for retrieval failures that are actually embedding failures — try the <a href="/#playground">Mengram playground</a> with non-English input. Add a fact in Spanish or Russian, search in English, see what comes back.</p>
+
+<p>If retrieval quality matters to you and you've been quietly working around a memory layer that doesn't speak your users' languages, you're not alone. Most of our customers come from exactly that frustration. Reach out at <a href="mailto:ali@mengram.io">ali@mengram.io</a> if you want to compare benchmarks on your specific language pair before migrating.</p>
+
+<p>The internet is not English-first anymore. Memory layers should match.</p>
+""",
+            "related": ["semantic-episodic-procedural-memory", "ai-memory-vs-rag", "how-to-add-memory-to-ai-agents"],
+        },
+        "openai-agent-builder-memory": {
+            "slug": "openai-agent-builder-memory",
+            "title": "Add Memory to OpenAI Agent Builder in 2 Minutes (via OpenAPI)",
+            "date": "May 4, 2026",
+            "date_iso": "2026-05-04",
+            "read_time": "5",
+            "tags": ["OpenAI", "Tutorial", "Integration"],
+            "excerpt": "OpenAI Agent Builder gives you a visual canvas for AI agents — tools, knowledge, logic — but no persistent memory between sessions. Here's how to plug Mengram in via OpenAPI in two minutes, including auth, multi-user scoping, and the three tool calls that matter.",
+            "seo_title": "Add Memory to OpenAI Agent Builder via OpenAPI | Mengram",
+            "seo_description": "Step-by-step: import Mengram's OpenAPI spec into OpenAI Agent Builder or a Custom GPT, configure Bearer auth, and give your agent persistent memory in 2 minutes. Works with Custom GPTs and Assistants API too.",
+            "seo_keywords": "openai agent builder memory, custom gpt memory, openai agent persistent memory, agent builder long term memory, custom gpt actions openapi, openai assistants memory, agent builder mengram",
+            "content_html": """
+<h2>The gap in Agent Builder</h2>
+
+<p>OpenAI Agent Builder is a visual canvas for assembling agents — drag in an LLM node, attach tools, wire up knowledge files, set logic branches, publish as a chat widget. It is excellent at the prototyping layer. There's just one thing it doesn't have: <strong>persistent memory between sessions</strong>.</p>
+
+<p>Knowledge files in Agent Builder are static. They're embedded once and queried as a RAG store. They don't grow with the conversation. They don't track what the user told the agent yesterday. They don't capture the workflows the agent figured out three runs ago. The moment a user closes the chat, the agent forgets everything that wasn't already in the knowledge base before launch.</p>
+
+<p>That's a problem if you're building anything beyond a one-shot Q&amp;A. Customer support agents need to remember repeat customers. Sales assistants need to track who's been pitched what. Coaching apps need session continuity. None of that fits in static knowledge files.</p>
+
+<p>Mengram solves it via <a href="/blog/semantic-episodic-procedural-memory">three memory types</a> exposed as a REST API. Agent Builder accepts external tools via OpenAPI imports. So the integration is a paste-and-go.</p>
+
+<h2>The 2-minute setup</h2>
+
+<h3>Step 1 — Get an API key</h3>
+<p>Sign up at <a href="https://mengram.io/#signup">mengram.io</a>. The free tier gets you 40 add operations and 200 searches per month — enough to validate the integration. Copy the key from your dashboard. It looks like <code>om-...</code>.</p>
+
+<h3>Step 2 — Import the OpenAPI spec</h3>
+<p>In Agent Builder, add a <strong>Custom Tool</strong> (or in a Custom GPT, go to <em>Configure → Actions → Create new action</em>). Paste this URL into the schema importer:</p>
+
+<pre><code>https://mengram.io/openapi.json</code></pre>
+
+<p>OpenAI fetches the spec, lists all 66 endpoints, and you pick which ones to expose to your agent. For most use cases, you only need three:</p>
+
+<ul>
+<li><code>POST /v1/add</code> — save a conversation snippet to memory</li>
+<li><code>POST /v1/search/all</code> — unified search across semantic, episodic, and procedural memory</li>
+<li><code>GET /v1/profile</code> — get the cognitive profile (a generated system-prompt summary of everything known about the user)</li>
+</ul>
+
+<p>Skip the dashboard / billing / signup endpoints — your agent doesn't need them.</p>
+
+<h3>Step 3 — Configure authentication</h3>
+<p>Authentication is Bearer token. In Agent Builder's auth panel:</p>
+
+<ul>
+<li><strong>Authentication type:</strong> API Key</li>
+<li><strong>Auth Type:</strong> Bearer</li>
+<li><strong>API Key:</strong> paste your <code>om-...</code> key</li>
+</ul>
+
+<p>That's it. The OpenAPI spec already declares the auth scheme; OpenAI just needs your token to send.</p>
+
+<h3>Step 4 — Wire it into your agent prompt</h3>
+<p>In your agent's system prompt or the LLM node's instructions, tell it when to use memory. Something like:</p>
+
+<pre><code>Before answering the user, call /v1/profile to load their cognitive profile.
+Use /v1/search/all to find relevant past context for any specific question.
+After meaningful exchanges, call /v1/add to save the conversation.
+
+Pass user_id={{customer_id}} on every call to scope memories per end-user.</code></pre>
+
+<p>The <code>{{customer_id}}</code> bit is critical if your agent serves multiple end-users — see our <a href="/blog/multi-tenant-mcp-server">multi-tenant memory post</a> for the design rationale.</p>
+
+<h2>What the agent looks like with memory</h2>
+
+<p>Run the agent. Send a message. Watch the trace — your agent now calls <code>/v1/profile</code> on the first turn (instant personalization), <code>/v1/search/all</code> when the user asks something specific ("what did we decide about the migration last week?"), and <code>/v1/add</code> at the end to persist the new conversation.</p>
+
+<p>Next session, same user, same agent: it remembers. Without you writing any storage code, hosting any database, or maintaining any vector index. The whole memory layer lives behind the OpenAPI import.</p>
+
+<h2>Custom GPTs &amp; Assistants API</h2>
+
+<p>The same OpenAPI URL works in:</p>
+
+<ul>
+<li><strong>Custom GPTs</strong> (chatgpt.com/g/...): <em>Configure → Actions → Create new action → Import from URL</em>. Paste the URL, set Bearer auth, ship it. The GPT gains memory across all conversations with each user.</li>
+<li><strong>Assistants API</strong> (programmatic): generate function-tool definitions from the OpenAPI spec using <a href="https://platform.openai.com/docs/assistants/tools/function-calling">function calling</a>, attach to your assistant. Works the same way as Agent Builder under the hood.</li>
+<li><strong>Any LLM that supports OpenAPI tool import</strong> (Anthropic Claude with tool use, Google Gemini, Mistral) — the spec is provider-agnostic.</li>
+</ul>
+
+<h2>Authenticated public spec</h2>
+
+<p>One nuance worth flagging: <code>https://mengram.io/openapi.json</code> is public — it lists every endpoint, including admin and signup ones. Your agent doesn't need most of those, and you don't want to waste tool slots on them. When importing, pick only the endpoints you actually use. OpenAI's tool selection UI lets you uncheck the rest.</p>
+
+<p>If you want a curated subset (e.g. just <code>/v1/add</code> + <code>/v1/search/all</code> + <code>/v1/profile</code>), let us know — we can publish a slim spec at <code>/openapi-agent.json</code> tailored for agent builders. Email <a href="mailto:ali@mengram.io">ali@mengram.io</a>.</p>
+
+<h2>Why this matters</h2>
+
+<p>OpenAI's marketing pitches Agent Builder as a complete agent platform. It's not — it's the prototyping and orchestration layer. Memory, multi-user state, and long-term continuity have to come from somewhere else. Most builders end up writing their own RAG layer, hosting their own Pinecone, and maintaining their own ingestion pipeline. That's months of infrastructure work for a feature their users won't care about until it's missing.</p>
+
+<p>Importing an OpenAPI spec replaces that with a single URL. Your agent gets persistent memory in two minutes. You ship in days, not months.</p>
+
+<p>Try it on your next prototype. If you build something interesting on top of Mengram + Agent Builder, drop a note in our <a href="https://github.com/alibaizhanov/mengram/discussions">discussions</a> — we showcase community integrations.</p>
+""",
+            "related": ["multi-tenant-mcp-server", "claude-managed-agents-memory", "how-to-add-memory-to-ai-agents"],
         },
     }
 
