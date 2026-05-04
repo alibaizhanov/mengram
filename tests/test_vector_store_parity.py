@@ -2,11 +2,10 @@
 Parity tests — Phase 1.
 
 Verifies that SQLiteVectorStore conforms to the BaseVectorStore ABC.
-All tests run against the sqlite backend (FAISS removed per Phase 1 scope).
+All tests run against the sqlite backend.
 """
 
 import tempfile
-import time
 from pathlib import Path
 
 import numpy as np
@@ -247,60 +246,3 @@ class TestParityStats:
         assert stats["total_chunks"] == 2
         assert stats["total_entities"] == 2
 
-
-# ---------------------------------------------------------------------------
-# TestBenchmarkScaffolding - disabled, enable manually
-# ---------------------------------------------------------------------------
-
-
-class TestBenchmarkScaffolding:
-
-    @pytest.mark.skip(reason="Benchmarks disabled by default")
-    def test_indexing_throughput(self, raw_backend):
-        """Index 1 000 chunks; must sustain >10 chunks/s."""
-        n = 1_000
-        chunks = [
-            {
-                "chunk_id": f"c{i}",
-                "entity_id": f"e{i % 50}",
-                "entity_name": f"Entity {i % 50}",
-                "section": "facts",
-                "content": f"text content number {i}",
-                "embedding": _unit(i),
-                "position": i,
-            }
-            for i in range(n)
-        ]
-        t0 = time.perf_counter()
-        raw_backend.add_chunks_batch(chunks)
-        elapsed = time.perf_counter() - t0
-        throughput = n / elapsed
-        print(f"\n[{raw_backend.__class__.__name__}] indexing: {throughput:.0f} chunks/s")
-        assert throughput > 10, f"Too slow: {throughput:.1f} chunks/s"
-
-    @pytest.mark.skip(reason="Benchmarks disabled by default")
-    def test_search_latency(self, raw_backend):
-        """Index 1 000 chunks; 100 queries must average <100 ms each."""
-        n = 1_000
-        chunks = [
-            {
-                "chunk_id": f"c{i}",
-                "entity_id": f"e{i % 50}",
-                "entity_name": f"Entity {i % 50}",
-                "section": "facts",
-                "content": f"text content number {i}",
-                "embedding": _unit(i),
-                "position": i,
-            }
-            for i in range(n)
-        ]
-        raw_backend.add_chunks_batch(chunks)
-
-        queries = 100
-        query_vecs = [_unit(i + n) for i in range(queries)]
-        t0 = time.perf_counter()
-        for qv in query_vecs:
-            raw_backend.search(qv, top_k=5)
-        avg_ms = (time.perf_counter() - t0) / queries * 1000
-        print(f"\n[{raw_backend.__class__.__name__}] search: {avg_ms:.2f} ms/query")
-        assert avg_ms < 100, f"Too slow: {avg_ms:.2f} ms/query"

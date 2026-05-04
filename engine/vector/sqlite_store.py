@@ -17,7 +17,6 @@ class SQLiteVectorStore(BaseVectorStore):
     SQLite-based vector storage with cosine similarity.
     
     Sufficient for vaults up to ~10K notes.
-    At scale, switch to FAISS or HNSW backends.
     """
 
     def __init__(self, db_path: str = ":memory:", embedder=None,
@@ -86,7 +85,6 @@ class SQLiteVectorStore(BaseVectorStore):
         )
         self.conn.commit()
         self._invalidate_cache()
-        print(f"   [OK] Indexed {len(chunks)} chunks (SQLite)")
 
     def search(self, query_embedding: np.ndarray, top_k: int = 5,
                min_score: float = 0.0) -> List[SearchResult]:

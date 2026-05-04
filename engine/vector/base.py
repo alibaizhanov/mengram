@@ -1,7 +1,7 @@
 """
-BaseVectorStore — Abstract interface for pluggable vector backends.
+BaseVectorStore — Abstract interface for local vector backends.
 
-All vector storage backends (SQLite, FAISS, HNSW, etc.) must implement this interface.
+Vector storage backends must implement this interface.
 This enables swapping backends without changing Brain or retrieval logic.
 """
 
@@ -109,7 +109,7 @@ class BaseVectorStore(ABC):
         Return store statistics.
         
         Returns:
-            Dict with keys like: total_chunks, total_entities, backend_type
+            Dict with store statistics such as total_chunks and total_entities.
         """
         pass
 

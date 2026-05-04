@@ -35,8 +35,7 @@ class MengramBrain:
     """
 
     def __init__(self, vault_path: str, llm_client: Optional[LLMClient] = None,
-                 use_vectors: bool = True, vector_db_path: Optional[str] = None,
-                 vector_backend: str = 'sqlite'):
+                 use_vectors: bool = True, vector_db_path: Optional[str] = None):
         self.vault_path = vault_path
         self.vault_manager = VaultManager(vault_path)
         self.llm_client = llm_client or MockLLMClient()
@@ -49,7 +48,6 @@ class MengramBrain:
         # Vector Store — lazy loading
         self._vector_store = None
         self._vector_db_path = vector_db_path or str(Path(vault_path) / ".vectors.db")
-        self._vector_backend = vector_backend
 
     @property
     def graph(self) -> KnowledgeGraph:
@@ -64,37 +62,19 @@ class MengramBrain:
         return self._vector_store
 
     def _init_vector_store(self):
-        """Initialize vector store with configurable backend"""
+        """Initialize vector store."""
         try:
             from engine.vector import VectorStoreFactory
             from engine.vector.embedder import Embedder
 
-            print("[OK] Initializing semantic search...", file=sys.stderr)
+            print("🧠 Initializing semantic search...", file=sys.stderr)
             embedder = Embedder()
 
-            backend_type = self._vector_backend
-            try:
-                self._vector_store = VectorStoreFactory.create(
-                    backend_type,
-                    db_path=self._vector_db_path,
-                    embedder=embedder,
-                )
-            except (ValueError, ImportError) as backend_err:
-                if backend_type != "sqlite":
-                    print(
-                        f"   [WARN] Backend '{backend_type}' unavailable ({backend_err}),"
-                        " falling back to sqlite",
-                        file=sys.stderr,
-                    )
-                    self._vector_store = VectorStoreFactory.create(
-                        "sqlite",
-                        db_path=self._vector_db_path,
-                        embedder=embedder,
-                    )
-                    backend_type = "sqlite"
-                else:
-                    raise
-            print(f"   [OK] Using {backend_type} backend", file=sys.stderr)
+            self._vector_store = VectorStoreFactory.create(
+                "sqlite",
+                db_path=self._vector_db_path,
+                embedder=embedder,
+            )
 
             # Auto-sync: index only new/missing entities
             stats = self._vector_store.stats()
@@ -121,8 +101,9 @@ class MengramBrain:
             else:
                 print(f"✅ Semantic search ready ({stats['total_chunks']} chunks)", file=sys.stderr)
 
-        except (ImportError, ValueError) as e:
-            print(f"[WARN] Semantic search backend unavailable: {e}", file=sys.stderr)
+        except ImportError as e:
+            print(f"⚠️  sentence-transformers not installed: {e}", file=sys.stderr)
+            print("   pip install sentence-transformers", file=sys.stderr)
             self.use_vectors = False
             self._vector_store = None
 
