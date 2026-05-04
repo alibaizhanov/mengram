@@ -72,6 +72,11 @@ class OpenAIClient(LLMClient):
         self.client = OpenAI(api_key=api_key)
         self.model = model
 
+    def _is_reasoning_model(self) -> bool:
+        """gpt-5.x and o1/o3 models accept reasoning_effort and ignore temperature."""
+        m = (self.model or "").lower()
+        return m.startswith("gpt-5") or m.startswith("o1") or m.startswith("o3")
+
     def complete(self, prompt: str, system: str = "", response_format=None) -> str:
         kwargs = dict(
             model=self.model,
@@ -79,8 +84,11 @@ class OpenAIClient(LLMClient):
                 {"role": "system", "content": system or "You are a knowledge extraction assistant."},
                 {"role": "user", "content": prompt},
             ],
-            temperature=0.2,
         )
+        if self._is_reasoning_model():
+            kwargs["reasoning_effort"] = "low"  # ~32% cheaper, ~90% entity overlap vs medium
+        else:
+            kwargs["temperature"] = 0.2
         if response_format:
             kwargs["response_format"] = response_format
         response = self.client.chat.completions.create(**kwargs)
@@ -89,10 +97,10 @@ class OpenAIClient(LLMClient):
     def chat(self, messages: list[dict], system: str = "") -> str:
         msgs = [{"role": "system", "content": system or "You are a helpful assistant."}]
         msgs.extend(messages)
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=msgs,
-        )
+        kwargs = dict(model=self.model, messages=msgs)
+        if self._is_reasoning_model():
+            kwargs["reasoning_effort"] = "low"
+        response = self.client.chat.completions.create(**kwargs)
         return response.choices[0].message.content
 
 
