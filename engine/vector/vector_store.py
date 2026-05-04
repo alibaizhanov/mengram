@@ -10,7 +10,7 @@ Sufficient for vaults up to ~10K notes.
 from typing import Optional, TYPE_CHECKING
 
 from engine.parser.markdown_parser import parse_vault
-from engine.vector.base import SearchResult
+from engine.vector.base import BaseVectorStore, SearchResult
 from engine.vector.sqlite_store import SQLiteVectorStore
 
 if TYPE_CHECKING:
@@ -20,13 +20,14 @@ if TYPE_CHECKING:
 class VectorStore:
     """SQLite-based Vector Store with cosine similarity search."""
 
-    def __init__(self, db_path: str = ":memory:", embedder: Optional["Embedder"] = None):
+    def __init__(self, db_path: str = ":memory:", embedder: Optional["Embedder"] = None,
+                 backend: Optional[BaseVectorStore] = None):
         if embedder is None:
             from engine.vector.embedder import Embedder
             embedder = Embedder()
         self.db_path = db_path
         self.embedder = embedder
-        self._backend = SQLiteVectorStore(db_path=db_path)
+        self._backend = backend if backend is not None else SQLiteVectorStore(db_path=db_path)
 
     def add_chunk(self, chunk_id: str, entity_id: str, entity_name: str,
                   section: str, content: str, position: int = 0):

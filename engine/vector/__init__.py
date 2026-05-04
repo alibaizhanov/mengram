@@ -25,6 +25,8 @@ class VectorStoreFactory:
         Create a text-first VectorStore facade.
 
         Phase 1 intentionally exposes only the SQLite backend.
+        kwargs (e.g. db_path, dimension) are forwarded to the backend constructor;
+        unrecognised keys are silently dropped to keep call sites forward-compatible.
         """
         backend_type = (backend_type or "sqlite").lower()
         if backend_type not in cls._backends:
@@ -34,9 +36,17 @@ class VectorStoreFactory:
                 f"Available: {available}"
             )
 
-        valid_params = inspect.signature(VectorStore.__init__).parameters
-        filtered = {k: v for k, v in kwargs.items() if k in valid_params}
-        return VectorStore(embedder=embedder, **filtered)
+        # Forward only the kwargs the chosen backend actually accepts
+        backend_class = cls._backends[backend_type]
+        valid_backend_params = inspect.signature(backend_class.__init__).parameters
+        backend_kwargs = {k: v for k, v in kwargs.items() if k in valid_backend_params}
+        backend = backend_class(**backend_kwargs)
+
+        if embedder is None:
+            from engine.vector.embedder import Embedder
+            embedder = Embedder()
+
+        return VectorStore(embedder=embedder, backend=backend)
 
     @classmethod
     def available_backends(cls) -> list:
