@@ -1854,6 +1854,7 @@ m.add("I love hiking in the mountains")</code></pre>
             ("https://mengram.io/blog/multi-tenant-mcp-server", "0.9", "weekly"),
             ("https://mengram.io/blog/multilingual-ai-memory", "0.9", "weekly"),
             ("https://mengram.io/blog/openai-agent-builder-memory", "0.9", "weekly"),
+            ("https://mengram.io/blog/ai-agent-memory-patterns", "0.9", "weekly"),
             # Use cases
             ("https://mengram.io/usecase/customer-support", "0.7", "monthly"),
             ("https://mengram.io/usecase/personal-assistant", "0.7", "monthly"),
@@ -3994,6 +3995,170 @@ Pass user_id={{customer_id}} on every call to scope memories per end-user.</code
 <p>Try it on your next prototype. If you build something interesting on top of Mengram + Agent Builder, drop a note in our <a href="https://github.com/alibaizhanov/mengram/discussions">discussions</a> — we showcase community integrations.</p>
 """,
             "related": ["multi-tenant-mcp-server", "claude-managed-agents-memory", "how-to-add-memory-to-ai-agents"],
+        },
+        "ai-agent-memory-patterns": {
+            "slug": "ai-agent-memory-patterns",
+            "title": "5 Patterns We See in Production AI Agent Memory (And How to Build Them)",
+            "date": "May 6, 2026",
+            "date_iso": "2026-05-06",
+            "read_time": "10",
+            "tags": ["Patterns", "Architecture", "Use Cases"],
+            "excerpt": "Most AI memory tutorials stop at \"add fact, retrieve fact.\" Real production agents use memory in shapes that don't show up in the docs — Daily Briefs that run on cron, multi-tenant SaaS that scope per end-user, knowledge work that has nothing to do with code. Here are five patterns we see across live agents, with the architecture for each.",
+            "seo_title": "5 Patterns in Production AI Agent Memory | Mengram",
+            "seo_description": "Real shapes of AI agent memory in production: cron-driven Daily Briefs, multi-tenant SaaS, non-developer knowledge work, cloud infra automation, personal dashboards. Architecture and code for each.",
+            "seo_keywords": "AI agent memory patterns, production AI memory, agent design patterns, persistent memory agents, daily brief AI agent, multi-tenant agent memory, cron AI agent, AI memory architecture",
+            "content_html": """
+<h2>Why patterns, not features</h2>
+
+<p>If you read AI memory documentation — ours, Mem0's, Letta's, Zep's — it reads like a SDK manual: <code>add()</code>, <code>search()</code>, <code>get_profile()</code>. Useful, but it doesn't tell you what people actually build with these primitives.</p>
+
+<p>Operating Mengram for the past year has given us a vantage point that no documentation can: we see the <em>shapes</em> agents take in production. The same primitives compose into wildly different products. Some are obvious (a chatbot that remembers your name). Some are not (an autonomous workflow that runs every morning at 10 AM, checks an external file, and acts only if conditions changed since yesterday).</p>
+
+<p>This post catalogs five patterns we keep seeing. They overlap, they evolve, and most production agents combine two or three. If you're starting an agent project, picking the right pattern from day one will save you from rebuilding storage architecture in month four.</p>
+
+<h2>Pattern 1: The Daily Brief</h2>
+
+<p><strong>What it looks like:</strong> An agent that runs on a schedule (cron, GitHub Actions, a hosted scheduler), pulls fresh information from external sources, compares against memory, and emits a digest only if something changed. Common variants: morning news brief, daily KPI report, dependency update summary, security alert digest.</p>
+
+<p><strong>Why memory matters:</strong> Without persistence, every run starts blind. The agent re-summarizes the same article you saw yesterday. It re-reports the same alert. It can't say "this is new since last time" because it has no last time.</p>
+
+<p><strong>Architecture:</strong></p>
+
+<pre><code>cron → fetch sources → search memory ("what did I report yesterday?")
+     → diff vs memory → if delta > threshold: emit brief → save brief to memory</code></pre>
+
+<p>The <code>search memory</code> step is where Mengram earns its keep. You're not searching documents — you're searching <em>your own past output</em>. Episodic memory is the natural fit:</p>
+
+<pre><code><span class="c-kw">from</span> <span class="c-fn">mengram</span> <span class="c-kw">import</span> Mengram
+
+m = Mengram(api_key=<span class="c-str">"om-..."</span>)
+
+<span class="c-cmt"># Run at 10:00 AM</span>
+yesterday = m.search_all(<span class="c-str">"morning brief topics covered yesterday"</span>, top_k=10)
+fresh_topics = fetch_news()
+new_only = [t <span class="c-kw">for</span> t <span class="c-kw">in</span> fresh_topics <span class="c-kw">if not</span> any(t.id <span class="c-kw">in</span> r.memory <span class="c-kw">for</span> r <span class="c-kw">in</span> yesterday.episodes)]
+
+<span class="c-kw">if</span> new_only:
+    brief = generate_brief(new_only)
+    send_email(brief)
+    m.add([{{<span class="c-str">"role"</span>: <span class="c-str">"user"</span>, <span class="c-str">"content"</span>: <span class="c-str">f"Brief covered: {{[t.id for t in new_only]}}"</span>}}])</code></pre>
+
+<p>The agent's value compounds with use. By month three, the brief deduplicates against three months of past coverage automatically.</p>
+
+<h2>Pattern 2: Multi-Tenant SaaS Memory</h2>
+
+<p><strong>What it looks like:</strong> A product where each end-user has their own memory scope, but the application itself uses a single Mengram API key. Examples: customer support copilots, AI tutors, sales assistants, personalized coaches.</p>
+
+<p><strong>Why memory matters:</strong> Without per-user isolation, Alice's conversation history bleeds into Bob's. Search returns the wrong context. The agent calls Alice "Bob" because Bob's name appears in higher-frequency memory. Trust collapses.</p>
+
+<p><strong>Architecture:</strong> pass <code>user_id</code> on every memory operation. One API key, infinite isolated memory scopes:</p>
+
+<pre><code><span class="c-cmt"># In your request handler, derive user_id from auth — never from LLM</span>
+<span class="c-kw">def</span> handle_message(end_user_id, message):
+    profile = m.profile(user_id=end_user_id)
+    history = m.search_all(message, user_id=end_user_id, top_k=5)
+    response = llm.chat([
+        {{<span class="c-str">"role"</span>: <span class="c-str">"system"</span>, <span class="c-str">"content"</span>: profile}},
+        *[{{<span class="c-str">"role"</span>: <span class="c-str">"system"</span>, <span class="c-str">"content"</span>: r.memory}} <span class="c-kw">for</span> r <span class="c-kw">in</span> history],
+        {{<span class="c-str">"role"</span>: <span class="c-str">"user"</span>, <span class="c-str">"content"</span>: message}},
+    ])
+    m.add([
+        {{<span class="c-str">"role"</span>: <span class="c-str">"user"</span>, <span class="c-str">"content"</span>: message}},
+        {{<span class="c-str">"role"</span>: <span class="c-str">"assistant"</span>, <span class="c-str">"content"</span>: response}},
+    ], user_id=end_user_id)
+    <span class="c-kw">return</span> response</code></pre>
+
+<p>The deep design rationale lives in our <a href="/blog/multi-tenant-mcp-server">multi-tenant MCP server</a> post. The takeaway: never let the LLM choose <code>user_id</code> — always derive it from your auth layer. Anything else is a data leak waiting to happen.</p>
+
+<h2>Pattern 3: Non-Developer Knowledge Work</h2>
+
+<p><strong>What it looks like:</strong> A workflow that has nothing to do with code: drafting briefs, reviewing documents for sensitive language, cross-referencing meeting notes, organizing a coalition's working groups. The user is a researcher, organizer, lawyer, journalist — not an engineer.</p>
+
+<p><strong>Why memory matters:</strong> Knowledge work is fundamentally about <em>connecting current input to remembered prior context</em>. "We discussed this in the meeting two weeks ago" is the operative phrase. Without persistence, the AI is reduced to a souped-up Ctrl+F.</p>
+
+<p><strong>Architecture:</strong> the agent here is usually a Claude Desktop / Cursor / Custom GPT setup with Mengram as MCP server. The user types in natural language, the agent recalls past context, drafts revisions, flags inconsistencies. No custom code:</p>
+
+<pre><code>{{
+  <span class="c-str">"mcpServers"</span>: {{
+    <span class="c-str">"mengram"</span>: {{
+      <span class="c-str">"command"</span>: <span class="c-str">"/path/to/mengram"</span>,
+      <span class="c-str">"args"</span>: [<span class="c-str">"server"</span>, <span class="c-str">"--cloud"</span>],
+      <span class="c-str">"env"</span>: {{ <span class="c-str">"MENGRAM_API_KEY"</span>: <span class="c-str">"om-..."</span> }}
+    }}
+  }}
+}}</code></pre>
+
+<p>The interesting wrinkle: knowledge workers structure memory differently from developers. Where a developer entity might be <code>"AWS Lambda"</code> with facts about config and limits, a knowledge worker's entity is <code>"Partner Working Group"</code> with facts about who attended, what was decided, and which document captured the outcome. Same memory primitives, vastly different shape.</p>
+
+<p>Procedural memory shows up here too — recurring workflows like "draft a coalition brief, route to legal review, scrub for leak-risk language." The procedure evolves over time as the workflow tightens.</p>
+
+<h2>Pattern 4: Cloud Infrastructure Automation</h2>
+
+<p><strong>What it looks like:</strong> An agent that manages a sprawl of cloud resources — AWS roles, DNS records, certificates, billing alerts, deployment pipelines. The user describes what they want in natural language; the agent recalls the existing state, calls the right APIs, and updates memory with the change.</p>
+
+<p><strong>Why memory matters:</strong> Cloud accounts accumulate state at a rate humans cannot track. By month two there are 80+ IAM roles, 200+ DNS records, dozens of certificates. Without memory, every change is a fresh archaeology dig.</p>
+
+<p><strong>Architecture:</strong> entities representing cloud resources, with facts updated on every <code>describe-*</code> API call. Procedures capturing repeatable workflows ("monthly billing report upload," "rotate IAM keys").</p>
+
+<pre><code><span class="c-cmt"># When user asks "what AWS Lambda functions do we have?"</span>
+results = m.search_all(<span class="c-str">"AWS Lambda functions"</span>, type_filter=<span class="c-str">"technology"</span>)
+
+<span class="c-cmt"># When user asks "rotate keys for staging" — recall the procedure</span>
+procedures = m.search_all(<span class="c-str">"rotate keys staging"</span>, type=<span class="c-str">"procedural"</span>)
+<span class="c-cmt"># Agent now knows the exact 6-step workflow it ran last time</span></code></pre>
+
+<p>Procedural memory is the load-bearing piece here. Every successful infra workflow gets captured as a procedure with steps. When a step fails next time, the procedure auto-evolves. The agent doesn't just know <em>what to do</em> — it knows <em>what worked last time and what didn't</em>.</p>
+
+<h2>Pattern 5: Personal Life Dashboard</h2>
+
+<p><strong>What it looks like:</strong> An AI assistant that knows your routines, relationships, projects, preferences — and uses that knowledge to surface what matters. Daily check-ins, reminders synthesized from past intent, smart triggers when something contradicts what was recorded.</p>
+
+<p><strong>Why memory matters:</strong> This is the original "personal AI" promise. Without long-term memory it's a chatbot that forgets your spouse's name between sessions.</p>
+
+<p><strong>Architecture:</strong> entities for people in your life, your projects, your devices, your preferences. Episodes for events. Cognitive Profile for instant personalization on every request:</p>
+
+<pre><code>profile = m.profile()
+<span class="c-cmt"># Returns a system-prompt-ready summary like:</span>
+<span class="c-cmt"># "User is a backend engineer at Stripe, lives in SF, has a partner Sarah and a cat Mochi.</span>
+<span class="c-cmt">#  Working on the migration from Airflow to Prefect 3 (deadline May 20). Mood lately:</span>
+<span class="c-cmt">#  productive but anxious about the move."</span>
+
+response = llm.chat([
+    {{<span class="c-str">"role"</span>: <span class="c-str">"system"</span>, <span class="c-str">"content"</span>: profile}},
+    *messages,
+])</code></pre>
+
+<p>The trap with this pattern is over-collection. Memory grows fast — a few weeks in, search results dilute with irrelevant history. The fix is decay (Mengram weights memories with Ebbinghaus decay) plus periodic curator passes that consolidate or archive stale facts.</p>
+
+<h2>How patterns combine</h2>
+
+<p>Real production agents are usually two or three patterns stacked:</p>
+
+<ul>
+<li>A <strong>Daily Brief + Personal Life Dashboard</strong> — your morning agent that already knows what you care about</li>
+<li>A <strong>Multi-Tenant SaaS + Cloud Infra Automation</strong> — an internal tool where each engineer has their own memory of the AWS resources they own</li>
+<li>A <strong>Non-Developer Knowledge Work + Multi-Tenant SaaS</strong> — a coalition platform where each working group has its own scoped memory</li>
+</ul>
+
+<p>The mistake we see most often: starting with the wrong primary pattern. Builders start with "I'll add memory to my chatbot" (a chatbot pattern), but what they actually need is the Daily Brief pattern — where memory is the diff against past output, not the conversation history.</p>
+
+<p>Pick the pattern that matches your <em>workflow shape</em>, not your <em>interface shape</em>.</p>
+
+<h2>What to do next</h2>
+
+<p>If one of these patterns matched your project, the architecture above maps directly onto Mengram's primitives. The <a href="/blog/semantic-episodic-procedural-memory">three memory types</a> cover every shape we've shown:</p>
+
+<ul>
+<li>Semantic (entities + facts) — Patterns 2, 3, 5</li>
+<li>Episodic (events + outcomes) — Patterns 1, 5</li>
+<li>Procedural (workflows that evolve) — Patterns 1, 4</li>
+</ul>
+
+<p>If you're not sure which pattern fits, the simplest test is: <em>what does your agent need to remember between sessions?</em> If you can't answer in one sentence, you're probably trying to combine too many patterns at once. Start with one. Memory is composable — you can always add another layer.</p>
+
+<p>And if you're building something that doesn't fit any of these, we want to hear about it — open a discussion on <a href="https://github.com/alibaizhanov/mengram/discussions">our repo</a>. The pattern catalog grows from real builds.</p>
+""",
+            "related": ["semantic-episodic-procedural-memory", "multi-tenant-mcp-server", "how-to-add-memory-to-ai-agents"],
         },
     }
 
