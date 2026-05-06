@@ -1468,25 +1468,74 @@ class CloudStore:
             )
             return cur.fetchone() is not None
 
+    # Drip sequence — each step requires the previous step to have been sent.
+    # Prevents sending 24h/72h/7d in a single cron burst when fixing bugs that
+    # caused stale drip_emails records (e.g. the api_key.last_used_at IS NULL
+    # bug fixed 2026-05-06).
+    _DRIP_PREREQ = {
+        "completed_24h": None,
+        "completed_72h": "completed_24h",
+        "completed_7d":  "completed_72h",
+    }
+
     def get_inactive_completed_signups(self, hours: int, drip_type: str) -> list:
         """Find completed signups with no API activity after N hours.
-        Only considers users who signed up within the last 30 days."""
+        Only considers users who signed up within the last 30 days.
+
+        IMPORTANT: checks user-level activity via usage_log, not api_key.last_used_at.
+        Old query joined api_keys WHERE last_used_at IS NULL — broke when user rotated
+        keys (new key has NULL last_used_at even if user is heavily active). Caused
+        spurious "completed_24h/72h/7d" emails to active paying customers right after
+        key rotation (e.g., Ben Hartley got 3 drip emails in 2 seconds on April 9
+        moments after creating a fresh key). Fixed: check usage_log directly.
+
+        Also enforces drip sequencing — completed_72h only fires if completed_24h
+        was already sent; completed_7d only if completed_72h was sent. Without this
+        a single cron iteration can send all three to one user."""
         self.ensure_drip_emails_table()
+        prereq = self._DRIP_PREREQ.get(drip_type)
         with self._cursor(dict_cursor=True) as cur:
-            cur.execute(
-                """SELECT u.id, u.email
-                   FROM users u
-                   JOIN api_keys ak ON ak.user_id = u.id
-                   WHERE u.created_at < NOW() - make_interval(hours => %s)
-                     AND u.created_at > NOW() - INTERVAL '30 days'
-                     AND ak.last_used_at IS NULL
-                     AND ak.is_active = TRUE
-                     AND NOT EXISTS (
-                         SELECT 1 FROM drip_emails de
-                         WHERE de.email = u.email AND de.drip_type = %s
-                     )""",
-                (hours, drip_type)
-            )
+            if prereq:
+                # 12-hour gate ensures prereq was sent in a *previous* cron run,
+                # not the current one — prevents burst-sending all 3 drips in
+                # one iteration after the bug fix backlog clears.
+                cur.execute(
+                    """SELECT DISTINCT u.id, u.email
+                       FROM users u
+                       WHERE u.created_at < NOW() - make_interval(hours => %s)
+                         AND u.created_at > NOW() - INTERVAL '30 days'
+                         AND NOT EXISTS (
+                             SELECT 1 FROM usage_log ul
+                             WHERE ul.user_id = u.id
+                         )
+                         AND NOT EXISTS (
+                             SELECT 1 FROM drip_emails de
+                             WHERE de.email = u.email AND de.drip_type = %s
+                         )
+                         AND EXISTS (
+                             SELECT 1 FROM drip_emails de2
+                             WHERE de2.email = u.email
+                               AND de2.drip_type = %s
+                               AND de2.sent_at < NOW() - INTERVAL '12 hours'
+                         )""",
+                    (hours, drip_type, prereq)
+                )
+            else:
+                cur.execute(
+                    """SELECT DISTINCT u.id, u.email
+                       FROM users u
+                       WHERE u.created_at < NOW() - make_interval(hours => %s)
+                         AND u.created_at > NOW() - INTERVAL '30 days'
+                         AND NOT EXISTS (
+                             SELECT 1 FROM usage_log ul
+                             WHERE ul.user_id = u.id
+                         )
+                         AND NOT EXISTS (
+                             SELECT 1 FROM drip_emails de
+                             WHERE de.email = u.email AND de.drip_type = %s
+                         )""",
+                    (hours, drip_type)
+                )
             return [{"id": str(r["id"]), "email": r["email"]} for r in cur.fetchall()]
 
     def get_incomplete_signups_for_drip(self, hours: int, drip_type: str) -> list:

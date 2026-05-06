@@ -887,6 +887,22 @@ Be strict — only include entities that directly answer or relate to the query.
         now = datetime.datetime.now(datetime.timezone.utc)
         drip_type = f"quota_{action}_{now.strftime('%Y-%m')}"
 
+        # Re-verify plan from DB (bypass cache) — caller's `plan` may be stale if user
+        # upgraded between auth() and the quota trigger. Avoids sending free-tier
+        # quota emails to paying customers (saw with Ben Hartley on April 2: got
+        # quota_search at 1% of Growth limit because ctx.plan was cached as "free").
+        try:
+            store.cache.invalidate(f"sub:{user_id}")
+            fresh_sub = store.get_subscription(user_id)
+            fresh_plan = fresh_sub.get("plan", "free") if fresh_sub else "free"
+            if fresh_plan != plan and fresh_plan not in ("free",):
+                logger.warning(
+                    f"🛑 Suppressed {drip_type} for {user_id[:8]} — caller plan={plan}, fresh plan={fresh_plan}"
+                )
+                return
+        except Exception as e:
+            logger.warning(f"Quota email plan re-check failed for {user_id[:8]}: {e}")
+
         if not store.try_record_drip(email, drip_type, user_id):
             return  # already sent this month
 
@@ -963,6 +979,19 @@ Be strict — only include entities that directly answer or relate to the query.
         """Send one-time email when user hits 80% of quota. Deduped monthly."""
         now = datetime.datetime.now(datetime.timezone.utc)
         drip_type = f"quota_warning_{action}_{now.strftime('%Y-%m')}"
+
+        # Same defensive plan re-check as _send_quota_email — see that function for context.
+        try:
+            store.cache.invalidate(f"sub:{user_id}")
+            fresh_sub = store.get_subscription(user_id)
+            fresh_plan = fresh_sub.get("plan", "free") if fresh_sub else "free"
+            if fresh_plan != plan and fresh_plan not in ("free",):
+                logger.warning(
+                    f"🛑 Suppressed {drip_type} for {user_id[:8]} — caller plan={plan}, fresh plan={fresh_plan}"
+                )
+                return
+        except Exception as e:
+            logger.warning(f"Quota warning plan re-check failed for {user_id[:8]}: {e}")
 
         if not store.try_record_drip(email, drip_type, user_id):
             return  # already sent this month
