@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/alibaizhanov-mengram-badge.png)](https://mseep.ai/app/alibaizhanov-mengram)
+
 <div align="center">
 
 <picture>
