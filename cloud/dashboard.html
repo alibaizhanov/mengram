@@ -1114,6 +1114,7 @@
 
         <div class="tab-content" id="tab-overview">
             <div class="page-header"><h2>Intelligence Overview</h2></div>
+            <div id="health-widget" style="margin-bottom:24px;"></div>
             <div id="intel-box"></div>
         </div>
 
@@ -2464,9 +2465,57 @@ async function loadAgentHistory() {
         box.innerHTML = html;
     } catch(e) { box.innerHTML = ''; }
 }
+async function loadMemoryHealth() {
+    const box = document.getElementById('health-widget');
+    if (!box) return;
+    try {
+        const res = await fetch(`${API}/v1/health/retrieval`, { headers: H() });
+        if (res.status === 404) {
+            box.innerHTML = `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:18px 22px;">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+                    <span style="width:8px;height:8px;border-radius:50%;background:var(--text-3);"></span>
+                    <strong style="font-size:14px;">Memory Health</strong>
+                    <span style="font-size:12px;color:var(--text-3);">Not enough data yet</span>
+                </div>
+                <p style="font-size:13px;color:var(--text-3);margin:6px 0 0;line-height:1.5;">Run at least 5 searches in the next 24 hours and we'll start scoring your retrieval quality. Updates every 6h.</p>
+            </div>`;
+            return;
+        }
+        if (!res.ok) { box.innerHTML = ''; return; }
+        const h = await res.json();
+        const status = h.overall_status || 'unknown';
+        const colors = {healthy:'var(--green)', degraded:'#fbbf24', critical:'var(--red)'};
+        const labels = {healthy:'Healthy', degraded:'Degraded', critical:'Critical'};
+        const dot = colors[status] || 'var(--text-3)';
+        const d = h.details || {};
+        const recs = (h.recommendations || []).slice(0, 3);
+        const mean = d.mean_score !== undefined ? d.mean_score.toFixed(3) : '—';
+        const langs = (d.lang_breakdown || []).slice(0, 6);
+        box.innerHTML = `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:18px 22px;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+                <span style="width:10px;height:10px;border-radius:50%;background:${dot};box-shadow:0 0 8px ${dot};"></span>
+                <strong style="font-size:14px;">Memory Health — ${labels[status] || status}</strong>
+                <span style="font-size:11px;color:var(--text-3);margin-left:auto;">Updated every 6h</span>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;font-size:12px;color:var(--text-2);margin-bottom:14px;">
+                <div><div style="color:var(--text-3);font-size:11px;margin-bottom:2px;">Mean relevance</div><div style="font-size:18px;font-weight:600;color:var(--text);">${mean}</div></div>
+                <div><div style="color:var(--text-3);font-size:11px;margin-bottom:2px;">Searches (24h)</div><div style="font-size:18px;font-weight:600;color:var(--text);">${d.searches ?? '—'}</div></div>
+                <div><div style="color:var(--text-3);font-size:11px;margin-bottom:2px;">Low-quality</div><div style="font-size:18px;font-weight:600;color:${(d.low_quality_count||0) > 0 ? '#fbbf24' : 'var(--text)'};">${d.low_quality_count ?? 0}</div></div>
+                <div><div style="color:var(--text-3);font-size:11px;margin-bottom:2px;">Languages</div><div style="font-size:18px;font-weight:600;color:var(--text);">${langs.length}</div></div>
+            </div>
+            ${langs.length > 0 ? `<div style="font-size:11px;color:var(--text-3);margin-bottom:10px;">${langs.map(l => `<span style="display:inline-block;background:var(--bg-elevated);border:1px solid var(--border);border-radius:4px;padding:2px 8px;margin-right:6px;margin-bottom:4px;">${l.lang} ${l.mean_score.toFixed(2)}</span>`).join('')}</div>` : ''}
+            ${recs.length > 0 ? `<div style="border-top:1px solid var(--border);padding-top:12px;margin-top:8px;">
+                <div style="font-size:11px;color:var(--text-3);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em;">Recommendations</div>
+                ${recs.map(r => `<div style="font-size:13px;color:var(--text-2);margin:4px 0;line-height:1.5;padding-left:14px;position:relative;"><span style="position:absolute;left:0;color:var(--accent);">›</span>${r}</div>`).join('')}
+            </div>` : ''}
+        </div>`;
+    } catch(e) { box.innerHTML = ''; }
+}
+
 async function loadIntelligence() {
     const box = document.getElementById('intel-box');
     box.innerHTML = renderSkeleton('intel');
+    loadMemoryHealth();  // Day 3 — health widget on overview tab
     try {
         const res = await fetch(`${API}/v1/intelligence`, { headers: H() });
         if (!res.ok) throw new Error('Failed to load');
