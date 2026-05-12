@@ -2752,7 +2752,10 @@ POST /v1/add → {<span class="c-str">"messages"</span>: [...], <span class="c-s
     </div>
 
     <script>
-        const API_URL = "https://mengram.io";
+        // Use same-origin so self-hosted instances hit their own API
+        // (signup/verify/playground); for managed mengram.io this resolves
+        // to https://mengram.io naturally. Fixes #36.
+        const API_URL = window.location.origin;
 
         // ---- Scroll Reveal (Intersection Observer) ----
         (function initScrollReveal() {
