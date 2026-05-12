@@ -6871,6 +6871,53 @@ Return ONLY JSON (no markdown):
                 errors += 1
         return {"processed": len(pending), "fired": fired, "errors": errors}
 
+    # ---- Memory Health weekly digest queue (Day 4 of Memory Health Monitor) ----
+
+    def get_users_for_health_digest(self) -> list:
+        """Return users with degraded/critical health snapshots, with a
+        ready-to-render summary line and a joined recommendations string.
+
+        Called by the drip cron Mondays 09:00–10:00 UTC. Dedup is handled
+        upstream via `try_record_drip` with an ISO-week suffix in the
+        drip_type, so each user gets at most one digest per week.
+
+        Only users with a real subscription (not lazy-created free) get
+        the digest — we don't want to spam ghost signups.
+        """
+        with self._cursor(dict_cursor=True) as cur:
+            cur.execute(
+                """SELECT u.id::text AS user_id, u.email,
+                          mh.overall_status, mh.details, mh.recommendations
+                   FROM memory_health mh
+                   JOIN users u ON u.id = mh.user_id
+                   WHERE mh.overall_status IN ('degraded', 'critical')
+                     AND mh.updated_at > NOW() - INTERVAL '7 days'"""
+            )
+            out = []
+            for r in cur.fetchall():
+                details = r["details"]
+                if isinstance(details, str):
+                    import json as _json
+                    try:
+                        details = _json.loads(details)
+                    except Exception:
+                        details = {}
+                summary = (
+                    f"Status: {r['overall_status'].upper()} · "
+                    f"Searches: {details.get('searches', '?')} · "
+                    f"Mean relevance: {details.get('mean_score', '?'):.3f} "
+                    f"(target ≥ 0.60) · "
+                    f"Low-quality: {details.get('low_quality_count', 0)}"
+                ) if isinstance(details, dict) else f"Status: {r['overall_status'].upper()}"
+                recs = " ".join(r["recommendations"] or []) or "Review your recently-added content for noise."
+                out.append({
+                    "user_id": r["user_id"],
+                    "email": r["email"],
+                    "summary": summary,
+                    "recommendations": recs,
+                })
+            return out
+
     # ---- Memory Health snapshot read (Day 5 of Memory Health Monitor) ----
 
     def get_memory_health(self, user_id: str) -> Optional[dict]:

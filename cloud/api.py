@@ -1589,6 +1589,23 @@ m.add("I love hiking in the mountains")</code></pre>
                     </div>
                     <p style="font-size:13px;color:#8888a8">If Mengram wasn't the right fit, I'd love to hear why — just reply.</p>"""
 
+            elif drip_type == "health_digest_degraded":
+                # Day 4 — fires when memory_health row says status != healthy.
+                # `code` carries a one-liner summary, `plan` (re-used field) carries the recommendations list (joined).
+                health_summary = code or "Retrieval relevance is below the healthy threshold."
+                recs = plan or "Consider running deduplication and reviewing recently added content for noise."
+                subject = "Your Mengram memory needs attention this week"
+                body = f"""
+                    <p style="font-size:15px;color:#c8c8d8;line-height:1.6">Hi,</p>
+                    <p style="font-size:15px;color:#c8c8d8;line-height:1.6">The Memory Health Monitor flagged your retrieval quality this week. Here's the snapshot:</p>
+                    <div style="background:#1a1a2e;border:1px solid #2a2a44;border-radius:10px;padding:16px 20px;margin:18px 0;font-family:'JetBrains Mono',Menlo,monospace;font-size:13px;color:#e8e8f0;line-height:1.5">{health_summary}</div>
+                    <p style="font-size:14px;color:#c8c8d8;line-height:1.6"><strong>What to do:</strong></p>
+                    <p style="font-size:14px;color:#c8c8d8;line-height:1.6;background:#0f0f1a;border-left:3px solid #a855f7;padding:10px 14px;border-radius:4px">{recs}</p>
+                    <div style="text-align:center;margin:24px 0">
+                        <a href="{BASE_URL}/dashboard" style="background:#7c3aed;color:white;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Open Memory Health</a>
+                    </div>
+                    <p style="font-size:12px;color:#55556a;line-height:1.5">This email fires when your retrieval quality drops below 0.6 mean cosine relevance over the past week. Healthy users don't get this digest. To disable, reply with "unsubscribe health digest".</p>"""
+
             elif drip_type in ("checkout_abandoned_1h", "checkout_abandoned_24h"):
                 # Build a fresh HMAC-signed checkout URL (robust — original Paddle URL may expire)
                 resume_url = f"{BASE_URL}/dashboard?tab=billing"
@@ -8415,6 +8432,23 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                     if store.try_record_drip(row["email"], "checkout_abandoned_24h", row["user_id"]):
                         _send_drip_email(row["email"], "checkout_abandoned_24h", user_id=row["user_id"], plan=row["plan"])
                         _time.sleep(0.5)
+
+                # Day 4 — weekly Memory Health digest for degraded/critical users.
+                # Fires Mondays 09:00–10:00 UTC only; deduped per ISO week via drip_type suffix.
+                _now_utc = datetime.datetime.now(datetime.timezone.utc)
+                if _now_utc.weekday() == 0 and 9 <= _now_utc.hour < 10:
+                    _iso = _now_utc.strftime("%G-W%V")  # e.g. "2026-W19"
+                    _digest_type = f"health_digest_{_iso}"
+                    for row in store.get_users_for_health_digest():
+                        if store.try_record_drip(row["email"], _digest_type, row["user_id"]):
+                            _send_drip_email(
+                                row["email"],
+                                "health_digest_degraded",
+                                code=row["summary"],
+                                user_id=row["user_id"],
+                                plan=row["recommendations"],
+                            )
+                            _time.sleep(0.5)
 
             except Exception as e:
                 logger.error(f"⚠️ Drip email cron error: {e}")
