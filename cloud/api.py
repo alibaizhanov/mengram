@@ -8576,6 +8576,29 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             from starlette.responses import RedirectResponse
             return RedirectResponse(url="/dashboard?tab=billing", status_code=303)
 
+    @app.get("/v1/health/retrieval", tags=["System"])
+    async def get_retrieval_health(ctx: AuthContext = Depends(auth)):
+        """Memory Health Monitor — per-user retrieval quality snapshot.
+
+        Aggregated every 6h from the trailing 24h window of scored searches.
+        Helps detect silent quality drops (every search returns 200, but
+        relevance is degrading). See blog post on Memory Health Monitor
+        for the rationale.
+
+        Returns 404 if user has fewer than 5 scored searches in the window
+        (insufficient signal — no snapshot computed yet).
+        """
+        snap = store.get_memory_health(ctx.user_id)
+        if not snap:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "error": "no_health_snapshot",
+                    "message": "Need at least 5 scored searches in the last 24h before a health snapshot can be computed. Run some searches and check back in 6 hours.",
+                },
+            )
+        return snap
+
     @app.get("/v1/billing", tags=["Billing"])
     async def get_billing(ctx: AuthContext = Depends(auth)):
         """Current subscription plan, usage, and quotas."""

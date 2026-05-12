@@ -6871,6 +6871,39 @@ Return ONLY JSON (no markdown):
                 errors += 1
         return {"processed": len(pending), "fired": fired, "errors": errors}
 
+    # ---- Memory Health snapshot read (Day 5 of Memory Health Monitor) ----
+
+    def get_memory_health(self, user_id: str) -> Optional[dict]:
+        """Return the latest health snapshot for a user, or None if no
+        snapshot has been computed yet (fewer than 5 scored searches in
+        the trailing 24h window when the cron last ran)."""
+        with self._cursor(dict_cursor=True) as cur:
+            cur.execute(
+                """SELECT user_id, computed_at, overall_status, details,
+                          recommendations, updated_at
+                   FROM memory_health
+                   WHERE user_id = %s::uuid""",
+                (user_id,)
+            )
+            row = cur.fetchone()
+            if not row:
+                return None
+            details = row["details"]
+            if isinstance(details, str):
+                import json as _json
+                try:
+                    details = _json.loads(details)
+                except Exception:
+                    pass
+            return {
+                "user_id": str(row["user_id"]),
+                "computed_at": row["computed_at"].isoformat() if row["computed_at"] else None,
+                "overall_status": row["overall_status"],
+                "details": details,
+                "recommendations": list(row["recommendations"] or []),
+                "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
+            }
+
     # ---- Memory Health Aggregation (Day 2 of Memory Health Monitor) ----
 
     # Status thresholds — mean score over recent searches
