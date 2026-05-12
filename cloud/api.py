@@ -8310,6 +8310,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     # Lock IDs (arbitrary unique ints)
     _LOCK_TRIGGER_CRON = 900001
     _LOCK_DRIP_CRON = 900002
+    _LOCK_HEALTH_CRON = 900003
 
     def _trigger_cron_loop():
         """Background thread that processes triggers every 5 minutes."""
@@ -8422,6 +8423,45 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     if _CRON_ENABLED:
         _drip_thread = threading.Thread(target=_drip_email_cron_loop, daemon=True)
         _drip_thread.start()
+
+    # ---- Memory Health Aggregation Cron (Day 2 of Memory Health Monitor) ----
+    def _memory_health_cron_loop():
+        """Aggregates per-user retrieval health every 6 hours.
+
+        For each user with search activity in the last 24h, computes:
+          - mean / median / std-dev of top-result query_score
+          - language breakdown (% of searches per language)
+          - low-quality session count (score < 0.4)
+          - overall_status: healthy (mean >= 0.6) / degraded (>= 0.4) / critical (< 0.4)
+          - recommendations: actionable steps when degraded/critical
+
+        Writes/upserts to `memory_health` table. Downstream:
+          Day 3 dashboard widget reads this table.
+          Day 4 weekly digest emails read this table.
+          Day 5 /v1/health/retrieval endpoint reads this table.
+        """
+        _time.sleep(120)  # Initial delay so this doesn't pile on with drip cron
+        _lock_conn = _try_advisory_lock(_LOCK_HEALTH_CRON)
+        if not _lock_conn:
+            logger.info("🩺 Memory Health cron: another worker holds the lock, skipping")
+            return
+        logger.info("🩺 Memory Health aggregation cron started (every 6h)")
+        while True:
+            try:
+                result = store.aggregate_memory_health(window_hours=24)
+                if result["users_updated"] > 0:
+                    logger.info(
+                        f"🩺 Memory Health: updated {result['users_updated']} users "
+                        f"(healthy={result['healthy']}, degraded={result['degraded']}, "
+                        f"critical={result['critical']})"
+                    )
+            except Exception as e:
+                logger.error(f"⚠️ Memory Health cron error: {e}")
+            _time.sleep(21600)  # Every 6 hours
+
+    if _CRON_ENABLED:
+        _health_thread = threading.Thread(target=_memory_health_cron_loop, daemon=True)
+        _health_thread.start()
 
     # ---- Billing & Subscription ----
 

@@ -6870,3 +6870,112 @@ Return ONLY JSON (no markdown):
                 logger.error(f"⚠️ Trigger {trigger['id']} failed: {e}")
                 errors += 1
         return {"processed": len(pending), "fired": fired, "errors": errors}
+
+    # ---- Memory Health Aggregation (Day 2 of Memory Health Monitor) ----
+
+    # Status thresholds — mean score over recent searches
+    _HEALTH_THRESHOLD_HEALTHY = 0.6   # mean ≥ 0.6 = healthy
+    _HEALTH_THRESHOLD_DEGRADED = 0.4  # mean ≥ 0.4 = degraded; below = critical
+    _LOW_QUALITY_SCORE = 0.4          # individual searches below this = low-quality
+
+    def aggregate_memory_health(self, window_hours: int = 24) -> dict:
+        """Compute per-user retrieval health over the last `window_hours` of
+        scored searches, upsert into `memory_health` table.
+
+        Skips users with fewer than 5 scored searches in the window — too
+        little signal to draw conclusions.
+
+        Returns: {users_updated, healthy, degraded, critical}.
+        """
+        import json as _json
+        stats = {"users_updated": 0, "healthy": 0, "degraded": 0, "critical": 0}
+
+        with self._cursor(dict_cursor=True) as cur:
+            cur.execute(
+                """SELECT user_id,
+                          COUNT(*) AS n,
+                          AVG(query_score) AS mean,
+                          STDDEV_POP(query_score) AS stddev,
+                          MIN(query_score) AS min_score,
+                          MAX(query_score) AS max_score,
+                          COUNT(*) FILTER (WHERE query_score < %s) AS low_count,
+                          COUNT(DISTINCT query_language) AS lang_count
+                   FROM usage_log
+                   WHERE action LIKE 'search%%'
+                     AND query_score IS NOT NULL
+                     AND created_at >= NOW() - make_interval(hours => %s)
+                   GROUP BY user_id
+                   HAVING COUNT(*) >= 5""",
+                (self._LOW_QUALITY_SCORE, window_hours)
+            )
+            per_user = cur.fetchall()
+
+            for row in per_user:
+                uid = str(row["user_id"])
+                mean = float(row["mean"] or 0)
+
+                if mean >= self._HEALTH_THRESHOLD_HEALTHY:
+                    status = "healthy"
+                elif mean >= self._HEALTH_THRESHOLD_DEGRADED:
+                    status = "degraded"
+                else:
+                    status = "critical"
+
+                # Per-language breakdown
+                cur.execute(
+                    """SELECT COALESCE(query_language, 'unknown') AS lang,
+                              COUNT(*) AS n,
+                              AVG(query_score) AS mean
+                       FROM usage_log
+                       WHERE user_id = %s::uuid
+                         AND action LIKE 'search%%'
+                         AND query_score IS NOT NULL
+                         AND created_at >= NOW() - make_interval(hours => %s)
+                       GROUP BY query_language""",
+                    (uid, window_hours)
+                )
+                lang_breakdown = [
+                    {"lang": r["lang"], "count": r["n"], "mean_score": float(r["mean"] or 0)}
+                    for r in cur.fetchall()
+                ]
+
+                # Recommendations
+                recs = []
+                if status == "critical":
+                    recs.append("Retrieval relevance is below 0.4 — likely silent quality drop. Review recent additions for noise.")
+                if status == "degraded":
+                    recs.append("Mean relevance 0.4–0.6 — some queries returning weak matches. Consider running `dedup` to clean similar entities.")
+                if row["low_count"] >= 5:
+                    recs.append(f"{row['low_count']} searches under 0.4 in window — flag for content audit.")
+                if row["lang_count"] and row["lang_count"] >= 2:
+                    weakest = min(lang_breakdown, key=lambda x: x["mean_score"])
+                    if weakest["mean_score"] < self._HEALTH_THRESHOLD_DEGRADED:
+                        recs.append(f"Lowest-quality language: {weakest['lang']} ({weakest['mean_score']:.2f} mean). "
+                                     "May need more content in that language.")
+
+                details = {
+                    "window_hours": window_hours,
+                    "searches": row["n"],
+                    "mean_score": round(mean, 4),
+                    "stddev_score": round(float(row["stddev"] or 0), 4),
+                    "min_score": round(float(row["min_score"] or 0), 4),
+                    "max_score": round(float(row["max_score"] or 0), 4),
+                    "low_quality_count": row["low_count"],
+                    "lang_breakdown": lang_breakdown,
+                }
+
+                cur.execute(
+                    """INSERT INTO memory_health (user_id, computed_at, overall_status, details, recommendations, updated_at)
+                       VALUES (%s::uuid, NOW(), %s, %s::jsonb, %s, NOW())
+                       ON CONFLICT (user_id) DO UPDATE SET
+                           computed_at = EXCLUDED.computed_at,
+                           overall_status = EXCLUDED.overall_status,
+                           details = EXCLUDED.details,
+                           recommendations = EXCLUDED.recommendations,
+                           updated_at = NOW()""",
+                    (uid, status, _json.dumps(details), recs)
+                )
+                stats["users_updated"] += 1
+                stats[status] += 1
+
+        return stats
