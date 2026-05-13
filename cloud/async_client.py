@@ -18,15 +18,16 @@ Usage:
     # Cognitive Profile
     profile = await m.get_profile()
 """
+from __future__ import annotations
 
 import json
 import os
-from typing import Optional
+from typing import Any
 
 try:
     import httpx
 except ImportError:
-    httpx = None
+    httpx = None  # type: ignore[assignment]
 
 # Cloudflare and similar gateways reject the default Python UA.
 # See GitHub issue #31.
@@ -41,7 +42,7 @@ _USER_AGENT = f"Mengram-Python-SDK/{_SDK_VERSION}"
 
 class QuotaExceededError(Exception):
     """Raised when API quota is exceeded (HTTP 402)."""
-    def __init__(self, detail: dict):
+    def __init__(self, detail: dict[str, Any]) -> None:
         self.action = detail.get("action", "unknown")
         self.limit = detail.get("limit", 0)
         self.current = detail.get("used", 0)
@@ -57,7 +58,7 @@ class AsyncCloudMemory:
 
     DEFAULT_BASE_URL = "https://mengram.io"
 
-    def __init__(self, api_key: str, base_url: str = None):
+    def __init__(self, api_key: str, base_url: str | None = None) -> None:
         if httpx is None:
             raise ImportError(
                 "httpx is required for async client. "
@@ -65,15 +66,15 @@ class AsyncCloudMemory:
             )
         self.api_key = api_key
         self.base_url = (base_url or self.DEFAULT_BASE_URL).rstrip("/")
-        self._client: Optional[httpx.AsyncClient] = None
+        self._client: httpx.AsyncClient | None = None
 
     @property
-    def quota(self) -> dict:
+    def quota(self) -> dict[str, Any]:
         """Quota usage from last API response headers.
         Returns e.g. {"add": {"used": 5, "limit": 30}, "search": {"used": 12, "limit": 100}}
         """
         h = getattr(self, '_last_headers', {})
-        result = {}
+        result: dict[str, Any] = {}
         for action in ("add", "search"):
             prefix = f"X-Quota-{action.capitalize()}"
             used = h.get(f"{prefix}-Used")
@@ -95,26 +96,26 @@ class AsyncCloudMemory:
             )
         return self._client
 
-    async def close(self):
+    async def close(self) -> None:
         """Close the HTTP client."""
         if self._client and not self._client.is_closed:
             await self._client.aclose()
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> AsyncCloudMemory:
         return self
 
-    async def __aexit__(self, *args):
+    async def __aexit__(self, *args: Any) -> None:
         await self.close()
 
-    async def _request(self, method: str, path: str, data: dict = None,
-                       params: dict = None) -> dict:
+    async def _request(self, method: str, path: str, data: dict[str, Any] | None = None,
+                       params: dict[str, Any] | None = None) -> dict[str, Any]:
         """Make authenticated API request with retry."""
         import asyncio
 
         client = self._get_client()
         clean_params = {k: v for k, v in (params or {}).items() if v is not None}
 
-        last_err = None
+        last_err: Exception | None = None
         for attempt in range(3):
             try:
                 resp = await client.request(
@@ -149,12 +150,12 @@ class AsyncCloudMemory:
 
     # ---- Core ----
 
-    async def add(self, messages: list[dict], user_id: str = "default",
-                  agent_id: str = None, run_id: str = None, app_id: str = None,
-                  expiration_date: str = None,
-                  source: str = None, metadata: dict = None) -> dict:
+    async def add(self, messages: list[dict[str, Any]], user_id: str = "default",
+                  agent_id: str | None = None, run_id: str | None = None, app_id: str | None = None,
+                  expiration_date: str | None = None,
+                  source: str | None = None, metadata: dict[str, Any] | None = None) -> dict[str, Any]:
         """Add memories from conversation. Returns immediately — processing in background."""
-        body = {"messages": messages, "user_id": user_id}
+        body: dict[str, Any] = {"messages": messages, "user_id": user_id}
         if agent_id: body["agent_id"] = agent_id
         if run_id: body["run_id"] = run_id
         if app_id: body["app_id"] = app_id
@@ -164,11 +165,11 @@ class AsyncCloudMemory:
         return await self._request("POST", "/v1/add", body)
 
     async def add_text(self, text: str, user_id: str = "default",
-                       agent_id: str = None, run_id: str = None,
-                       app_id: str = None, expiration_date: str = None,
-                       source: str = None, metadata: dict = None) -> dict:
+                       agent_id: str | None = None, run_id: str | None = None,
+                       app_id: str | None = None, expiration_date: str | None = None,
+                       source: str | None = None, metadata: dict[str, Any] | None = None) -> dict[str, Any]:
         """Add memories from plain text."""
-        body = {"text": text, "user_id": user_id}
+        body: dict[str, Any] = {"text": text, "user_id": user_id}
         if agent_id: body["agent_id"] = agent_id
         if run_id: body["run_id"] = run_id
         if app_id: body["app_id"] = app_id
@@ -178,8 +179,8 @@ class AsyncCloudMemory:
         return await self._request("POST", "/v1/add_text", body)
 
     async def add_file(self, file_path: str, user_id: str = "default",
-                       agent_id: str = None, run_id: str = None,
-                       app_id: str = None) -> dict:
+                       agent_id: str | None = None, run_id: str | None = None,
+                       app_id: str | None = None) -> dict[str, Any]:
         """Upload a file (PDF, DOCX, TXT, MD) and extract memories.
 
         Uses vision AI for PDFs (two-pass extraction). Each page/chunk
@@ -198,7 +199,7 @@ class AsyncCloudMemory:
         with open(file_path, "rb") as f:
             file_data = f.read()
 
-        fields = {"user_id": user_id}
+        fields: dict[str, str] = {"user_id": user_id}
         if agent_id:
             fields["agent_id"] = agent_id
         if run_id:
@@ -207,7 +208,7 @@ class AsyncCloudMemory:
             fields["app_id"] = app_id
 
         client = self._get_client()
-        last_err = None
+        last_err: Exception | None = None
         for attempt in range(3):
             try:
                 resp = await client.post(
@@ -240,12 +241,12 @@ class AsyncCloudMemory:
         raise Exception(f"Request failed after 3 attempts: {last_err}")
 
     async def search(self, query: str, user_id: str = "default",
-                     limit: int = 5, agent_id: str = None,
-                     run_id: str = None, app_id: str = None,
+                     limit: int = 5, agent_id: str | None = None,
+                     run_id: str | None = None, app_id: str | None = None,
                      graph_depth: int = 2,
-                     filters: dict = None) -> list[dict]:
+                     filters: dict[str, Any] | None = None) -> list[dict[str, Any]]:
         """Semantic search across memories."""
-        body = {"query": query, "user_id": user_id, "limit": limit,
+        body: dict[str, Any] = {"query": query, "user_id": user_id, "limit": limit,
                 "graph_depth": graph_depth}
         if agent_id: body["agent_id"] = agent_id
         if run_id: body["run_id"] = run_id
@@ -256,14 +257,14 @@ class AsyncCloudMemory:
 
     async def search_all(self, query: str, limit: int = 5,
                          user_id: str = "default",
-                         graph_depth: int = 2) -> dict:
+                         graph_depth: int = 2) -> dict[str, Any]:
         """Search across all 3 memory types: semantic, episodic, procedural."""
         return await self._request("POST", "/v1/search/all",
                                    data={"query": query, "limit": limit,
                                          "user_id": user_id, "graph_depth": graph_depth})
 
     async def ask(self, query: str, user_id: str = "default",
-                  max_facts: int = 15) -> dict:
+                  max_facts: int = 15) -> dict[str, Any]:
         """
         Ask your memory a question — synthesized answer with citations.
 
@@ -278,19 +279,19 @@ class AsyncCloudMemory:
             data={"query": query, "user_id": user_id, "max_facts": max_facts},
         )
 
-    async def get_all(self, user_id: str = "default") -> list[dict]:
+    async def get_all(self, user_id: str = "default") -> list[dict[str, Any]]:
         """Get all memories for user."""
-        params = {}
+        params: dict[str, Any] = {}
         if user_id and user_id != "default":
             params["sub_user_id"] = user_id
         result = await self._request("GET", "/v1/memories", params=params)
         return result.get("memories", [])
 
-    async def get(self, name: str, user_id: str = "default") -> Optional[dict]:
+    async def get(self, name: str, user_id: str = "default") -> dict[str, Any] | None:
         """Get specific entity details."""
         import urllib.parse
         try:
-            params = {}
+            params: dict[str, Any] = {}
             if user_id and user_id != "default":
                 params["sub_user_id"] = user_id
             return await self._request("GET", f"/v1/memory/{urllib.parse.quote(name, safe='')}", params=params)
@@ -301,7 +302,7 @@ class AsyncCloudMemory:
         """Delete a memory."""
         import urllib.parse
         try:
-            params = {}
+            params: dict[str, Any] = {}
             if user_id and user_id != "default":
                 params["sub_user_id"] = user_id
             await self._request("DELETE", f"/v1/memory/{urllib.parse.quote(name, safe='')}", params=params)
@@ -309,18 +310,18 @@ class AsyncCloudMemory:
         except Exception:
             return False
 
-    async def stats(self, user_id: str = "default") -> dict:
+    async def stats(self, user_id: str = "default") -> dict[str, Any]:
         """Get usage statistics."""
-        params = {}
+        params: dict[str, Any] = {}
         if user_id and user_id != "default":
             params["sub_user_id"] = user_id
         return await self._request("GET", "/v1/stats", params=params)
 
     # ---- Cognitive Profile ----
 
-    async def get_profile(self, user_id: str = "default", force: bool = False) -> dict:
+    async def get_profile(self, user_id: str = "default", force: bool = False) -> dict[str, Any]:
         """Generate a Cognitive Profile — ready-to-use system prompt from memory."""
-        params = {}
+        params: dict[str, Any] = {}
         if force: params["force"] = "true"
         if user_id and user_id != "default":
             params["sub_user_id"] = user_id
@@ -328,12 +329,12 @@ class AsyncCloudMemory:
 
     # ---- Episodic Memory ----
 
-    async def episodes(self, query: str = None, limit: int = None,
-                       after: str = None, before: str = None,
-                       user_id: str = "default") -> list[dict]:
+    async def episodes(self, query: str | None = None, limit: int | None = None,
+                       after: str | None = None, before: str | None = None,
+                       user_id: str = "default") -> list[dict[str, Any]]:
         """Get or search episodic memories."""
         if query:
-            params = {"query": query, "limit": limit or 5}
+            params: dict[str, Any] = {"query": query, "limit": limit or 5}
             if after: params["after"] = after
             if before: params["before"] = before
             if user_id and user_id != "default":
@@ -351,11 +352,11 @@ class AsyncCloudMemory:
 
     # ---- Procedural Memory ----
 
-    async def procedures(self, query: str = None, limit: int = 20,
-                         user_id: str = "default") -> list[dict]:
+    async def procedures(self, query: str | None = None, limit: int = 20,
+                         user_id: str = "default") -> list[dict[str, Any]]:
         """Get or search procedural memories."""
         if query:
-            params = {"query": query, "limit": limit}
+            params: dict[str, Any] = {"query": query, "limit": limit}
             if user_id and user_id != "default":
                 params["sub_user_id"] = user_id
             resp = await self._request("GET", "/v1/procedures/search", params=params)
@@ -368,15 +369,15 @@ class AsyncCloudMemory:
             return resp.get("procedures", [])
 
     async def procedure_feedback(self, procedure_id: str, success: bool = True,
-                                 context: str = None, failed_at_step: int = None,
-                                 user_id: str = "default") -> dict:
+                                 context: str | None = None, failed_at_step: int | None = None,
+                                 user_id: str = "default") -> dict[str, Any]:
         """Record success/failure feedback for a procedure."""
-        data = None
+        data: dict[str, Any] | None = None
         if context is not None:
             data = {"context": context}
             if failed_at_step is not None:
                 data["failed_at_step"] = failed_at_step
-        params = {"success": "true" if success else "false"}
+        params: dict[str, Any] = {"success": "true" if success else "false"}
         if user_id and user_id != "default":
             params["sub_user_id"] = user_id
         return await self._request("PATCH", f"/v1/procedures/{procedure_id}/feedback",
@@ -384,17 +385,17 @@ class AsyncCloudMemory:
 
     # ---- Graph & Timeline ----
 
-    async def graph(self, user_id: str = "default") -> dict:
+    async def graph(self, user_id: str = "default") -> dict[str, Any]:
         """Get knowledge graph (nodes + edges)."""
-        params = {}
+        params: dict[str, Any] = {}
         if user_id and user_id != "default":
             params["sub_user_id"] = user_id
         return await self._request("GET", "/v1/graph", params=params)
 
-    async def timeline(self, after: str = None, before: str = None,
-                       user_id: str = "default", limit: int = 20) -> list[dict]:
+    async def timeline(self, after: str | None = None, before: str | None = None,
+                       user_id: str = "default", limit: int = 20) -> list[dict[str, Any]]:
         """Temporal search — facts in a time range."""
-        params = {"limit": limit}
+        params: dict[str, Any] = {"limit": limit}
         if after: params["after"] = after
         if before: params["before"] = before
         if user_id and user_id != "default":
@@ -405,48 +406,48 @@ class AsyncCloudMemory:
     # ---- Agents ----
 
     async def run_agents(self, agent: str = "all", auto_fix: bool = False,
-                         user_id: str = "default") -> dict:
+                         user_id: str = "default") -> dict[str, Any]:
         """Run memory agents (curator, connector, digest)."""
-        params = {"agent": agent, "auto_fix": str(auto_fix).lower()}
+        params: dict[str, Any] = {"agent": agent, "auto_fix": str(auto_fix).lower()}
         if user_id and user_id != "default":
             params["sub_user_id"] = user_id
         return await self._request("POST", "/v1/agents/run", params=params)
 
     # ---- Insights ----
 
-    async def reflect(self, user_id: str = "default") -> dict:
+    async def reflect(self, user_id: str = "default") -> dict[str, Any]:
         """Trigger memory reflection."""
-        params = {}
+        params: dict[str, Any] = {}
         if user_id and user_id != "default":
             params["sub_user_id"] = user_id
         return await self._request("POST", "/v1/reflect", params=params)
 
-    async def insights(self, user_id: str = "default") -> dict:
+    async def insights(self, user_id: str = "default") -> dict[str, Any]:
         """Get AI insights from memory reflections."""
-        params = {}
+        params: dict[str, Any] = {}
         if user_id and user_id != "default":
             params["sub_user_id"] = user_id
         return await self._request("GET", "/v1/insights", params=params)
 
     # ---- Memory Management ----
 
-    async def dedup(self, user_id: str = "default") -> dict:
+    async def dedup(self, user_id: str = "default") -> dict[str, Any]:
         """Find and merge duplicate entities."""
-        params = {}
+        params: dict[str, Any] = {}
         if user_id and user_id != "default":
             params["sub_user_id"] = user_id
         return await self._request("POST", "/v1/dedup", params=params)
 
-    async def merge(self, source: str, target: str, user_id: str = "default") -> dict:
+    async def merge(self, source: str, target: str, user_id: str = "default") -> dict[str, Any]:
         """Merge two entities."""
-        params = {"source": source, "target": target}
+        params: dict[str, Any] = {"source": source, "target": target}
         if user_id and user_id != "default":
             params["sub_user_id"] = user_id
         return await self._request("POST", "/v1/merge", params=params)
 
-    async def archive_fact(self, entity: str, fact: str, user_id: str = "default") -> dict:
+    async def archive_fact(self, entity: str, fact: str, user_id: str = "default") -> dict[str, Any]:
         """Archive a specific fact on an entity."""
-        params = {}
+        params: dict[str, Any] = {}
         if user_id and user_id != "default":
             params["sub_user_id"] = user_id
         return await self._request("POST", "/v1/archive_fact",
@@ -454,12 +455,12 @@ class AsyncCloudMemory:
 
     # ---- Job Tracking ----
 
-    async def job_status(self, job_id: str) -> dict:
+    async def job_status(self, job_id: str) -> dict[str, Any]:
         """Check status of a background job."""
         return await self._request("GET", f"/v1/jobs/{job_id}")
 
     async def wait_for_job(self, job_id: str, poll_interval: float = 1.0,
-                           max_wait: float = 60.0) -> dict:
+                           max_wait: float = 60.0) -> dict[str, Any]:
         """Wait for a background job to complete."""
         import asyncio
         import time
@@ -474,25 +475,25 @@ class AsyncCloudMemory:
     # ---- Webhooks ----
 
     async def create_webhook(self, url: str, name: str = "",
-                             event_types: list = None, secret: str = "") -> dict:
+                             event_types: list[str] | None = None, secret: str = "") -> dict[str, Any]:
         """Create a webhook."""
-        data = {"url": url, "name": name, "secret": secret}
+        data: dict[str, Any] = {"url": url, "name": name, "secret": secret}
         if event_types: data["event_types"] = event_types
         result = await self._request("POST", "/v1/webhooks", data)
         return result.get("webhook", result)
 
-    async def get_webhooks(self) -> list:
+    async def get_webhooks(self) -> list[dict[str, Any]]:
         """List all webhooks."""
         result = await self._request("GET", "/v1/webhooks")
         return result.get("webhooks", [])
 
     # ---- Triggers ----
 
-    async def get_triggers(self, target_user_id: str = None,
+    async def get_triggers(self, target_user_id: str | None = None,
                            include_fired: bool = False, limit: int = 50,
-                           user_id: str = "default") -> list:
+                           user_id: str = "default") -> list[dict[str, Any]]:
         """Get smart triggers."""
-        params = {"include_fired": str(include_fired).lower(), "limit": limit}
+        params: dict[str, Any] = {"include_fired": str(include_fired).lower(), "limit": limit}
         if user_id and user_id != "default":
             params["sub_user_id"] = user_id
         path = f"/v1/triggers/{target_user_id}" if target_user_id else "/v1/triggers"

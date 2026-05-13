@@ -32,12 +32,13 @@ Usage:
     # Stats
     print(m.stats())
 """
+from __future__ import annotations
 
 import json
 import urllib.request
 import urllib.error
 import urllib.parse
-from typing import Optional
+from typing import Any
 
 # Some hosts (e.g. Cloudflare) reject the default urllib User-Agent
 # ("Python-urllib/X.Y") with HTTP 403 / error 1010 (Browser Integrity
@@ -53,7 +54,7 @@ _USER_AGENT = f"Mengram-Python-SDK/{_SDK_VERSION}"
 
 class QuotaExceededError(Exception):
     """Raised when API quota is exceeded (HTTP 402)."""
-    def __init__(self, detail: dict):
+    def __init__(self, detail: dict[str, Any]) -> None:
         self.action = detail.get("action", "unknown")
         self.limit = detail.get("limit", 0)
         self.current = detail.get("used", 0)
@@ -74,12 +75,12 @@ class CloudMemory:
 
     DEFAULT_BASE_URL = "https://mengram.io"
 
-    def __init__(self, api_key: str, base_url: str = None):
+    def __init__(self, api_key: str, base_url: str | None = None) -> None:
         self.api_key = api_key
         self.base_url = (base_url or self.DEFAULT_BASE_URL).rstrip("/")
 
     @property
-    def quota(self) -> dict:
+    def quota(self) -> dict[str, Any]:
         """Quota usage from last API response headers.
         Returns e.g. {"add": {"used": 5, "limit": 30}, "search": {"used": 12, "limit": 100}}
         """
@@ -93,8 +94,8 @@ class CloudMemory:
                 result[action] = {"used": int(used), "limit": int(limit)}
         return result
 
-    def _request(self, method: str, path: str, data: dict = None,
-                 params: dict = None) -> dict:
+    def _request(self, method: str, path: str, data: dict[str, Any] | None = None,
+                 params: dict[str, Any] | None = None) -> dict[str, Any]:
         """Make authenticated API request with retry for transient errors."""
         import time as _time
 
@@ -145,11 +146,11 @@ class CloudMemory:
                 raise Exception(f"Network error: {e}")
         raise Exception(f"Request failed after 3 attempts: {last_err}")
 
-    def add(self, messages: list[dict], user_id: str = "default",
-            agent_id: str = None, run_id: str = None, app_id: str = None,
-            expiration_date: str = None,
-            source: str = None, metadata: dict = None,
-            agent_mode: bool = False) -> dict:
+    def add(self, messages: list[dict[str, Any]], user_id: str = "default",
+            agent_id: str | None = None, run_id: str | None = None, app_id: str | None = None,
+            expiration_date: str | None = None,
+            source: str | None = None, metadata: dict[str, Any] | None = None,
+            agent_mode: bool = False) -> dict[str, Any]:
         """
         Add memories from conversation.
 
@@ -190,8 +191,8 @@ class CloudMemory:
         return self._request("POST", "/v1/add", body)
 
     def add_file(self, file_path: str, user_id: str = "default",
-                 agent_id: str = None, run_id: str = None,
-                 app_id: str = None) -> dict:
+                 agent_id: str | None = None, run_id: str | None = None,
+                 app_id: str | None = None) -> dict[str, Any]:
         """Upload a file (PDF, DOCX, TXT, MD) and extract memories.
 
         Uses vision AI for PDFs (two-pass extraction). Each page/chunk
@@ -286,9 +287,9 @@ class CloudMemory:
         raise Exception(f"Request failed after 3 attempts: {last_err}")
 
     def add_text(self, text: str, user_id: str = "default",
-                 agent_id: str = None, run_id: str = None,
-                 app_id: str = None, expiration_date: str = None,
-                 source: str = None, metadata: dict = None) -> dict:
+                 agent_id: str | None = None, run_id: str | None = None,
+                 app_id: str | None = None, expiration_date: str | None = None,
+                 source: str | None = None, metadata: dict[str, Any] | None = None) -> dict[str, Any]:
         """Add memories from plain text.
 
         Args:
@@ -317,10 +318,10 @@ class CloudMemory:
         return self._request("POST", "/v1/add_text", body)
 
     def search(self, query: str, user_id: str = "default",
-               limit: int = 5, agent_id: str = None,
-               run_id: str = None, app_id: str = None,
+               limit: int = 5, agent_id: str | None = None,
+               run_id: str | None = None, app_id: str | None = None,
                graph_depth: int = 2,
-               filters: dict = None) -> list[dict]:
+               filters: dict[str, Any] | None = None) -> list[dict[str, Any]]:
         """
         Semantic search across memories.
 
@@ -351,7 +352,7 @@ class CloudMemory:
         return result.get("results", [])
 
     def ask(self, query: str, user_id: str = "default",
-            max_facts: int = 15) -> dict:
+            max_facts: int = 15) -> dict[str, Any]:
         """
         Ask your memory a question — get a synthesized answer with citations.
 
@@ -403,7 +404,7 @@ class CloudMemory:
         body = {"query": query, "user_id": user_id, "max_facts": max_facts}
         return self._request("POST", "/v1/ask", body)
 
-    def get_all(self, user_id: str = "default") -> list[dict]:
+    def get_all(self, user_id: str = "default") -> list[dict[str, Any]]:
         """Get all memories for user."""
         params = {}
         if user_id and user_id != "default":
@@ -411,7 +412,7 @@ class CloudMemory:
         result = self._request("GET", "/v1/memories", params=params)
         return result.get("memories", [])
 
-    def get_all_full(self, user_id: str = "default") -> list[dict]:
+    def get_all_full(self, user_id: str = "default") -> list[dict[str, Any]]:
         """Get all memories with full details in one request."""
         params = {}
         if user_id and user_id != "default":
@@ -419,7 +420,7 @@ class CloudMemory:
         result = self._request("GET", "/v1/memories/full", params=params)
         return result.get("memories", [])
 
-    def get(self, name: str, user_id: str = "default") -> Optional[dict]:
+    def get(self, name: str, user_id: str = "default") -> dict[str, Any] | None:
         """Get specific entity details."""
         try:
             params = {}
@@ -440,15 +441,15 @@ class CloudMemory:
         except Exception:
             return False
 
-    def stats(self, user_id: str = "default") -> dict:
+    def stats(self, user_id: str = "default") -> dict[str, Any]:
         """Get usage statistics."""
         params = {}
         if user_id and user_id != "default":
             params["sub_user_id"] = user_id
         return self._request("GET", "/v1/stats", params=params)
 
-    def timeline(self, after: str = None, before: str = None,
-                 user_id: str = "default", limit: int = 20) -> list[dict]:
+    def timeline(self, after: str | None = None, before: str | None = None,
+                 user_id: str = "default", limit: int = 20) -> list[dict[str, Any]]:
         """Temporal search — facts in a time range."""
         params = {"limit": limit}
         if after:
@@ -460,7 +461,7 @@ class CloudMemory:
         resp = self._request("GET", "/v1/timeline", params=params)
         return resp.get("results", [])
 
-    def graph(self, user_id: str = "default") -> dict:
+    def graph(self, user_id: str = "default") -> dict[str, Any]:
         """Get knowledge graph (nodes + edges)."""
         params = {}
         if user_id and user_id != "default":
@@ -469,35 +470,35 @@ class CloudMemory:
 
     # ---- Memory Management ----
 
-    def reindex(self, user_id: str = "default") -> dict:
+    def reindex(self, user_id: str = "default") -> dict[str, Any]:
         """Re-embed all entities."""
         params = {}
         if user_id and user_id != "default":
             params["sub_user_id"] = user_id
         return self._request("POST", "/v1/reindex", params=params)
 
-    def dedup(self, user_id: str = "default") -> dict:
+    def dedup(self, user_id: str = "default") -> dict[str, Any]:
         """Find and merge duplicate entities."""
         params = {}
         if user_id and user_id != "default":
             params["sub_user_id"] = user_id
         return self._request("POST", "/v1/dedup", params=params)
 
-    def dedup_all(self, user_id: str = "default") -> dict:
+    def dedup_all(self, user_id: str = "default") -> dict[str, Any]:
         """Deduplicate facts across all entities."""
         params = {}
         if user_id and user_id != "default":
             params["sub_user_id"] = user_id
         return self._request("POST", "/v1/dedup_all", params=params)
 
-    def dedup_entity(self, name: str, user_id: str = "default") -> dict:
+    def dedup_entity(self, name: str, user_id: str = "default") -> dict[str, Any]:
         """Deduplicate facts on a specific entity."""
         params = {}
         if user_id and user_id != "default":
             params["sub_user_id"] = user_id
         return self._request("POST", f"/v1/entity/{urllib.parse.quote(name, safe='')}/dedup", params=params)
 
-    def merge(self, source: str, target: str, user_id: str = "default") -> dict:
+    def merge(self, source: str, target: str, user_id: str = "default") -> dict[str, Any]:
         """Merge two entities."""
         params = {}
         if user_id and user_id != "default":
@@ -506,14 +507,14 @@ class CloudMemory:
         params["target"] = target
         return self._request("POST", "/v1/merge", params=params)
 
-    def merge_user(self, user_id: str = "default") -> dict:
+    def merge_user(self, user_id: str = "default") -> dict[str, Any]:
         """Merge 'User' entity into the primary person entity."""
         params = {}
         if user_id and user_id != "default":
             params["sub_user_id"] = user_id
         return self._request("POST", "/v1/merge_user", params=params)
 
-    def archive_fact(self, entity: str, fact: str, user_id: str = "default") -> dict:
+    def archive_fact(self, entity: str, fact: str, user_id: str = "default") -> dict[str, Any]:
         """Archive a specific fact on an entity."""
         params = {}
         if user_id and user_id != "default":
@@ -521,7 +522,7 @@ class CloudMemory:
         return self._request("POST", "/v1/archive_fact",
                             {"entity_name": entity, "fact_content": fact}, params=params)
 
-    def fix_entity_type(self, name: str, new_type: str, user_id: str = "default") -> dict:
+    def fix_entity_type(self, name: str, new_type: str, user_id: str = "default") -> dict[str, Any]:
         """Fix entity type classification."""
         params = {}
         if user_id and user_id != "default":
@@ -529,7 +530,7 @@ class CloudMemory:
         params["new_type"] = new_type
         return self._request("PATCH", f"/v1/entity/{urllib.parse.quote(name, safe='')}/type", params=params)
 
-    def feed(self, limit: int = 50, user_id: str = "default") -> list:
+    def feed(self, limit: int = 50, user_id: str = "default") -> list[dict[str, Any]]:
         """Get activity feed."""
         params = {"limit": limit}
         if user_id and user_id != "default":
@@ -539,7 +540,7 @@ class CloudMemory:
 
     # ---- Cognitive Profile ----
 
-    def get_profile(self, user_id: str = "default", force: bool = False) -> dict:
+    def get_profile(self, user_id: str = "default", force: bool = False) -> dict[str, Any]:
         """
         Generate a Cognitive Profile — a ready-to-use system prompt from user memory.
 
@@ -562,7 +563,7 @@ class CloudMemory:
         return self._request("GET", "/v1/profile", params=params)
 
     def rules(self, format: str = "claude_md", force: bool = False,
-              user_id: str = "default") -> dict:
+              user_id: str = "default") -> dict[str, Any]:
         """Generate a CLAUDE.md / .cursorrules / .windsurfrules file from memory.
 
         Returns structured project rules and conventions, not a personality profile.
@@ -584,9 +585,9 @@ class CloudMemory:
 
     # ---- Episodic Memory ----
 
-    def episodes(self, query: str = None, limit: int = None,
-                 after: str = None, before: str = None,
-                 user_id: str = "default") -> list[dict]:
+    def episodes(self, query: str | None = None, limit: int | None = None,
+                 after: str | None = None, before: str | None = None,
+                 user_id: str = "default") -> list[dict[str, Any]]:
         """
         Get or search episodic memories (events, interactions, experiences).
         
@@ -622,8 +623,8 @@ class CloudMemory:
 
     # ---- Procedural Memory ----
 
-    def procedures(self, query: str = None, limit: int = 20,
-                   user_id: str = "default") -> list[dict]:
+    def procedures(self, query: str | None = None, limit: int = 20,
+                   user_id: str = "default") -> list[dict[str, Any]]:
         """
         Get or search procedural memories (learned workflows, skills).
         
@@ -648,8 +649,8 @@ class CloudMemory:
             return resp.get("procedures", [])
 
     def procedure_feedback(self, procedure_id: str, success: bool = True,
-                           context: str = None, failed_at_step: int = None,
-                           user_id: str = "default") -> dict:
+                           context: str | None = None, failed_at_step: int | None = None,
+                           user_id: str = "default") -> dict[str, Any]:
         """
         Record success/failure feedback for a procedure.
 
@@ -678,7 +679,7 @@ class CloudMemory:
                             data=data, params=params)
 
     def procedure_history(self, procedure_id: str,
-                          user_id: str = "default") -> dict:
+                          user_id: str = "default") -> dict[str, Any]:
         """
         Get version history for a procedure.
 
@@ -696,7 +697,7 @@ class CloudMemory:
         return self._request("GET", f"/v1/procedures/{procedure_id}/history", params=params)
 
     def procedure_evolution(self, procedure_id: str,
-                            user_id: str = "default") -> dict:
+                            user_id: str = "default") -> dict[str, Any]:
         """
         Get the evolution log for a procedure.
 
@@ -717,7 +718,7 @@ class CloudMemory:
 
     def search_all(self, query: str, limit: int = 5,
                    user_id: str = "default",
-                   graph_depth: int = 2) -> dict:
+                   graph_depth: int = 2) -> dict[str, Any]:
         """
         Search across all 3 memory types: semantic, episodic, procedural.
 
@@ -737,7 +738,7 @@ class CloudMemory:
     # ---- Agents ----
 
     def run_agents(self, agent: str = "all", auto_fix: bool = False,
-                   user_id: str = "default") -> dict:
+                   user_id: str = "default") -> dict[str, Any]:
         """
         Run memory agents.
         
@@ -753,8 +754,8 @@ class CloudMemory:
             params["sub_user_id"] = user_id
         return self._request("POST", "/v1/agents/run", params=params)
 
-    def agent_history(self, agent: str = None, limit: int = 10,
-                      user_id: str = "default") -> list:
+    def agent_history(self, agent: str | None = None, limit: int = 10,
+                      user_id: str = "default") -> list[dict[str, Any]]:
         """Get agent run history."""
         params = {"limit": limit}
         if agent:
@@ -762,7 +763,7 @@ class CloudMemory:
         result = self._request("GET", "/v1/agents/history", params=params)
         return result.get("runs", [])
 
-    def agent_status(self, user_id: str = "default") -> dict:
+    def agent_status(self, user_id: str = "default") -> dict[str, Any]:
         """Check which agents are due to run."""
         params = {}
         if user_id and user_id != "default":
@@ -771,21 +772,21 @@ class CloudMemory:
 
     # ---- Insights & Reflections ----
 
-    def insights(self, user_id: str = "default") -> dict:
+    def insights(self, user_id: str = "default") -> dict[str, Any]:
         """Get AI insights from memory reflections."""
         params = {}
         if user_id and user_id != "default":
             params["sub_user_id"] = user_id
         return self._request("GET", "/v1/insights", params=params)
 
-    def reflect(self, user_id: str = "default") -> dict:
+    def reflect(self, user_id: str = "default") -> dict[str, Any]:
         """Trigger memory reflection — generates AI insights from facts."""
         params = {}
         if user_id and user_id != "default":
             params["sub_user_id"] = user_id
         return self._request("POST", "/v1/reflect", params=params)
 
-    def reflections(self, scope: str = None, user_id: str = "default") -> list:
+    def reflections(self, scope: str | None = None, user_id: str = "default") -> list[dict[str, Any]]:
         """Get all reflections. Optional scope: entity, cross, temporal."""
         params = {}
         if scope:
@@ -798,8 +799,8 @@ class CloudMemory:
     # ---- Webhooks ----
 
     def create_webhook(self, url: str, name: str = "",
-                       event_types: list = None, secret: str = "",
-                       user_id: str = "default") -> dict:
+                       event_types: list[str] | None = None, secret: str = "",
+                       user_id: str = "default") -> dict[str, Any]:
         """
         Create a webhook.
         
@@ -815,14 +816,14 @@ class CloudMemory:
         result = self._request("POST", "/v1/webhooks", data)
         return result.get("webhook", result)
 
-    def get_webhooks(self, user_id: str = "default") -> list:
+    def get_webhooks(self, user_id: str = "default") -> list[dict[str, Any]]:
         """List all webhooks."""
         result = self._request("GET", "/v1/webhooks")
         return result.get("webhooks", [])
 
-    def update_webhook(self, webhook_id: int, url: str = None,
-                       name: str = None, event_types: list = None,
-                       active: bool = None, user_id: str = "default") -> dict:
+    def update_webhook(self, webhook_id: int, url: str | None = None,
+                       name: str | None = None, event_types: list[str] | None = None,
+                       active: bool | None = None, user_id: str = "default") -> dict[str, Any]:
         """Update a webhook."""
         data = {}
         if url is not None: data["url"] = url
@@ -842,22 +843,22 @@ class CloudMemory:
     # ---- Teams ----
 
     def create_team(self, name: str, description: str = "",
-                    user_id: str = "default") -> dict:
+                    user_id: str = "default") -> dict[str, Any]:
         """Create a team. Returns team info with invite_code."""
         result = self._request("POST", "/v1/teams", {"name": name, "description": description})
         return result.get("team", result)
 
-    def join_team(self, invite_code: str, user_id: str = "default") -> dict:
+    def join_team(self, invite_code: str, user_id: str = "default") -> dict[str, Any]:
         """Join a team via invite code."""
         return self._request("POST", "/v1/teams/join", {"invite_code": invite_code})
 
-    def get_teams(self, user_id: str = "default") -> list:
+    def get_teams(self, user_id: str = "default") -> list[dict[str, Any]]:
         """List user's teams."""
         result = self._request("GET", "/v1/teams")
         return result.get("teams", [])
 
     def share_memory(self, entity_name: str, team_id: int,
-                     user_id: str = "default") -> dict:
+                     user_id: str = "default") -> dict[str, Any]:
         """Share a memory entity with a team."""
         params = {}
         if user_id and user_id != "default":
@@ -866,7 +867,7 @@ class CloudMemory:
                             {"entity": entity_name}, params=params)
 
     def unshare_memory(self, entity_name: str, team_id: int,
-                       user_id: str = "default") -> dict:
+                       user_id: str = "default") -> dict[str, Any]:
         """Make a shared memory personal again."""
         params = {}
         if user_id and user_id != "default":
@@ -874,45 +875,45 @@ class CloudMemory:
         return self._request("POST", f"/v1/teams/{team_id}/unshare",
                             {"entity": entity_name}, params=params)
 
-    def leave_team(self, team_id: int) -> dict:
+    def leave_team(self, team_id: int) -> dict[str, Any]:
         """Leave a team."""
         return self._request("POST", f"/v1/teams/{team_id}/leave")
 
-    def delete_team(self, team_id: int) -> dict:
+    def delete_team(self, team_id: int) -> dict[str, Any]:
         """Delete a team (owner only)."""
         return self._request("DELETE", f"/v1/teams/{team_id}")
 
-    def team_members(self, team_id: int) -> list:
+    def team_members(self, team_id: int) -> list[dict[str, Any]]:
         """Get team members."""
         result = self._request("GET", f"/v1/teams/{team_id}/members")
         return result.get("members", [])
 
     # ---- API Key Management ----
 
-    def list_keys(self) -> list:
+    def list_keys(self) -> list[dict[str, Any]]:
         """List all API keys for your account."""
         return self._request("GET", "/v1/keys")["keys"]
 
-    def create_key(self, name: str = "default") -> dict:
+    def create_key(self, name: str = "default") -> dict[str, Any]:
         """Create a new API key. Returns raw key (save it!)."""
         return self._request("POST", "/v1/keys", {"name": name})
 
-    def revoke_key(self, key_id: str) -> dict:
+    def revoke_key(self, key_id: str) -> dict[str, Any]:
         """Revoke a specific API key by ID."""
         return self._request("DELETE", f"/v1/keys/{key_id}")
 
-    def rename_key(self, key_id: str, name: str) -> dict:
+    def rename_key(self, key_id: str, name: str) -> dict[str, Any]:
         """Rename an API key."""
         return self._request("PATCH", f"/v1/keys/{key_id}", {"name": name})
 
     # ---- Job Tracking (Async) ----
 
-    def job_status(self, job_id: str) -> dict:
+    def job_status(self, job_id: str) -> dict[str, Any]:
         """Check status of a background job."""
         return self._request("GET", f"/v1/jobs/{job_id}")
 
     def wait_for_job(self, job_id: str, poll_interval: float = 1.0,
-                     max_wait: float = 60.0) -> dict:
+                     max_wait: float = 60.0) -> dict[str, Any]:
         """Wait for a background job to complete.
         
         Args:
@@ -934,9 +935,9 @@ class CloudMemory:
 
     # ---- Smart Triggers (v2.6) ----
 
-    def get_triggers(self, target_user_id: str = None,
+    def get_triggers(self, target_user_id: str | None = None,
                      include_fired: bool = False, limit: int = 50,
-                     user_id: str = "default") -> list:
+                     user_id: str = "default") -> list[dict[str, Any]]:
         """Get smart triggers (reminders, contradictions, patterns)."""
         params = {"include_fired": str(include_fired).lower(), "limit": limit}
         if user_id and user_id != "default":
@@ -945,16 +946,16 @@ class CloudMemory:
         result = self._request("GET", path, params=params)
         return result.get("triggers", [])
 
-    def process_triggers(self) -> dict:
+    def process_triggers(self) -> dict[str, Any]:
         """Manually fire all pending triggers."""
         return self._request("POST", "/v1/triggers/process")
 
-    def dismiss_trigger(self, trigger_id: int) -> dict:
+    def dismiss_trigger(self, trigger_id: int) -> dict[str, Any]:
         """Dismiss a trigger without sending webhook."""
         return self._request("DELETE", f"/v1/triggers/{trigger_id}")
 
     def detect_triggers(self, target_user_id: str,
-                        user_id: str = "default") -> dict:
+                        user_id: str = "default") -> dict[str, Any]:
         """Detect smart triggers for a user."""
         params = {}
         if user_id and user_id != "default":
@@ -963,11 +964,11 @@ class CloudMemory:
 
     # ---- Billing ----
 
-    def get_billing(self) -> dict:
+    def get_billing(self) -> dict[str, Any]:
         """Get current subscription plan, usage, and quotas."""
         return self._request("GET", "/v1/billing")
 
-    def create_checkout(self, plan: str) -> dict:
+    def create_checkout(self, plan: str) -> dict[str, Any]:
         """Create Paddle checkout session for plan upgrade.
 
         Args:
@@ -978,7 +979,7 @@ class CloudMemory:
         """
         return self._request("POST", "/v1/billing/checkout", params={"plan": plan})
 
-    def create_portal(self) -> dict:
+    def create_portal(self) -> dict[str, Any]:
         """Create Paddle customer portal session for managing subscription.
 
         Returns:
@@ -989,7 +990,7 @@ class CloudMemory:
     # ---- Import ----
 
     def import_chatgpt(self, zip_path: str, user_id: str = "default",
-                       chunk_size: int = 20, on_progress=None) -> dict:
+                       chunk_size: int = 20, on_progress: Any = None) -> dict[str, Any]:
         """
         Import ChatGPT export ZIP into memory.
 
@@ -1008,7 +1009,7 @@ class CloudMemory:
                        on_progress=on_progress).__dict__
 
     def import_obsidian(self, vault_path: str, user_id: str = "default",
-                        chunk_chars: int = 4000, on_progress=None) -> dict:
+                        chunk_chars: int = 4000, on_progress: Any = None) -> dict[str, Any]:
         """
         Import Obsidian vault into memory.
 
@@ -1026,8 +1027,8 @@ class CloudMemory:
         return _import(vault_path, add_fn, chunk_chars=chunk_chars,
                        on_progress=on_progress).__dict__
 
-    def import_files(self, paths: list, user_id: str = "default",
-                     chunk_chars: int = 4000, on_progress=None) -> dict:
+    def import_files(self, paths: list[str], user_id: str = "default",
+                     chunk_chars: int = 4000, on_progress: Any = None) -> dict[str, Any]:
         """
         Import text/markdown files into memory.
 
