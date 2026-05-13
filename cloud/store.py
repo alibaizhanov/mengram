@@ -3810,6 +3810,23 @@ REFLECTIONS/PATTERNS:
             )
             embeddings = cur.fetchone()[0]
 
+            cur.execute(
+                """SELECT COUNT(*) FROM episodes
+                   WHERE user_id = %s AND sub_user_id = %s
+                     AND (expires_at IS NULL OR expires_at > NOW())""",
+                (user_id, sub_user_id)
+            )
+            episodes = cur.fetchone()[0]
+
+            cur.execute(
+                """SELECT COUNT(*) FROM procedures
+                   WHERE user_id = %s AND sub_user_id = %s
+                     AND is_current = TRUE
+                     AND (expires_at IS NULL OR expires_at > NOW())""",
+                (user_id, sub_user_id)
+            )
+            procedures = cur.fetchone()[0]
+
             return {
                 "entities": entities,
                 "by_type": by_type,
@@ -3817,6 +3834,8 @@ REFLECTIONS/PATTERNS:
                 "knowledge": knowledge,
                 "relations": relations,
                 "embeddings": embeddings,
+                "episodes": episodes,
+                "procedures": procedures,
             }
 
     def get_value_mirror(self, user_id: str) -> dict:
