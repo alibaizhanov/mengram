@@ -35,13 +35,22 @@ STEP 1 — DETECT ENVIRONMENT
        https://www.python.org/downloads/ and re-run this prompt."
 
 1.3  Determine which AI tool you are running in (the "host"). Pick ONE:
-     - claude-desktop   (Claude Desktop app)
+     - claude-desktop   (Claude Desktop app, .app on macOS / .exe on Windows)
      - claude-code      (Claude Code CLI)
      - cursor           (Cursor editor)
      - windsurf         (Windsurf editor)
      - codex            (OpenAI Codex CLI)
+     - claude-ai-web    (Claude.ai in a web browser or Chrome extension —
+                          NOT the desktop app. Tells from clientInfo.name=
+                          'claude-ai' AND lack of filesystem/shell tools, or
+                          the URL chrome://...; see Section 4F)
      - other            (anything else — generic MCP install)
      You usually know which host you are. If unsure, ask the user once.
+
+     CRITICAL: Claude Desktop and Claude.ai (web) are different products with
+     different install paths. The desktop app uses stdio MCP via a JSON config
+     file (Step 4A). The web app needs an HTTP MCP added through Settings UI
+     (Step 4F) — you cannot install it programmatically.
 
 ================================================================
 STEP 2 — INSTALL THE PACKAGE
@@ -170,13 +179,38 @@ Append (TOML, NOT JSON):
 
 Tell user: "Restart Codex."
 
-------- 4F. other -------
+------- 4F. claude-ai (web / Chrome) -------
+You CANNOT install MCP from inside Claude.ai web — the host has no
+filesystem-config concept and only supports HTTP/remote MCP servers
+added through the Settings UI. STOP the install flow and tell the user:
+
+  "Mengram is shipped, but the Claude.ai web app needs you to add it
+  manually as a Custom Connector. Please:
+
+    1. Open Claude.ai → click your avatar (top-right) → Settings
+    2. Select 'Connectors' (or 'Integrations')
+    3. Click 'Add custom connector'
+    4. Fill in:
+         Name:      Mengram
+         URL:       https://mengram.io/mcp
+         Headers:   Authorization: Bearer <api-key-from-step-3>
+    5. Save. The 30 Mengram tools appear in this same chat after a refresh.
+
+  This is a one-time UI step — Claude.ai's settings live outside
+  what I can edit from here."
+
+After the user confirms they've added it, proceed to Step 5 (Verify).
+
+------- 4G. other -------
 Tell the user:
   "Add this MCP server entry to your host tool's config:
     name:    mengram
     command: mengram server --cloud
     env:     MENGRAM_API_KEY=<api-key>
-  Refer to your tool's MCP docs for the exact config location."
+  Refer to your tool's MCP docs for the exact config location.
+  For HTTP-only hosts (Claude.ai web, ChatGPT, custom apps), use the
+  remote URL instead: https://mengram.io/mcp with Authorization header
+  'Bearer <api-key>'."
 
 ================================================================
 STEP 5 — VERIFY THE INSTALL WORKS
