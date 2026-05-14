@@ -8487,24 +8487,31 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
           Day 4 weekly digest emails read this table.
           Day 5 /v1/health/retrieval endpoint reads this table.
         """
+        import traceback
+        logger.info("🩺 Memory Health cron: thread alive, sleeping 120s before first run")
         _time.sleep(120)  # Initial delay so this doesn't pile on with drip cron
         _lock_conn = _try_advisory_lock(_LOCK_HEALTH_CRON)
         if not _lock_conn:
             logger.info("🩺 Memory Health cron: another worker holds the lock, skipping")
             return
-        logger.info("🩺 Memory Health aggregation cron started (every 6h)")
+        logger.info("🩺 Memory Health aggregation cron started (every 6h, 5min retry on error)")
         while True:
+            iteration_failed = False
             try:
                 result = store.aggregate_memory_health(window_hours=24)
-                if result["users_updated"] > 0:
-                    logger.info(
-                        f"🩺 Memory Health: updated {result['users_updated']} users "
-                        f"(healthy={result['healthy']}, degraded={result['degraded']}, "
-                        f"critical={result['critical']})"
-                    )
+                logger.info(
+                    f"🩺 Memory Health: tick OK — users_updated={result.get('users_updated', 0)} "
+                    f"healthy={result.get('healthy', 0)} degraded={result.get('degraded', 0)} "
+                    f"critical={result.get('critical', 0)}"
+                )
             except Exception as e:
-                logger.error(f"⚠️ Memory Health cron error: {e}")
-            _time.sleep(21600)  # Every 6 hours
+                iteration_failed = True
+                logger.error(
+                    f"⚠️ Memory Health cron error: {type(e).__name__}: {e}\n"
+                    f"{traceback.format_exc()}"
+                )
+            # Retry quickly on failure so we don't lose 6h every time something breaks.
+            _time.sleep(300 if iteration_failed else 21600)
 
     if _CRON_ENABLED:
         _health_thread = threading.Thread(target=_memory_health_cron_loop, daemon=True)
