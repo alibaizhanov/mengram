@@ -4790,8 +4790,11 @@ REFLECTIONS/PATTERNS:
     def search_procedures_vector(self, user_id: str, embedding: list[float],
                                  top_k: int = 5, sub_user_id: str = "default",
                                  query_text: str = "") -> list[dict]:
-        """Hybrid search over procedural memory: vector + BM25 + RRF (current versions only).
-        Routes by query vector size: 1024 → embedding_v2, else embedding."""
+        """Hybrid search over procedural memory: vector + BM25 + RRF + proven-success
+        weighting (current versions only). Routes by query vector size: 1024 →
+        embedding_v2, else embedding. Procedures with track record (high success_count,
+        low fail_count, recently used) are surfaced ahead of equally-relevant but
+        untested or stale ones."""
         emb_col = "embedding_v2" if len(embedding) == 1024 else "embedding"
         if query_text:
             query_text = query_text.replace("\x00", "")
@@ -4862,20 +4865,49 @@ REFLECTIONS/PATTERNS:
             for pid, rank in bm25_rows.items():
                 rrf_scores[pid] = rrf_scores.get(pid, 0) + 1.0 / (rrf_k + rank)
 
-            # Build results sorted by RRF score
+            # Build results — RRF score weighted by proven success + recency.
+            # Procedures store success_count + fail_count + last_used. ~1960 procedures
+            # in prod have real track record (max 70 successful runs); the signal was
+            # ignored by the ranker. Now:
+            #   history_factor: 100% success → ×1.3, 50/50 → ×1.0, 100% fail → ×0.7
+            #                   no history → ×1.0 (neutral — don't penalize untested)
+            #   recency_factor: used today → ×1.0, 30 days ago → ×0.86, year ago → ×0.70
+            #                   never used → ×1.0 (neutral)
+            # Combined range at equal vector match: 0.49× (failed+stale) to 1.30× (proven+fresh).
+            now = datetime.datetime.now(datetime.timezone.utc)
             results = []
             for pid in sorted(rrf_scores, key=rrf_scores.get, reverse=True):
                 _, row = vec_rows[pid]
+                s_count = row.get("success_count") or 0
+                f_count = row.get("fail_count") or 0
+                total_runs = s_count + f_count
+                if total_runs > 0:
+                    success_rate = s_count / total_runs
+                    history_factor = 0.7 + 0.6 * success_rate
+                else:
+                    history_factor = 1.0  # untested → neutral
+
+                last_used = row.get("last_used")
+                if last_used:
+                    try:
+                        age_days = (now - last_used.replace(tzinfo=datetime.timezone.utc)).days
+                        recency_factor = 0.7 + 0.3 * math.exp(-0.02 * age_days)
+                    except Exception:
+                        recency_factor = 0.85
+                else:
+                    recency_factor = 1.0  # never used → neutral
+
+                final_score = round(rrf_scores[pid] * history_factor * recency_factor, 4)
                 results.append({
                     "id": pid,
                     "name": row["name"],
                     "trigger_condition": row.get("trigger_condition"),
                     "steps": row.get("steps") or [],
                     "entity_names": row.get("entity_names") or [],
-                    "success_count": row.get("success_count") or 0,
-                    "fail_count": row.get("fail_count") or 0,
+                    "success_count": s_count,
+                    "fail_count": f_count,
                     "version": row.get("version") or 1,
-                    "score": round(rrf_scores[pid], 4),
+                    "score": final_score,
                     "updated_at": row["updated_at"].isoformat() if row.get("updated_at") else None,
                     "metadata": row.get("metadata") or {},
                     "memory_type": "procedural",
