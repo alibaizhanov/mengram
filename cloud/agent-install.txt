@@ -36,11 +36,16 @@ STEP 1 — DETECT ENVIRONMENT
      - Otherwise find ONE working way to run Python >= 3.10 in this
        environment. Call it <PYTHON_CMD>.
      - <PYTHON_CMD> may be a direct interpreter command or a launcher/tooling
-       wrapper already present in the environment.
+       wrapper already present in the environment (for example, a Python
+       interpreter, `uv`, `poetry`, or another Python-capable launcher/tool).
      - Do NOT require specific executable names like `python3` or `python`.
        Use whatever Python launcher/tool already works in this environment.
      - If you cannot find any working Python >= 3.10 launcher/tool capable of
-       installing `mengram-ai`, STOP. Tell user:
+       installing `mengram-ai`, ask the user ONCE:
+       "Which Python launcher or tool do you normally use here (for example
+       `uv`, `poetry`, `python`, `py`, or something else)?"
+     - If they do not know, or the reported tool still cannot install
+       `mengram-ai`, STOP. Tell user:
        "Mengram requires Python 3.10 or newer. Please install Python 3.10+
        or re-run this prompt in an environment that already has a working
        Python launcher."
@@ -87,6 +92,10 @@ STEP 2 — INSTALL THE PACKAGE
        `--break-system-packages`.
      - Instead, switch to that tool's own isolated/tool-install workflow and
        continue from there.
+     - Examples:
+       - `uv`: use `uv tool install mengram-ai`
+       - `poetry`: use a Poetry-managed environment, install `mengram-ai`
+         there, then invoke `mengram` from that environment
 
 2.2  Verify the `mengram` command is on PATH:
      Run:   mengram status
@@ -366,7 +375,9 @@ APPENDIX B — DEBUGGING NOTES FOR AGENTS
 
 - If a launcher/tool reports that its Python environment is externally managed,
   do not force `pip` into it. Use that tool's own isolated install workflow
-  instead, then locate the resulting `mengram` executable.
+  instead, then locate the resulting `mengram` executable. For example:
+  `uv tool install mengram-ai`, or install inside the user's Poetry-managed
+  environment and run `mengram` from there.
 
 - Do NOT use `sudo`. Prefer user-scoped installs when the chosen tool supports
   them. Mengram does not need root.
