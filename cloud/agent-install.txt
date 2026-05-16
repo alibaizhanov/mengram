@@ -23,12 +23,14 @@ CRITICAL RULES:
 STEP 1 — DETECT ENVIRONMENT
 ================================================================
 
-1.1  Determine OS by running:    uname -s    (or `ver` on Windows cmd)
+1.1  Determine OS using a command that exists in the current shell:
+     - On Unix-like shells: run `uname -s`
+     - On Windows shells: run `cmd /c ver` (or inspect `$env:OS`)
      Map: Darwin = macOS, Linux = Linux, MINGW/MSYS/CYGWIN/Windows = Windows.
 
 1.2  Determine whether Mengram is already installed or whether a usable Python
      launcher/package tool is available:
-     - First try: mengram --version
+     - First try: `mengram status`
        If this works, you may skip package installation unless the user
        explicitly wants reinstall/upgrade.
      - Otherwise find ONE working way to run Python >= 3.10 in this
@@ -65,7 +67,7 @@ STEP 1 — DETECT ENVIRONMENT
 STEP 2 — INSTALL THE PACKAGE
 ================================================================
 
-2.1  If `mengram --version` already works, SKIP installation unless the user
+2.1  If `mengram status` already works, SKIP installation unless the user
      explicitly asked for reinstall/upgrade.
 
      Otherwise install `mengram-ai` using the Python launcher/tool from Step
@@ -78,8 +80,16 @@ STEP 2 — INSTALL THE PACKAGE
      tool's equivalent install command instead. The end result MUST make the
      `mengram` executable callable by PATH or by absolute path.
 
+     IMPORTANT:
+     - If the preferred `pip --user` pattern fails with an
+       `externally-managed-environment` error (or any message telling you the
+       interpreter is managed by another tool), do NOT retry with
+       `--break-system-packages`.
+     - Instead, switch to that tool's own isolated/tool-install workflow and
+       continue from there.
+
 2.2  Verify the `mengram` command is on PATH:
-     Run:   mengram --version
+     Run:   mengram status
      If the command is not found, the install location is not on PATH or the
      executable name/path differs in this environment.
 
@@ -102,7 +112,9 @@ STEP 2 — INSTALL THE PACKAGE
 
      If you installed with another launcher/tool, determine where that tool
      placed the `mengram` executable and use that absolute path for every
-     subsequent step until PATH is fixed.
+     subsequent step until PATH is fixed. If needed, ask the tool for its
+     executable/tool bin directory or use the platform command search
+     (`where mengram` on Windows, `command -v mengram` on Unix-like shells).
 
      Until PATH is fixed, every subsequent step that calls `mengram ...` must
      use the absolute path to the executable instead.
@@ -351,6 +363,10 @@ APPENDIX B — DEBUGGING NOTES FOR AGENTS
 
 - Do not assume the installer is literally `python3` or `python`. Reuse
   whichever Python launcher/tool already works in that environment.
+
+- If a launcher/tool reports that its Python environment is externally managed,
+  do not force `pip` into it. Use that tool's own isolated install workflow
+  instead, then locate the resulting `mengram` executable.
 
 - Do NOT use `sudo`. Prefer user-scoped installs when the chosen tool supports
   them. Mengram does not need root.
