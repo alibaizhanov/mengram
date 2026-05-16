@@ -26,13 +26,22 @@ STEP 1 — DETECT ENVIRONMENT
 1.1  Determine OS by running:    uname -s    (or `ver` on Windows cmd)
      Map: Darwin = macOS, Linux = Linux, MINGW/MSYS/CYGWIN/Windows = Windows.
 
-1.2  Determine Python availability:
-     - Try: python3 --version
-     - If absent on Windows, try: python --version
-     - REQUIRED: Python >= 3.10.
-     - If Python is missing or too old, STOP. Tell user:
-       "Mengram requires Python 3.10 or newer. Please install Python from
-       https://www.python.org/downloads/ and re-run this prompt."
+1.2  Determine whether Mengram is already installed or whether a usable Python
+     launcher/package tool is available:
+     - First try: mengram --version
+       If this works, you may skip package installation unless the user
+       explicitly wants reinstall/upgrade.
+     - Otherwise find ONE working way to run Python >= 3.10 in this
+       environment. Call it <PYTHON_CMD>.
+     - <PYTHON_CMD> may be a direct interpreter command or a launcher/tooling
+       wrapper already present in the environment.
+     - Do NOT require specific executable names like `python3` or `python`.
+       Use whatever Python launcher/tool already works in this environment.
+     - If you cannot find any working Python >= 3.10 launcher/tool capable of
+       installing `mengram-ai`, STOP. Tell user:
+       "Mengram requires Python 3.10 or newer. Please install Python 3.10+
+       or re-run this prompt in an environment that already has a working
+       Python launcher."
 
 1.3  Determine which AI tool you are running in (the "host"). Pick ONE:
      - claude-desktop   (Claude Desktop app, .app on macOS / .exe on Windows)
@@ -56,32 +65,47 @@ STEP 1 — DETECT ENVIRONMENT
 STEP 2 — INSTALL THE PACKAGE
 ================================================================
 
-2.1  Run:    python3 -m pip install --user --upgrade mengram-ai
-     (On Windows use `python -m pip` if `python3` is not aliased.)
+2.1  If `mengram --version` already works, SKIP installation unless the user
+     explicitly asked for reinstall/upgrade.
+
+     Otherwise install `mengram-ai` using the Python launcher/tool from Step
+     1.2. Prefer a user-scoped install when the chosen tool supports it.
+
+     Preferred pattern when supported:
+        <PYTHON_CMD> -m pip install --user --upgrade mengram-ai
+
+     If the chosen launcher/tool does not support `-m pip --user`, use that
+     tool's equivalent install command instead. The end result MUST make the
+     `mengram` executable callable by PATH or by absolute path.
 
 2.2  Verify the `mengram` command is on PATH:
      Run:   mengram --version
-     If the command is not found, the user's --user bin dir is not on PATH.
+     If the command is not found, the install location is not on PATH or the
+     executable name/path differs in this environment.
 
-     To find the correct directory, run:
-        python3 -m site --user-base
-     The `mengram` executable lives in <user-base>/bin (macOS/Linux) or
+     If you installed with `<PYTHON_CMD> -m pip --user`, find the correct
+     directory by running:
+        <PYTHON_CMD> -m site --user-base
+     The `mengram` executable then lives in <user-base>/bin (macOS/Linux) or
      <user-base>\Scripts (Windows). On Apple-shipped Python this is typically
      ~/Library/Python/<MAJOR.MINOR>/bin — NOT ~/.local/bin.
 
      Fix:
-     - macOS:    append `export PATH="$(python3 -m site --user-base)/bin:$PATH"`
-                 to ~/.zshrc, then `source ~/.zshrc`.
-     - Linux:    append the same line to ~/.bashrc (or ~/.zshrc if using zsh),
-                 then re-source. On most Linux distros this resolves to
-                 ~/.local/bin.
+     - macOS:    run `<PYTHON_CMD> -m site --user-base`, capture <user-base>,
+                 then append `export PATH="<user-base>/bin:$PATH"` to ~/.zshrc
+                 and `source ~/.zshrc`.
+     - Linux:    do the same in ~/.bashrc (or ~/.zshrc if using zsh), then
+                 re-source. On most Linux distros this resolves to ~/.local/bin.
      - Windows:  add `<user-base>\Scripts` to the user PATH via:
                  setx PATH "%PATH%;<user-base>\Scripts"
                  then open a new terminal.
 
+     If you installed with another launcher/tool, determine where that tool
+     placed the `mengram` executable and use that absolute path for every
+     subsequent step until PATH is fixed.
+
      Until PATH is fixed, every subsequent step that calls `mengram ...` must
-     use the absolute path printed by `python3 -m site --user-base`/bin/mengram
-     instead.
+     use the absolute path to the executable instead.
 
 ================================================================
 STEP 3 — DETERMINE API BASE + AUTHENTICATE
@@ -286,7 +310,9 @@ block to the user verbatim and stop:
 
     0. If you use self-hosted Mengram, set MENGRAM_URL in your shell to your
        base URL first (for example: http://localhost:8420)
-    1. python3 -m pip install --user mengram-ai
+    1. Install `mengram-ai` with any Python 3.10+ launcher/tool that already
+       works in your environment (for example:
+       `python3 -m pip install --user mengram-ai`)
     2. mengram signup --email YOUR_EMAIL@example.com
     3. (check your inbox for a 6-digit code)
     4. mengram signup --email YOUR_EMAIL@example.com --code 123456
@@ -319,10 +345,15 @@ APPENDIX A — JSON CONFIG TEMPLATE (for hosts that use JSON)
 APPENDIX B — DEBUGGING NOTES FOR AGENTS
 ================================================================
 
-- If `mengram` command is not found after pip install, the most likely cause
-  is that pip's user-script directory is not on PATH. Fix PATH then retry.
+- If `mengram` is not found after installation, the most likely cause is that
+  the install location is not on PATH. Fix PATH or use the absolute executable
+  path, then retry.
 
-- Do NOT use `sudo`. Always install with `--user`. Mengram does not need root.
+- Do not assume the installer is literally `python3` or `python`. Reuse
+  whichever Python launcher/tool already works in that environment.
+
+- Do NOT use `sudo`. Prefer user-scoped installs when the chosen tool supports
+  them. Mengram does not need root.
 
 - Do NOT modify the host AI tool's main settings file beyond the
   `mcpServers` (JSON) or `[mcp_servers.*]` (TOML) sections. Preserve all
