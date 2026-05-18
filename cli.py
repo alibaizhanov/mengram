@@ -783,12 +783,31 @@ def _load_cloud_api_key() -> str:
     return ""
 
 
+def _save_and_report_key(api_key: str, label: str) -> None:
+    """Persist API key to ~/.mengram/config.json + shell profile, print success.
+    Shared by all CLI paths that successfully obtain a key."""
+    cfg_path = _save_cloud_config(api_key)
+    profile = _save_api_key(api_key)
+    print(f"API key: {api_key}")
+    print(f"Saved to: {cfg_path}")
+    if profile:
+        print(f"Shell profile updated: {profile}")
+    print(f"Configured: yes ({label})")
+
+
 def cmd_signup(args):
     """Non-interactive signup for agent-driven installs.
 
-    Two modes:
-      mengram signup --email X            # sends 6-digit code to inbox
-      mengram signup --email X --code Y   # verifies code, prints + saves key
+    Three response modes (server-driven):
+      • Self-hosted with DISABLE_EMAIL_VERIFICATION=true: POST /v1/signup returns
+        api_key immediately → save + exit success (no code prompt).
+      • Hosted with email verification: returns "code sent" message → user runs
+        again with --code Y to complete.
+      • Existing account on hosted: 409 → reset-key flow; also returns api_key
+        immediately on self-hosted, otherwise sends a reset code.
+
+    See GitHub issue #38 — earlier version printed "Code sent" unconditionally
+    on 200, which broke self-hosted installs that already returned the key.
     """
     email = (getattr(args, "email", "") or "").strip()
     code = (getattr(args, "code", "") or "").strip()
@@ -798,15 +817,26 @@ def cmd_signup(args):
         sys.exit(2)
 
     if not code:
-        # Mode 1: trigger code email
+        # Mode 1: trigger code email (or direct key on self-hosted)
         data, status = _api_request_unauth("POST", "/v1/signup", {"email": email})
         if status == 200:
+            # Self-hosted direct-key path: server already returned the key.
+            direct_key = (data.get("api_key") or "").strip() if isinstance(data, dict) else ""
+            if direct_key:
+                _save_and_report_key(direct_key, "self-hosted, no email verification")
+                sys.exit(0)
+            # Hosted path: server sent an email with a 6-digit code.
             print(f"Code sent to {email}. Run again with --code <6-digit-code> to complete signup.")
             sys.exit(0)
         if status == 409:
-            # Existing account — send reset-key code instead so the same flow works
+            # Existing account — try reset-key. On self-hosted this returns the key
+            # immediately; on hosted it sends a reset-code email.
             data, status = _api_request_unauth("POST", "/v1/reset-key", {"email": email})
             if status == 200:
+                direct_key = (data.get("api_key") or "").strip() if isinstance(data, dict) else ""
+                if direct_key:
+                    _save_and_report_key(direct_key, "self-hosted reset, no email verification")
+                    sys.exit(0)
                 print(f"Account exists. Reset-key code sent to {email}. Run again with --code <6-digit-code> to issue a new key.")
                 sys.exit(0)
             print(f"Error: {data.get('detail', 'reset-key failed')}", file=sys.stderr)
@@ -830,14 +860,7 @@ def cmd_signup(args):
         print("Error: API response missing api_key", file=sys.stderr)
         sys.exit(1)
 
-    cfg_path = _save_cloud_config(api_key)
-    profile = _save_api_key(api_key)
-
-    print(f"API key: {api_key}")
-    print(f"Saved to: {cfg_path}")
-    if profile:
-        print(f"Shell profile updated: {profile}")
-    print("Configured: yes")
+    _save_and_report_key(api_key, "verified")
 
 
 def cmd_doctor(args):
