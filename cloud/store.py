@@ -3245,6 +3245,62 @@ Return ONLY JSON (no markdown):
             return True
         return False
 
+    def get_users_due_for_reflection(self, max_users: int = 50,
+                                     active_within_days: int = 30) -> list:
+        """Bulk version of should_reflect — find (user, sub_user) pairs whose
+        reflection layer is stale relative to their facts.
+
+        Mirrors should_reflect's triggers exactly (10+ new facts, OR 24h+ since
+        last reflection AND 3+ new facts), but adds an activity filter so the
+        cron doesn't burn LLM calls on dormant accounts. Highest-signal users
+        (most new facts) sort first so partial batches still cover the people
+        with the most stale insight layers.
+        """
+        with self._cursor(dict_cursor=True) as cur:
+            cur.execute(
+                """WITH last_reflection AS (
+                       SELECT e.user_id, e.sub_user_id,
+                              MAX(k.refreshed_at) AS last_at
+                       FROM knowledge k
+                       JOIN entities e ON e.id = k.entity_id
+                       WHERE k.type = 'reflection'
+                       GROUP BY e.user_id, e.sub_user_id
+                   ),
+                   fact_stats AS (
+                       SELECT e.user_id, e.sub_user_id,
+                              MAX(f.created_at) AS latest_fact,
+                              lr.last_at AS last_reflected_at,
+                              COUNT(f.id) FILTER (
+                                  WHERE lr.last_at IS NULL
+                                     OR f.created_at > lr.last_at
+                              ) AS new_facts
+                       FROM facts f
+                       JOIN entities e ON e.id = f.entity_id
+                       LEFT JOIN last_reflection lr
+                           ON lr.user_id = e.user_id
+                          AND lr.sub_user_id = e.sub_user_id
+                       WHERE f.archived = FALSE
+                         AND (f.expires_at IS NULL OR f.expires_at > NOW())
+                       GROUP BY e.user_id, e.sub_user_id, lr.last_at
+                   )
+                   SELECT user_id::text AS user_id, sub_user_id,
+                          new_facts, latest_fact, last_reflected_at
+                   FROM fact_stats
+                   WHERE latest_fact > NOW() - make_interval(days => %s)
+                     AND (
+                         new_facts >= 10
+                         OR (
+                             new_facts >= 3
+                             AND (last_reflected_at IS NULL
+                                  OR last_reflected_at < NOW() - INTERVAL '24 hours')
+                         )
+                     )
+                   ORDER BY new_facts DESC
+                   LIMIT %s""",
+                (active_within_days, max_users)
+            )
+            return [dict(r) for r in cur.fetchall()]
+
     def generate_reflections(self, user_id: str, llm_client, sub_user_id: str = "default") -> dict:
         """Generate all 3 types of reflections using LLM."""
         # Gather facts grouped by entity

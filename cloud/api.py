@@ -8517,6 +8517,104 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         _health_thread = threading.Thread(target=_memory_health_cron_loop, daemon=True)
         _health_thread.start()
 
+    # ---- Background reflection cron (Dream Cycle equivalent) ----
+
+    _LOCK_REFLECTION_CRON = 900004
+    _REFLECTION_ENABLED = os.environ.get("REFLECTION_CRON_ENABLED", "true").lower() != "false"
+    _REFLECTION_BATCH_SIZE = int(os.environ.get("REFLECTION_BATCH_SIZE", "50"))
+
+    def _reflection_cron_loop():
+        """Daily sweep that refreshes the reflection (insight) layer for active
+        users whose facts have evolved since last reflection.
+
+        Reflection is already auto-triggered on /v1/add, but that only fires
+        while the user is actively writing. This cron catches everyone else —
+        users who accumulated facts via earlier sessions and stopped adding,
+        whose entity/cross/temporal summaries silently go stale.
+
+        Selection logic lives in store.get_users_due_for_reflection — it mirrors
+        should_reflect's triggers exactly, plus an "active in last 14 days"
+        filter so dormant accounts don't burn LLM calls. Per-user generation
+        runs through the existing generate_reflections pipeline, so prompt and
+        storage stay consistent with the in-band /v1/add path.
+        """
+        import traceback
+        logger.info("🌙 Reflection cron: thread alive, sleeping 180s before first run")
+        _time.sleep(180)
+        _lock_conn = _try_advisory_lock(_LOCK_REFLECTION_CRON)
+        if not _lock_conn:
+            logger.info("🌙 Reflection cron: another worker holds the lock, skipping")
+            return
+        logger.info(
+            f"🌙 Reflection cron started (every 24h, batch up to {_REFLECTION_BATCH_SIZE} users)"
+        )
+        while True:
+            iteration_failed = False
+            try:
+                users_due = store.get_users_due_for_reflection(
+                    max_users=_REFLECTION_BATCH_SIZE
+                )
+                logger.info(f"🌙 Reflection: {len(users_due)} users due for refresh")
+
+                llm_client = get_llm()
+                reflected = 0
+                quota_skipped = 0
+                error_skipped = 0
+
+                for u in users_due:
+                    uid = u["user_id"]
+                    sub_uid = u.get("sub_user_id") or "default"
+                    try:
+                        sub = store.get_subscription(uid) or {}
+                        plan = sub.get("plan", "free")
+                        max_reflects = PLAN_QUOTAS.get(plan, PLAN_QUOTAS["free"]).get("reflects", 0)
+                        if max_reflects == 0:
+                            quota_skipped += 1
+                            continue
+                        try:
+                            store.check_and_increment(uid, "reflect", max_reflects)
+                        except ValueError:
+                            quota_skipped += 1
+                            continue
+
+                        result = store.generate_reflections(
+                            user_id=uid,
+                            llm_client=llm_client,
+                            sub_user_id=sub_uid,
+                        )
+                        reflected += 1
+                        logger.info(
+                            f"🌙 Reflected user={uid[:8]} sub={sub_uid} "
+                            f"new_facts={u['new_facts']} → "
+                            f"entity={len(result.get('entity_reflections', []))} "
+                            f"cross={len(result.get('cross_entity', []))} "
+                            f"temporal={len(result.get('temporal', []))}"
+                        )
+                    except Exception as e:
+                        error_skipped += 1
+                        logger.warning(
+                            f"🌙 Reflection failed for user={uid[:8]}: {type(e).__name__}: {e}"
+                        )
+
+                logger.info(
+                    f"🌙 Reflection tick OK — reflected={reflected} "
+                    f"quota_skipped={quota_skipped} error_skipped={error_skipped}"
+                )
+            except Exception as e:
+                iteration_failed = True
+                logger.error(
+                    f"⚠️ Reflection cron error: {type(e).__name__}: {e}\n"
+                    f"{traceback.format_exc()}"
+                )
+            # Retry quickly on failure, otherwise daily.
+            _time.sleep(900 if iteration_failed else 86400)
+
+    if _CRON_ENABLED and _REFLECTION_ENABLED:
+        _reflection_thread = threading.Thread(target=_reflection_cron_loop, daemon=True)
+        _reflection_thread.start()
+    elif _CRON_ENABLED and not _REFLECTION_ENABLED:
+        logger.info("🌙 Reflection cron disabled via REFLECTION_CRON_ENABLED=false")
+
     # ---- Billing & Subscription ----
 
     PADDLE_API_KEY = os.environ.get("PADDLE_API_KEY", "")
