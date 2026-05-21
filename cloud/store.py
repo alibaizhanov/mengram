@@ -1583,7 +1583,12 @@ class CloudStore:
             return cur.fetchone() is not None
 
     def get_users_added_no_search(self, min_adds: int = 3, drip_type: str = "added_no_search") -> list:
-        """Find users who added memories but never searched (likely don't know search exists)."""
+        """Find users who added memories but never searched (likely don't know search exists).
+
+        Only counts real `search` queries — `search_all` is a dashboard browse-all
+        action, not a query, so users who only viewed their vault still need the
+        nudge to try real semantic search.
+        """
         self.ensure_drip_emails_table()
         with self._cursor(dict_cursor=True) as cur:
             cur.execute(
@@ -1597,7 +1602,7 @@ class CloudStore:
                      )
                    GROUP BY u.id, u.email
                    HAVING count(*) FILTER (WHERE ac.action = 'add') >= %s
-                      AND count(*) FILTER (WHERE ac.action IN ('search', 'search_all')) = 0
+                      AND count(*) FILTER (WHERE ac.action = 'search') = 0
                       AND max(ac.created_at) < NOW() - INTERVAL '24 hours'""",
                 (drip_type, min_adds)
             )
