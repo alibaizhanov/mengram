@@ -8521,10 +8521,12 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                             _time.sleep(0.5)
 
                 # Weekly Insights digest — pairs with the Dream Cycle reflection cron.
-                # Fires Mondays 09:00–10:00 UTC, same window as Health digest so users
-                # get one combined Monday-morning beat from Mengram. Deduped per ISO
-                # week via drip_type suffix.
-                if _now_utc.weekday() == 0 and 9 <= _now_utc.hour < 10:
+                # OFF BY DEFAULT — owner felt the test send looked spammy. Code and
+                # helper remain so we can re-enable once the email is reshaped
+                # (e.g. opt-in only, lower frequency, or surfaced in-app instead).
+                # Flip INSIGHTS_DIGEST_ENABLED=true to fire on Monday 09:00–10:00 UTC.
+                if (os.environ.get("INSIGHTS_DIGEST_ENABLED", "false").lower() == "true"
+                        and _now_utc.weekday() == 0 and 9 <= _now_utc.hour < 10):
                     import json as _json_ins
                     _iso_ins = _now_utc.strftime("%G-W%V")
                     _insights_drip = f"insights_digest_{_iso_ins}"
