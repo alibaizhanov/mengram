@@ -561,6 +561,7 @@ print(m.quota)  # {"add": {"used": 5, "limit": 30}, "search": {"used": 12, "limi
 
 ## Community
 
+- **[Contributing](CONTRIBUTING.md)** — local setup, tests, and PR guidelines
 - **[GitHub Issues](https://github.com/alibaizhanov/mengram/issues)** — bug reports, feature requests
 - **[GitHub Discussions](https://github.com/alibaizhanov/mengram/discussions)** — show your use case, ask questions
 - **[API Docs](https://mengram.io/docs)** — interactive Swagger UI
