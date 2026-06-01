@@ -8353,35 +8353,47 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         sub_uid = _voice_sub_user(phone)
         use_quota(ctx, "search")
 
-        embedder = get_embedder()
-        query = f"prior conversations and important facts about caller {phone}"
-
+        # For a known caller (phone-keyed), we don't want semantic relevance —
+        # we want EVERYTHING we know about them. Generic vector queries like
+        # "important facts about caller" match poorly against real fact
+        # embeddings ("prefers morning slots"). Fetch entities + facts directly
+        # by sub_user_id, then optionally augment with recent episodes for
+        # narrative context.
         try:
-            if embedder:
-                emb = embedder.embed(query)
-                semantic = store.search_vector_with_teams(
-                    ctx.user_id, emb, top_k=5, query_text=query, sub_user_id=sub_uid) or []
-                episodic = store.search_episodes_vector(
-                    ctx.user_id, emb, top_k=3, sub_user_id=sub_uid, query_text=query) or []
-            else:
-                semantic = store.search_text(ctx.user_id, query, top_k=5, sub_user_id=sub_uid) or []
-                episodic = []
+            entities = store.get_all_entities_full(ctx.user_id, sub_user_id=sub_uid) or []
         except Exception as e:
-            logger.error(f"vapi_recall search failed for phone={phone}: {e}")
+            logger.error(f"vapi_recall fetch failed for phone={phone}: {e}")
             return {"results": [{"toolCallId": tc.id, "result": "Memory lookup failed — proceed without context."}]}
 
-        facts = [str(r.get("content", "")).strip() for r in semantic if r.get("content")][:5]
-        episodes = [str(r.get("summary", "")).strip() for r in episodic if r.get("summary")][:2]
+        # Build a compact context string the assistant can verbalize.
+        # Skip the reserved _reflections entity, cap facts per entity to keep
+        # the response within voice-friendly length.
+        fact_lines = []
+        person_name = None
+        for e in entities:
+            name = e.get("entity") or ""
+            if name == "_reflections" or not name:
+                continue
+            entity_facts = e.get("facts") or []
+            if not entity_facts:
+                continue
+            if (e.get("type") or "").lower() == "person" and person_name is None:
+                person_name = name
+            # Take up to 4 facts per entity — caller-level entities (person)
+            # typically hold the most useful facts, others (objects, places)
+            # tend to be referenced
+            for f in entity_facts[:4]:
+                content = f if isinstance(f, str) else (f.get("content", "") if isinstance(f, dict) else str(f))
+                content = content.strip()
+                if not content:
+                    continue
+                fact_lines.append(f"{name}: {content}")
 
-        if not facts and not episodes:
+        if not fact_lines:
             summary = f"New caller — no prior context for {phone}."
         else:
-            parts = []
-            if episodes:
-                parts.append("Past interactions: " + " | ".join(episodes))
-            if facts:
-                parts.append("Known facts: " + " | ".join(facts))
-            summary = " ".join(parts)
+            header = f"Known about caller ({person_name or phone}):"
+            summary = header + " " + " | ".join(fact_lines)
             if len(summary) > 600:
                 summary = summary[:597] + "..."
 
