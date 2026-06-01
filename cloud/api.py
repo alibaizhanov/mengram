@@ -8290,26 +8290,66 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     # No new storage, no new pipeline — only adapters over existing
     # extraction + retrieval.
 
-    class _VapiToolCall(BaseModel):
-        id: str
-        type: str = "function"
-        function: dict
-
     class _VapiCustomer(BaseModel):
         number: str | None = None
 
     class _VapiCall(BaseModel):
         customer: _VapiCustomer | None = None
         id: str | None = None
+        type: str | None = None  # inboundPhoneCall, outboundPhoneCall, webCall
 
     class _VapiWebhookMessage(BaseModel):
-        toolCallList: list[_VapiToolCall] | None = None
-        call: _VapiCall | None = None
-        transcript: str | None = None
+        # Vapi posts MANY event types to the same server URL:
+        # tool-calls, end-of-call-report, transcript, status-update,
+        # conversation-update, etc. We dispatch by `type` in each endpoint.
         type: str | None = None
+        # Tool call payloads: Vapi sends BOTH (per docs) — `toolCalls` follows
+        # OpenAI spec (nested `function.{name, arguments}`), `toolCallList` is
+        # the flattened convenience form (`name`, `arguments` at top level).
+        # Accept dicts and dispatch via _extract_vapi_tool_call below.
+        toolCalls: list[dict] | None = None
+        toolCallList: list[dict] | None = None
+        call: _VapiCall | None = None
+        # Transcript paths: streaming `transcript` events carry partial text
+        # at `message.transcript`. `end-of-call-report` carries the final
+        # transcript at `message.transcript` AND `message.artifact.transcript`.
+        transcript: str | None = None
+        artifact: dict | None = None
+        transcriptType: str | None = None  # "partial" | "final" on transcript events
 
     class VapiWebhookRequest(BaseModel):
         message: _VapiWebhookMessage
+
+    def _extract_vapi_tool_call(msg: "_VapiWebhookMessage"):
+        """Pull (tool_call_id, function_name, arguments_dict) from either Vapi
+        tool-call shape. Returns None if no tool call present.
+
+        Vapi tool-calls events include BOTH `toolCalls` (OpenAI-spec nested)
+        and `toolCallList` (flattened) per
+        https://github.com/VapiAI/docs/blob/main/fern/tools/custom-tools.mdx.
+        We prefer `toolCalls` because it's canonical, but fall back to the
+        flattened form so payloads with only one shape still work.
+        """
+        tc_list = msg.toolCalls or msg.toolCallList or []
+        if not tc_list or not isinstance(tc_list[0], dict):
+            return None
+        tc = tc_list[0]
+        tc_id = tc.get("id", "") or ""
+        fn = tc.get("function")
+        if isinstance(fn, dict):
+            name = fn.get("name", "") or ""
+            args = fn.get("arguments", {})
+        else:
+            name = tc.get("name", "") or ""
+            args = tc.get("arguments", {})
+        if isinstance(args, str):
+            try:
+                args = json.loads(args)
+            except Exception:
+                args = {}
+        if not isinstance(args, dict):
+            args = {}
+        return tc_id, name, args
 
     def _voice_sub_user(phone: str) -> str:
         """Per-caller sub_user_id. Normalizes to digits + leading + only,
@@ -8323,32 +8363,41 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     async def vapi_recall(req: VapiWebhookRequest, ctx: AuthContext = Depends(auth)):
         """Vapi webhook: returns concise caller context for the AI agent.
 
-        Vapi invokes this as a custom tool at call start. We extract the
-        phone (from tool args first, then fall back to call.customer.number),
-        run a unified search across semantic + episodic memory scoped to
-        that caller, and return a 1-2 sentence summary the assistant can
-        verbalize naturally. Format follows Vapi's tool-result spec:
-        {"results": [{"toolCallId": ..., "result": ...}]}.
-        """
-        if not req.message.toolCallList:
-            raise HTTPException(status_code=400, detail="missing toolCallList")
+        Dispatches by message.type. Only handles `tool-calls` events; other
+        event types Vapi posts to the same server URL (status-update,
+        conversation-update, transcript, etc.) get a benign 200 response so
+        Vapi keeps the assistant alive rather than dropping context.
 
-        tc = req.message.toolCallList[0]
-        args = tc.function.get("arguments") if isinstance(tc.function, dict) else {}
-        if isinstance(args, str):
-            try:
-                args = json.loads(args)
-            except Exception:
-                args = {}
-        if not isinstance(args, dict):
-            args = {}
+        Vapi tool result MUST be a single string per
+        https://docs.vapi.ai/tools/custom-tools-troubleshooting — any
+        non-string result is silently dropped by Vapi.
+        """
+        msg = req.message
+        # Reject only events explicitly NOT for this endpoint; treat
+        # missing/unknown type as `tool-calls` so curl tests still work.
+        if msg.type and msg.type != "tool-calls":
+            return {"status": "ignored", "reason": f"event {msg.type} not handled by recall endpoint"}
+
+        tool_call = _extract_vapi_tool_call(msg)
+        if not tool_call:
+            # No tool call payload — return 200 not 4xx, so Vapi doesn't
+            # mark the assistant as broken.
+            return {"status": "ignored", "reason": "no tool call present"}
+        tc_id, fn_name, args = tool_call
 
         phone = (args.get("phone") or "").strip()
-        if not phone and req.message.call and req.message.call.customer:
-            phone = (req.message.call.customer.number or "").strip()
+        if not phone and msg.call and msg.call.customer:
+            phone = (msg.call.customer.number or "").strip()
 
+        # Web calls (browser SDK) have no customer.number — fall back to
+        # call.id so each web session at least gets its own scope rather
+        # than sharing one global "voice:unknown" bucket.
+        if not phone and msg.call and msg.call.id:
+            return {"results": [{"toolCallId": tc_id,
+                                  "result": "Web caller — no phone number yet, no prior context."}]}
         if not phone:
-            return {"results": [{"toolCallId": tc.id, "result": "Unknown caller — no phone number available."}]}
+            return {"results": [{"toolCallId": tc_id,
+                                  "result": "Unknown caller — no phone number available."}]}
 
         sub_uid = _voice_sub_user(phone)
         use_quota(ctx, "search")
@@ -8363,26 +8412,34 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             entities = store.get_all_entities_full(ctx.user_id, sub_user_id=sub_uid) or []
         except Exception as e:
             logger.error(f"vapi_recall fetch failed for phone={phone}: {e}")
-            return {"results": [{"toolCallId": tc.id, "result": "Memory lookup failed — proceed without context."}]}
+            return {"results": [{"toolCallId": tc_id,
+                                  "result": "Memory lookup failed — proceed without context."}]}
+
+        # Sort person entities first so the caller's own facts surface ahead
+        # of related-entity facts (their daughter, their insurance, the
+        # clinic agent, etc.). E2E test on Michael Chen showed without this
+        # the assistant got "Known about caller (Emma): ..." about the
+        # daughter, not Michael.
+        def _is_person(e):
+            return (e.get("type") or "").lower() == "person"
+        entities_sorted = sorted(entities, key=lambda e: 0 if _is_person(e) else 1)
 
         # Build a compact context string the assistant can verbalize.
-        # Skip the reserved _reflections entity, cap facts per entity to keep
-        # the response within voice-friendly length.
+        # Skip the reserved _reflections entity, cap facts per entity.
         fact_lines = []
         person_name = None
-        for e in entities:
+        for e in entities_sorted:
             name = e.get("entity") or ""
             if name == "_reflections" or not name:
                 continue
             entity_facts = e.get("facts") or []
             if not entity_facts:
                 continue
-            if (e.get("type") or "").lower() == "person" and person_name is None:
+            if _is_person(e) and person_name is None:
                 person_name = name
-            # Take up to 4 facts per entity — caller-level entities (person)
-            # typically hold the most useful facts, others (objects, places)
-            # tend to be referenced
-            for f in entity_facts[:4]:
+            # Up to 5 facts for the caller (person), 2 for related entities.
+            cap = 5 if _is_person(e) else 2
+            for f in entity_facts[:cap]:
                 content = f if isinstance(f, str) else (f.get("content", "") if isinstance(f, dict) else str(f))
                 content = content.strip()
                 if not content:
@@ -8394,8 +8451,11 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         else:
             header = f"Known about caller ({person_name or phone}):"
             summary = header + " " + " | ".join(fact_lines)
-            if len(summary) > 600:
-                summary = summary[:597] + "..."
+            # 900-char cap — Vapi tool result needs to fit comfortably in
+            # the assistant's prompt without bloating tokens. 900 chars ≈
+            # ~225 tokens, leaves room for system prompt + other context.
+            if len(summary) > 900:
+                summary = summary[:897] + "..."
 
         try:
             store.log_usage(ctx.user_id, "voice_recall", query_score=1.0)
@@ -8404,7 +8464,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
         return {
             "results": [{
-                "toolCallId": tc.id,
+                "toolCallId": tc_id,
                 "result": summary,
             }]
         }
@@ -8413,15 +8473,35 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     async def vapi_save(req: VapiWebhookRequest, ctx: AuthContext = Depends(auth)):
         """Vapi end-of-call webhook: extract memories from the transcript.
 
-        Vapi posts this after a call completes. We route the transcript
-        through the existing extraction pipeline, keyed per caller via
-        sub_user_id. Returns 202 with job_id — extraction runs in the
-        background like /v1/add.
+        Only processes `end-of-call-report` events. Vapi streams MANY events
+        to the same server URL — status-update, conversation-update, partial
+        transcript chunks (`message.type == "transcript"`, `transcriptType:
+        partial`), speech-update, hang, etc. Without a type guard, the save
+        endpoint would re-run extraction on every partial transcript chunk
+        (dozens of times per call), burning quota and creating duplicate
+        memory entries. The guard makes all other events benign no-ops.
+
+        For end-of-call-report the final transcript lives at
+        `message.transcript` AND `message.artifact.transcript` per
+        https://github.com/VapiAI/docs/blob/main/fern/server-url/events.mdx.
+        We read whichever is present.
         """
-        transcript = (req.message.transcript or "").strip()
+        msg = req.message
+
+        # Type guard: only end-of-call-report (or unspecified, for curl
+        # tests) triggers extraction. Everything else gets ignored with a
+        # 200 so Vapi doesn't mark the assistant as broken.
+        if msg.type and msg.type != "end-of-call-report":
+            return {"status": "ignored", "reason": f"event {msg.type} not handled by save endpoint"}
+
+        # Transcript: prefer top-level, fall back to artifact.transcript.
+        transcript = (msg.transcript or "").strip()
+        if not transcript and isinstance(msg.artifact, dict):
+            transcript = (msg.artifact.get("transcript") or "").strip()
+
         phone = ""
-        if req.message.call and req.message.call.customer:
-            phone = (req.message.call.customer.number or "").strip()
+        if msg.call and msg.call.customer:
+            phone = (msg.call.customer.number or "").strip()
 
         if not phone or not transcript:
             return {"status": "ignored", "reason": "missing phone or transcript"}
