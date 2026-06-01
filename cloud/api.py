@@ -8279,6 +8279,187 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         return result
 
     # ============================================
+    # Vapi Voice Integration — webhook adapters
+    # ============================================
+    # Vapi calls these endpoints when its assistants invoke our tools or
+    # post call lifecycle events. We translate Vapi's webhook format
+    # (toolCallList + call.customer.number) to our existing search/add
+    # paths, keyed per caller via sub_user_id="voice:<E.164>".
+    #
+    # This is the integration that backs mengram.io/integrations/vapi.
+    # No new storage, no new pipeline — only adapters over existing
+    # extraction + retrieval.
+
+    class _VapiToolCall(BaseModel):
+        id: str
+        type: str = "function"
+        function: dict
+
+    class _VapiCustomer(BaseModel):
+        number: str | None = None
+
+    class _VapiCall(BaseModel):
+        customer: _VapiCustomer | None = None
+        id: str | None = None
+
+    class _VapiWebhookMessage(BaseModel):
+        toolCallList: list[_VapiToolCall] | None = None
+        call: _VapiCall | None = None
+        transcript: str | None = None
+        type: str | None = None
+
+    class VapiWebhookRequest(BaseModel):
+        message: _VapiWebhookMessage
+
+    def _voice_sub_user(phone: str) -> str:
+        """Per-caller sub_user_id. Normalizes to digits + leading + only,
+        so '+1 (415) 555-1234' and '14155551234' map to the same memory."""
+        if not phone:
+            return "voice:unknown"
+        normalized = "".join(c for c in phone.strip() if c.isdigit() or c == "+")
+        return f"voice:{normalized}" if normalized else "voice:unknown"
+
+    @app.post("/v1/voice/vapi/recall", tags=["Voice"])
+    async def vapi_recall(req: VapiWebhookRequest, ctx: AuthContext = Depends(auth)):
+        """Vapi webhook: returns concise caller context for the AI agent.
+
+        Vapi invokes this as a custom tool at call start. We extract the
+        phone (from tool args first, then fall back to call.customer.number),
+        run a unified search across semantic + episodic memory scoped to
+        that caller, and return a 1-2 sentence summary the assistant can
+        verbalize naturally. Format follows Vapi's tool-result spec:
+        {"results": [{"toolCallId": ..., "result": ...}]}.
+        """
+        if not req.message.toolCallList:
+            raise HTTPException(status_code=400, detail="missing toolCallList")
+
+        tc = req.message.toolCallList[0]
+        args = tc.function.get("arguments") if isinstance(tc.function, dict) else {}
+        if isinstance(args, str):
+            try:
+                args = json.loads(args)
+            except Exception:
+                args = {}
+        if not isinstance(args, dict):
+            args = {}
+
+        phone = (args.get("phone") or "").strip()
+        if not phone and req.message.call and req.message.call.customer:
+            phone = (req.message.call.customer.number or "").strip()
+
+        if not phone:
+            return {"results": [{"toolCallId": tc.id, "result": "Unknown caller — no phone number available."}]}
+
+        sub_uid = _voice_sub_user(phone)
+        use_quota(ctx, "search")
+
+        embedder = get_embedder()
+        query = f"prior conversations and important facts about caller {phone}"
+
+        try:
+            if embedder:
+                emb = embedder.embed(query)
+                semantic = store.search_vector_with_teams(
+                    ctx.user_id, emb, top_k=5, query_text=query, sub_user_id=sub_uid) or []
+                episodic = store.search_episodes_vector(
+                    ctx.user_id, emb, top_k=3, sub_user_id=sub_uid, query_text=query) or []
+            else:
+                semantic = store.search_text(ctx.user_id, query, top_k=5, sub_user_id=sub_uid) or []
+                episodic = []
+        except Exception as e:
+            logger.error(f"vapi_recall search failed for phone={phone}: {e}")
+            return {"results": [{"toolCallId": tc.id, "result": "Memory lookup failed — proceed without context."}]}
+
+        facts = [str(r.get("content", "")).strip() for r in semantic if r.get("content")][:5]
+        episodes = [str(r.get("summary", "")).strip() for r in episodic if r.get("summary")][:2]
+
+        if not facts and not episodes:
+            summary = f"New caller — no prior context for {phone}."
+        else:
+            parts = []
+            if episodes:
+                parts.append("Past interactions: " + " | ".join(episodes))
+            if facts:
+                parts.append("Known facts: " + " | ".join(facts))
+            summary = " ".join(parts)
+            if len(summary) > 600:
+                summary = summary[:597] + "..."
+
+        try:
+            store.log_usage(ctx.user_id, "voice_recall", query_score=1.0)
+        except Exception:
+            pass
+
+        return {
+            "results": [{
+                "toolCallId": tc.id,
+                "result": summary,
+            }]
+        }
+
+    @app.post("/v1/voice/vapi/save", tags=["Voice"])
+    async def vapi_save(req: VapiWebhookRequest, ctx: AuthContext = Depends(auth)):
+        """Vapi end-of-call webhook: extract memories from the transcript.
+
+        Vapi posts this after a call completes. We route the transcript
+        through the existing extraction pipeline, keyed per caller via
+        sub_user_id. Returns 202 with job_id — extraction runs in the
+        background like /v1/add.
+        """
+        transcript = (req.message.transcript or "").strip()
+        phone = ""
+        if req.message.call and req.message.call.customer:
+            phone = (req.message.call.customer.number or "").strip()
+
+        if not phone or not transcript:
+            return {"status": "ignored", "reason": "missing phone or transcript"}
+
+        sub_uid = _voice_sub_user(phone)
+        use_quota(ctx, "add")
+
+        job_id = store.create_job(ctx.user_id, "add")
+        normalized_phone = "".join(c for c in phone if c.isdigit() or c == "+")
+        metadata = {
+            "source": "voice_call",
+            "agent_id": "vapi",
+            "phone": normalized_phone,
+            "call_id": req.message.call.id if req.message.call else None,
+        }
+
+        import threading
+
+        def process_in_background():
+            _run_extraction_pipeline(
+                user_id=ctx.user_id,
+                sub_uid=sub_uid,
+                conversation=[{"role": "user", "content": _sanitize_text(transcript)}],
+                metadata=metadata,
+                expiration_date=None,
+                job_id=job_id,
+                plan=ctx.plan,
+                prompt_version="v1",
+            )
+
+        threading.Thread(target=process_in_background, daemon=True).start()
+
+        from starlette.responses import JSONResponse
+        return JSONResponse(status_code=202, content={
+            "status": "accepted",
+            "job_id": job_id,
+            "sub_user_id": sub_uid,
+        })
+
+    @app.get("/integrations/vapi", response_class=HTMLResponse)
+    async def integrations_vapi():
+        """Vapi integration landing page."""
+        page_path = Path(__file__).parent / "integrations-vapi.html"
+        if not page_path.exists():
+            raise HTTPException(404, "page not found")
+        html = page_path.read_text(encoding="utf-8")
+        html = html.replace("{{VERSION}}", __version__).replace("{{BASE_URL}}", BASE_URL)
+        return html
+
+    # ============================================
     # Smart Memory Triggers (v2.6)
     # ============================================
 
