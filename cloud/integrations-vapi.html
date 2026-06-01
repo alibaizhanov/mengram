@@ -116,7 +116,7 @@ footer a { color: #a78bfa; text-decoration: none; }
 <section class="hero">
   <span class="eyebrow">Mengram × Vapi</span>
   <h1>Stop making your callers <span class="accent">repeat themselves</span>.</h1>
-  <p class="subhead">Persistent memory for Vapi voice agents. The assistant knows who's calling — names, preferences, past interactions — before saying a word.</p>
+  <p class="subhead">Persistent memory for Vapi voice agents. The assistant knows who's calling — names, preferences, past interactions — before saying a word. Apache 2.0, free tier, self-host or hosted.</p>
   <a href="/" class="cta">Get started free →</a>
   <a href="https://github.com/alibaizhanov/mengram" class="cta outline">View on GitHub</a>
 </section>
@@ -142,12 +142,17 @@ footer a { color: #a78bfa; text-decoration: none; }
 </section>
 
 <section class="section">
-  <h2>Setup in 3 steps</h2>
+  <h2>Setup in 4 steps</h2>
   <div class="steps">
 
     <div class="step">
+      <h3>Get your Mengram API key</h3>
+      <p>Sign up at <a href="/" style="color:#a78bfa">mengram.io</a> (free, no card). Your key is shown once on the Dashboard → Keys page — copy it. You'll paste it into the <code>YOUR_MENGRAM_KEY</code> placeholders below.</p>
+    </div>
+
+    <div class="step">
       <h3>Add Mengram as a Vapi tool</h3>
-      <p>Drop this into your assistant config. The <code>recall_caller</code> tool hits Mengram's voice webhook at call start.</p>
+      <p>Drop this into your assistant's <em>Tools</em> section in the Vapi dashboard. The <code>recall_caller</code> tool hits Mengram's voice webhook at call start.</p>
       <div class="code">{
   <span class="k">"type"</span>: <span class="s">"function"</span>,
   <span class="k">"function"</span>: {
@@ -163,6 +168,13 @@ footer a { color: #a78bfa; text-decoration: none; }
     <span class="k">"headers"</span>: { <span class="k">"Authorization"</span>: <span class="s">"Bearer YOUR_MENGRAM_KEY"</span> }
   }
 }</div>
+      <p style="font-size:13px;color:#8888a8;margin-top:10px;">Returns a string the assistant can verbalize. Example:</p>
+      <div class="code" style="font-size:12px;color:#22c55e">{
+  <span class="k">"results"</span>: [{
+    <span class="k">"toolCallId"</span>: <span class="s">"call_abc"</span>,
+    <span class="k">"result"</span>: <span class="s">"Known about caller (Sarah Johnson): Sarah Johnson: prefers morning slots before 11 AM | Sarah Johnson: gets anxiety with novocaine | Sarah Johnson: booked cleaning May 14"</span>
+  }]
+}</div>
     </div>
 
     <div class="step">
@@ -176,9 +188,12 @@ Don't ask for info you already have.</div>
 
     <div class="step">
       <h3>Add the end-of-call save webhook</h3>
-      <p>In Vapi assistant → Server URL settings, point end-of-call event to:</p>
-      <div class="code"><span class="s">{{BASE_URL}}/v1/voice/vapi/save</span></div>
-      <p>Mengram extracts entities, facts, and a summary from the transcript — keyed to the caller's phone. Next call, <code>recall_caller</code> returns it.</p>
+      <p>In the Vapi assistant config, set the <em>Server URL</em> to:</p>
+      <div class="code"><span class="s">{{BASE_URL}}/v1/voice/vapi/save</span>
+
+<span class="c">Header: Authorization: Bearer YOUR_MENGRAM_KEY</span></div>
+      <p style="font-size:13px;color:#8888a8;">Vapi's Server URL receives <em>all</em> assistant events (status-update, partial transcript, end-of-call-report, etc.). Mengram filters internally — only <code>end-of-call-report</code> triggers extraction, everything else returns a benign 200. Safe to wire one Server URL for the whole assistant.</p>
+      <p>Mengram extracts entities, facts, and a summary from the final transcript — keyed to the caller's phone. Next call, <code>recall_caller</code> returns it.</p>
     </div>
 
   </div>
@@ -209,10 +224,12 @@ Don't ask for info you already have.</div>
 <section class="section">
   <h2>FAQ</h2>
   <div class="faq"><q>How is this different from mem0?</q><p>Mem0 is text-agent-shaped. You glue it to Vapi with n8n + custom code. Mengram's webhook adapter is Vapi-native: paste the JSON, you're done. Same hybrid retrieval underneath, just less wiring.</p></div>
-  <div class="faq"><q>Will this work with Retell / Pipecat / LiveKit?</q><p>The recall/save endpoints are HTTP webhooks — they work with anything that can POST JSON. Native Pipecat processor and LiveKit agent helper are next on the roadmap. Email <a href="mailto:ali@mengram.io" style="color:#a78bfa">ali@mengram.io</a> if you need them sooner.</p></div>
-  <div class="faq"><q>What about HIPAA?</q><p>Self-host gives you full data residency (Apache 2.0, your Postgres, your OpenAI key). Hosted-cloud BAA is on the roadmap for Pro+. For now, healthcare voice agents should self-host.</p></div>
-  <div class="faq"><q>How much does it cost?</q><p>Free tier covers 40 saves + 200 recalls per month — enough to validate. Paid tiers from $5/mo. Each <code>recall_caller</code> consumes 1 search; each end-of-call save consumes 1 add. <a href="/#pricing" style="color:#a78bfa">Full pricing →</a></p></div>
-  <div class="faq"><q>What about latency?</q><p>Recall returns in ~150–400ms p50. The agent typically calls it during the natural greeting pause, so callers don't perceive it.</p></div>
+  <div class="faq"><q>Will this work with Retell / Pipecat / LiveKit?</q><p>The recall/save endpoints are HTTP webhooks — anything that can POST JSON works. Native Pipecat processor and LiveKit agent helper aren't built yet; if you need one, email <a href="mailto:ali@mengram.io" style="color:#a78bfa">ali@mengram.io</a> and I'll prioritize based on demand.</p></div>
+  <div class="faq"><q>What about HIPAA?</q><p>Self-host gives you full data residency (Apache 2.0, your Postgres, your OpenAI key). Hosted-cloud BAA isn't yet available — for now, healthcare voice agents should self-host.</p></div>
+  <div class="faq"><q>How much does it cost?</q><p>Free tier = 40 saves + 200 recalls/month, which is roughly <strong>40 inbound calls/month</strong> (1 call = 1 recall + 1 save). Enough to validate the integration. Paid tiers from $5/mo. Each <code>recall_caller</code> consumes 1 search quota; each end-of-call save consumes 1 add quota. <a href="/#pricing" style="color:#a78bfa">Full pricing →</a></p></div>
+  <div class="faq"><q>What about latency?</q><p>Single recall: ~500–900ms. Under concurrent load (10–20 simultaneous calls): p50 ≈ 1200ms, p95 ≈ 1300ms. The agent calls <code>recall_caller</code> during the natural greeting pause, so callers don't notice — but if you have hard sub-1s SLA, benchmark in your setup first. Measured against mengram.io production with 1186-word transcripts indexed.</p></div>
+  <div class="faq"><q>Can I test without a phone number using Vapi's web "Talk to Assistant" button?</q><p>Yes, but recall won't have a phone to key on (web calls don't have <code>customer.number</code>). You'll see "Web caller — no phone number yet" until you switch to a phone-attached assistant. For full end-to-end testing, buy a $1/mo Vapi phone number and call yourself.</p></div>
+  <div class="faq"><q>What if my assistant config uses the OpenAI-style nested <code>toolCalls</code> shape?</q><p>Both work. Vapi sends <code>toolCalls</code> (nested <code>function.name</code> / <code>function.arguments</code>) and <code>toolCallList</code> (flat) — Mengram parses either. <code>arguments</code> can also arrive as a JSON string, handled.</p></div>
 </section>
 
 <section class="section" style="text-align:center;padding:48px 24px;background:#12121e;border-radius:12px;">
