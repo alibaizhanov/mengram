@@ -7212,9 +7212,11 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         # adapters can act on retrieval honesty instead of guessing whether
         # a low-score result is "noise" or "best-effort hit." See
         # search_vector floor fix in store.py for the underlying reasoning.
-        if top_score >= 0.3:
+        # Quality thresholds on raw RRF scale (NOT normalized).
+        # See store.py:DIRECT_MATCH_FLOOR for the underlying score distribution.
+        if top_score >= 0.04:
             result_quality = "strong"
-        elif top_score >= 0.15:
+        elif top_score >= 0.025:
             result_quality = "weak"
         else:
             result_quality = "no_match"

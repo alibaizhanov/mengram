@@ -2745,19 +2745,23 @@ class CloudStore:
                 final_scores[eid] = score
 
             # Sort, filter by minimum RRF score, and diversify via MMR.
-            # RRF score is 1/(60+rank): top hit ≈ 0.016, rank-50 ≈ 0.009 — the prior
-            # floor of 0.01 admitted essentially any entity that existed in the index
-            # as a "result." Production logs over 7 days showed 63.8% of searches
-            # returning scores < 0.05 (e.g. 0.0165 repeated 175× across users) —
-            # arithmetic noise being dressed up as a hit. Callers (especially
-            # voice/MCP) consume these as ground truth, so the silent bad-result
-            # mode caused churn (sven 506/506 failed, carellarafaelantonio 200×
-            # the same 0.0165). New floor 0.15 cleanly separates the bimodal
-            # distribution (real matches > 0.3, noise < 0.05) without dropping
-            # legitimate weak-but-real hits. Graph-expanded keeps the stricter
-            # adaptive floor relative to top_score so multi-hop noise still gets
-            # filtered.
-            DIRECT_MATCH_FLOOR = 0.15
+            # RRF score is 1/(60+rank): rank-1 single-index ≈ 0.0164. Real hits
+            # land in BOTH the vector and BM25 indices, summing to ≈ 0.0328 at
+            # rank-1, ≈ 0.043 with recency boost. Arithmetic noise (single-index
+            # rank-1 with or without recency) clusters at 0.0164/0.0213.
+            #
+            # Threshold history:
+            #   0.01  (original) — admitted everything, 63.8% of searches were
+            #                       single-value noise like 0.0165 / 0.0213.
+            #   0.15  (regression, 2026-06-04 → 06-06) — killed 99.3% of real
+            #                       matches because 0.15 is unreachable for raw
+            #                       RRF (max ~0.05). mnmilford (mean 0.97 pre)
+            #                       flipped to critical with mean 0.0.
+            #   0.025 (current) — cleanly separates noise (0.0164/0.0213) from
+            #                       real two-index hits (≥ 0.0328) while still
+            #                       admitting legitimate single-index strong
+            #                       recency-boosted results.
+            DIRECT_MATCH_FLOOR = 0.025
             sorted_final = sorted(final_scores.items(), key=lambda x: x[1], reverse=True)
             top_score = sorted_final[0][1] if sorted_final else 0
             min_rrf_graph = max(DIRECT_MATCH_FLOOR, top_score * 0.4)
@@ -6490,9 +6494,9 @@ Return ONLY JSON (no markdown):
                     graph_expanded_ids.add(eid)
 
             # Sort, filter by minimum RRF score, and limit.
-            # Floor raised 0.01 → 0.15 to stop arithmetic-noise results — see
-            # the parallel fix in search_vector above for the full reasoning.
-            DIRECT_MATCH_FLOOR = 0.15
+            # Threshold 0.025 — see search_vector above for the full reasoning
+            # on noise (0.0164/0.0213) vs real-hit (≥ 0.0328) separation.
+            DIRECT_MATCH_FLOOR = 0.025
             sorted_final = sorted(rrf_scores.items(), key=lambda x: x[1], reverse=True)
             top_score = sorted_final[0][1] if sorted_final else 0
             min_rrf_graph = max(DIRECT_MATCH_FLOOR, top_score * 0.4)
