@@ -58,7 +58,8 @@ STEP 1 — DETECT ENVIRONMENT
        or re-run this prompt in an environment that already has a working
        Python launcher."
 
-1.3  Determine which AI tool you are running in (the "host"). Pick ONE:
+1.3  Determine which AI tool(s) you are running in / configuring (the
+     "host(s)"). Possible hosts:
      - claude-desktop   (Claude Desktop app, .app on macOS / .exe on Windows)
      - claude-code      (Claude Code CLI)
      - cursor           (Cursor editor)
@@ -69,9 +70,24 @@ STEP 1 — DETECT ENVIRONMENT
                           'claude-ai' AND lack of filesystem/shell tools, or
                           the URL chrome://...; see Section 4F)
      - other            (anything else — generic MCP install)
-     You usually know which host you are. If unsure, ask the user once.
+     You usually know which host you are running inside of. If unsure, ask
+     the user once.
 
-     CRITICAL: Claude Desktop and Claude.ai (web) are different products with
+     CRITICAL: Claude Desktop and Claude Code CLI are SEPARATE products with
+     SEPARATE MCP config stores (claude_desktop_config.json vs. Claude Code's
+     own config). Configuring one does NOT configure the other, even though
+     both run on the same machine and both are "Claude".
+
+     IMPORTANT — CHECK BOTH, DO NOT SKIP EITHER:
+     If the current environment is, or has access to, both Claude Desktop AND
+     Claude Code CLI (e.g. you are running as Claude Code but Claude Desktop
+     is also installed on this machine, or vice versa), configure BOTH in
+     Step 4 (4A for Claude Desktop, 4B for Claude Code CLI). Never skip one
+     of the two just because the other is already configured, already has a
+     "mengram" entry, or was just set up in this same run — each has its own
+     independent config file and must be checked/written independently.
+
+     Likewise, Claude Desktop and Claude.ai (web) are different products with
      different install paths. The desktop app uses stdio MCP via a JSON config
      file (Step 4A). The web app needs an HTTP MCP added through Settings UI
      (Step 4F) — you cannot install it programmatically.
@@ -233,7 +249,16 @@ NOTE — TWO VALID INTEGRATION PATTERNS:
 If you detect an existing entry that uses pattern (2), replace it with the
 pattern (1) block below unless the user explicitly asks to keep mcp-remote.
 
+REMINDER: If both Claude Desktop and Claude Code CLI are present/relevant on
+this machine, run BOTH 4A and 4B. They use separate config files — a
+"mengram" entry in one does not mean the other is configured. Do not skip
+either block on that basis.
+
 ------- 4A. claude-desktop -------
+NOTE: This configures ONLY the Claude Desktop app (claude_desktop_config.json).
+It does NOT configure the Claude Code CLI — that is a separate config store,
+see Section 4B. If Claude Code CLI is also present, do 4B as well.
+
 Config file path:
   macOS:    ~/Library/Application Support/Claude/claude_desktop_config.json
   Windows:  %APPDATA%\Claude\claude_desktop_config.json
@@ -256,6 +281,10 @@ Steps:
      for the MCP server to load."
 
 ------- 4B. claude-code -------
+NOTE: This configures ONLY the Claude Code CLI's own MCP config (separate
+from claude_desktop_config.json). It does NOT configure the Claude Desktop
+app — that is Section 4A. If Claude Desktop is also present, do 4A as well.
+
 Run:    claude mcp add mengram -- mengram server --cloud
 (The `claude` CLI is required. If absent, tell user to install Claude Code.)
 If the base URL from Step 3 is NOT https://mengram.io, ensure the Claude Code
