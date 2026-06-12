@@ -7,10 +7,12 @@
 
 ### Give your AI agents memory that actually learns
 
+[![GitHub stars](https://img.shields.io/github/stars/alibaizhanov/mengram?style=social)](https://github.com/alibaizhanov/mengram/stargazers)
 [![PyPI](https://img.shields.io/pypi/v/mengram-ai)](https://pypi.org/project/mengram-ai/)
 [![npm](https://img.shields.io/npm/v/mengram-ai)](https://www.npmjs.com/package/mengram-ai)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![PyPI Downloads](https://img.shields.io/pypi/dm/mengram-ai)](https://pypi.org/project/mengram-ai/)
+[![Last commit](https://img.shields.io/github/last-commit/alibaizhanov/mengram)](https://github.com/alibaizhanov/mengram/commits/main)
 
 **[Website](https://mengram.io)** · **[Get API Key](https://mengram.io/#signup)** · **[Docs](https://mengram.io/docs)** · **[Console](https://mengram.io/dashboard)** · **[Examples](examples/)**
 
@@ -33,7 +35,19 @@ m.procedures(query="deploy")            # → workflows that evolve from failure
 
 Native multilingual: ask in Russian, Chinese, Spanish, Japanese — Mengram retrieves and answers across 23 languages (Cohere multilingual embeddings + rerank).
 
+---
 
+## Install in one prompt (any AI tool)
+
+Paste this into Claude Desktop, Cursor, Codex, Claude Code, or Windsurf — the agent reads our [setup guide](https://mengram.io/agent-install.txt), installs the SDK, configures the MCP server, and verifies the round-trip end-to-end. **No terminal context-switching.**
+
+```
+Install Mengram for me. Fetch the canonical install guide at
+https://mengram.io/agent-install.txt and follow it precisely.
+My email is YOUR_EMAIL_HERE.
+```
+
+Works in any agent with shell + file-edit + web-fetch tools. Prefer doing it manually? See the [plain-text guide](https://mengram.io/agent-install.txt) — it's structured for human eyes too.
 
 ---
 
@@ -290,7 +304,7 @@ mengram hook install
 </td>
 <td width="50%">
 
-**MCP Server** — Claude Desktop, Cursor, Windsurf
+**MCP Server** — Claude Desktop, Cursor, Codex, Windsurf, Cline
 
 ```json
 {
@@ -304,7 +318,7 @@ mengram hook install
 }
 ```
 
-29 tools for memory management.
+30 tools for memory management.
 
 </td>
 </tr>
@@ -384,7 +398,7 @@ mengram hook install
 }
 ```
 
-29 memory tools via MCP. [Docs](https://mengram.io/docs/managed-agents)
+30 memory tools via MCP. [Docs](https://mengram.io/docs/managed-agents)
 
 </td>
 <td width="50%">
@@ -548,8 +562,19 @@ print(m.quota)  # {"add": {"used": 5, "limit": 30}, "search": {"used": 12, "limi
 ## Community
 
 - **[GitHub Issues](https://github.com/alibaizhanov/mengram/issues)** — bug reports, feature requests
+- **[GitHub Discussions](https://github.com/alibaizhanov/mengram/discussions)** — show your use case, ask questions
 - **[API Docs](https://mengram.io/docs)** — interactive Swagger UI
 - **[Examples](examples/)** — ready-to-run agent templates
+
+## Star History
+
+<a href="https://star-history.com/#alibaizhanov/mengram&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=alibaizhanov/mengram&type=Date&theme=dark" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=alibaizhanov/mengram&type=Date" />
+    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=alibaizhanov/mengram&type=Date" />
+  </picture>
+</a>
 
 ## License
 

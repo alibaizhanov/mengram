@@ -1583,7 +1583,12 @@ class CloudStore:
             return cur.fetchone() is not None
 
     def get_users_added_no_search(self, min_adds: int = 3, drip_type: str = "added_no_search") -> list:
-        """Find users who added memories but never searched (likely don't know search exists)."""
+        """Find users who added memories but never searched (likely don't know search exists).
+
+        Only counts real `search` queries — `search_all` is a dashboard browse-all
+        action, not a query, so users who only viewed their vault still need the
+        nudge to try real semantic search.
+        """
         self.ensure_drip_emails_table()
         with self._cursor(dict_cursor=True) as cur:
             cur.execute(
@@ -1597,7 +1602,7 @@ class CloudStore:
                      )
                    GROUP BY u.id, u.email
                    HAVING count(*) FILTER (WHERE ac.action = 'add') >= %s
-                      AND count(*) FILTER (WHERE ac.action IN ('search', 'search_all')) = 0
+                      AND count(*) FILTER (WHERE ac.action = 'search') = 0
                       AND max(ac.created_at) < NOW() - INTERVAL '24 hours'""",
                 (drip_type, min_adds)
             )
@@ -2739,14 +2744,30 @@ class CloudStore:
                             pass
                 final_scores[eid] = score
 
-            # Sort, filter by minimum RRF score, and diversify via MMR
-            # Direct matches: fixed floor 0.01. Graph-expanded: stricter adaptive floor.
+            # Sort, filter by minimum RRF score, and diversify via MMR.
+            # RRF score is 1/(60+rank): rank-1 single-index ≈ 0.0164. Real hits
+            # land in BOTH the vector and BM25 indices, summing to ≈ 0.0328 at
+            # rank-1, ≈ 0.043 with recency boost. Arithmetic noise (single-index
+            # rank-1 with or without recency) clusters at 0.0164/0.0213.
+            #
+            # Threshold history:
+            #   0.01  (original) — admitted everything, 63.8% of searches were
+            #                       single-value noise like 0.0165 / 0.0213.
+            #   0.15  (regression, 2026-06-04 → 06-06) — killed 99.3% of real
+            #                       matches because 0.15 is unreachable for raw
+            #                       RRF (max ~0.05). mnmilford (mean 0.97 pre)
+            #                       flipped to critical with mean 0.0.
+            #   0.025 (current) — cleanly separates noise (0.0164/0.0213) from
+            #                       real two-index hits (≥ 0.0328) while still
+            #                       admitting legitimate single-index strong
+            #                       recency-boosted results.
+            DIRECT_MATCH_FLOOR = 0.01
             sorted_final = sorted(final_scores.items(), key=lambda x: x[1], reverse=True)
             top_score = sorted_final[0][1] if sorted_final else 0
-            min_rrf_graph = max(0.01, top_score * 0.4)
+            min_rrf_graph = max(DIRECT_MATCH_FLOOR, top_score * 0.4)
             filtered = [(eid, score) for eid, score in sorted_final
                         if (eid in graph_expanded_ids and score >= min_rrf_graph) or
-                           (eid not in graph_expanded_ids and score >= 0.01)]
+                           (eid not in graph_expanded_ids and score >= DIRECT_MATCH_FLOOR)]
             top_entities = self._mmr_select(filtered, entity_info, top_k)
 
             if not top_entities:
@@ -3239,6 +3260,62 @@ Return ONLY JSON (no markdown):
         if stats["hours_since_last"] >= 24 and stats["new_facts_since_last"] >= 3:
             return True
         return False
+
+    def get_users_due_for_reflection(self, max_users: int = 50,
+                                     active_within_days: int = 30) -> list:
+        """Bulk version of should_reflect — find (user, sub_user) pairs whose
+        reflection layer is stale relative to their facts.
+
+        Mirrors should_reflect's triggers exactly (10+ new facts, OR 24h+ since
+        last reflection AND 3+ new facts), but adds an activity filter so the
+        cron doesn't burn LLM calls on dormant accounts. Highest-signal users
+        (most new facts) sort first so partial batches still cover the people
+        with the most stale insight layers.
+        """
+        with self._cursor(dict_cursor=True) as cur:
+            cur.execute(
+                """WITH last_reflection AS (
+                       SELECT e.user_id, e.sub_user_id,
+                              MAX(k.refreshed_at) AS last_at
+                       FROM knowledge k
+                       JOIN entities e ON e.id = k.entity_id
+                       WHERE k.type = 'reflection'
+                       GROUP BY e.user_id, e.sub_user_id
+                   ),
+                   fact_stats AS (
+                       SELECT e.user_id, e.sub_user_id,
+                              MAX(f.created_at) AS latest_fact,
+                              lr.last_at AS last_reflected_at,
+                              COUNT(f.id) FILTER (
+                                  WHERE lr.last_at IS NULL
+                                     OR f.created_at > lr.last_at
+                              ) AS new_facts
+                       FROM facts f
+                       JOIN entities e ON e.id = f.entity_id
+                       LEFT JOIN last_reflection lr
+                           ON lr.user_id = e.user_id
+                          AND lr.sub_user_id = e.sub_user_id
+                       WHERE f.archived = FALSE
+                         AND (f.expires_at IS NULL OR f.expires_at > NOW())
+                       GROUP BY e.user_id, e.sub_user_id, lr.last_at
+                   )
+                   SELECT user_id::text AS user_id, sub_user_id,
+                          new_facts, latest_fact, last_reflected_at
+                   FROM fact_stats
+                   WHERE latest_fact > NOW() - make_interval(days => %s)
+                     AND (
+                         new_facts >= 10
+                         OR (
+                             new_facts >= 3
+                             AND (last_reflected_at IS NULL
+                                  OR last_reflected_at < NOW() - INTERVAL '24 hours')
+                         )
+                     )
+                   ORDER BY new_facts DESC
+                   LIMIT %s""",
+                (active_within_days, max_users)
+            )
+            return [dict(r) for r in cur.fetchall()]
 
     def generate_reflections(self, user_id: str, llm_client, sub_user_id: str = "default") -> dict:
         """Generate all 3 types of reflections using LLM."""
@@ -6416,14 +6493,16 @@ Return ONLY JSON (no markdown):
                     }
                     graph_expanded_ids.add(eid)
 
-            # Sort, filter by minimum RRF score, and limit
-            # Direct matches: fixed floor 0.01. Graph-expanded: stricter adaptive floor.
+            # Sort, filter by minimum RRF score, and limit.
+            # Threshold 0.025 — see search_vector above for the full reasoning
+            # on noise (0.0164/0.0213) vs real-hit (≥ 0.0328) separation.
+            DIRECT_MATCH_FLOOR = 0.01
             sorted_final = sorted(rrf_scores.items(), key=lambda x: x[1], reverse=True)
             top_score = sorted_final[0][1] if sorted_final else 0
-            min_rrf_graph = max(0.01, top_score * 0.4)
+            min_rrf_graph = max(DIRECT_MATCH_FLOOR, top_score * 0.4)
             sorted_results = [(eid, score) for eid, score in sorted_final
                               if (eid in graph_expanded_ids and score >= min_rrf_graph) or
-                                 (eid not in graph_expanded_ids and score >= 0.01)][:top_k]
+                                 (eid not in graph_expanded_ids and score >= DIRECT_MATCH_FLOOR)][:top_k]
 
             if not sorted_results:
                 return []
@@ -6982,6 +7061,60 @@ Return ONLY JSON (no markdown):
                     "recommendations": recs,
                 })
             return out
+
+    def get_users_for_insights_digest(self, min_insights: int = 3,
+                                       window_days: int = 7,
+                                       max_samples: int = 5) -> list:
+        """Return users whose reflection layer was refreshed in the trailing
+        window — ready-to-render payload for the weekly Insights digest email.
+
+        Pairs with the Dream Cycle cron: when reflection generated/refreshed
+        N >= min_insights entries for a user in the last week, they get a
+        digest. Stale or skipped users (quota_skipped, dormant > 30d) won't
+        appear because their refreshed_at didn't move.
+
+        Samples carry the top max_samples reflections by recency, so the
+        email body can render a real preview instead of a count-only nudge.
+        """
+        with self._cursor(dict_cursor=True) as cur:
+            cur.execute(
+                """SELECT e.user_id::text AS user_id, u.email,
+                          COUNT(k.id) AS new_insights,
+                          (SELECT array_agg(row_to_json(t))
+                           FROM (
+                               SELECT k2.scope, k2.title, k2.content,
+                                      k2.confidence, k2.refreshed_at
+                               FROM knowledge k2
+                               JOIN entities e2 ON e2.id = k2.entity_id
+                               WHERE e2.user_id = e.user_id
+                                 AND e2.sub_user_id = e.sub_user_id
+                                 AND k2.type = 'reflection'
+                                 AND k2.refreshed_at > NOW() - make_interval(days => %s)
+                               ORDER BY k2.refreshed_at DESC
+                               LIMIT %s
+                           ) t
+                          ) AS samples
+                   FROM knowledge k
+                   JOIN entities e ON e.id = k.entity_id
+                   JOIN users u ON u.id = e.user_id
+                   WHERE k.type = 'reflection'
+                     AND k.refreshed_at > NOW() - make_interval(days => %s)
+                     AND u.email IS NOT NULL
+                     AND e.sub_user_id = 'default'
+                   GROUP BY e.user_id, e.sub_user_id, u.email
+                   HAVING COUNT(k.id) >= %s
+                   ORDER BY new_insights DESC""",
+                (window_days, max_samples, window_days, min_insights)
+            )
+            return [
+                {
+                    "user_id": r["user_id"],
+                    "email": r["email"],
+                    "new_insights": int(r["new_insights"]),
+                    "samples": r["samples"] or [],
+                }
+                for r in cur.fetchall()
+            ]
 
     # ---- Memory Health snapshot read (Day 5 of Memory Health Monitor) ----
 

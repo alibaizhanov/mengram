@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mengram for Vapi — Persistent memory for voice agents</title>
+<meta name="description" content="Drop-in memory layer for Vapi voice agents. 4 lines of config, callers no longer have to repeat themselves. Free tier, Apache 2.0, self-hostable.">
+<meta property="og:title" content="Mengram for Vapi — Persistent memory for voice agents">
+<meta property="og:description" content="Stop making your callers repeat themselves. 4 lines of config.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="{{BASE_URL}}/integrations/vapi">
+<style>
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: #0a0a13;
+  color: #e8e8f0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+.container { max-width: 880px; margin: 0 auto; padding: 32px 24px; }
+.nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 56px; }
+.nav a { color: #a78bfa; text-decoration: none; font-weight: 600; }
+.nav .links a { color: #c8c8d8; font-weight: 400; margin-left: 24px; }
+.hero { text-align: center; margin: 48px 0 64px; }
+.eyebrow {
+  display: inline-block;
+  background: linear-gradient(90deg, #7c3aed22, #a78bfa22);
+  border: 1px solid #7c3aed44;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 12px;
+  color: #a78bfa;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  margin-bottom: 20px;
+}
+h1 { font-size: 44px; line-height: 1.15; margin: 0 0 18px; letter-spacing: -0.02em; }
+h1 .accent { color: #a78bfa; }
+.subhead { font-size: 19px; color: #9999b0; max-width: 580px; margin: 0 auto 28px; }
+.cta { display: inline-block; background: #7c3aed; color: white; padding: 14px 32px; border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 15px; margin: 0 6px; }
+.cta.outline { background: transparent; color: #c8c8d8; border: 1px solid #2a2a44; }
+.cta:hover { transform: translateY(-1px); }
+.section { margin: 56px 0; }
+h2 { font-size: 28px; margin: 0 0 18px; }
+h3 { font-size: 16px; color: #a78bfa; margin: 24px 0 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+.code {
+  background: #12121e;
+  border: 1px solid #1a1a2e;
+  border-radius: 10px;
+  padding: 18px 22px;
+  font-family: 'JetBrains Mono', Menlo, Consolas, monospace;
+  font-size: 13px;
+  color: #e8e8f0;
+  overflow-x: auto;
+  white-space: pre;
+  line-height: 1.55;
+  margin: 12px 0;
+}
+.code .k { color: #f472b6; }
+.code .s { color: #22c55e; }
+.code .c { color: #55556a; }
+.steps { counter-reset: step; }
+.step { counter-increment: step; padding: 20px 0 20px 64px; border-bottom: 1px solid #1a1a2e; position: relative; }
+.step::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: 20px;
+  width: 44px;
+  height: 44px;
+  background: #12121e;
+  border: 1px solid #2a2a44;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: #a78bfa;
+  font-size: 17px;
+}
+.step h3 { margin: 4px 0 8px; color: #e8e8f0; text-transform: none; letter-spacing: normal; font-size: 17px; }
+.step p { color: #9999b0; font-size: 15px; margin: 0 0 12px; }
+.row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+@media (max-width: 720px) { .row-2 { grid-template-columns: 1fr; } h1 { font-size: 32px; } }
+.card { background: #0f0f1a; border: 1px solid #1a1a2e; border-radius: 12px; padding: 22px 24px; }
+.card h3 { color: #a78bfa; margin: 0 0 10px; font-size: 13px; }
+.card p { color: #c8c8d8; font-size: 14px; margin: 0; }
+.before-after { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 24px 0; }
+@media (max-width: 720px) { .before-after { grid-template-columns: 1fr; } }
+.dialogue { background: #12121e; border-radius: 10px; padding: 18px; font-size: 14px; line-height: 1.7; }
+.dialogue.before { border-left: 3px solid #ef4444; }
+.dialogue.after { border-left: 3px solid #22c55e; }
+.dialogue strong { color: #a78bfa; }
+.dialogue .label { display: block; color: #55556a; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+.faq { padding: 18px 0; border-bottom: 1px solid #1a1a2e; }
+.faq q { font-weight: 600; color: #e8e8f0; display: block; margin-bottom: 6px; }
+.faq p { color: #9999b0; margin: 0; font-size: 14px; }
+footer { color: #55556a; font-size: 13px; text-align: center; padding: 48px 0 24px; border-top: 1px solid #1a1a2e; margin-top: 48px; }
+footer a { color: #a78bfa; text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<nav class="nav">
+  <a href="/">← Mengram</a>
+  <div class="links">
+    <a href="/#pricing">Pricing</a>
+    <a href="/docs">Docs</a>
+    <a href="/dashboard">Dashboard</a>
+  </div>
+</nav>
+
+<section class="hero">
+  <span class="eyebrow">Mengram × Vapi</span>
+  <h1>Stop making your callers <span class="accent">repeat themselves</span>.</h1>
+  <p class="subhead">Persistent memory for Vapi voice agents. The assistant knows who's calling — names, preferences, past interactions — before saying a word. Apache 2.0, free tier, self-host or hosted.</p>
+  <a href="/" class="cta">Get started free →</a>
+  <a href="https://github.com/alibaizhanov/mengram" class="cta outline">View on GitHub</a>
+</section>
+
+<section class="section">
+  <h2>The problem</h2>
+  <p style="color:#9999b0;font-size:16px;">Vapi assistants are stateless across calls. The caller phones again next week and starts from scratch: "Hi, who am I speaking with? What's your phone number?" The Vapi team is explicit — memory across calls "is not currently supported" and you're told to build it yourself with webhooks and a database.</p>
+
+  <div class="before-after">
+    <div class="dialogue before">
+      <span class="label">Without memory</span>
+      <strong>Caller:</strong> "Hi, calling back about the consult."<br>
+      <strong>Agent:</strong> "Sure! Can I get your name and phone number?"<br>
+      <strong>Caller:</strong> "...you should have it. I just called last week."
+    </div>
+    <div class="dialogue after">
+      <span class="label">With Mengram</span>
+      <strong>Caller:</strong> "Hi, calling back about the consult."<br>
+      <strong>Agent:</strong> "Hi Sarah! How did the cleaning on the 14th go? Want me to book that wisdom teeth consult we discussed?"<br>
+      <strong>Caller:</strong> 🤯
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <h2>Setup in 4 steps</h2>
+  <div class="steps">
+
+    <div class="step">
+      <h3>Get your Mengram API key</h3>
+      <p>Sign up at <a href="/" style="color:#a78bfa">mengram.io</a> (free, no card). Your key is shown once on the Dashboard → Keys page — copy it. You'll paste it into the <code>YOUR_MENGRAM_KEY</code> placeholders below.</p>
+    </div>
+
+    <div class="step">
+      <h3>Add Mengram as a Vapi tool</h3>
+      <p>Drop this into your assistant's <em>Tools</em> section in the Vapi dashboard. The <code>recall_caller</code> tool hits Mengram's voice webhook at call start.</p>
+      <div class="code">{
+  <span class="k">"type"</span>: <span class="s">"function"</span>,
+  <span class="k">"function"</span>: {
+    <span class="k">"name"</span>: <span class="s">"recall_caller"</span>,
+    <span class="k">"description"</span>: <span class="s">"Get what we know about this caller"</span>,
+    <span class="k">"parameters"</span>: {
+      <span class="k">"type"</span>: <span class="s">"object"</span>,
+      <span class="k">"properties"</span>: { <span class="k">"phone"</span>: { <span class="k">"type"</span>: <span class="s">"string"</span> } }
+    }
+  },
+  <span class="k">"server"</span>: {
+    <span class="k">"url"</span>: <span class="s">"{{BASE_URL}}/v1/voice/vapi/recall"</span>,
+    <span class="k">"headers"</span>: { <span class="k">"Authorization"</span>: <span class="s">"Bearer YOUR_MENGRAM_KEY"</span> }
+  }
+}</div>
+      <p style="font-size:13px;color:#8888a8;margin-top:10px;">Returns a string the assistant can verbalize. Example:</p>
+      <div class="code" style="font-size:12px;color:#22c55e">{
+  <span class="k">"results"</span>: [{
+    <span class="k">"toolCallId"</span>: <span class="s">"call_abc"</span>,
+    <span class="k">"result"</span>: <span class="s">"Known about caller (Sarah Johnson): Sarah Johnson: prefers morning slots before 11 AM | Sarah Johnson: gets anxiety with novocaine | Sarah Johnson: booked cleaning May 14"</span>
+  }]
+}</div>
+    </div>
+
+    <div class="step">
+      <h3>Instruct the assistant to call it first</h3>
+      <p>In your Vapi assistant's system prompt:</p>
+      <div class="code"><span class="c">// system prompt</span>
+At the start of every call, call <span class="s">recall_caller</span> with the
+caller's phone number. Use what's returned to greet them naturally.
+Don't ask for info you already have.</div>
+    </div>
+
+    <div class="step">
+      <h3>Add the end-of-call save webhook</h3>
+      <p>In the Vapi assistant config, set the <em>Server URL</em> to:</p>
+      <div class="code"><span class="s">{{BASE_URL}}/v1/voice/vapi/save</span>
+
+<span class="c">Header: Authorization: Bearer YOUR_MENGRAM_KEY</span></div>
+      <p style="font-size:13px;color:#8888a8;">Vapi's Server URL receives <em>all</em> assistant events (status-update, partial transcript, end-of-call-report, etc.). Mengram filters internally — only <code>end-of-call-report</code> triggers extraction, everything else returns a benign 200. Safe to wire one Server URL for the whole assistant.</p>
+      <p>Mengram extracts entities, facts, and a summary from the final transcript — keyed to the caller's phone. Next call, <code>recall_caller</code> returns it.</p>
+    </div>
+
+  </div>
+</section>
+
+<section class="section">
+  <h2>What's under the hood</h2>
+  <div class="row-2">
+    <div class="card">
+      <h3>Per-caller isolation</h3>
+      <p>Each phone number gets its own memory namespace. One Mengram account can power thousands of caller memories across your white-label clients.</p>
+    </div>
+    <div class="card">
+      <h3>Hybrid retrieval</h3>
+      <p>Vector (pgvector) + BM25 + Reciprocal Rank Fusion. Beats pure cosine search on keyword-heavy queries like "what was the policy number".</p>
+    </div>
+    <div class="card">
+      <h3>Temporal decay</h3>
+      <p>Ebbinghaus forgetting curve on facts (e^(-0.03 · days)). Old facts naturally fade. New ones surface first. No manual cleanup.</p>
+    </div>
+    <div class="card">
+      <h3>Background consolidation</h3>
+      <p>Daily reflection cron synthesizes patterns across episodes — "this caller prefers morning slots", "anxiety about novocaine" — so the next call gets context, not raw transcripts.</p>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <h2>FAQ</h2>
+  <div class="faq"><q>How is this different from mem0?</q><p>Mem0 is text-agent-shaped. You glue it to Vapi with n8n + custom code. Mengram's webhook adapter is Vapi-native: paste the JSON, you're done. Same hybrid retrieval underneath, just less wiring.</p></div>
+  <div class="faq"><q>Will this work with Retell / Pipecat / LiveKit?</q><p>The recall/save endpoints are HTTP webhooks — anything that can POST JSON works. Native Pipecat processor and LiveKit agent helper aren't built yet; if you need one, email <a href="mailto:ali@mengram.io" style="color:#a78bfa">ali@mengram.io</a> and I'll prioritize based on demand.</p></div>
+  <div class="faq"><q>What about HIPAA?</q><p>Self-host gives you full data residency (Apache 2.0, your Postgres, your OpenAI key). Hosted-cloud BAA isn't yet available — for now, healthcare voice agents should self-host.</p></div>
+  <div class="faq"><q>How much does it cost?</q><p>Free tier = 40 saves + 200 recalls/month, which is roughly <strong>40 inbound calls/month</strong> (1 call = 1 recall + 1 save). Enough to validate the integration. Paid tiers from $5/mo. Each <code>recall_caller</code> consumes 1 search quota; each end-of-call save consumes 1 add quota. <a href="/#pricing" style="color:#a78bfa">Full pricing →</a></p></div>
+  <div class="faq"><q>What about latency?</q><p>Single recall: ~500–900ms. Under concurrent load (10–20 simultaneous calls): p50 ≈ 1200ms, p95 ≈ 1300ms. The agent calls <code>recall_caller</code> during the natural greeting pause, so callers don't notice — but if you have hard sub-1s SLA, benchmark in your setup first. Measured against mengram.io production with 1186-word transcripts indexed.</p></div>
+  <div class="faq"><q>Can I test without a phone number using Vapi's web "Talk to Assistant" button?</q><p>Yes, but recall won't have a phone to key on (web calls don't have <code>customer.number</code>). You'll see "Web caller — no phone number yet" until you switch to a phone-attached assistant. For full end-to-end testing, buy a $1/mo Vapi phone number and call yourself.</p></div>
+  <div class="faq"><q>What if my assistant config uses the OpenAI-style nested <code>toolCalls</code> shape?</q><p>Both work. Vapi sends <code>toolCalls</code> (nested <code>function.name</code> / <code>function.arguments</code>) and <code>toolCallList</code> (flat) — Mengram parses either. <code>arguments</code> can also arrive as a JSON string, handled.</p></div>
+</section>
+
+<section class="section" style="text-align:center;padding:48px 24px;background:#12121e;border-radius:12px;">
+  <h2 style="margin-bottom:12px;">Try it free</h2>
+  <p style="color:#9999b0;margin-bottom:24px;">40 saves + 200 recalls per month on the free tier. No credit card.</p>
+  <a href="/" class="cta">Get your Mengram key →</a>
+</section>
+
+<footer>
+  Built by <a href="https://github.com/alibaizhanov">Ali Baizhanov</a>. Apache 2.0.
+  Questions? <a href="mailto:ali@mengram.io">ali@mengram.io</a>
+</footer>
+
+</div>
+</body>
+</html>

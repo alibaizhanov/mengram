@@ -1606,6 +1606,63 @@ m.add("I love hiking in the mountains")</code></pre>
                     </div>
                     <p style="font-size:12px;color:#55556a;line-height:1.5">This email fires when your retrieval quality drops below 0.6 mean cosine relevance over the past week. Healthy users don't get this digest. To disable, reply with "unsubscribe health digest".</p>"""
 
+            elif drip_type == "insights_digest":
+                # Weekly Insights digest — fires Mondays after Dream Cycle has had
+                # 7 days to populate. `code` carries the new_insights count; `plan`
+                # (re-used field) carries a JSON-encoded samples list.
+                import json as _json
+                import html as _html_esc
+                try:
+                    samples = _json.loads(plan) if plan else []
+                except Exception:
+                    samples = []
+                # Defensive: count can be a huge LLM-generated number for power
+                # users (saw 1014 in dry-run). Cap subject line so it doesn't
+                # look like spam.
+                try:
+                    _count_int = int(code) if code else 0
+                except (TypeError, ValueError):
+                    _count_int = 0
+                if _count_int >= 100:
+                    count = f"{_count_int}+"
+                elif _count_int > 0:
+                    count = str(_count_int)
+                else:
+                    count = "several"
+                subject = f"Mengram refreshed {count} insights about you this week"
+                sample_html = ""
+                if samples:
+                    scope_label = {
+                        "entity": "Profile",
+                        "cross": "Pattern",
+                        "temporal": "Recent",
+                    }
+                    rows = []
+                    for s in samples[:5]:
+                        scope = scope_label.get(s.get("scope", ""), s.get("scope", ""))
+                        title = _html_esc.escape((s.get("title") or "").strip()[:80])
+                        content_raw = (s.get("content") or "").strip()
+                        if len(content_raw) > 220:
+                            content_raw = content_raw[:217] + "…"
+                        content = _html_esc.escape(content_raw)
+                        rows.append(
+                            f"""<div style="background:#12121e;border:1px solid #2a2a44;border-radius:8px;padding:14px 16px;margin:10px 0">
+                                <div style="font-size:11px;color:#a78bfa;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">{scope}</div>
+                                <div style="font-size:14px;color:#e8e8f0;font-weight:600;margin-bottom:6px">{title}</div>
+                                <div style="font-size:13px;color:#9999b0;line-height:1.5">{content}</div>
+                               </div>"""
+                        )
+                    sample_html = "".join(rows)
+                body = f"""
+                    <p style="font-size:15px;color:#c8c8d8;line-height:1.6">Hi,</p>
+                    <p style="font-size:15px;color:#c8c8d8;line-height:1.6">Mengram's Dream Cycle ran this week and refreshed your insight layer. Here's a preview of what surfaced:</p>
+                    {sample_html}
+                    <div style="text-align:center;margin:24px 0">
+                        <a href="{BASE_URL}/dashboard?tab=intelligence" style="background:#7c3aed;color:white;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">See all insights</a>
+                    </div>
+                    <p style="font-size:13px;color:#8888a8;line-height:1.6">These are derived from facts you've stored in Mengram. The Dream Cycle runs nightly to look for patterns across your knowledge graph — entity summaries, cross-entity themes, and recent shifts.</p>
+                    <p style="font-size:12px;color:#55556a;line-height:1.5">You're getting this because Mengram refreshed your insights this week. To stop these digests, reply with "unsubscribe insights digest".</p>"""
+
             elif drip_type in ("checkout_abandoned_1h", "checkout_abandoned_24h"):
                 # Build a fresh HMAC-signed checkout URL (robust — original Paddle URL may expire)
                 resume_url = f"{BASE_URL}/dashboard?tab=billing"
@@ -7151,7 +7208,26 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                         query_language=_detect_query_language(req.query))
         # increment already done atomically in use_quota above
 
-        response = {"results": results}
+        # Quality label — strong/weak/no_match — so MCP clients and voice
+        # adapters can act on retrieval honesty instead of guessing whether
+        # a low-score result is "noise" or "best-effort hit." See
+        # search_vector floor fix in store.py for the underlying reasoning.
+        # Quality label on the score caller sees (post-rerank for Pro+,
+        # raw RRF for free/starter). Rerank outputs 0-1 cosine-style scores;
+        # raw RRF tops out around 0.05. We use overlapping but distinct
+        # bands so callers can decide whether to trust a "weak" result.
+        if top_score >= 0.3:
+            result_quality = "strong"
+        elif top_score >= 0.02:
+            result_quality = "weak"
+        else:
+            result_quality = "no_match"
+
+        response = {
+            "results": results,
+            "result_quality": result_quality,
+            "top_score": round(top_score, 4),
+        }
         if not results:
             try:
                 st = store.get_stats(user_id, sub_user_id=sub_uid)
@@ -8187,12 +8263,39 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 r.pop("_norm", None)
             return all_items[:limit]
 
+        # Compute top score across all categories so we can label the response
+        # quality honestly. Without this field, callers (Vapi, MCP, dashboard)
+        # can't tell a real match from arithmetic noise that slipped past the
+        # filter — leading to the silent-bad-result churn pattern documented
+        # in the search_vector floor fix.
+        def _top_score(*cats):
+            best = 0.0
+            for cat in cats:
+                if not cat:
+                    continue
+                v = cat[0].get("score") if isinstance(cat[0], dict) else 0
+                try:
+                    best = max(best, float(v or 0))
+                except Exception:
+                    pass
+            return best
+
+        overall_top = _top_score(semantic, episodic, procedural, chunks)
+        if overall_top >= 0.3:
+            result_quality = "strong"
+        elif overall_top >= 0.15:
+            result_quality = "weak"
+        else:
+            result_quality = "no_match"
+
         result = {
             "results": _normalize_and_merge(semantic, episodic, procedural, chunks, req.limit),
             "semantic": semantic,
             "episodic": episodic,
             "procedural": procedural,
             "chunks": chunks,
+            "result_quality": result_quality,
+            "top_score": round(overall_top, 4),
         }
 
         # Cache in Redis (TTL 30s)
@@ -8220,6 +8323,286 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             except Exception:
                 result["hint"] = "No memories found. Add your first memory with POST /v1/add — then search will return results."
         return result
+
+    # ============================================
+    # Vapi Voice Integration — webhook adapters
+    # ============================================
+    # Vapi calls these endpoints when its assistants invoke our tools or
+    # post call lifecycle events. We translate Vapi's webhook format
+    # (toolCallList + call.customer.number) to our existing search/add
+    # paths, keyed per caller via sub_user_id="voice:<E.164>".
+    #
+    # This is the integration that backs mengram.io/integrations/vapi.
+    # No new storage, no new pipeline — only adapters over existing
+    # extraction + retrieval.
+
+    class _VapiCustomer(BaseModel):
+        number: str | None = None
+
+    class _VapiCall(BaseModel):
+        customer: _VapiCustomer | None = None
+        id: str | None = None
+        type: str | None = None  # inboundPhoneCall, outboundPhoneCall, webCall
+
+    class _VapiWebhookMessage(BaseModel):
+        # Vapi posts MANY event types to the same server URL:
+        # tool-calls, end-of-call-report, transcript, status-update,
+        # conversation-update, etc. We dispatch by `type` in each endpoint.
+        type: str | None = None
+        # Tool call payloads: Vapi sends BOTH (per docs) — `toolCalls` follows
+        # OpenAI spec (nested `function.{name, arguments}`), `toolCallList` is
+        # the flattened convenience form (`name`, `arguments` at top level).
+        # Accept dicts and dispatch via _extract_vapi_tool_call below.
+        toolCalls: list[dict] | None = None
+        toolCallList: list[dict] | None = None
+        call: _VapiCall | None = None
+        # Transcript paths: streaming `transcript` events carry partial text
+        # at `message.transcript`. `end-of-call-report` carries the final
+        # transcript at `message.transcript` AND `message.artifact.transcript`.
+        transcript: str | None = None
+        artifact: dict | None = None
+        transcriptType: str | None = None  # "partial" | "final" on transcript events
+
+    class VapiWebhookRequest(BaseModel):
+        message: _VapiWebhookMessage
+
+    def _extract_vapi_tool_call(msg: "_VapiWebhookMessage"):
+        """Pull (tool_call_id, function_name, arguments_dict) from either Vapi
+        tool-call shape. Returns None if no tool call present.
+
+        Vapi tool-calls events include BOTH `toolCalls` (OpenAI-spec nested)
+        and `toolCallList` (flattened) per
+        https://github.com/VapiAI/docs/blob/main/fern/tools/custom-tools.mdx.
+        We prefer `toolCalls` because it's canonical, but fall back to the
+        flattened form so payloads with only one shape still work.
+        """
+        tc_list = msg.toolCalls or msg.toolCallList or []
+        if not tc_list or not isinstance(tc_list[0], dict):
+            return None
+        tc = tc_list[0]
+        tc_id = tc.get("id", "") or ""
+        fn = tc.get("function")
+        if isinstance(fn, dict):
+            name = fn.get("name", "") or ""
+            args = fn.get("arguments", {})
+        else:
+            name = tc.get("name", "") or ""
+            args = tc.get("arguments", {})
+        if isinstance(args, str):
+            try:
+                args = json.loads(args)
+            except Exception:
+                args = {}
+        if not isinstance(args, dict):
+            args = {}
+        return tc_id, name, args
+
+    def _voice_sub_user(phone: str) -> str:
+        """Per-caller sub_user_id. Normalizes to digits + leading + only,
+        so '+1 (415) 555-1234' and '14155551234' map to the same memory."""
+        if not phone:
+            return "voice:unknown"
+        normalized = "".join(c for c in phone.strip() if c.isdigit() or c == "+")
+        return f"voice:{normalized}" if normalized else "voice:unknown"
+
+    @app.post("/v1/voice/vapi/recall", tags=["Voice"])
+    async def vapi_recall(req: VapiWebhookRequest, ctx: AuthContext = Depends(auth)):
+        """Vapi webhook: returns concise caller context for the AI agent.
+
+        Dispatches by message.type. Only handles `tool-calls` events; other
+        event types Vapi posts to the same server URL (status-update,
+        conversation-update, transcript, etc.) get a benign 200 response so
+        Vapi keeps the assistant alive rather than dropping context.
+
+        Vapi tool result MUST be a single string per
+        https://docs.vapi.ai/tools/custom-tools-troubleshooting — any
+        non-string result is silently dropped by Vapi.
+        """
+        msg = req.message
+        # Reject only events explicitly NOT for this endpoint; treat
+        # missing/unknown type as `tool-calls` so curl tests still work.
+        if msg.type and msg.type != "tool-calls":
+            return {"status": "ignored", "reason": f"event {msg.type} not handled by recall endpoint"}
+
+        tool_call = _extract_vapi_tool_call(msg)
+        if not tool_call:
+            # No tool call payload — return 200 not 4xx, so Vapi doesn't
+            # mark the assistant as broken.
+            return {"status": "ignored", "reason": "no tool call present"}
+        tc_id, fn_name, args = tool_call
+
+        phone = (args.get("phone") or "").strip()
+        if not phone and msg.call and msg.call.customer:
+            phone = (msg.call.customer.number or "").strip()
+
+        # Web calls (browser SDK) have no customer.number — fall back to
+        # call.id so each web session at least gets its own scope rather
+        # than sharing one global "voice:unknown" bucket.
+        if not phone and msg.call and msg.call.id:
+            return {"results": [{"toolCallId": tc_id,
+                                  "result": "Web caller — no phone number yet, no prior context."}]}
+        if not phone:
+            return {"results": [{"toolCallId": tc_id,
+                                  "result": "Unknown caller — no phone number available."}]}
+
+        sub_uid = _voice_sub_user(phone)
+        use_quota(ctx, "search")
+
+        # For a known caller (phone-keyed), we don't want semantic relevance —
+        # we want EVERYTHING we know about them. Generic vector queries like
+        # "important facts about caller" match poorly against real fact
+        # embeddings ("prefers morning slots"). Fetch entities + facts directly
+        # by sub_user_id, then optionally augment with recent episodes for
+        # narrative context.
+        try:
+            entities = store.get_all_entities_full(ctx.user_id, sub_user_id=sub_uid) or []
+        except Exception as e:
+            logger.error(f"vapi_recall fetch failed for phone={phone}: {e}")
+            return {"results": [{"toolCallId": tc_id,
+                                  "result": "Memory lookup failed — proceed without context."}]}
+
+        # Sort person entities first so the caller's own facts surface ahead
+        # of related entities. Among persons, sort by fact count descending —
+        # the caller almost always accumulates more facts about themselves
+        # than they accumulate about people they mention (daughter, doctor,
+        # etc.), so most-facts-wins is a reliable caller-vs-mentioned-person
+        # heuristic without needing explicit caller tagging.
+        def _is_person(e):
+            return (e.get("type") or "").lower() == "person"
+        entities_sorted = sorted(
+            entities,
+            key=lambda e: (
+                0 if _is_person(e) else 1,
+                -len(e.get("facts") or []),
+            )
+        )
+
+        # Build a compact context string the assistant can verbalize.
+        # Skip the reserved _reflections entity, cap facts per entity.
+        fact_lines = []
+        person_name = None
+        for e in entities_sorted:
+            name = e.get("entity") or ""
+            if name == "_reflections" or not name:
+                continue
+            entity_facts = e.get("facts") or []
+            if not entity_facts:
+                continue
+            if _is_person(e) and person_name is None:
+                person_name = name
+            # Up to 5 facts for the caller (person), 2 for related entities.
+            cap = 5 if _is_person(e) else 2
+            for f in entity_facts[:cap]:
+                content = f if isinstance(f, str) else (f.get("content", "") if isinstance(f, dict) else str(f))
+                content = content.strip()
+                if not content:
+                    continue
+                fact_lines.append(f"{name}: {content}")
+
+        if not fact_lines:
+            summary = f"New caller — no prior context for {phone}."
+        else:
+            header = f"Known about caller ({person_name or phone}):"
+            summary = header + " " + " | ".join(fact_lines)
+            # 900-char cap — Vapi tool result needs to fit comfortably in
+            # the assistant's prompt without bloating tokens. 900 chars ≈
+            # ~225 tokens, leaves room for system prompt + other context.
+            if len(summary) > 900:
+                summary = summary[:897] + "..."
+
+        try:
+            store.log_usage(ctx.user_id, "voice_recall", query_score=1.0)
+        except Exception:
+            pass
+
+        return {
+            "results": [{
+                "toolCallId": tc_id,
+                "result": summary,
+            }]
+        }
+
+    @app.post("/v1/voice/vapi/save", tags=["Voice"])
+    async def vapi_save(req: VapiWebhookRequest, ctx: AuthContext = Depends(auth)):
+        """Vapi end-of-call webhook: extract memories from the transcript.
+
+        Only processes `end-of-call-report` events. Vapi streams MANY events
+        to the same server URL — status-update, conversation-update, partial
+        transcript chunks (`message.type == "transcript"`, `transcriptType:
+        partial`), speech-update, hang, etc. Without a type guard, the save
+        endpoint would re-run extraction on every partial transcript chunk
+        (dozens of times per call), burning quota and creating duplicate
+        memory entries. The guard makes all other events benign no-ops.
+
+        For end-of-call-report the final transcript lives at
+        `message.transcript` AND `message.artifact.transcript` per
+        https://github.com/VapiAI/docs/blob/main/fern/server-url/events.mdx.
+        We read whichever is present.
+        """
+        msg = req.message
+
+        # Type guard: only end-of-call-report (or unspecified, for curl
+        # tests) triggers extraction. Everything else gets ignored with a
+        # 200 so Vapi doesn't mark the assistant as broken.
+        if msg.type and msg.type != "end-of-call-report":
+            return {"status": "ignored", "reason": f"event {msg.type} not handled by save endpoint"}
+
+        # Transcript: prefer top-level, fall back to artifact.transcript.
+        transcript = (msg.transcript or "").strip()
+        if not transcript and isinstance(msg.artifact, dict):
+            transcript = (msg.artifact.get("transcript") or "").strip()
+
+        phone = ""
+        if msg.call and msg.call.customer:
+            phone = (msg.call.customer.number or "").strip()
+
+        if not phone or not transcript:
+            return {"status": "ignored", "reason": "missing phone or transcript"}
+
+        sub_uid = _voice_sub_user(phone)
+        use_quota(ctx, "add")
+
+        job_id = store.create_job(ctx.user_id, "add")
+        normalized_phone = "".join(c for c in phone if c.isdigit() or c == "+")
+        metadata = {
+            "source": "voice_call",
+            "agent_id": "vapi",
+            "phone": normalized_phone,
+            "call_id": req.message.call.id if req.message.call else None,
+        }
+
+        import threading
+
+        def process_in_background():
+            _run_extraction_pipeline(
+                user_id=ctx.user_id,
+                sub_uid=sub_uid,
+                conversation=[{"role": "user", "content": _sanitize_text(transcript)}],
+                metadata=metadata,
+                expiration_date=None,
+                job_id=job_id,
+                plan=ctx.plan,
+                prompt_version="v1",
+            )
+
+        threading.Thread(target=process_in_background, daemon=True).start()
+
+        from starlette.responses import JSONResponse
+        return JSONResponse(status_code=202, content={
+            "status": "accepted",
+            "job_id": job_id,
+            "sub_user_id": sub_uid,
+        })
+
+    @app.get("/integrations/vapi", response_class=HTMLResponse)
+    async def integrations_vapi():
+        """Vapi integration landing page."""
+        page_path = Path(__file__).parent / "integrations-vapi.html"
+        if not page_path.exists():
+            raise HTTPException(404, "page not found")
+        html = page_path.read_text(encoding="utf-8")
+        html = html.replace("{{VERSION}}", __version__).replace("{{BASE_URL}}", BASE_URL)
+        return html
 
     # ============================================
     # Smart Memory Triggers (v2.6)
@@ -8463,6 +8846,27 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                             )
                             _time.sleep(0.5)
 
+                # Weekly Insights digest — pairs with the Dream Cycle reflection cron.
+                # OFF BY DEFAULT — owner felt the test send looked spammy. Code and
+                # helper remain so we can re-enable once the email is reshaped
+                # (e.g. opt-in only, lower frequency, or surfaced in-app instead).
+                # Flip INSIGHTS_DIGEST_ENABLED=true to fire on Monday 09:00–10:00 UTC.
+                if (os.environ.get("INSIGHTS_DIGEST_ENABLED", "false").lower() == "true"
+                        and _now_utc.weekday() == 0 and 9 <= _now_utc.hour < 10):
+                    import json as _json_ins
+                    _iso_ins = _now_utc.strftime("%G-W%V")
+                    _insights_drip = f"insights_digest_{_iso_ins}"
+                    for row in store.get_users_for_insights_digest():
+                        if store.try_record_drip(row["email"], _insights_drip, row["user_id"]):
+                            _send_drip_email(
+                                row["email"],
+                                "insights_digest",
+                                code=str(row["new_insights"]),
+                                user_id=row["user_id"],
+                                plan=_json_ins.dumps(row["samples"], default=str),
+                            )
+                            _time.sleep(0.5)
+
             except Exception as e:
                 logger.error(f"⚠️ Drip email cron error: {e}")
             _time.sleep(1800)  # Every 30 minutes
@@ -8516,6 +8920,108 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     if _CRON_ENABLED:
         _health_thread = threading.Thread(target=_memory_health_cron_loop, daemon=True)
         _health_thread.start()
+
+    # ---- Background reflection cron (Dream Cycle equivalent) ----
+
+    _LOCK_REFLECTION_CRON = 900004
+    _REFLECTION_ENABLED = os.environ.get("REFLECTION_CRON_ENABLED", "true").lower() != "false"
+    _REFLECTION_BATCH_SIZE = int(os.environ.get("REFLECTION_BATCH_SIZE", "50"))
+
+    def _reflection_cron_loop():
+        """Daily sweep that refreshes the reflection (insight) layer for active
+        users whose facts have evolved since last reflection.
+
+        Reflection is already auto-triggered on /v1/add, but that only fires
+        while the user is actively writing. This cron catches everyone else —
+        users who accumulated facts via earlier sessions and stopped adding,
+        whose entity/cross/temporal summaries silently go stale.
+
+        Selection logic lives in store.get_users_due_for_reflection — it mirrors
+        should_reflect's triggers exactly, plus an "active in last 14 days"
+        filter so dormant accounts don't burn LLM calls. Per-user generation
+        runs through the existing generate_reflections pipeline, so prompt and
+        storage stay consistent with the in-band /v1/add path.
+        """
+        import traceback
+        logger.info("🌙 Reflection cron: thread alive, sleeping 180s before first run")
+        _time.sleep(180)
+        _lock_conn = _try_advisory_lock(_LOCK_REFLECTION_CRON)
+        if not _lock_conn:
+            logger.info("🌙 Reflection cron: another worker holds the lock, skipping")
+            return
+        logger.info(
+            f"🌙 Reflection cron started (every 24h, batch up to {_REFLECTION_BATCH_SIZE} users)"
+        )
+        while True:
+            iteration_failed = False
+            try:
+                users_due = store.get_users_due_for_reflection(
+                    max_users=_REFLECTION_BATCH_SIZE
+                )
+                logger.info(f"🌙 Reflection: {len(users_due)} users due for refresh")
+
+                # get_llm() returns the extractor; the real LLM client (with
+                # .complete()) lives on extractor.llm — same pattern used by
+                # the auto-reflection path in /v1/add (api.py:6532, 7489).
+                extractor = get_llm()
+                llm_client = extractor.llm
+                reflected = 0
+                quota_skipped = 0
+                error_skipped = 0
+
+                for u in users_due:
+                    uid = u["user_id"]
+                    sub_uid = u.get("sub_user_id") or "default"
+                    try:
+                        sub = store.get_subscription(uid) or {}
+                        plan = sub.get("plan", "free")
+                        max_reflects = PLAN_QUOTAS.get(plan, PLAN_QUOTAS["free"]).get("reflects", 0)
+                        if max_reflects == 0:
+                            quota_skipped += 1
+                            continue
+                        try:
+                            store.check_and_increment(uid, "reflect", max_reflects)
+                        except ValueError:
+                            quota_skipped += 1
+                            continue
+
+                        result = store.generate_reflections(
+                            user_id=uid,
+                            llm_client=llm_client,
+                            sub_user_id=sub_uid,
+                        )
+                        reflected += 1
+                        logger.info(
+                            f"🌙 Reflected user={uid[:8]} sub={sub_uid} "
+                            f"new_facts={u['new_facts']} → "
+                            f"entity={len(result.get('entity_reflections', []))} "
+                            f"cross={len(result.get('cross_entity', []))} "
+                            f"temporal={len(result.get('temporal', []))}"
+                        )
+                    except Exception as e:
+                        error_skipped += 1
+                        logger.warning(
+                            f"🌙 Reflection failed for user={uid[:8]}: {type(e).__name__}: {e}"
+                        )
+
+                logger.info(
+                    f"🌙 Reflection tick OK — reflected={reflected} "
+                    f"quota_skipped={quota_skipped} error_skipped={error_skipped}"
+                )
+            except Exception as e:
+                iteration_failed = True
+                logger.error(
+                    f"⚠️ Reflection cron error: {type(e).__name__}: {e}\n"
+                    f"{traceback.format_exc()}"
+                )
+            # Retry quickly on failure, otherwise daily.
+            _time.sleep(900 if iteration_failed else 86400)
+
+    if _CRON_ENABLED and _REFLECTION_ENABLED:
+        _reflection_thread = threading.Thread(target=_reflection_cron_loop, daemon=True)
+        _reflection_thread.start()
+    elif _CRON_ENABLED and not _REFLECTION_ENABLED:
+        logger.info("🌙 Reflection cron disabled via REFLECTION_CRON_ENABLED=false")
 
     # ---- Billing & Subscription ----
 
