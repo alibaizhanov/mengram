@@ -220,6 +220,56 @@ substitute the resolved values when writing the actual config file.
 STEP 3 — DETERMINE API BASE + AUTHENTICATE
 ================================================================
 
+3.0  Before determining the base URL or signing up, ask the user ONCE:
+
+       "Do you already have a Mengram account/API key from another machine
+       that you want to reuse on this machine?
+         (a) Yes, and I have the key
+         (b) Yes, but I don't have the key right now
+         (c) No, this is my first setup"
+
+     - (c) -> continue with 3.1.
+     - (a) -> go to 3.0a, then skip the rest of Step 3 (continue at Step 4).
+     - (b) -> go to 3.0b.
+
+3.0a Reuse an existing key (no signup, no key rotation):
+
+     - If self-hosted, determine <base-url> the same way as 3.1 (use
+       $MENGRAM_URL if already set, otherwise ask ONCE for the base URL).
+     - Tell the user to run the following in their OWN terminal — NOT via
+       the agent's tool calls — so the API key never enters the agent's
+       context or transcript:
+
+         export MENGRAM_URL=<base-url>            (self-hosted only; skip
+                                                     this line for
+                                                     https://mengram.io)
+         mengram setup --key <PASTE_YOUR_API_KEY_HERE>
+
+       This writes ~/.mengram/config.json (mode 600) with the correct
+       `base_url`, exports MENGRAM_API_KEY into the user's shell profile,
+       and (on Claude Code) installs the Mengram hooks — the same end state
+       as Step 3's normal flow, without calling signup/reset-key.
+     - Wait for explicit confirmation ("done"/equivalent) before continuing.
+       Do not guess or retry without it.
+
+3.0b Existing account, but the key isn't available right now:
+
+     Before doing anything else, tell the user:
+
+       "Running signup for an account that already exists will generate a
+       NEW API key and invalidate the old one — any other machine using the
+       old key will stop working until reconfigured with the new key. If
+       possible, retrieve the existing key from ~/.mengram/config.json on
+       the other machine instead (then choose option (a) above). Otherwise,
+       confirm to proceed — you'll need to update the other machine's
+       config afterward."
+
+     Wait for explicit confirmation before proceeding. On confirmation,
+     continue with 3.1 — the normal signup/reset-key flow handles the rest
+     (no raw key handling needed here, since the verification code arrives
+     by email and the final key is written by the agent as in first-time
+     setup).
+
 3.1  Determine which Mengram deployment the user wants to use for THIS
      install:
      - If the user already explicitly said hosted or self-hosted, use that.
