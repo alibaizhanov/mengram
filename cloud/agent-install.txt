@@ -255,8 +255,8 @@ STEP 3 — DETERMINE API BASE + AUTHENTICATE
      - Expected behavior: the instance returns an API key immediately and does
        NOT require a 6-digit verification code.
      - Capture the returned key without printing it back to the user.
-     - `mengram signup` saves it to ~/.mengram/config.json itself (creating
-       ~/.mengram if needed) as:
+     - `mengram signup` saves it to ~/.mengram/config.json itself (mode 600,
+       creating ~/.mengram if needed) as:
          {"api_key": "<api-key>", "base_url": "<base-url>"}
        and may also export MENGRAM_API_KEY into the user's shell profile
        (~/.zshrc or ~/.bashrc).
@@ -275,7 +275,7 @@ STEP 3 — DETERMINE API BASE + AUTHENTICATE
      Run:   mengram signup --email <user-email> --code <code>
      On success this prints the API key (starts with "om-"). Capture it
      without showing it in chat. `mengram signup` saves it to
-     ~/.mengram/config.json itself (creating ~/.mengram if needed) as:
+     ~/.mengram/config.json itself (mode 600, creating ~/.mengram if needed) as:
        {"api_key": "<api-key>", "base_url": "https://mengram.io"}
      If ~/.mengram/config.json already exists, it updates the existing
      `api_key`/`base_url` fields instead of creating a duplicate file.
