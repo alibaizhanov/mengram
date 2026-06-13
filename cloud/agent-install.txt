@@ -482,7 +482,11 @@ resolvable — otherwise `doctor` fails with 401/403.
          it yourself into:
            - ~/.mengram/config.json -> {"api_key": "<your-key>", "base_url": "<base-url>"}
            - <host MCP config file from Step 4> -> the env.MENGRAM_API_KEY
-             field (and env.MENGRAM_URL for self-hosted)
+             field (and env.MENGRAM_URL for self-hosted), if your host uses a
+             local config file. (For hosts without one — e.g. Claude.ai web,
+             or a host covered by 4G's "other" instructions — only the first
+             bullet applies; follow your host's own credential/connector setup
+             for the rest.)
 
          Reply 'done' once it's in place."
 
