@@ -783,6 +783,23 @@ def _load_cloud_api_key() -> str:
     return ""
 
 
+def _load_cloud_base_url() -> str:
+    """Resolve base URL in this order: env var, ~/.mengram/config.json, default."""
+    url = os.environ.get("MENGRAM_URL", "").strip()
+    if url:
+        return url.rstrip("/")
+    path = _cloud_config_path()
+    if path.exists():
+        try:
+            data = json.loads(path.read_text())
+            cfg_url = (data.get("base_url") or "").strip()
+            if cfg_url:
+                return cfg_url.rstrip("/")
+        except Exception:
+            pass
+    return "https://mengram.io"
+
+
 def _save_and_report_key(api_key: str, label: str) -> None:
     """Persist API key to ~/.mengram/config.json + shell profile, print success.
     Shared by all CLI paths that successfully obtain a key."""
