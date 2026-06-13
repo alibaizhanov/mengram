@@ -514,8 +514,10 @@ STEP 6 — REPORT TO USER
 On success, write a final message in this exact shape (substitute the values):
 
   Mengram installed successfully.
-  - Credentials: saved to ~/.mengram/.env
-  - MCP server: registered in <host>
+  - Credentials: saved to ~/.mengram/config.json (mode 600)
+  - Shell profile: MENGRAM_API_KEY exported in <profile-path-from-step-3, if any>
+  - MCP server: registered in <host> (<config file from Step 4>)
+  - Claude Code hooks: installed in ~/.claude/settings.json (claude-code only)
   - API base URL: <base-url-from-step-3>
   - Round-trip test: passed
   Next step: restart <host> (or reload its window). Then in any chat, say
@@ -541,19 +543,20 @@ block to the user verbatim and stop:
     2. mengram signup --email YOUR_EMAIL@example.com
     3. Hosted only: check your inbox for a 6-digit code
     4. Hosted only: `mengram signup --email YOUR_EMAIL@example.com --code 123456`
-    5. Self-hosted only: the command in step 2 should print an API key
-       immediately without a 6-digit code. Create `~/.mengram` if needed, then
-       save it to `~/.mengram/.env` as:
-         MENGRAM_API_KEY=YOUR_REAL_KEY
-         MENGRAM_URL=YOUR_BASE_URL
-       If the file already exists, replace the existing lines instead of
-       adding duplicates.
+    5. Self-hosted only: the command in step 2 should print an API key and
+       save it to `~/.mengram/config.json` automatically as
+       {"api_key": "YOUR_REAL_KEY", "base_url": "YOUR_BASE_URL"}. If it
+       doesn't, create `~/.mengram` if needed and write that file yourself.
     6. Open your AI tool's MCP config file (see Appendix A for the JSON
        template and Step 4 of this guide for the path on your tool/OS).
-       Paste the template, replace the api-key placeholder with the saved key
-       from your local `.env` file, and save. Do not paste the real key into
-       any AI chat.
-    7. mengram doctor
+       Paste the template, replacing the placeholders with the launcher
+       command/args you used to install `mengram-ai` in step 1 and the
+       key/base URL saved in `~/.mengram/config.json`, and save. Do not
+       paste the real key into any AI chat.
+    7. If using Claude Code, also run: mengram hook install
+       (requires MENGRAM_API_KEY set in this shell — see Step 4B in this
+       guide for export syntax per OS)
+    8. mengram doctor
 
   Reply "done" when finished and I'll confirm everything is wired correctly.
 
@@ -562,8 +565,11 @@ APPENDIX A — JSON CONFIG TEMPLATE (for hosts that use JSON)
 ================================================================
 
 This template is for local config files only. The real API key must be read
-from the saved local secret (for example `~/.mengram/.env`) and must never be
-printed back into AI chat output.
+from the saved local secret (`~/.mengram/config.json`) and must never be
+printed back into AI chat output. Replace "command"/"args" with the
+<LAUNCHER_CMD>/<LAUNCHER_ARGS_PREFIX> resolved in Step 2.5 — the example
+below shows the plain-PATH case; with uvx it would be
+"command": "uvx", "args": ["--from", "mengram-ai", "mengram", "server", "--cloud"].
 
 {
   "mcpServers": {
