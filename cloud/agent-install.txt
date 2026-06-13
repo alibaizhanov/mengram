@@ -447,7 +447,7 @@ added through the Settings UI. STOP the install flow and tell the user:
   This is a one-time UI step — Claude.ai's settings live outside
   what I can edit from here."
 
-After the user confirms they've added it, proceed to Step 5 (Verify).
+After the user confirms they've added it, proceed to Step 4.9, then Step 5 (Verify).
 
 ------- 4G. other -------
 Tell the user:
