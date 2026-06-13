@@ -463,6 +463,33 @@ Tell the user:
   'Bearer <api-key>'."
 
 ================================================================
+STEP 4.9 — CONFIRM CREDENTIALS BEFORE VERIFYING
+================================================================
+
+Before running Step 5 (`mengram doctor`), make sure $MENGRAM_API_KEY is
+resolvable — otherwise `doctor` fails with 401/403.
+
+4.9.1  Check: is $MENGRAM_API_KEY set in the current shell, OR does
+       ~/.mengram/config.json contain a non-empty `api_key`?
+       - YES -> continue to Step 5, no action needed.
+       - NO  -> continue with 4.9.2.
+
+4.9.2  This can happen if Step 3 couldn't write the key automatically (no
+       shell/file access, self-hosted signup didn't return a key, etc).
+       Tell the user, WITHOUT ever asking for or printing the key value:
+
+         "I couldn't automatically save your Mengram API key. Please paste
+         it yourself into:
+           - ~/.mengram/config.json -> {"api_key": "<your-key>", "base_url": "<base-url>"}
+           - <host MCP config file from Step 4> -> the env.MENGRAM_API_KEY
+             field (and env.MENGRAM_URL for self-hosted)
+
+         Reply 'done' once it's in place."
+
+4.9.3  Wait for explicit confirmation from the user before proceeding to
+       Step 5. Do not guess or retry without it.
+
+================================================================
 STEP 5 — VERIFY THE INSTALL WORKS
 ================================================================
 
