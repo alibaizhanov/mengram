@@ -237,7 +237,6 @@ STEP 3 — DETERMINE API BASE + AUTHENTICATE
 3.2  First check if the user already has a key:
      - Look for $MENGRAM_API_KEY env var.
      - Look at file ~/.mengram/config.json — field `api_key`.
-     - Look at file ~/.mengram/.env — field `MENGRAM_API_KEY`.
      - If a key starting with "om-" is found, SKIP to Step 4.
 
 3.3  If no key exists, ask the user ONCE:
@@ -256,13 +255,14 @@ STEP 3 — DETERMINE API BASE + AUTHENTICATE
      - Expected behavior: the instance returns an API key immediately and does
        NOT require a 6-digit verification code.
      - Capture the returned key without printing it back to the user.
-     - Ensure directory ~/.mengram exists first.
-     - Save it to ~/.mengram/.env as:
-         MENGRAM_API_KEY=<api-key>
-         MENGRAM_URL=<base-url>
-     - If ~/.mengram/.env already exists, update or replace the existing
-       MENGRAM_API_KEY and MENGRAM_URL lines instead of appending duplicates.
-     - Also save it to ~/.mengram/config.json when the CLI supports that.
+     - `mengram signup` saves it to ~/.mengram/config.json itself (creating
+       ~/.mengram if needed) as:
+         {"api_key": "<api-key>", "base_url": "<base-url>"}
+       and may also export MENGRAM_API_KEY into the user's shell profile
+       (~/.zshrc or ~/.bashrc).
+     - If ~/.mengram/config.json already exists, `mengram signup` updates
+       the existing `api_key`/`base_url` fields instead of creating a
+       duplicate file.
      - If the self-hosted instance asks for a 6-digit code or uses some other
        verification flow, STOP and tell the user their self-hosted setup does
        not match this install guide.
@@ -274,16 +274,13 @@ STEP 3 — DETERMINE API BASE + AUTHENTICATE
 3.6  Hosted only: complete signup:
      Run:   mengram signup --email <user-email> --code <code>
      On success this prints the API key (starts with "om-"). Capture it
-     without showing it in chat. Save it to:
-      - ~/.mengram/config.json
-      - Ensure directory ~/.mengram exists first.
-      - ~/.mengram/.env as:
-           MENGRAM_API_KEY=<api-key>
-           MENGRAM_URL=https://mengram.io
-      - If ~/.mengram/.env already exists, update or replace the existing
-        MENGRAM_API_KEY and MENGRAM_URL lines instead of appending duplicates.
-     It may also write the key into the user's shell profile so
-     $MENGRAM_API_KEY is set in future sessions.
+     without showing it in chat. `mengram signup` saves it to
+     ~/.mengram/config.json itself (creating ~/.mengram if needed) as:
+       {"api_key": "<api-key>", "base_url": "https://mengram.io"}
+     If ~/.mengram/config.json already exists, it updates the existing
+     `api_key`/`base_url` fields instead of creating a duplicate file.
+     It may also write the key into the user's shell profile (~/.zshrc or
+     ~/.bashrc) so $MENGRAM_API_KEY is set in future sessions.
 
      If the code is rejected, ask the user to paste it again. Allow 3 attempts
      before stopping and reporting the failure.
