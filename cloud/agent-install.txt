@@ -359,8 +359,11 @@ server LOCALLY, scoped to the current project only (written under
 EVERY project, so it MUST be added at USER scope instead — written to the
 top-level `mcpServers` key in ~/.claude.json, applying across all projects.
 
-Run:    claude mcp add mengram --scope user -- mengram server --cloud
+Run:    claude mcp add mengram --scope user -- <LAUNCHER_CMD> <LAUNCHER_ARGS_PREFIX...> server --cloud
 (The `claude` CLI is required. If absent, tell user to install Claude Code.)
+Substitute the resolved <LAUNCHER_CMD>/<LAUNCHER_ARGS_PREFIX> from Step 2.5,
+e.g. with uvx:
+   claude mcp add mengram --scope user -- uvx --from mengram-ai mengram server --cloud
 If the base URL from Step 3 is NOT https://mengram.io, ensure the Claude Code
 MCP entry also provides:    MENGRAM_URL=<base-url-from-step-3>
 (pass via `--env MENGRAM_API_KEY=... --env MENGRAM_URL=...` before the `--`).
@@ -370,8 +373,27 @@ If you find an existing "mengram" entry under a project-scoped
 top-level `mcpServers` block (do not duplicate it), then remove the
 project-scoped copy.
 
-Then tell the user: "MCP server registered globally. Run `/mcp` inside
-Claude Code to confirm 'mengram' is listed."
+Then install the Mengram memory hooks (auto-save / auto-recall / session
+context) into Claude Code's settings:
+
+Run:    mengram hook install
+
+This requires $MENGRAM_API_KEY (and $MENGRAM_URL for self-hosted) to be set
+in the CURRENT shell, not just a shell profile. If Step 3 only wrote them to
+~/.mengram/config.json or a profile file that hasn't been re-sourced yet,
+export them in this shell first using the saved values (do not print them):
+  - macOS/Linux/WSL:       export MENGRAM_API_KEY=...   [export MENGRAM_URL=...]
+  - Windows (cmd):         set MENGRAM_API_KEY=...      [set MENGRAM_URL=...]
+  - Windows (PowerShell):  $env:MENGRAM_API_KEY="..."   [$env:MENGRAM_URL="..."]
+
+`mengram hook install` writes three hooks into ~/.claude/settings.json:
+  - Stop             -> mengram auto-save --every 3   (background)
+  - UserPromptSubmit -> mengram auto-recall
+  - SessionStart     -> mengram auto-context
+
+Then tell the user: "MCP server registered globally and memory hooks
+installed. Run `/mcp` inside Claude Code to confirm 'mengram' is listed, and
+restart Claude Code for the hooks to take effect."
 
 ------- 4C. cursor -------
 Config file path:    ~/.cursor/mcp.json   (create if absent)
