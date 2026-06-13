@@ -330,7 +330,8 @@ Config file path:
 Steps:
   1. If the file does not exist, create it with content: {"mcpServers": {}}
   2. Parse the JSON. Ensure "mcpServers" key exists (object).
-  3. Add or replace:
+  3. Add or replace (template — substitute placeholders, do not write
+     "<LAUNCHER_CMD>" or the "+" expression literally):
        "mengram": {
          "command": "<LAUNCHER_CMD>",
          "args": <LAUNCHER_ARGS_PREFIX> + ["server", "--cloud"],
@@ -384,7 +385,8 @@ Tell user: "Reload Windsurf window."
 
 ------- 4E. codex -------
 Config file path:    ~/.codex/config.toml
-Append (TOML, NOT JSON):
+Append (TOML, NOT JSON — template, substitute placeholders below, do not
+write "<LAUNCHER_CMD>" or the "+" expression literally):
   [mcp_servers.mengram]
   command = "<LAUNCHER_CMD>"
   args = <LAUNCHER_ARGS_PREFIX> + ["server", "--cloud"]
