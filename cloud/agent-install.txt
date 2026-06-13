@@ -31,6 +31,22 @@ CRITICAL RULES:
 STEP 1 — DETECT ENVIRONMENT
 ================================================================
 
+1.0  PATH NOTATION USED IN THIS GUIDE
+
+     This guide writes paths in Unix shorthand (`~/...`). Resolve them per
+     platform:
+
+       | Logical path               | macOS / Linux / WSL     | Windows (native shell)              |
+       |-----------------------------|--------------------------|---------------------------------------|
+       | Mengram home                | ~/.mengram               | %USERPROFILE%\.mengram                |
+       | Claude Code settings        | ~/.claude/settings.json  | %USERPROFILE%\.claude\settings.json   |
+       | Claude Code global config   | ~/.claude.json           | %USERPROFILE%\.claude.json            |
+
+     WSL note: `~` resolves to the Linux distro's home directory, NOT the
+     Windows user's home — even though both run on the same machine. Always
+     resolve `~` in the shell that will actually run `mengram` / `claude`,
+     not by assuming a shared filesystem location.
+
 1.1  Determine OS using a command that exists in the current shell:
      - On Unix-like shells: run `uname -s`
      - On Windows shells: run `cmd /c ver` (or inspect `$env:OS`)
@@ -86,6 +102,17 @@ STEP 1 — DETECT ENVIRONMENT
      of the two just because the other is already configured, already has a
      "mengram" entry, or was just set up in this same run — each has its own
      independent config file and must be checked/written independently.
+
+     ACTIVELY CHECK for Claude Desktop — do not rely on "you usually know
+     which host you're in". Even when running as Claude Code CLI, check
+     whether Claude Desktop is ALSO installed on this machine, e.g.:
+       - macOS:   test -d "/Applications/Claude.app" (or check for
+                  ~/Library/Application Support/Claude/)
+       - Windows: check for %LOCALAPPDATA%\Claude\Claude.exe or
+                  %APPDATA%\Claude\
+       - Linux:   check for ~/.config/Claude/
+     If found, run Step 4A in addition to 4B. Do not skip 4A just because
+     the host you were invoked from is claude-code.
 
      Likewise, Claude Desktop and Claude.ai (web) are different products with
      different install paths. The desktop app uses stdio MCP via a JSON config
@@ -285,12 +312,25 @@ NOTE: This configures ONLY the Claude Code CLI's own MCP config (separate
 from claude_desktop_config.json). It does NOT configure the Claude Desktop
 app — that is Section 4A. If Claude Desktop is also present, do 4A as well.
 
-Run:    claude mcp add mengram -- mengram server --cloud
+IMPORTANT — SCOPE: `claude mcp add` without `-s`/`--scope` registers the
+server LOCALLY, scoped to the current project only (written under
+`projects.<cwd>.mcpServers` in ~/.claude.json). Mengram must be available in
+EVERY project, so it MUST be added at USER scope instead — written to the
+top-level `mcpServers` key in ~/.claude.json, applying across all projects.
+
+Run:    claude mcp add mengram --scope user -- mengram server --cloud
 (The `claude` CLI is required. If absent, tell user to install Claude Code.)
 If the base URL from Step 3 is NOT https://mengram.io, ensure the Claude Code
 MCP entry also provides:    MENGRAM_URL=<base-url-from-step-3>
-Then tell the user: "MCP server registered. Run `/mcp` inside Claude Code to
-confirm 'mengram' is listed."
+(pass via `--env MENGRAM_API_KEY=... --env MENGRAM_URL=...` before the `--`).
+
+If you find an existing "mengram" entry under a project-scoped
+`projects.<path>.mcpServers` block in ~/.claude.json, move it into the
+top-level `mcpServers` block (do not duplicate it), then remove the
+project-scoped copy.
+
+Then tell the user: "MCP server registered globally. Run `/mcp` inside
+Claude Code to confirm 'mengram' is listed."
 
 ------- 4C. cursor -------
 Config file path:    ~/.cursor/mcp.json   (create if absent)
