@@ -379,9 +379,12 @@ context) into Claude Code's settings:
 Run:    mengram hook install
 
 This requires $MENGRAM_API_KEY (and $MENGRAM_URL for self-hosted) to be set
-in the CURRENT shell, not just a shell profile. If Step 3 only wrote them to
-~/.mengram/config.json or a profile file that hasn't been re-sourced yet,
-export them in this shell first using the saved values (do not print them):
+in the CURRENT shell, not just a shell profile. First check whether
+$MENGRAM_API_KEY is already set in this shell (e.g. `echo $MENGRAM_API_KEY` /
+`echo %MENGRAM_API_KEY%` / `echo $env:MENGRAM_API_KEY` depending on shell) —
+if it returns a non-empty value, skip the export step below. Otherwise,
+export the values saved in Step 3 into this shell first (without printing
+them):
   - macOS/Linux/WSL:       export MENGRAM_API_KEY=...   [export MENGRAM_URL=...]
   - Windows (cmd):         set MENGRAM_API_KEY=...      [set MENGRAM_URL=...]
   - Windows (PowerShell):  $env:MENGRAM_API_KEY="..."   [$env:MENGRAM_URL="..."]
