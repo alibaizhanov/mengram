@@ -180,6 +180,43 @@ STEP 2 — INSTALL THE PACKAGE
      use the absolute path to the executable instead.
 
 ================================================================
+STEP 2.5 — DETERMINE THE MCP LAUNCHER PATTERN
+================================================================
+
+Based on how `mengram-ai` ended up installed in Step 2, derive two
+placeholders used by every Step 4 host config below:
+
+  <LAUNCHER_CMD>          — the command to run
+  <LAUNCHER_ARGS_PREFIX>  — a list of args prepended before "server", "--cloud"
+
+Resolution:
+  - `uv tool install mengram-ai`, `pipx install mengram-ai`, or
+    `<PYTHON_CMD> -m pip install --user mengram-ai` (mengram resolvable on
+    PATH, or fixed via Step 2.2):
+       <LAUNCHER_CMD>         = mengram   (or the absolute path from Step 2.2
+                                 if PATH could not be fixed)
+       <LAUNCHER_ARGS_PREFIX> = []
+
+  - `uvx` (no persistent install, package run on demand):
+       <LAUNCHER_CMD>         = uvx
+       <LAUNCHER_ARGS_PREFIX> = ["--from", "mengram-ai", "mengram"]
+
+  - Poetry-managed environment (no global `mengram` script on PATH):
+       Resolve the absolute path to `mengram` inside that environment, e.g.:
+         poetry run python -c "import shutil,sys; print(shutil.which('mengram'))"
+       <LAUNCHER_CMD>         = <that absolute path>
+       <LAUNCHER_ARGS_PREFIX> = []
+
+The full "args" array for any Step 4 MCP server entry is:
+  <LAUNCHER_ARGS_PREFIX> + ["server", "--cloud"]
+
+For example, with uvx this is:
+  ["--from", "mengram-ai", "mengram", "server", "--cloud"]
+
+Every Step 4 section below uses <LAUNCHER_CMD> / <LAUNCHER_ARGS_PREFIX> —
+substitute the resolved values when writing the actual config file.
+
+================================================================
 STEP 3 — DETERMINE API BASE + AUTHENTICATE
 ================================================================
 
