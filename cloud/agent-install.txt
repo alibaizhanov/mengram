@@ -291,9 +291,11 @@ STEP 3 — DETERMINE API BASE + AUTHENTICATE
 STEP 4 — CONFIGURE THE HOST AI TOOL (MCP server)
 ================================================================
 
-The Mengram MCP server is started by: `mengram server --cloud`. It reads
-$MENGRAM_API_KEY and, when set, $MENGRAM_URL from the environment. Use the
-host-specific block below.
+The Mengram MCP server is started with the launcher pattern derived in
+Step 2.5: <LAUNCHER_CMD> with args <LAUNCHER_ARGS_PREFIX> + ["server", "--cloud"].
+It reads $MENGRAM_API_KEY and, when set, $MENGRAM_URL from the environment.
+Use the host-specific block below — every block uses <LAUNCHER_CMD> /
+<LAUNCHER_ARGS_PREFIX> for "command"/"args".
 
 If the shell OS and the host-app OS differ (common with WSL, remote shells, or
 SSH), always edit the config for the HOST application you are actually
@@ -330,13 +332,17 @@ Steps:
   2. Parse the JSON. Ensure "mcpServers" key exists (object).
   3. Add or replace:
        "mengram": {
-         "command": "mengram",
-         "args": ["server", "--cloud"],
+         "command": "<LAUNCHER_CMD>",
+         "args": <LAUNCHER_ARGS_PREFIX> + ["server", "--cloud"],
          "env": {
            "MENGRAM_API_KEY": "<api-key-from-step-3>",
            "MENGRAM_URL": "<base-url-from-step-3>"
          }
        }
+     Substitute <LAUNCHER_CMD> and the resolved <LAUNCHER_ARGS_PREFIX> from
+     Step 2.5 — write the concrete JSON array, e.g. with uvx:
+       "command": "uvx",
+       "args": ["--from", "mengram-ai", "mengram", "server", "--cloud"]
   4. Write the file back with 2-space indent.
   5. Tell the user: "Restart Claude Desktop fully (Cmd+Q or close from tray)
      for the MCP server to load."
@@ -380,12 +386,17 @@ Tell user: "Reload Windsurf window."
 Config file path:    ~/.codex/config.toml
 Append (TOML, NOT JSON):
   [mcp_servers.mengram]
-  command = "mengram"
-  args = ["server", "--cloud"]
+  command = "<LAUNCHER_CMD>"
+  args = <LAUNCHER_ARGS_PREFIX> + ["server", "--cloud"]
 
   [mcp_servers.mengram.env]
   MENGRAM_API_KEY = "<api-key-from-saved-secret-store>"
   MENGRAM_URL = "<base-url-from-step-3>"
+
+Substitute <LAUNCHER_CMD> and the resolved <LAUNCHER_ARGS_PREFIX> from
+Step 2.5 — write the concrete TOML array, e.g. with uvx:
+  command = "uvx"
+  args = ["--from", "mengram-ai", "mengram", "server", "--cloud"]
 
 Tell user: "Restart Codex."
 
@@ -415,7 +426,9 @@ After the user confirms they've added it, proceed to Step 5 (Verify).
 Tell the user:
   "Add this MCP server entry to your host tool's config:
     name:    mengram
-    command: mengram server --cloud
+    command: <LAUNCHER_CMD>
+    args:    <LAUNCHER_ARGS_PREFIX> + [server, --cloud]   (resolved from Step 2.5,
+             e.g. with uvx: --from mengram-ai mengram server --cloud)
     env:     MENGRAM_API_KEY=<api-key-from-saved-secret-store>, MENGRAM_URL=<base-url>
   Refer to your tool's MCP docs for the exact config location.
   For HTTP-only hosts (Claude.ai web, ChatGPT, custom apps), use the
