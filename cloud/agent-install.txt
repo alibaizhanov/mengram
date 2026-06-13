@@ -251,6 +251,7 @@ STEP 3 — DETERMINE API BASE + AUTHENTICATE
        as Step 3's normal flow, without calling signup/reset-key.
      - Wait for explicit confirmation ("done"/equivalent) before continuing.
        Do not guess or retry without it.
+     - Once confirmed, continue at Step 4 (skip the rest of Step 3).
 
 3.0b Existing account, but the key isn't available right now:
 
