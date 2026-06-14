@@ -800,6 +800,48 @@ def _load_cloud_base_url() -> str:
     return "https://mengram.io"
 
 
+def _hook_marker(hook_name: str, status: str) -> str:
+    """Build a one-line status marker for verbose hook output."""
+    return f"[mengram:{hook_name}] {status}"
+
+
+def _emit_hook_exit(hook_event_name, args, hook_name, status, context=None):
+    """Emit a Claude Code hook JSON response and exit(0).
+
+    Non-verbose (default): preserves prior silent behavior — suppressOutput
+    when there's no context, or just the additionalContext when there is.
+
+    Verbose (--verbose): adds a one-line status marker via `systemMessage`
+    (shown to the user for any hook type), and for UserPromptSubmit /
+    SessionStart also prefixes it onto `additionalContext` so Claude sees it.
+    Stop hooks don't support additionalContext, so verbose Stop output is
+    systemMessage only.
+    """
+    verbose = getattr(args, "verbose", False)
+    payload = {"continue": True}
+
+    if context:
+        payload["hookSpecificOutput"] = {
+            "hookEventName": hook_event_name,
+            "additionalContext": context,
+        }
+
+    if verbose:
+        marker = _hook_marker(hook_name, status)
+        payload["systemMessage"] = marker
+        if hook_event_name in ("UserPromptSubmit", "SessionStart"):
+            existing = payload.get("hookSpecificOutput", {}).get("additionalContext", "")
+            payload["hookSpecificOutput"] = {
+                "hookEventName": hook_event_name,
+                "additionalContext": marker + (("\n\n" + existing) if existing else ""),
+            }
+    elif not context:
+        payload["suppressOutput"] = True
+
+    print(json.dumps(payload))
+    sys.exit(0)
+
+
 def _save_and_report_key(api_key: str, label: str) -> None:
     """Persist API key to ~/.mengram/config.json + shell profile, print success.
     Shared by all CLI paths that successfully obtain a key."""
