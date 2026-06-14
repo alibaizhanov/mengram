@@ -18,6 +18,12 @@ llm:
   openai:
     api_key: "sk-..."
     model: "gpt-4o-mini"
+    # Optional: URL to a models.json produced by
+    # https://github.com/<user>/mengram-model-list. When set, mengram tries
+    # each listed model in score order before falling back to `model`.
+    # If unset, empty, or unreachable with no cache, `model` is used directly
+    # as before — fully backward compatible.
+    # model_list_url: "https://raw.githubusercontent.com/<user>/mengram-model-list/main/models.json"
 
   # Ollama (fully local, free)
   ollama:
