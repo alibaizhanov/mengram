@@ -3,7 +3,13 @@
 import hashlib
 import json
 
-from engine.extractor.model_source import _read_cache, _refresh, _write_cache
+from engine.extractor.model_source import (
+    CACHE_TTL_SECONDS,
+    _read_cache,
+    _refresh,
+    _write_cache,
+    get_model_candidates,
+)
 
 
 def test_read_cache_missing_file_returns_none(tmp_path):
@@ -155,3 +161,119 @@ def test_refresh_malformed_json_with_no_cache_returns_none(tmp_path):
     )
 
     assert models is None
+
+
+def test_get_model_candidates_no_url_returns_only_configured_model(tmp_path):
+    cache_path = tmp_path / "model-cache.json"
+    config = {"model": "openrouter/owl-alpha"}
+
+    candidates = get_model_candidates(config, cache_path=cache_path, now=1000.0)
+
+    assert candidates == ["openrouter/owl-alpha"]
+
+
+def test_get_model_candidates_empty_url_returns_only_configured_model(tmp_path):
+    cache_path = tmp_path / "model-cache.json"
+    config = {"model": "openrouter/owl-alpha", "model_list_url": ""}
+
+    candidates = get_model_candidates(config, cache_path=cache_path, now=1000.0)
+
+    assert candidates == ["openrouter/owl-alpha"]
+
+
+def test_get_model_candidates_no_url_and_no_model_returns_empty(tmp_path):
+    cache_path = tmp_path / "model-cache.json"
+    config = {}
+
+    candidates = get_model_candidates(config, cache_path=cache_path, now=1000.0)
+
+    assert candidates == []
+
+
+def test_get_model_candidates_fresh_cache_skips_fetch(tmp_path):
+    cache_path = tmp_path / "model-cache.json"
+    url = "https://example.com/models.json"
+    _write_cache(cache_path, {
+        "url": url,
+        "fetched_at": 1000.0,
+        "content_hash": "h",
+        "models": ["a/model", "b/model"],
+    })
+
+    def fetch_should_not_be_called(url):
+        raise AssertionError("fetch_fn should not be called when cache is fresh")
+
+    candidates = get_model_candidates(
+        {"model": "fallback/model", "model_list_url": url},
+        cache_path=cache_path,
+        now=1000.0 + 60,  # well within CACHE_TTL_SECONDS
+        fetch_fn=fetch_should_not_be_called,
+    )
+
+    assert candidates == ["a/model", "b/model", "fallback/model"]
+
+
+def test_get_model_candidates_stale_cache_refetches(tmp_path):
+    cache_path = tmp_path / "model-cache.json"
+    url = "https://example.com/models.json"
+    _write_cache(cache_path, {
+        "url": url,
+        "fetched_at": 1000.0,
+        "content_hash": "old-hash",
+        "models": ["a/model"],
+    })
+
+    candidates = get_model_candidates(
+        {"model": "fallback/model", "model_list_url": url},
+        cache_path=cache_path,
+        now=1000.0 + CACHE_TTL_SECONDS + 1,
+        fetch_fn=_fetch_ok(MODELS_JSON),
+    )
+
+    assert candidates == [
+        "openrouter/owl-alpha",
+        "qwen/qwen3-next-80b-a3b-instruct:free",
+        "fallback/model",
+    ]
+
+
+def test_get_model_candidates_dedupes_configured_model_already_in_list(tmp_path):
+    cache_path = tmp_path / "model-cache.json"
+    url = "https://example.com/models.json"
+
+    candidates = get_model_candidates(
+        {"model": "openrouter/owl-alpha", "model_list_url": url},
+        cache_path=cache_path,
+        now=1000.0,
+        fetch_fn=_fetch_ok(MODELS_JSON),
+    )
+
+    assert candidates == ["openrouter/owl-alpha", "qwen/qwen3-next-80b-a3b-instruct:free"]
+
+
+def test_get_model_candidates_fetch_fails_no_cache_falls_back_to_configured_model(tmp_path):
+    cache_path = tmp_path / "model-cache.json"
+    url = "https://example.com/models.json"
+
+    candidates = get_model_candidates(
+        {"model": "openrouter/owl-alpha", "model_list_url": url},
+        cache_path=cache_path,
+        now=1000.0,
+        fetch_fn=_fetch_raises(OSError("network down")),
+    )
+
+    assert candidates == ["openrouter/owl-alpha"]
+
+
+def test_get_model_candidates_fetch_fails_no_cache_no_configured_model_returns_empty(tmp_path):
+    cache_path = tmp_path / "model-cache.json"
+    url = "https://example.com/models.json"
+
+    candidates = get_model_candidates(
+        {"model_list_url": url},
+        cache_path=cache_path,
+        now=1000.0,
+        fetch_fn=_fetch_raises(OSError("network down")),
+    )
+
+    assert candidates == []

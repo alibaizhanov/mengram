@@ -65,3 +65,46 @@ def _refresh(
         "models": models,
     })
     return models
+
+
+def _http_get(url: str) -> bytes:
+    import urllib.request
+
+    with urllib.request.urlopen(url, timeout=10) as resp:
+        return resp.read()
+
+
+def get_model_candidates(
+    config: dict,
+    cache_path: Path | None = None,
+    now: float | None = None,
+    fetch_fn=None,
+) -> list[str]:
+    import time
+
+    url = (config.get("model_list_url") or "").strip()
+    static_model = config.get("model")
+
+    if not url:
+        return [static_model] if static_model else []
+
+    if cache_path is None:
+        cache_path = DEFAULT_CACHE_PATH
+    if now is None:
+        now = time.time()
+    if fetch_fn is None:
+        fetch_fn = _http_get
+
+    cache = _read_cache(cache_path)
+
+    if cache and cache.get("url") == url and now - cache.get("fetched_at", 0) < CACHE_TTL_SECONDS:
+        models = cache["models"]
+    else:
+        models = _refresh(url, cache, now, cache_path, fetch_fn)
+        if models is None:
+            return [static_model] if static_model else []
+
+    candidates = list(models)
+    if static_model and static_model not in candidates:
+        candidates.append(static_model)
+    return candidates
