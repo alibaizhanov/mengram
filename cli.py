@@ -376,36 +376,38 @@ def _is_quota_error(e: Exception) -> bool:
 
 def cmd_auto_recall(args):
     """Hook handler — called by Claude Code on UserPromptSubmit. Searches Mengram for relevant context."""
+    HOOK = "auto-recall"
+    EVENT = "UserPromptSubmit"
     try:
-        api_key = os.environ.get("MENGRAM_API_KEY", "")
+        api_key = _load_cloud_api_key()
         if not api_key:
-            output_hook_success()
+            _emit_hook_exit(EVENT, args, HOOK, "no API key")
 
         # Read hook input from stdin
         try:
             input_data = json.loads(sys.stdin.read())
         except Exception:
-            output_hook_success()
+            _emit_hook_exit(EVENT, args, HOOK, "no input")
 
         prompt = input_data.get("prompt", "")
         if not prompt or len(prompt) < 10:
-            output_hook_success()
+            _emit_hook_exit(EVENT, args, HOOK, "skipped (short/command prompt)")
 
         # Skip common non-question prompts
         skip_prefixes = ["/", "yes", "no", "ok", "y", "n", "da", "нет", "да"]
         prompt_lower = prompt.strip().lower()
         if any(prompt_lower == p or prompt_lower.startswith(p + " ") for p in skip_prefixes):
-            output_hook_success()
+            _emit_hook_exit(EVENT, args, HOOK, "skipped (short/command prompt)")
 
         from cloud.client import CloudMemory
-        base_url = os.environ.get("MENGRAM_URL", "https://mengram.io")
+        base_url = _load_cloud_base_url()
         user_id = getattr(args, "user_id", None) or os.environ.get("MENGRAM_USER_ID", "default")
 
         mem = CloudMemory(api_key=api_key, base_url=base_url)
         results = mem.search(prompt, user_id=user_id, limit=3, graph_depth=1)
 
         if not results:
-            output_hook_success()
+            _emit_hook_exit(EVENT, args, HOOK, "no memories found")
 
         # Format context
         lines = ["[Mengram Memory — relevant context from past sessions]"]
@@ -418,32 +420,21 @@ def cmd_auto_recall(args):
                     lines.append(f"  - {fact}")
 
         context = "\n".join(lines)
-
-        # Return additionalContext for Claude to see
-        print(json.dumps({
-            "hookSpecificOutput": {
-                "hookEventName": "UserPromptSubmit",
-                "additionalContext": context,
-            }
-        }))
-        sys.exit(0)
+        _emit_hook_exit(EVENT, args, HOOK, f"found {len(results)} memories", context=context)
 
     except SystemExit:
         raise
     except Exception as e:
         if _is_quota_error(e):
-            print(json.dumps({
-                "hookSpecificOutput": {
-                    "hookEventName": "UserPromptSubmit",
-                    "additionalContext": (
-                        "[Mengram] Memory search quota exceeded — recall is disabled. "
-                        f"{e} "
-                        "Upgrade at https://mengram.io/dashboard"
-                    ),
-                }
-            }))
-            sys.exit(0)
-        output_hook_success()
+            _emit_hook_exit(
+                EVENT, args, HOOK, "quota exceeded",
+                context=(
+                    "[Mengram] Memory search quota exceeded — recall is disabled. "
+                    f"{e} "
+                    "Upgrade at https://mengram.io/dashboard"
+                ),
+            )
+        _emit_hook_exit(EVENT, args, HOOK, "error")
 
 
 def cmd_auto_context(args):
@@ -1537,6 +1528,8 @@ def main():
     # auto-recall (internal, called by Claude Code UserPromptSubmit hook)
     p_autorecall = sub.add_parser("auto-recall", help=argparse.SUPPRESS)
     p_autorecall.add_argument("--user-id", default=None)
+    p_autorecall.add_argument("--verbose", action="store_true",
+                               help="Emit a status marker for each hook invocation")
 
     # auto-context (internal, called by Claude Code SessionStart hook)
     p_autocontext = sub.add_parser("auto-context", help=argparse.SUPPRESS)
