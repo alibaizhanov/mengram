@@ -159,7 +159,7 @@
   "devDependencies": {
     "@types/node": "^20.0.0",
     "@types/vscode": "^1.93.0",
-    "esbuild": "^0.24.0",
+    "esbuild": "^0.28.1",
     "mengram-ai": "^2.15.0",
     "typescript": "^5.4.0"
   }
