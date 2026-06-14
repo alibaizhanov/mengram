@@ -8,8 +8,15 @@ Supported providers:
 """
 
 import json
+import logging
 from abc import ABC, abstractmethod
 from typing import Optional
+
+from engine.extractor.model_source import get_model_candidates
+
+_default_fetch_fn = None
+
+_logger = logging.getLogger("mengram")
 
 
 class LLMClient(ABC):
@@ -156,6 +163,47 @@ class OllamaClient(LLMClient):
             return result["message"]["content"]
 
 
+class AllModelsFailedError(Exception):
+    """Raised by FallbackOpenAIClient when every candidate model fails."""
+
+
+class FallbackOpenAIClient(LLMClient):
+    """OpenAI-compatible client that tries a list of models in order.
+
+    Used when ~/.mengram/config.yaml sets `model_list_url`: `models` is the
+    ordered candidate list from get_model_candidates (curated list, scored
+    highest-first, with the configured `model` appended as final fallback).
+    """
+
+    def __init__(self, api_key: str, models: list[str]):
+        if not models:
+            raise ValueError("FallbackOpenAIClient requires at least one model")
+        self.models = models
+        self._clients = [OpenAIClient(api_key=api_key, model=m) for m in models]
+
+    def complete(self, prompt: str, system: str = "", response_format=None) -> str:
+        errors = []
+        for model, client in zip(self.models, self._clients):
+            try:
+                return client.complete(prompt, system=system, response_format=response_format)
+            except Exception as e:
+                _logger.warning("model %s failed: %s", model, e)
+                errors.append((model, e))
+        _logger.error("all models failed: %s", ", ".join(f"{m}: {e}" for m, e in errors))
+        raise AllModelsFailedError(f"all models failed: {[m for m, _ in errors]}")
+
+    def chat(self, messages: list[dict], system: str = "") -> str:
+        errors = []
+        for model, client in zip(self.models, self._clients):
+            try:
+                return client.chat(messages, system=system)
+            except Exception as e:
+                _logger.warning("model %s failed: %s", model, e)
+                errors.append((model, e))
+        _logger.error("all models failed: %s", ", ".join(f"{m}: {e}" for m, e in errors))
+        raise AllModelsFailedError(f"all models failed: {[m for m, _ in errors]}")
+
+
 def create_llm_client(config: dict) -> LLMClient:
     """Creates LLM client from config"""
     provider = config.get("provider", "anthropic")
@@ -168,10 +216,12 @@ def create_llm_client(config: dict) -> LLMClient:
         )
     elif provider == "openai":
         settings = config.get("openai", {})
-        return OpenAIClient(
-            api_key=settings["api_key"],
-            model=settings.get("model", "gpt-4o-mini"),
-        )
+        api_key = settings["api_key"]
+        model = settings.get("model", "gpt-4o-mini")
+        if (settings.get("model_list_url") or "").strip():
+            candidates = get_model_candidates(settings, fetch_fn=_default_fetch_fn)
+            return FallbackOpenAIClient(api_key=api_key, models=candidates)
+        return OpenAIClient(api_key=api_key, model=model)
     elif provider == "ollama":
         settings = config.get("ollama", {})
         return OllamaClient(
