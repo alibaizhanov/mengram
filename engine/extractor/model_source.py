@@ -27,3 +27,41 @@ def _write_cache(cache_path: Path, data: dict) -> None:
         cache_path.write_text(json.dumps(data))
     except OSError as e:
         _logger.warning("failed to write model cache to %s: %s", cache_path, e)
+
+
+def _refresh(
+    url: str,
+    cache: dict | None,
+    now: float,
+    cache_path: Path,
+    fetch_fn,
+) -> list[str] | None:
+    try:
+        raw = fetch_fn(url)
+    except Exception as e:
+        _logger.warning("failed to fetch model list from %s: %s", url, e)
+        if cache and cache.get("url") == url:
+            return cache["models"]
+        return None
+
+    content_hash = hashlib.sha256(raw).hexdigest()
+
+    if cache and cache.get("url") == url and cache.get("content_hash") == content_hash:
+        models = cache["models"]
+    else:
+        try:
+            data = json.loads(raw)
+            models = [m["id"] for m in data["models"]]
+        except (ValueError, KeyError, TypeError) as e:
+            _logger.warning("failed to parse model list from %s: %s", url, e)
+            if cache and cache.get("url") == url:
+                return cache["models"]
+            return None
+
+    _write_cache(cache_path, {
+        "url": url,
+        "fetched_at": now,
+        "content_hash": content_hash,
+        "models": models,
+    })
+    return models
