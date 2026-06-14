@@ -78,3 +78,50 @@ def test_fallback_client_chat_falls_back_too():
         client = FallbackOpenAIClient(api_key="key", models=["model-a", "model-b"])
 
     assert client.chat([{"role": "user", "content": "hi"}]) == "chat ok from b"
+
+
+from engine.extractor.llm_client import create_llm_client
+
+
+def test_create_llm_client_openai_without_model_list_url_returns_openai_client():
+    client = create_llm_client({
+        "provider": "openai",
+        "openai": {"api_key": "key", "model": "gpt-4o-mini"},
+    })
+
+    assert isinstance(client, OpenAIClient)
+    assert client.model == "gpt-4o-mini"
+
+
+def test_create_llm_client_openai_with_empty_model_list_url_returns_openai_client():
+    client = create_llm_client({
+        "provider": "openai",
+        "openai": {"api_key": "key", "model": "gpt-4o-mini", "model_list_url": ""},
+    })
+
+    assert isinstance(client, OpenAIClient)
+
+
+def test_create_llm_client_openai_with_model_list_url_returns_fallback_client(tmp_path, monkeypatch):
+    cache_path = tmp_path / "model-cache.json"
+    monkeypatch.setattr(
+        "engine.extractor.model_source.DEFAULT_CACHE_PATH", cache_path
+    )
+
+    def fetch_fn(url):
+        import json as _json
+        return _json.dumps({"models": [{"id": "list/model-a"}, {"id": "list/model-b"}]}).encode()
+
+    monkeypatch.setattr("engine.extractor.llm_client._default_fetch_fn", fetch_fn)
+
+    client = create_llm_client({
+        "provider": "openai",
+        "openai": {
+            "api_key": "key",
+            "model": "fallback/model",
+            "model_list_url": "https://example.com/models.json",
+        },
+    })
+
+    assert isinstance(client, FallbackOpenAIClient)
+    assert client.models == ["list/model-a", "list/model-b", "fallback/model"]

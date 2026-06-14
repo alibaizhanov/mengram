@@ -12,6 +12,10 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Optional
 
+from engine.extractor.model_source import get_model_candidates
+
+_default_fetch_fn = None
+
 _logger = logging.getLogger("mengram")
 
 
@@ -212,10 +216,12 @@ def create_llm_client(config: dict) -> LLMClient:
         )
     elif provider == "openai":
         settings = config.get("openai", {})
-        return OpenAIClient(
-            api_key=settings["api_key"],
-            model=settings.get("model", "gpt-4o-mini"),
-        )
+        api_key = settings["api_key"]
+        model = settings.get("model", "gpt-4o-mini")
+        if (settings.get("model_list_url") or "").strip():
+            candidates = get_model_candidates(settings, fetch_fn=_default_fetch_fn)
+            return FallbackOpenAIClient(api_key=api_key, models=candidates)
+        return OpenAIClient(api_key=api_key, model=model)
     elif provider == "ollama":
         settings = config.get("ollama", {})
         return OllamaClient(
