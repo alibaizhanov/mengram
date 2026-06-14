@@ -933,7 +933,7 @@ def cmd_doctor(args):
         print("FAIL: no API key. Run `mengram signup --email <you>` first.", file=sys.stderr)
         sys.exit(1)
 
-    base = os.environ.get("MENGRAM_URL", "https://mengram.io").rstrip("/")
+    base = _load_cloud_base_url().rstrip("/")
     marker = f"mengram-doctor-{int(time.time())}"
     fact_text = f"Round-trip marker {marker}: this memory was written by mengram doctor."
 
