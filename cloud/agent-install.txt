@@ -381,6 +381,15 @@ Config file path:
 Steps:
   1. If the file does not exist, create it with content: {"mcpServers": {}}
   2. Parse the JSON. Ensure "mcpServers" key exists (object).
+  2.5. If an existing "mengram" entry's "command" points at a wrapper script
+     (e.g. ends in "run_server.sh" or "run_server.ps1", such as
+     "C:\Users\<user>\.mengram\run_server.sh"), ALWAYS replace it — even if
+     it looks "configured". On Windows, Claude Desktop cannot execute a
+     `.sh` file directly (no shebang interpreter), and such entries are
+     typically missing the `env.MENGRAM_API_KEY`/`env.MENGRAM_URL` block, so
+     the server silently fails to connect even though Claude Code CLI/VSC
+     (separate config, Section 4B) work fine. Treat it the same as "no entry"
+     and write the standard block in step 3.
   3. Add or replace (template — substitute placeholders, do not write
      "<LAUNCHER_CMD>" or the "+" expression literally):
        "mengram": {
