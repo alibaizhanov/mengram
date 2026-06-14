@@ -439,13 +439,15 @@ def cmd_auto_recall(args):
 
 def cmd_auto_context(args):
     """Hook handler — called by Claude Code on SessionStart. Loads cognitive profile as context."""
+    HOOK = "auto-context"
+    EVENT = "SessionStart"
     try:
-        api_key = os.environ.get("MENGRAM_API_KEY", "")
+        api_key = _load_cloud_api_key()
         if not api_key:
-            sys.exit(0)
+            _emit_hook_exit(EVENT, args, HOOK, "no API key")
 
         from cloud.client import CloudMemory
-        base_url = os.environ.get("MENGRAM_URL", "https://mengram.io")
+        base_url = _load_cloud_base_url()
         user_id = getattr(args, "user_id", None) or os.environ.get("MENGRAM_USER_ID", "default")
 
         mem = CloudMemory(api_key=api_key, base_url=base_url)
@@ -453,21 +455,23 @@ def cmd_auto_context(args):
 
         system_prompt = profile.get("system_prompt", "")
         if not system_prompt:
-            sys.exit(0)
+            _emit_hook_exit(EVENT, args, HOOK, "no profile")
 
-        # For SessionStart, plain text stdout is added as context Claude sees
-        print(f"[Mengram Memory — user context loaded from past sessions]\n{system_prompt}")
-        sys.exit(0)
+        context = f"[Mengram Memory — user context loaded from past sessions]\n{system_prompt}"
+        _emit_hook_exit(EVENT, args, HOOK, f"context loaded ({len(system_prompt)} chars)", context=context)
 
     except SystemExit:
         raise
     except Exception as e:
         if _is_quota_error(e):
-            print(
-                f"[Mengram] Memory profile load failed — quota exceeded. {e} "
-                "Upgrade at https://mengram.io/dashboard"
+            _emit_hook_exit(
+                EVENT, args, HOOK, "quota exceeded",
+                context=(
+                    f"[Mengram] Memory profile load failed — quota exceeded. {e} "
+                    "Upgrade at https://mengram.io/dashboard"
+                ),
             )
-        sys.exit(0)
+        _emit_hook_exit(EVENT, args, HOOK, "error")
 
 
 def cmd_auto_save(args):
@@ -1534,6 +1538,8 @@ def main():
     # auto-context (internal, called by Claude Code SessionStart hook)
     p_autocontext = sub.add_parser("auto-context", help=argparse.SUPPRESS)
     p_autocontext.add_argument("--user-id", default=None)
+    p_autocontext.add_argument("--verbose", action="store_true",
+                                help="Emit a status marker for each hook invocation")
 
     # web
     p_web = sub.add_parser("web", help="Start Web UI (chat + knowledge graph)")
