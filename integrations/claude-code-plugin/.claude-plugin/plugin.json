@@ -10,7 +10,5 @@
   "homepage": "https://mengram.io",
   "repository": "https://github.com/alibaizhanov/mengram.git",
   "license": "Apache-2.0",
-  "keywords": ["memory", "mcp", "context", "cross-device", "hybrid-retrieval", "anthropic"],
-  "hooks": "./hooks/hooks.json",
-  "mcpServers": "./.mcp.json"
+  "keywords": ["memory", "mcp", "context", "cross-device", "hybrid-retrieval", "anthropic"]
 }
