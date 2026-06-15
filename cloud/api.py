@@ -514,7 +514,7 @@ profile = m.get_profile()             # instant system prompt
             return results
 
         # Try Cohere Rerank first — fact-level (cross-encoder, more precise)
-        cohere_key = os.environ.get("COHERE_API_KEY", "") if plan in ("pro", "growth", "business") else ""
+        cohere_key = os.environ.get("COHERE_API_KEY", "") if plan in ("pro", "growth", "business", "selfhosted") else ""
         if cohere_key:
             try:
                 nonlocal _cohere_client
