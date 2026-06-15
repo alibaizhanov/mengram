@@ -1,0 +1,19 @@
+{
+  "name": "mengram",
+  "version": "0.1.0",
+  "description": "Persistent memory for Claude Code that survives /clear, machine switches, and team handoffs. Hosted memory backend with hybrid retrieval, temporal decay, and cross-device sync.",
+  "author": {
+    "name": "Ali Baizhanov",
+    "email": "ali@mengram.io",
+    "url": "https://mengram.io"
+  },
+  "homepage": "https://mengram.io",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alibaizhanov/mengram.git"
+  },
+  "license": "Apache-2.0",
+  "keywords": ["memory", "mcp", "context", "cross-device", "hybrid-retrieval", "anthropic"],
+  "hooks": "./hooks/hooks.json",
+  "mcpServers": "./.mcp.json"
+}
