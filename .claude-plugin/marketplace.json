@@ -1,0 +1,20 @@
+{
+  "name": "mengram",
+  "owner": {
+    "name": "Mengram",
+    "email": "ali@mengram.io",
+    "url": "https://mengram.io"
+  },
+  "plugins": [
+    {
+      "name": "mengram",
+      "description": "Persistent memory for Claude Code that survives /clear, machine switches, and team handoffs. Hosted memory backend with hybrid retrieval (vector + BM25 + RRF), temporal decay, importance weighting, and cross-device sync. Same memory available across Claude Code, Cursor, Codex, and ChatGPT.",
+      "source": {
+        "source": "git-subdir",
+        "url": "alibaizhanov/mengram",
+        "path": "integrations/claude-code-plugin"
+      },
+      "homepage": "https://mengram.io"
+    }
+  ]
+}
