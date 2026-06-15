@@ -11,7 +11,7 @@
     <script>window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)},plausible.init=plausible.init||function(i){plausible.o=i||{}};plausible.init()</script>
     <title>Mengram — The Memory Layer for AI Agents that Learn</title>
     <meta name="description" content="Memory infrastructure for AI agents. Three types of memory that learn from every conversation — semantic facts, episodic events, procedural workflows. Multi-tenant, 23 languages, MCP server, Python & JS SDKs. Open-source Mem0 alternative.">
-    <meta name="keywords" content="Claude Managed Agents memory, Managed Agents MCP, Claude Code memory, Claude Code hooks, Claude Code auto-save, Claude Code persistent memory, AI memory API, LLM memory, Mem0 alternative, MCP memory server, Claude Desktop memory, episodic memory, procedural memory, cognitive profile, knowledge graph, AI agents, auto-recall, claude-mem alternative, AI agent memory, Claude Code plugins, MCP server Claude, Cursor memory, Windsurf memory, RAG alternative, AI memory open source, Vapi memory, voice agent memory, Vapi cross-call memory, Retell memory, Pipecat memory, voice AI memory">
+    <meta name="keywords" content="Claude Managed Agents memory, Managed Agents MCP, Claude Code memory, Claude Code hooks, Claude Code auto-save, Claude Code persistent memory, Claude Code plugin, Claude Code marketplace plugin, claude plugin install mengram, claude-plugins-community, AI memory API, LLM memory, Mem0 alternative, MCP memory server, Claude Desktop memory, episodic memory, procedural memory, cognitive profile, knowledge graph, AI agents, auto-recall, claude-mem alternative, AI agent memory, Claude Code plugins, MCP server Claude, Cursor memory, Windsurf memory, RAG alternative, AI memory open source, Vapi memory, voice agent memory, Vapi cross-call memory, Retell memory, Pipecat memory, voice AI memory">
     <meta name="google-site-verification" content="AgH6oyB88LhyyfEqVQn9XnT1mPiFpgCX5GFVJMC5yEs">
     <meta name="author" content="Ali Baizhanov">
     <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
@@ -1908,12 +1908,28 @@
             <p class="reveal hero-reassure" style="transition-delay:0.5s">No credit card. No trial. Free forever tier with 40 memories/mo.</p>
         </section>
 
+        <!-- Install in Claude Code (plugin) -->
+        <section class="install-prompt-section reveal">
+            <div class="install-prompt-card">
+                <span class="install-prompt-eyebrow">New · Claude Code plugin</span>
+                <h2 class="install-prompt-title">Two commands. Memory in every Claude Code session.</h2>
+                <p class="install-prompt-sub">Persistent memory that survives <code>/clear</code>, machine switches, and team handoffs. Hooks auto-load your profile on session start and capture conversations at end-of-turn. MCP server gives Claude 30 memory tools out of the box.</p>
+                <div class="code-box install-prompt-box">
+                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+<pre>export MENGRAM_API_KEY=om-your-key-here
+claude plugin marketplace add alibaizhanov/mengram
+claude plugin install mengram@mengram</pre>
+                </div>
+                <p class="install-prompt-fineprint"><a href="/#signup">Grab a free key</a> (40 adds + 200 searches/month, no card). Source: <a href="https://github.com/alibaizhanov/mengram/tree/main/integrations/claude-code-plugin">github.com/alibaizhanov/mengram</a>.</p>
+            </div>
+        </section>
+
         <!-- Install in one prompt -->
         <section class="install-prompt-section reveal">
             <div class="install-prompt-card">
-                <span class="install-prompt-eyebrow">Install in one prompt</span>
+                <span class="install-prompt-eyebrow">Other agents · Install in one prompt</span>
                 <h2 class="install-prompt-title">Tell your agent to install Mengram.</h2>
-                <p class="install-prompt-sub">Paste the prompt below into Claude Desktop, Cursor, Claude Code, Codex, or Windsurf. The agent reads our setup guide, installs the SDK, wires up the MCP server, and verifies the round-trip — end-to-end, no terminal context-switching.</p>
+                <p class="install-prompt-sub">For Claude Desktop, Cursor, Codex, or Windsurf — paste the prompt below. The agent reads our setup guide, installs the SDK, wires up the MCP server, and verifies the round-trip.</p>
                 <div class="code-box install-prompt-box">
                     <button class="copy-btn" onclick="copyCode(this)">Copy</button>
 <pre>Install Mengram for me. Fetch the canonical install guide
