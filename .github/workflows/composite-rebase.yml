@@ -1,0 +1,150 @@
+name: Composite Branch Rebase
+
+on:
+  schedule:
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  rebase:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout upstream main
+        uses: actions/checkout@v4
+        with:
+          repository: alibaizhanov/mengram
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.SYNC_PAT }}
+
+      - name: Configure git identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add smoochy fork remote
+        shell: bash
+        env:
+          SYNC_PAT: ${{ secrets.SYNC_PAT }}
+        run: |
+          set -euo pipefail
+          git remote add smoochy "https://x-access-token:${SYNC_PAT}@github.com/smoochy/mengram-upstream.git"
+
+      - name: Detect open smoochy PRs
+        id: prs
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_PAT }}
+        run: |
+          set -euo pipefail
+          prs_json=$(gh api repos/alibaizhanov/mengram/pulls \
+            --jq '[.[] | select(.state=="open" and .head.repo.owner.login=="smoochy") | {number: .number, sha: .head.sha, ref: .head.ref}] | sort_by(.number) | reverse')
+          echo "Open smoochy PRs (descending):"
+          echo "$prs_json" | jq -r '.[] | "  #\(.number) \(.ref) @ \(.sha[0:8])"'
+          echo "prs_json<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$prs_json" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch PR branch refs
+        shell: bash
+        run: |
+          set -euo pipefail
+          prs_json='${{ steps.prs.outputs.prs_json }}'
+          if [ "$(echo "$prs_json" | jq 'length')" -eq 0 ]; then
+            echo "No open smoochy PRs — nothing to fetch"
+            exit 0
+          fi
+          while IFS=$'\t' read -r sha ref; do
+            echo "Fetching smoochy/${ref}"
+            git fetch smoochy "refs/heads/${ref}:refs/remotes/smoochy/${ref}"
+          done < <(echo "$prs_json" | jq -r '.[] | [.sha, .ref] | @tsv')
+
+      - name: Deduplicate stack and merge
+        shell: bash
+        run: |
+          set -euo pipefail
+          prs_json='${{ steps.prs.outputs.prs_json }}'
+
+          if [ "$(echo "$prs_json" | jq 'length')" -eq 0 ]; then
+            echo "No open smoochy PRs — composite will equal upstream/main"
+          else
+            # Stack dedup: process descending (highest PR first)
+            # Skip PR if its HEAD is an ancestor of any already-selected SHA
+            declare -a selected_shas=()
+            declare -a selected_numbers=()
+            declare -a selected_refs=()
+
+            while IFS=$'\t' read -r number sha ref; do
+              skip=false
+              for sel_sha in "${selected_shas[@]:-}"; do
+                if git merge-base --is-ancestor "$sha" "$sel_sha"; then
+                  echo "PR #${number} (${ref}) is ancestor of already-selected → skip"
+                  skip=true
+                  break
+                fi
+              done
+              if [ "$skip" = "false" ]; then
+                echo "PR #${number} (${ref}) selected"
+                selected_shas+=("$sha")
+                selected_numbers+=("$number")
+                selected_refs+=("$ref")
+              fi
+            done < <(echo "$prs_json" | jq -r '.[] | [.number, .sha, .ref] | @tsv')
+
+            # Sort selected by PR number ascending for merge order
+            mapfile -t sorted_refs < <(
+              for i in "${!selected_numbers[@]}"; do
+                echo "${selected_numbers[$i]} ${selected_refs[$i]}"
+              done | sort -n | awk '{print $2}'
+            )
+
+            # Merge each selected branch
+            for ref in "${sorted_refs[@]:-}"; do
+              echo "Merging smoochy/${ref}"
+              git merge --no-ff "refs/remotes/smoochy/${ref}" \
+                -m "chore(composite): merge smoochy/${ref}"
+            done
+          fi
+
+      - name: Force-push smoochy/composite
+        shell: bash
+        env:
+          SYNC_PAT: ${{ secrets.SYNC_PAT }}
+        run: |
+          set -euo pipefail
+          git push --force \
+            "https://x-access-token:${SYNC_PAT}@github.com/smoochy/mengram-upstream.git" \
+            "HEAD:refs/heads/smoochy/composite"
+          echo "smoochy/composite updated"
+
+      - name: Dispatch build to mengram
+        shell: bash
+        env:
+          SYNC_PAT: ${{ secrets.SYNC_PAT }}
+        run: |
+          set -euo pipefail
+          curl --fail -X POST \
+            -H "Authorization: Bearer ${SYNC_PAT}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/smoochy/mengram/dispatches \
+            -d '{"event_type":"composite-updated"}'
+          echo "repository_dispatch sent to smoochy/mengram"
+
+      - name: Write summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            printf '### Composite Branch Rebase\n\n'
+            printf -- '- upstream base: `alibaizhanov/mengram:main`\n'
+            printf -- '- target branch: `smoochy/mengram-upstream:smoochy/composite`\n'
+          } >> "$GITHUB_STEP_SUMMARY"
