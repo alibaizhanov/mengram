@@ -24,8 +24,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Fetch smoochy/composite
+      - name: Fetch main
         shell: bash
         run: |
           set -euo pipefail
