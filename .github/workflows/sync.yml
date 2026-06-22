@@ -1,0 +1,34 @@
+name: Sync Upstream
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  sync_with_upstream:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout target repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.SYNC_PAT }}
+          fetch-depth: 0
+
+      - name: Sync upstream changes
+        id: sync
+        uses: aormsby/Fork-Sync-With-Upstream-action@v3.4.1
+        with:
+          target_repo_token: ${{ secrets.SYNC_PAT }}
+          upstream_sync_repo: alibaizhanov/mengram
+          upstream_sync_branch: main
+          target_sync_branch: upstream-sync
+          test_mode: false
+
+      - name: Check for errors
+        if: failure()
+        run: |
+          echo "Sync failed. This usually happens due to merge conflicts."
+          exit 1

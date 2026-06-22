@@ -1,0 +1,60 @@
+name: Sync features onto composite
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout smoochy/features
+        uses: actions/checkout@v4
+        with:
+          repository: smoochy/mengram-upstream
+          ref: smoochy/features
+          fetch-depth: 0
+          token: ${{ secrets.SYNC_PAT }}
+
+      - name: Configure git identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          echo "composite HEAD: $(git rev-parse origin/main)"
+
+      - name: Rebase features onto composite
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rebase origin/main
+          echo "Rebase succeeded"
+
+      - name: Force-push smoochy/features
+        shell: bash
+        env:
+          SYNC_PAT: ${{ secrets.SYNC_PAT }}
+        run: |
+          set -euo pipefail
+          git push --force \
+            "https://x-access-token:${SYNC_PAT}@github.com/smoochy/mengram-upstream.git" \
+            "HEAD:refs/heads/smoochy/features"
+          echo "smoochy/features updated"
+
+      - name: Write summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            printf '### Sync features onto composite\n\n'
+            printf -- '- rebased: `smoochy/features` → `main`\n'
+          } >> "$GITHUB_STEP_SUMMARY"
