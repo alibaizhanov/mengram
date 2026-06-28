@@ -376,36 +376,38 @@ def _is_quota_error(e: Exception) -> bool:
 
 def cmd_auto_recall(args):
     """Hook handler — called by Claude Code on UserPromptSubmit. Searches Mengram for relevant context."""
+    HOOK = "auto-recall"
+    EVENT = "UserPromptSubmit"
     try:
-        api_key = os.environ.get("MENGRAM_API_KEY", "")
+        api_key = _load_cloud_api_key()
         if not api_key:
-            output_hook_success()
+            _emit_hook_exit(EVENT, args, HOOK, "no API key")
 
         # Read hook input from stdin
         try:
             input_data = json.loads(sys.stdin.read())
         except Exception:
-            output_hook_success()
+            _emit_hook_exit(EVENT, args, HOOK, "no input")
 
         prompt = input_data.get("prompt", "")
         if not prompt or len(prompt) < 10:
-            output_hook_success()
+            _emit_hook_exit(EVENT, args, HOOK, "skipped (short/command prompt)")
 
         # Skip common non-question prompts
         skip_prefixes = ["/", "yes", "no", "ok", "y", "n", "da", "нет", "да"]
         prompt_lower = prompt.strip().lower()
         if any(prompt_lower == p or prompt_lower.startswith(p + " ") for p in skip_prefixes):
-            output_hook_success()
+            _emit_hook_exit(EVENT, args, HOOK, "skipped (short/command prompt)")
 
         from cloud.client import CloudMemory
-        base_url = os.environ.get("MENGRAM_URL", "https://mengram.io")
+        base_url = _load_cloud_base_url()
         user_id = getattr(args, "user_id", None) or os.environ.get("MENGRAM_USER_ID", "default")
 
         mem = CloudMemory(api_key=api_key, base_url=base_url)
         results = mem.search(prompt, user_id=user_id, limit=3, graph_depth=1)
 
         if not results:
-            output_hook_success()
+            _emit_hook_exit(EVENT, args, HOOK, "no memories found")
 
         # Format context
         lines = ["[Mengram Memory — relevant context from past sessions]"]
@@ -418,43 +420,34 @@ def cmd_auto_recall(args):
                     lines.append(f"  - {fact}")
 
         context = "\n".join(lines)
-
-        # Return additionalContext for Claude to see
-        print(json.dumps({
-            "hookSpecificOutput": {
-                "hookEventName": "UserPromptSubmit",
-                "additionalContext": context,
-            }
-        }))
-        sys.exit(0)
+        _emit_hook_exit(EVENT, args, HOOK, f"found {len(results)} memories", context=context)
 
     except SystemExit:
         raise
     except Exception as e:
         if _is_quota_error(e):
-            print(json.dumps({
-                "hookSpecificOutput": {
-                    "hookEventName": "UserPromptSubmit",
-                    "additionalContext": (
-                        "[Mengram] Memory search quota exceeded — recall is disabled. "
-                        f"{e} "
-                        "Upgrade at https://mengram.io/dashboard"
-                    ),
-                }
-            }))
-            sys.exit(0)
-        output_hook_success()
+            _emit_hook_exit(
+                EVENT, args, HOOK, "quota exceeded",
+                context=(
+                    "[Mengram] Memory search quota exceeded — recall is disabled. "
+                    f"{e} "
+                    "Upgrade at https://mengram.io/dashboard"
+                ),
+            )
+        _emit_hook_exit(EVENT, args, HOOK, "error")
 
 
 def cmd_auto_context(args):
     """Hook handler — called by Claude Code on SessionStart. Loads cognitive profile as context."""
+    HOOK = "auto-context"
+    EVENT = "SessionStart"
     try:
-        api_key = os.environ.get("MENGRAM_API_KEY", "")
+        api_key = _load_cloud_api_key()
         if not api_key:
-            sys.exit(0)
+            _emit_hook_exit(EVENT, args, HOOK, "no API key")
 
         from cloud.client import CloudMemory
-        base_url = os.environ.get("MENGRAM_URL", "https://mengram.io")
+        base_url = _load_cloud_base_url()
         user_id = getattr(args, "user_id", None) or os.environ.get("MENGRAM_USER_ID", "default")
 
         mem = CloudMemory(api_key=api_key, base_url=base_url)
@@ -462,43 +455,47 @@ def cmd_auto_context(args):
 
         system_prompt = profile.get("system_prompt", "")
         if not system_prompt:
-            sys.exit(0)
+            _emit_hook_exit(EVENT, args, HOOK, "no profile")
 
-        # For SessionStart, plain text stdout is added as context Claude sees
-        print(f"[Mengram Memory — user context loaded from past sessions]\n{system_prompt}")
-        sys.exit(0)
+        context = f"[Mengram Memory — user context loaded from past sessions]\n{system_prompt}"
+        _emit_hook_exit(EVENT, args, HOOK, f"context loaded ({len(system_prompt)} chars)", context=context)
 
     except SystemExit:
         raise
     except Exception as e:
         if _is_quota_error(e):
-            print(
-                f"[Mengram] Memory profile load failed — quota exceeded. {e} "
-                "Upgrade at https://mengram.io/dashboard"
+            _emit_hook_exit(
+                EVENT, args, HOOK, "quota exceeded",
+                context=(
+                    f"[Mengram] Memory profile load failed — quota exceeded. {e} "
+                    "Upgrade at https://mengram.io/dashboard"
+                ),
             )
-        sys.exit(0)
+        _emit_hook_exit(EVENT, args, HOOK, "error")
 
 
 def cmd_auto_save(args):
     """Hook handler — called by Claude Code on Stop event. Reads stdin, saves to Mengram."""
+    HOOK = "auto-save"
+    EVENT = "Stop"
     try:
-        api_key = os.environ.get("MENGRAM_API_KEY", "")
+        api_key = _load_cloud_api_key()
         if not api_key:
-            output_hook_success()
+            _emit_hook_exit(EVENT, args, HOOK, "no API key")
 
         # Read hook input from stdin
         try:
             input_data = json.loads(sys.stdin.read())
         except Exception:
-            output_hook_success()
+            _emit_hook_exit(EVENT, args, HOOK, "no input")
 
         # Avoid infinite loops
         if input_data.get("stop_hook_active"):
-            output_hook_success()
+            _emit_hook_exit(EVENT, args, HOOK, "skipped (stop_hook_active)")
 
         last_msg = input_data.get("last_assistant_message", "")
         if not last_msg or len(last_msg.strip()) < 10:
-            output_hook_success()
+            _emit_hook_exit(EVENT, args, HOOK, "skipped (short response)")
 
         # Throttle: only save every Nth response
         session_id = input_data.get("session_id", "unknown")
@@ -520,7 +517,7 @@ def cmd_auto_save(args):
             pass
 
         if count > 1 and count % every != 0:
-            output_hook_success()
+            _emit_hook_exit(EVENT, args, HOOK, f"throttled ({count}/{every})")
 
         # Extract last user message from transcript
         user_message = ""
@@ -566,7 +563,7 @@ def cmd_auto_save(args):
 
         # Send to Mengram API
         from cloud.client import CloudMemory
-        base_url = os.environ.get("MENGRAM_URL", "https://mengram.io")
+        base_url = _load_cloud_base_url()
         user_id = getattr(args, "user_id", None) or os.environ.get("MENGRAM_USER_ID", "default")
 
         mem = CloudMemory(api_key=api_key, base_url=base_url)
@@ -578,24 +575,22 @@ def cmd_auto_save(args):
             run_id=session_id,
         )
 
-        output_hook_success()
+        _emit_hook_exit(EVENT, args, HOOK, "saved")
 
     except SystemExit:
         raise
     except Exception as e:
         if _is_quota_error(e):
-            # Surface quota error to user via stderr (Stop hooks don't support additionalContext)
+            # Always surface quota errors via stderr (Stop hooks don't support
+            # additionalContext), regardless of --verbose.
             print(
                 f"\n⚠️  [Mengram] Memory save failed — quota exceeded. {e}\n"
                 "   Your conversations are NOT being saved.\n"
                 "   Upgrade at https://mengram.io/dashboard\n",
                 file=sys.stderr,
             )
-            print(json.dumps({"continue": True}))
-            sys.exit(0)
-        # Never crash, never block Claude
-        print(json.dumps({"continue": True, "suppressOutput": True}))
-        sys.exit(0)
+            _emit_hook_exit(EVENT, args, HOOK, "quota exceeded")
+        _emit_hook_exit(EVENT, args, HOOK, "error")
 
 
 def cmd_hook(args):
@@ -783,6 +778,65 @@ def _load_cloud_api_key() -> str:
     return ""
 
 
+def _load_cloud_base_url() -> str:
+    """Resolve base URL in this order: env var, ~/.mengram/config.json, default."""
+    url = os.environ.get("MENGRAM_URL", "").strip()
+    if url:
+        return url.rstrip("/")
+    path = _cloud_config_path()
+    if path.exists():
+        try:
+            data = json.loads(path.read_text())
+            cfg_url = (data.get("base_url") or "").strip()
+            if cfg_url:
+                return cfg_url.rstrip("/")
+        except Exception:
+            pass
+    return "https://mengram.io"
+
+
+def _hook_marker(hook_name: str, status: str) -> str:
+    """Build a one-line status marker for verbose hook output."""
+    return f"[mengram:{hook_name}] {status}"
+
+
+def _emit_hook_exit(hook_event_name, args, hook_name, status, context=None):
+    """Emit a Claude Code hook JSON response and exit(0).
+
+    Non-verbose (default): preserves prior silent behavior — suppressOutput
+    when there's no context, or just the additionalContext when there is.
+
+    Verbose (--verbose): adds a one-line status marker via `systemMessage`
+    (shown to the user for any hook type), and for UserPromptSubmit /
+    SessionStart also prefixes it onto `additionalContext` so Claude sees it.
+    Stop hooks don't support additionalContext, so verbose Stop output is
+    systemMessage only.
+    """
+    verbose = getattr(args, "verbose", False)
+    payload = {"continue": True}
+
+    if context:
+        payload["hookSpecificOutput"] = {
+            "hookEventName": hook_event_name,
+            "additionalContext": context,
+        }
+
+    if verbose:
+        marker = _hook_marker(hook_name, status)
+        payload["systemMessage"] = marker
+        if hook_event_name in ("UserPromptSubmit", "SessionStart"):
+            existing = payload.get("hookSpecificOutput", {}).get("additionalContext", "")
+            payload["hookSpecificOutput"] = {
+                "hookEventName": hook_event_name,
+                "additionalContext": marker + (("\n\n" + existing) if existing else ""),
+            }
+    elif not context:
+        payload["suppressOutput"] = True
+
+    print(json.dumps(payload))
+    sys.exit(0)
+
+
 def _save_and_report_key(api_key: str, label: str) -> None:
     """Persist API key to ~/.mengram/config.json + shell profile, print success.
     Shared by all CLI paths that successfully obtain a key."""
@@ -879,7 +933,7 @@ def cmd_doctor(args):
         print("FAIL: no API key. Run `mengram signup --email <you>` first.", file=sys.stderr)
         sys.exit(1)
 
-    base = os.environ.get("MENGRAM_URL", "https://mengram.io").rstrip("/")
+    base = _load_cloud_base_url().rstrip("/")
     marker = f"mengram-doctor-{int(time.time())}"
     fact_text = f"Round-trip marker {marker}: this memory was written by mengram doctor."
 
@@ -1474,14 +1528,20 @@ def main():
     p_autosave = sub.add_parser("auto-save", help=argparse.SUPPRESS)
     p_autosave.add_argument("--every", type=int, default=3)
     p_autosave.add_argument("--user-id", default=None)
+    p_autosave.add_argument("--verbose", action="store_true",
+                             help="Emit a status marker for each hook invocation")
 
     # auto-recall (internal, called by Claude Code UserPromptSubmit hook)
     p_autorecall = sub.add_parser("auto-recall", help=argparse.SUPPRESS)
     p_autorecall.add_argument("--user-id", default=None)
+    p_autorecall.add_argument("--verbose", action="store_true",
+                               help="Emit a status marker for each hook invocation")
 
     # auto-context (internal, called by Claude Code SessionStart hook)
     p_autocontext = sub.add_parser("auto-context", help=argparse.SUPPRESS)
     p_autocontext.add_argument("--user-id", default=None)
+    p_autocontext.add_argument("--verbose", action="store_true",
+                                help="Emit a status marker for each hook invocation")
 
     # web
     p_web = sub.add_parser("web", help="Start Web UI (chat + knowledge graph)")
