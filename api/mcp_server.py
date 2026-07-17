@@ -10,6 +10,7 @@ Tools:
   remember / remember_text — Save knowledge to vault
   recall / search          — Query memory
   recall_all / vault_stats — Overview
+  update_frontmatter        — Edit YAML frontmatter on an entity file
 """
 
 import sys
@@ -345,6 +346,33 @@ def create_mcp_server(brain: MengramBrain) -> "Server":
                     "required": ["name", "success"],
                 },
             ),
+            Tool(
+                name="update_frontmatter",
+                description=(
+                    "Update YAML frontmatter keys on an entity file without touching body content. "
+                    "Use to set machine-state flags (e.g. promoted_to_mnemosyne: true) after external "
+                    "actions. Raises an error if the entity file does not exist."
+                ),
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "entity_name": {
+                            "type": "string",
+                            "description": "Entity filename stem, e.g. 'Hermes Agent (Andrew Jocom)'",
+                        },
+                        "updates": {
+                            "type": "object",
+                            "description": (
+                                "Flat key->value map merged into the existing frontmatter. "
+                                "Top-level keys only. Use dot-notation in the key string for nested "
+                                "values (unsupported — flatten nested dicts before calling)."
+                            ),
+                            "additionalProperties": True,
+                        },
+                    },
+                    "required": ["entity_name", "updates"],
+                },
+            ),
         ]
 
     @server.call_tool()
@@ -441,6 +469,22 @@ def create_mcp_server(brain: MengramBrain) -> "Server":
                     status = "succeeded" if arguments["success"] else "failed"
                     return [TextContent(type="text", text=f"✅ Recorded: '{arguments['name']}' {status}")]
                 return [TextContent(type="text", text=f"❌ Procedure '{arguments['name']}' not found")]
+
+            elif name == "update_frontmatter":
+                try:
+                    updated = brain.update_frontmatter(
+                        arguments["entity_name"],
+                        arguments["updates"],
+                    )
+                    return [TextContent(
+                        type="text",
+                        text=f"✅ Frontmatter updated for '{arguments['entity_name']}':\n" +
+                             json.dumps(updated, ensure_ascii=False, indent=2),
+                    )]
+                except FileNotFoundError as e:
+                    return [TextContent(type="text", text=f"❌ {e}")]
+                except Exception as e:
+                    return [TextContent(type="text", text=f"❌ Error: {e}")]
 
             return [TextContent(type="text", text=f"Unknown tool: {name}")]
 
