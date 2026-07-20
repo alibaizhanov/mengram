@@ -7938,6 +7938,46 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         logger.warning(f"🗑️ DELETE ALL | user={user_id[:8]} | deleted={count} entities")
         return {"status": "deleted", "count": count}
 
+    @app.delete("/v1/account", tags=["System"])
+    async def delete_account(confirm: str = Query(""), ctx: AuthContext = Depends(auth)):
+        """Permanently delete this account and ALL associated data (memories,
+        episodes, procedures, chunks, webhooks, teams you created, API keys,
+        usage history). Irreversible. Requires confirm=<your account email>.
+        An active paid subscription is canceled in Paddle first — if that
+        cancellation fails, deletion aborts so you don't keep being billed."""
+        user_id = ctx.user_id
+        email = store.get_user_email(user_id) or ""
+        if not confirm or confirm.strip().lower() != email.strip().lower():
+            raise HTTPException(
+                status_code=400,
+                detail="Pass confirm=<your account email> to delete this account. This cannot be undone."
+            )
+
+        sub = store.get_subscription(user_id) or {}
+        paddle_sub_id = sub.get("paddle_subscription_id")
+        if paddle_sub_id and sub.get("status") in ("active", "past_due"):
+            if not PADDLE_API_KEY:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Active subscription found but billing is not configured on this server. "
+                           "Cancel the subscription first, then retry."
+                )
+            try:
+                _paddle_request("POST", f"/subscriptions/{paddle_sub_id}/cancel",
+                                {"effective_from": "immediately"})
+                logger.info(f"Subscription {paddle_sub_id} canceled for account deletion | user={user_id[:8]}")
+            except Exception as e:
+                logger.error(f"Paddle cancel failed during account deletion | user={user_id[:8]} | {e}")
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"Could not cancel your subscription ({e}). "
+                           "Cancel it via the billing portal first, then retry account deletion."
+                )
+
+        counts = store.delete_account(user_id)
+        logger.warning(f"🗑️ ACCOUNT DELETED | user={user_id[:8]} | email={email} | {counts}")
+        return {"status": "deleted", "account": email, "deleted": counts}
+
     @app.get("/v1/stats", tags=["System"])
     async def stats(sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
         """Usage statistics."""

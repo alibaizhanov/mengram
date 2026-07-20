@@ -1261,6 +1261,13 @@
                 </div>
             </div>
             <div class="set-section">
+                <h3>Delete Account</h3>
+                <p>Permanently delete your account and ALL associated data — memories, episodes, procedures, API keys, usage history. This cannot be undone.</p>
+                <div style="display:flex;gap:10px;">
+                    <button class="btn-s btn-d" onclick="confirmDeleteAccount()">Delete Account</button>
+                </div>
+            </div>
+            <div class="set-section">
                 <h3>Links</h3>
                 <div class="set-row"><label>Homepage</label><a href="/" style="color:var(--accent);text-decoration:none;font-size:14px;">mengram.io</a></div>
                 <div class="set-row"><label>GitHub</label><a href="https://github.com/alibaizhanov/mengram" style="color:var(--accent);text-decoration:none;font-size:14px;">alibaizhanov/mengram</a></div>
@@ -3849,6 +3856,21 @@ async function deleteAll() {
         _invalidateCache('graph'); _invalidateCache('entities');
         loadAll(); showToast(`Deleted ${d.count} entities`, 'success');
     } catch(e) { showToast('Failed to delete data', 'error'); }
+}
+async function confirmDeleteAccount() {
+    let email = '';
+    try { const r = await fetch(`${API}/v1/me`,{headers:H()}); email = (await r.json()).email || ''; } catch(e) {}
+    const typed = prompt('This will permanently delete your ACCOUNT and ALL data — memories, episodes, procedures, API keys, everything. This cannot be undone.\n\nType your account email to confirm:');
+    if (typed === null) return;
+    if (!typed.trim() || (email && typed.trim().toLowerCase() !== email.toLowerCase())) {
+        showToast('Email does not match — account not deleted', 'error'); return;
+    }
+    try {
+        const r = await fetch(`${API}/v1/account?confirm=${encodeURIComponent(typed.trim())}`,{method:'DELETE',headers:H()});
+        const d = await r.json();
+        if (r.ok) { showToast('Account deleted. Goodbye 👋', 'success'); setTimeout(logout, 1500); }
+        else showToast(detailMsg(d.detail, 'Failed to delete account'), 'error');
+    } catch(e) { showToast('Failed to delete account', 'error'); }
 }
 
 // ---- Procedures ----

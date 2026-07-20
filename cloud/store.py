@@ -2529,6 +2529,46 @@ class CloudStore:
         self._schedule_matview_refresh()
         return count
 
+    def delete_account(self, user_id: str) -> dict:
+        """Permanently delete a user account and ALL associated data across
+        every sub_user (issue #39). Irreversible.
+
+        Deleting the users row cascades: api_keys, entities (→ facts,
+        relations, knowledge, embeddings), usage_log, subscriptions,
+        usage_counters. Tables whose user_id has NO foreign key to users
+        (TEXT/VARCHAR columns) are deleted explicitly below; their own
+        children cascade (episode_embeddings via episodes, procedure_
+        embeddings/evolution via procedures, chunk_embeddings via
+        conversation_chunks, team_members via teams).
+        Returns per-table deleted counts."""
+        email = self.get_user_email(user_id)
+        # No FK to users — explicit cleanup required
+        explicit_tables = [
+            "episodes", "procedures", "conversation_chunks", "memory_triggers",
+            "jobs", "memory_health", "drip_emails", "checkout_sessions",
+            "webhooks", "agent_runs", "oauth_codes", "team_members",
+        ]
+        counts = {}
+        with self._cursor() as cur:
+            for table in explicit_tables:
+                cur.execute(f"DELETE FROM {table} WHERE user_id = %s", (user_id,))  # noqa: S608 — fixed list above
+                counts[table] = cur.rowcount
+            cur.execute("DELETE FROM teams WHERE created_by = %s", (user_id,))
+            counts["teams"] = cur.rowcount
+            if email:
+                cur.execute("DELETE FROM email_codes WHERE email = %s", (email,))
+                counts["email_codes"] = cur.rowcount
+                # drip_emails rows can predate signup (user_id NULL) — clear by email too
+                cur.execute("DELETE FROM drip_emails WHERE email = %s", (email,))
+                counts["drip_emails"] += cur.rowcount
+            # users row last — cascades everything with a real FK
+            cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
+            counts["users"] = cur.rowcount
+        for prefix in ("stats:", "profile:", "rules:", "graph:", "value_mirror:", "sub:"):
+            self.cache.invalidate(f"{prefix}{user_id}")
+        self._schedule_matview_refresh()
+        return counts
+
     # ---- MMR Diversification ----
 
     def _mmr_select(self, candidates: list[tuple], entity_info: dict,
