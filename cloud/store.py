@@ -1775,16 +1775,20 @@ class CloudStore:
 
     def _find_primary_person(self, user_id: str, sub_user_id: str = "default") -> Optional[tuple]:
         """Find the primary person entity for this user.
-        Prefers: full name (has space) > most facts > most recent."""
+        Prefers: explicitly pinned identity > most facts > full name (has space) > most recent.
+        Fact count ranks above full name on purpose: a third-party with a fuller
+        name (PR reviewer, tool author) must not beat the user's own entity —
+        that misroutes every "User" fact onto the wrong person (issue #54)."""
         with self._cursor() as cur:
             cur.execute(
                 """SELECT e.id, e.name, COUNT(f.id) as fact_count,
-                          CASE WHEN e.name LIKE '%% %%' THEN 1 ELSE 0 END as has_full_name
+                          CASE WHEN e.name LIKE '%% %%' THEN 1 ELSE 0 END as has_full_name,
+                          CASE WHEN e.metadata->>'is_user_identity' = 'true' THEN 1 ELSE 0 END as pinned
                    FROM entities e
                    LEFT JOIN facts f ON f.entity_id = e.id AND f.archived = FALSE AND (f.expires_at IS NULL OR f.expires_at > NOW())
                    WHERE e.user_id = %s AND e.sub_user_id = %s AND e.type = 'person' AND LOWER(e.name) != 'user'
                    GROUP BY e.id, e.name
-                   ORDER BY has_full_name DESC, fact_count DESC, e.updated_at DESC
+                   ORDER BY pinned DESC, fact_count DESC, has_full_name DESC, e.updated_at DESC
                    LIMIT 1""",
                 (user_id, sub_user_id)
             )
@@ -1792,6 +1796,31 @@ class CloudStore:
             if row:
                 return (str(row[0]), row[1])
             return None
+
+    def set_user_identity(self, user_id: str, entity_name: str, sub_user_id: str = "default") -> Optional[dict]:
+        """Pin an entity as the user's own identity. _find_primary_person honors
+        this flag above all heuristics, so extraction context, "User" merging and
+        profile generation anchor to the right person (issue #54)."""
+        entity_id = self.get_entity_id(user_id, entity_name, sub_user_id=sub_user_id)
+        if not entity_id:
+            return None
+        with self._cursor() as cur:
+            cur.execute(
+                """UPDATE entities SET metadata = metadata - 'is_user_identity'
+                   WHERE user_id = %s AND sub_user_id = %s
+                     AND metadata->>'is_user_identity' = 'true' AND id != %s""",
+                (user_id, sub_user_id, entity_id)
+            )
+            cur.execute(
+                """UPDATE entities
+                   SET metadata = COALESCE(metadata, '{}'::jsonb) || '{"is_user_identity": true}'::jsonb,
+                       updated_at = NOW()
+                   WHERE id = %s
+                   RETURNING name""",
+                (entity_id,)
+            )
+            canonical_name = cur.fetchone()[0]
+        return {"entity_id": entity_id, "entity": canonical_name}
 
     def find_duplicate(self, user_id: str, name: str, sub_user_id: str = "default") -> Optional[tuple]:
         """Find existing entity that matches this name.
@@ -2396,7 +2425,9 @@ class CloudStore:
             entities = cur.fetchall()
             if not entities:
                 if primary_name:
-                    return f'The user\'s name is "{primary_name}". Always use this name instead of "User".'
+                    return (f'The user\'s name is probably "{primary_name}". Use this name instead of "User" '
+                            f'ONLY if the conversation does not indicate the user is someone else — '
+                            f'if it does, keep "User".')
                 return ""
 
             entity_ids = [str(e["id"]) for e in entities]
@@ -2424,7 +2455,9 @@ class CloudStore:
             lines = []
             # Add name hint if known
             if primary_name:
-                lines.append(f'The user\'s name is "{primary_name}". Always use "{primary_name}" instead of "User".')
+                lines.append(f'The user\'s name is probably "{primary_name}". Use "{primary_name}" instead of "User" '
+                             f'ONLY if the conversation does not indicate the user is someone else — '
+                             f'if it does, keep "User".')
 
             for e in entities:
                 eid = str(e["id"])
@@ -3182,13 +3215,23 @@ ENTITIES AND FACTS:
 EXISTING REFLECTIONS (update if stale):
 {prev_reflections}
 
+ATTRIBUTION RULES (critical — violating these corrupts the user's memory):
+- Facts listed under an entity belong to THAT entity ONLY. Never move, copy, or merge facts between entities.
+- NEVER state or imply that two entities are the same person (no "X (Y)" aliasing, no "X, also known as Y")
+  unless a listed fact explicitly says they are the same person.
+- Do NOT attribute the user's traits, tools, or infrastructure to co-mentioned people
+  (collaborators, PR reviewers, tool authors, repo owners) — and vice versa.
+- An entity reflection may ONLY use facts listed under that same entity.
+
 Generate reflections in 3 categories:
 
 1. ENTITY REFLECTIONS — for entities with 3+ facts, write a 2-3 sentence summary.
    Focus: what/who it is, relation to the user, current status.
+   Use ONLY that entity's own facts.
 
 2. CROSS-ENTITY PATTERNS — patterns across multiple entities.
    Focus: career direction, tech preferences, behavioral patterns, relationships.
+   Patterns may reference multiple entities but must keep each fact tied to its own entity.
 
 3. TEMPORAL — what changed recently based on fact timestamps.
    Focus: new interests, shifting priorities, recent activity.

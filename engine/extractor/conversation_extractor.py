@@ -184,6 +184,10 @@ SPEAKER vs THIRD-PARTY DISAMBIGUATION:
   Amy Ellis Nutt entity should ONLY get: "author of the book Becoming Nicole"
 - NEVER attribute a speaker's personal experiences, possessions, or activities to a mentioned third party
 - If Speaker A says "my guinea pig Oscar" → Oscar belongs to Speaker A, NOT to anyone else mentioned in conversation
+- NEVER infer anyone's identity from URLs, repo paths, or package names: "DietrichGebert/ponytail" is a repo
+  owned by GitHub user DietrichGebert — it does NOT mean any speaker IS or knows Dietrich Gebert
+- Do NOT create person entities from usernames in URLs/repo paths/package names unless the conversation
+  states facts directly ABOUT that person
 {existing_context}
 IMAGE DESCRIPTIONS:
 - Messages may contain "[Shared image: <description>]" — treat as REAL content the person shared
@@ -383,6 +387,10 @@ SPEAKER vs THIRD-PARTY DISAMBIGUATION:
   Amy Ellis Nutt entity should ONLY get: "author of the book Becoming Nicole"
 - NEVER attribute the User's personal experiences, possessions, or activities to a mentioned third party
 - If the User says "my guinea pig Oscar" → Oscar belongs to the User, NOT to anyone else mentioned
+- NEVER infer the User's identity from URLs, repo paths, or package names: "DietrichGebert/ponytail" is a repo
+  owned by GitHub user DietrichGebert — it does NOT mean the User is or knows Dietrich Gebert
+- Do NOT create person entities from usernames in URLs/repo paths/package names unless the conversation
+  states facts directly ABOUT that person
 {existing_context}
 DO NOT EXTRACT — meta-conversation noise:
 - Assistant's internal actions: "let me search", "I'll look into", "here's what I found"

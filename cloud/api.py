@@ -7474,6 +7474,17 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         store.fire_webhooks(user_id, "memory_delete", {"entity": name})
         return {"deleted": name}
 
+    @app.post("/v1/identity", tags=["Memory"])
+    async def set_identity(entity: str, sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
+        """Pin which entity is YOU. Extraction, 'User' merging and profile generation
+        anchor to the pinned entity instead of guessing by name/fact-count heuristics.
+        Fixes identity drift when third parties are frequently co-mentioned (issue #54)."""
+        user_id = ctx.user_id
+        result = store.set_user_identity(user_id, entity, sub_user_id=sub_user_id)
+        if not result:
+            raise HTTPException(status_code=404, detail=f"Entity '{entity}' not found")
+        return {"status": "pinned", **result}
+
     @app.post("/v1/merge_user", tags=["Memory"])
     async def merge_user_entity(sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
         """Merge 'User' entity into the primary person entity (e.g. 'Ali Baizhanov')."""
