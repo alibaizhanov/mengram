@@ -3855,13 +3855,20 @@ REFLECTIONS/PATTERNS:
             )
             by_type = {r["type"]: r["cnt"] for r in cur.fetchall()}
 
+            # Active facts use the same filter as get_all_entities_full so the
+            # stats counter reconciles with what export/list actually return.
             cur.execute(
-                """SELECT COUNT(*) FROM facts f
+                """SELECT COUNT(*) FILTER (WHERE f.archived = FALSE
+                                             AND (f.expires_at IS NULL OR f.expires_at > NOW())) AS active,
+                          COUNT(*) FILTER (WHERE f.archived = TRUE) AS archived
+                   FROM facts f
                    JOIN entities e ON e.id = f.entity_id
                    WHERE e.user_id = %s AND e.sub_user_id = %s AND e.name NOT LIKE '\\_%%'""",
                 (user_id, sub_user_id)
             )
-            facts = cur.fetchone()[0]
+            fact_counts = cur.fetchone()
+            facts = fact_counts["active"]
+            archived_facts = fact_counts["archived"]
 
             cur.execute(
                 """SELECT COUNT(*) FROM knowledge k
@@ -3908,6 +3915,7 @@ REFLECTIONS/PATTERNS:
                 "entities": entities,
                 "by_type": by_type,
                 "facts": facts,
+                "archived_facts": archived_facts,
                 "knowledge": knowledge,
                 "relations": relations,
                 "embeddings": embeddings,
@@ -4528,7 +4536,8 @@ REFLECTIONS/PATTERNS:
             return results
 
     def get_episodes(self, user_id: str, limit: int = 20, after: str = None,
-                     before: str = None, sub_user_id: str = "default") -> list[dict]:
+                     before: str = None, sub_user_id: str = "default",
+                     offset: int = 0) -> list[dict]:
         """Get episodes by time range."""
         query = """SELECT id, summary, context, outcome, participants,
                           emotional_valence, importance, metadata,
@@ -4544,8 +4553,8 @@ REFLECTIONS/PATTERNS:
         if before:
             query += " AND created_at <= %s"
             params.append(before)
-        query += " ORDER BY created_at DESC LIMIT %s"
-        params.append(limit)
+        query += " ORDER BY created_at DESC LIMIT %s OFFSET %s"
+        params.extend([limit, offset])
 
         with self._cursor(dict_cursor=True) as cur:
             cur.execute(query, params)
@@ -4566,6 +4575,23 @@ REFLECTIONS/PATTERNS:
                     "created_at": row["created_at"].isoformat() if row["created_at"] else None,
                 })
             return results
+
+    def count_episodes(self, user_id: str, after: str = None,
+                       before: str = None, sub_user_id: str = "default") -> int:
+        """Count non-expired episodes (pagination total for /v1/episodes)."""
+        query = """SELECT COUNT(*) FROM episodes
+                   WHERE user_id = %s AND sub_user_id = %s
+                     AND (expires_at IS NULL OR expires_at > NOW())"""
+        params = [user_id, sub_user_id]
+        if after:
+            query += " AND created_at >= %s"
+            params.append(after)
+        if before:
+            query += " AND created_at <= %s"
+            params.append(before)
+        with self._cursor() as cur:
+            cur.execute(query, params)
+            return cur.fetchone()[0]
 
     def search_episodes_vector(self, user_id: str, embedding: list[float],
                                top_k: int = 5, after: str = None,
@@ -4830,7 +4856,7 @@ REFLECTIONS/PATTERNS:
             cur.execute("DELETE FROM procedure_embeddings WHERE procedure_id = %s", (procedure_id,))
 
     def get_procedures(self, user_id: str, limit: int = 20,
-                       sub_user_id: str = "default") -> list[dict]:
+                       sub_user_id: str = "default", offset: int = 0) -> list[dict]:
         """Get all current procedures for a user (latest versions only)."""
         with self._cursor(dict_cursor=True) as cur:
             cur.execute(
@@ -4842,8 +4868,8 @@ REFLECTIONS/PATTERNS:
                      AND is_current = TRUE
                      AND (expires_at IS NULL OR expires_at > NOW())
                    ORDER BY updated_at DESC
-                   LIMIT %s""",
-                (user_id, sub_user_id, limit)
+                   LIMIT %s OFFSET %s""",
+                (user_id, sub_user_id, limit, offset)
             )
             results = []
             for row in cur.fetchall():
@@ -4863,6 +4889,18 @@ REFLECTIONS/PATTERNS:
                     "memory_type": "procedural",
                 })
             return results
+
+    def count_procedures(self, user_id: str, sub_user_id: str = "default") -> int:
+        """Count current non-expired procedures (pagination total for /v1/procedures)."""
+        with self._cursor() as cur:
+            cur.execute(
+                """SELECT COUNT(*) FROM procedures
+                   WHERE user_id = %s AND sub_user_id = %s
+                     AND is_current = TRUE
+                     AND (expires_at IS NULL OR expires_at > NOW())""",
+                (user_id, sub_user_id)
+            )
+            return cur.fetchone()[0]
 
     def search_procedures_vector(self, user_id: str, embedding: list[float],
                                  top_k: int = 5, sub_user_id: str = "default",

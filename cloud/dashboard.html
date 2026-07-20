@@ -3811,11 +3811,31 @@ async function revokeKey(keyId, prefix) {
         } catch(e) { showToast('Failed', 'error'); }
     }, true);
 }
+async function fetchAllPages(path, key) {
+    const items = [];
+    let offset = 0, total = 0;
+    do {
+        const r = await fetch(`${API}${path}?limit=500&offset=${offset}`,{headers:H()});
+        if (!r.ok) throw new Error(`${path}: ${r.status}`);
+        const d = await r.json();
+        items.push(...(d[key]||[]));
+        total = d.total||0;
+        offset += 500;
+    } while (offset < total);
+    return items;
+}
 async function exportData() {
     try {
         showToast('Exporting...', 'info', 2000);
-        const d = await (await fetch(`${API}/v1/memories/full`,{headers:H()})).json();
-        const b=new Blob([JSON.stringify(d,null,2)],{type:'application/json'});
+        const memories = await fetchAllPages('/v1/memories/full', 'memories');
+        const episodes = await fetchAllPages('/v1/episodes', 'episodes');
+        const procedures = await fetchAllPages('/v1/procedures', 'procedures');
+        const payload = {
+            exported_at: new Date().toISOString(),
+            counts: {entities: memories.length, episodes: episodes.length, procedures: procedures.length},
+            memories, episodes, procedures
+        };
+        const b=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
         const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='mengram-export.json'; a.click();
         showToast('Export downloaded', 'success');
     } catch(e) { showToast('Export failed', 'error'); }

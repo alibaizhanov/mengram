@@ -8000,15 +8000,18 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
     @app.get("/v1/episodes", tags=["Episodic Memory"])
     async def list_episodes(
-        limit: int = 20, after: str = None, before: str = None,
+        limit: int = Query(20, ge=1, le=500), offset: int = Query(0, ge=0),
+        after: str = None, before: str = None,
         sub_user_id: str = Query("default"),
         ctx: AuthContext = Depends(auth)
     ):
-        """List episodic memories (events, interactions, experiences)."""
+        """List episodic memories (events, interactions, experiences). Supports pagination."""
         user_id = ctx.user_id
-        episodes = store.get_episodes(user_id, limit=min(limit, 100),
+        episodes = store.get_episodes(user_id, limit=limit, offset=offset,
                                        after=after, before=before, sub_user_id=sub_user_id)
-        return {"episodes": episodes, "count": len(episodes)}
+        total = store.count_episodes(user_id, after=after, before=before, sub_user_id=sub_user_id)
+        return {"episodes": episodes, "count": len(episodes),
+                "total": total, "limit": limit, "offset": offset}
 
     @app.get("/v1/episodes/search", tags=["Episodic Memory"])
     async def search_episodes(
@@ -8033,14 +8036,16 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
     @app.get("/v1/procedures", tags=["Procedural Memory"])
     async def list_procedures(
-        limit: int = 20,
+        limit: int = Query(20, ge=1, le=500), offset: int = Query(0, ge=0),
         sub_user_id: str = Query("default"),
         ctx: AuthContext = Depends(auth)
     ):
-        """List procedural memories (learned workflows, skills)."""
+        """List procedural memories (learned workflows, skills). Supports pagination."""
         user_id = ctx.user_id
-        procedures = store.get_procedures(user_id, limit=min(limit, 100), sub_user_id=sub_user_id)
-        return {"procedures": procedures, "count": len(procedures)}
+        procedures = store.get_procedures(user_id, limit=limit, offset=offset, sub_user_id=sub_user_id)
+        total = store.count_procedures(user_id, sub_user_id=sub_user_id)
+        return {"procedures": procedures, "count": len(procedures),
+                "total": total, "limit": limit, "offset": offset}
 
     @app.get("/v1/procedures/search", tags=["Procedural Memory"])
     async def search_procedures(
