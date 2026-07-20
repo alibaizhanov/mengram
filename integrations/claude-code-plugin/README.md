@@ -38,6 +38,17 @@ always wins over the config file.)
 
 That's the whole product. Every session from now on starts with your context loaded.
 
+### Skip the cold start — import your existing history
+
+Your past Claude Code sessions are already on disk. Feed them in and memory starts full, not empty:
+
+```bash
+pip install mengram-ai
+mengram import claude-code        # imports your ~20 most recent sessions
+```
+
+Secrets (API keys, tokens) are redacted before anything leaves your machine. Re-runs skip already-imported sessions.
+
 ## Pricing
 
 Free tier: 40 adds + 200 searches per month. Paid tiers from $5/mo. Self-host is supported (Apache 2.0) — see https://github.com/alibaizhanov/mengram.

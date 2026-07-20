@@ -436,3 +436,196 @@ def import_files(
     result.entities_created = list(set(result.entities_created))
     result.duration_seconds = time.time() - start
     return result
+
+
+# ---------------------------------------------------------------------------
+# Claude Code local transcripts (~/.claude/projects/*/<session>.jsonl)
+# ---------------------------------------------------------------------------
+
+import re as _re
+
+CLAUDE_PROJECTS_DIR = Path.home() / ".claude" / "projects"
+
+# Coding transcripts routinely contain live credentials (API keys pasted into
+# chat, tokens in command output). NEVER ship those into memory — extraction
+# would happily store them as "facts". Patterns cover the common prefixes.
+_CC_SECRET_PATTERNS = _re.compile(
+    r"(sk-[A-Za-z0-9_-]{16,})"
+    r"|(pypi-[A-Za-z0-9_=-]{20,})"
+    r"|(ghp_[A-Za-z0-9]{20,})|(gho_[A-Za-z0-9]{20,})|(github_pat_[A-Za-z0-9_]{20,})"
+    r"|(om-[A-Za-z0-9_-]{16,})"
+    r"|(xox[bap]-[A-Za-z0-9-]{10,})"
+    r"|(AKIA[0-9A-Z]{16})"
+    r"|(re_[A-Za-z0-9_-]{16,})"
+    r"|(eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,})"
+    r"|((?i:bearer)\s+[A-Za-z0-9._~+/=-]{16,})"
+)
+
+
+def _cc_redact(text: str) -> str:
+    return _CC_SECRET_PATTERNS.sub("[REDACTED]", text)
+_CC_STATE_FILE = Path.home() / ".mengram" / "claude-code-imported.json"
+
+# Per-turn / per-session budgets: enough signal for extraction without
+# shipping megabytes of tool output. Extraction dedupes server-side.
+_CC_MAX_USER_CHARS = 2000
+_CC_MAX_ASSISTANT_CHARS = 1200
+_CC_MAX_SESSION_CHARS = 16000
+_CC_MIN_SESSION_CHARS = 200
+_CC_MIN_USER_TURNS = 2
+
+
+def _cc_load_state() -> set:
+    try:
+        return set(json.loads(_CC_STATE_FILE.read_text()))
+    except Exception:
+        return set()
+
+
+def _cc_save_state(imported: set) -> None:
+    try:
+        _CC_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _CC_STATE_FILE.write_text(json.dumps(sorted(imported)))
+    except Exception:
+        pass  # state is an optimization, never a blocker
+
+
+def _cc_extract_text(content) -> str:
+    """Pull human-readable text out of a Claude Code message content field.
+    User content is usually a plain string; assistant content is a list of
+    blocks — keep only 'text' blocks (skip thinking / tool_use / tool_result)."""
+    if isinstance(content, str):
+        return content.strip()
+    if isinstance(content, list):
+        parts = []
+        for block in content:
+            if isinstance(block, dict) and block.get("type") == "text":
+                t = (block.get("text") or "").strip()
+                if t:
+                    parts.append(t)
+        return "\n".join(parts)
+    return ""
+
+
+def parse_claude_code_session(path: str) -> Optional[dict]:
+    """Parse one Claude Code session JSONL into a compact transcript.
+    Returns {"session_id", "project", "started_at", "text"} or None if the
+    session has too little human content to be worth extracting."""
+    turns = []
+    user_turns = 0
+    started_at = None
+    project = Path(path).parent.name.replace("-", "/").lstrip("/")
+    with open(path, encoding="utf-8", errors="replace") as f:
+        for line in f:
+            try:
+                row = json.loads(line)
+            except Exception:
+                continue
+            if row.get("type") not in ("user", "assistant"):
+                continue
+            msg = row.get("message")
+            if not isinstance(msg, dict):
+                continue
+            role = msg.get("role")
+            text = _cc_extract_text(msg.get("content"))
+            if not text:
+                continue
+            if started_at is None:
+                started_at = row.get("timestamp")
+            if role == "user":
+                # Skip pasted tool results / command noise that Claude Code
+                # sometimes routes through user rows.
+                if text.startswith(("<local-command", "<command-name", "Caveat:")):
+                    continue
+                user_turns += 1
+                turns.append("User: " + text[:_CC_MAX_USER_CHARS])
+            elif role == "assistant":
+                turns.append("Assistant: " + text[:_CC_MAX_ASSISTANT_CHARS])
+
+    if user_turns < _CC_MIN_USER_TURNS:
+        return None
+    text = _cc_redact("\n\n".join(turns))
+    if len(text) < _CC_MIN_SESSION_CHARS:
+        return None
+    if len(text) > _CC_MAX_SESSION_CHARS:
+        text = text[:_CC_MAX_SESSION_CHARS]
+    header = f"[Claude Code session in project {project}"
+    if started_at:
+        header += f", {started_at[:10]}"
+    header += "]\n\n"
+    return {
+        "session_id": Path(path).stem,
+        "project": project,
+        "started_at": started_at,
+        "text": header + text,
+    }
+
+
+def discover_claude_code_sessions(project_filter: str = "") -> list:
+    """List Claude Code session files, newest first, optionally filtered by
+    project-path substring."""
+    if not CLAUDE_PROJECTS_DIR.exists():
+        return []
+    files = []
+    for p in CLAUDE_PROJECTS_DIR.glob("*/*.jsonl"):
+        if project_filter and project_filter.lower() not in p.parent.name.lower():
+            continue
+        try:
+            files.append((p.stat().st_mtime, str(p)))
+        except OSError:
+            continue
+    files.sort(reverse=True)
+    return [f for _, f in files]
+
+
+def import_claude_code(
+    add_fn: Callable,
+    last: int = 20,
+    project_filter: str = "",
+    reimport: bool = False,
+    on_progress: Optional[Callable] = None,
+) -> ImportResult:
+    """
+    Import local Claude Code transcripts into memory.
+
+    Args:
+        add_fn: Callable(text: str, session_id: str) → dict result
+        last: How many most-recent sessions to import (default 20)
+        project_filter: Only sessions whose project path contains this substring
+        reimport: Ignore the already-imported state file
+        on_progress: Optional callback(current, total, title)
+    """
+    start = time.time()
+    result = ImportResult()
+
+    session_files = discover_claude_code_sessions(project_filter)
+    imported_before = set() if reimport else _cc_load_state()
+    candidates = [f for f in session_files if Path(f).stem not in imported_before][:last]
+    result.conversations_found = len(candidates)
+
+    imported_now = set(imported_before)
+    for i, path in enumerate(candidates):
+        try:
+            session = parse_claude_code_session(path)
+        except Exception as e:
+            result.errors.append(f"{Path(path).name}: parse failed: {e}")
+            continue
+        if session is None:
+            imported_now.add(Path(path).stem)  # too thin — don't retry forever
+            continue
+        try:
+            resp = add_fn(session["text"], session["session_id"])
+            result.chunks_sent += 1
+            imported_now.add(session["session_id"])
+            for key in ("entities_created", "entities_updated"):
+                if isinstance(resp, dict) and key in resp:
+                    result.entities_created.extend(resp[key])
+            if on_progress:
+                on_progress(i + 1, len(candidates), session["project"][:40])
+        except Exception as e:
+            result.errors.append(f"{Path(path).name}: {e}")
+
+    _cc_save_state(imported_now)
+    result.entities_created = list(set(result.entities_created))
+    result.duration_seconds = time.time() - start
+    return result

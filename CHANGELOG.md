@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.26.0 — 2026-07-20
+
+### Added
+- `mengram import claude-code` — import your local Claude Code session
+  transcripts (`~/.claude/projects`) into memory. Kills the cold-start
+  problem: memory knows your projects from minute one. Secrets (API keys,
+  tokens, JWTs) are redacted client-side before upload; re-runs skip
+  already-imported sessions (`--reimport` to force); `--last N`,
+  `--project <substring>`, `--yes` flags.
+
+
 ## 2.25.4 — 2026-07-20
 
 ### Fixed

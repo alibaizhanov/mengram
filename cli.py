@@ -1342,11 +1342,74 @@ def cmd_import(args):
     """Import existing data into memory"""
     import_type = args.import_type
     if not import_type:
-        print("Usage: mengram import {chatgpt,obsidian,files} <path>")
+        print("Usage: mengram import {claude-code,chatgpt,obsidian,files} <path>")
+        print("  mengram import claude-code            # your local Claude Code sessions")
         print("  mengram import chatgpt ~/Downloads/chatgpt-export.zip")
         print("  mengram import obsidian ~/Documents/MyVault")
         print("  mengram import files notes/*.md")
         sys.exit(1)
+
+    # --- Claude Code local transcripts: cloud-first, self-contained flow ---
+    if import_type == "claude-code":
+        from importer import import_claude_code, discover_claude_code_sessions, RateLimiter
+
+        api_key = _load_cloud_api_key()
+        if not api_key:
+            print("❌ No API key found. Run `mengram setup` (or save it to ~/.mengram/config.json)")
+            sys.exit(1)
+
+        available = discover_claude_code_sessions(getattr(args, "project", "") or "")
+        if not available:
+            print("❌ No Claude Code sessions found in ~/.claude/projects/")
+            sys.exit(1)
+
+        n = min(getattr(args, "last", 20), len(available))
+        print(f"🧠 Found {len(available)} Claude Code sessions; importing up to {n} most recent.")
+        print("   Each session = 1 add operation (counts against your plan's monthly add quota).")
+        if not getattr(args, "yes", False):
+            answer = input("   Continue? [y/N] ").strip().lower()
+            if answer not in ("y", "yes"):
+                print("Aborted.")
+                sys.exit(0)
+
+        from cloud.client import CloudMemory
+        mem = CloudMemory(api_key=api_key, base_url=_load_cloud_base_url())
+        limiter = RateLimiter(max_per_minute=30)
+        user_id = getattr(args, "user_id", None) or os.environ.get("MENGRAM_USER_ID", "default")
+
+        def cc_add_fn(text, session_id):
+            limiter.wait_if_needed()
+            return mem.add_text(text, user_id=user_id, source="claude_code_import",
+                                run_id=session_id)
+
+        def cc_progress(current, total, title):
+            pct = int(current / total * 100) if total else 0
+            bar = "█" * (pct // 5) + "░" * (20 - pct // 5)
+            print(f"\r  {bar} {pct}% ({current}/{total}) {title}", end="", flush=True)
+
+        print()
+        result = import_claude_code(
+            cc_add_fn,
+            last=getattr(args, "last", 20),
+            project_filter=getattr(args, "project", "") or "",
+            reimport=getattr(args, "reimport", False),
+            on_progress=cc_progress,
+        )
+
+        print(f"\n\n{'='*50}")
+        print(f"✅ Import complete!\n")
+        print(f"   Sessions considered: {result.conversations_found}")
+        print(f"   Imported:            {result.chunks_sent}")
+        print(f"   Time:                {result.duration_seconds:.1f}s")
+        if result.errors:
+            print(f"\n   ⚠️  {len(result.errors)} errors:")
+            for err in result.errors[:5]:
+                print(f"      - {err}")
+        print("\n   Extraction runs in the background — facts and workflows appear")
+        print("   within a couple of minutes. Try asking Claude Code:")
+        print('   "what do you know about my projects?" — or open the dashboard.')
+        print("   Already-imported sessions are skipped on re-runs (use --reimport to force).")
+        return
 
     from importer import (
         import_chatgpt, import_obsidian, import_files, RateLimiter,
@@ -1497,6 +1560,13 @@ def main():
     # import
     p_import = sub.add_parser("import", help="Import existing data into memory")
     import_sub = p_import.add_subparsers(dest="import_type")
+
+    p_cc = import_sub.add_parser("claude-code", help="Import your local Claude Code sessions (~/.claude/projects)")
+    p_cc.add_argument("--last", type=int, default=20, help="How many most-recent sessions to import (default 20)")
+    p_cc.add_argument("--project", default="", help="Only sessions whose project path contains this substring")
+    p_cc.add_argument("--reimport", action="store_true", help="Re-import sessions that were already imported")
+    p_cc.add_argument("--yes", action="store_true", help="Skip the confirmation prompt")
+    p_cc.add_argument("--user-id", default=None, dest="user_id")
 
     p_chatgpt = import_sub.add_parser("chatgpt", help="Import ChatGPT export ZIP")
     p_chatgpt.add_argument("path", help="Path to ChatGPT export ZIP file")
