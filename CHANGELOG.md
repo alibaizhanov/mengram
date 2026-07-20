@@ -1,6 +1,6 @@
 # Changelog
 
-## 2026-06-14
+## 2.25.4 — 2026-07-20
 
 ### Fixed
 - `auto-recall`, `auto-context`, and `auto-save` Claude Code hooks now resolve
