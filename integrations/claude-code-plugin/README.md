@@ -51,6 +51,12 @@ Conversations transit Mengram's extraction pipeline (`POST /v1/add_text`), which
 
 Retrieval combines vector similarity (OpenAI text-embedding-3-large), BM25 keyword match, and Reciprocal Rank Fusion. Facts decay via the Ebbinghaus forgetting curve so stale context doesn't drown new context.
 
+## Self-check and heartbeat
+
+**First-run self-check:** until the plugin has verified one successful round-trip to the API, failures are loud — a one-line message in Claude Code tells you exactly what's broken (no key found / key found but verification failed). After the first success, failures go back to silent so an outage never spams you.
+
+**Opt-in heartbeat:** set `MENGRAM_HEARTBEAT=25` (env) or `"heartbeat": 25` in `~/.mengram/config.json` and every 25th successful save shows one line — `[mengram] heartbeat: 150 conversations saved to memory so far`. Silence-when-enabled means something is wrong; that's the point.
+
 ## Privacy
 
 - **What's sent:** conversation transcripts (last ~8KB per turn) and profile lookups

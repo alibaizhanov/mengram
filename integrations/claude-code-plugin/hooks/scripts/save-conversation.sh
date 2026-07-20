@@ -60,10 +60,30 @@ fi
 # Send as plain text. /v1/add_text wraps it as a user message and runs full
 # extraction (entities + facts + episodes + procedures). source=claude_code
 # lets us filter analytics later without affecting retrieval ranking.
-# Fire-and-forget: 8s budget, errors swallowed.
-curl -fsS --max-time 8 \
+# 8s budget, errors swallowed.
+if curl -fsS --max-time 8 \
   -X POST "$URL" \
   -H "Authorization: Bearer $KEY" \
   -H "Content-Type: application/json" \
-  -H "User-Agent: mengram-plugin/0.1.0" \
-  -d "$PAYLOAD" >/dev/null 2>&1 || true
+  -H "User-Agent: mengram-plugin/0.1.2" \
+  -d "$PAYLOAD" >/dev/null 2>&1; then
+  # Opt-in heartbeat: every N *successful* saves, surface one "still working"
+  # line. Absence of the heartbeat then means something. Enable via
+  # MENGRAM_HEARTBEAT=N env or "heartbeat": N in ~/.mengram/config.json.
+  HB="${MENGRAM_HEARTBEAT:-}"
+  if [ -z "$HB" ] && [ -f "$CFG" ]; then
+    HB=$(sed -n 's/.*"heartbeat"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$CFG" | head -1)
+  fi
+  case "$HB" in (*[!0-9]*|"") HB="";; esac
+  if [ -n "$HB" ] && [ "$HB" -gt 0 ]; then
+    CNT_FILE="$HOME/.mengram/.save-count"
+    CNT=$(cat "$CNT_FILE" 2>/dev/null || echo 0)
+    case "$CNT" in (*[!0-9]*|"") CNT=0;; esac
+    CNT=$((CNT + 1))
+    echo "$CNT" > "$CNT_FILE" 2>/dev/null
+    if [ $((CNT % HB)) -eq 0 ]; then
+      printf '{"systemMessage": "[mengram] heartbeat: %s conversations saved to memory so far — everything is working"}\n' "$CNT"
+      exit 0
+    fi
+  fi
+fi
