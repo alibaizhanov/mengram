@@ -2782,6 +2782,15 @@ async function loadStats() {
 }
 
 // ---- Quick Add ----
+function addFromEmptySearch() {
+    const src = document.getElementById('empty-search-add');
+    const text = (src && src.value.trim()) || '';
+    if (!text) { src && src.focus(); return; }
+    document.getElementById('quick-add-input').value = text;
+    src.disabled = true;
+    quickAddText();
+    showToast('Adding your first memory — search again in ~30 seconds', 'info', 5000);
+}
 async function quickAddText() {
     const input = document.getElementById('quick-add-input');
     const text = input.value.trim();
@@ -3478,6 +3487,27 @@ async function doFullSearch(query) {
         const total = sem.length + epi.length + proc.length + chk.length;
 
         if (total === 0) {
+            // Empty memory ≠ no match: a brand-new user searching an empty vault
+            // should be led to add their first memory right here, not shown a dead end.
+            let memEmpty = false;
+            try {
+                const s = await (await fetch(`${API}/v1/stats`,{headers:H()})).json();
+                memEmpty = !(s.entities||0) && !(s.episodes||0) && !(s.procedures||0);
+            } catch(e) {}
+            if (memEmpty) {
+                box.innerHTML = `<div class="search-empty">
+                    <h3>Your memory is empty — nothing to find yet</h3>
+                    <p>Add your first memory below, then search for it. One sentence about you or your work is enough.</p>
+                    <div class="quick-add-bar" style="max-width:560px;margin:18px auto 0;">
+                        <input type="text" id="empty-search-add" class="quick-add-input" placeholder="e.g. 'I'm a React developer building a fintech app in Berlin'" autocomplete="off">
+                        <button class="quick-add-btn" onclick="addFromEmptySearch()">Add memory</button>
+                    </div>
+                </div>`;
+                const ei = document.getElementById('empty-search-add');
+                ei.addEventListener('keydown', e => { if (e.key === 'Enter') addFromEmptySearch(); });
+                ei.focus();
+                return;
+            }
             const hint = d.hint || 'No results found. Try broader terms or add more memories first.';
             box.innerHTML = `<div class="search-empty">
                 <div style="margin-bottom:12px;"><svg viewBox="0 0 24 24" style="width:40px;height:40px;stroke:var(--text-3);fill:none;stroke-width:1.5;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
