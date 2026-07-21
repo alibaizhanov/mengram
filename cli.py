@@ -1405,9 +1405,46 @@ def cmd_import(args):
             print(f"\n   ⚠️  {len(result.errors)} errors:")
             for err in result.errors[:5]:
                 print(f"      - {err}")
-        print("\n   Extraction runs in the background — facts and workflows appear")
-        print("   within a couple of minutes. Try asking Claude Code:")
-        print('   "what do you know about my projects?" — or open the dashboard.')
+
+        # The wow moment: show what memory actually LEARNED — especially
+        # procedural workflows, which no session-persistence tool extracts.
+        if result.chunks_sent > 0:
+            import time as _t
+            print("\n   ⏳ Extracting memories (facts, events, workflows)...", flush=True)
+            baseline = 0
+            try:
+                baseline_stats = mem.stats(user_id=user_id) if hasattr(mem, "stats") else {}
+                baseline = baseline_stats.get("facts", 0)
+            except Exception:
+                pass
+            learned = None
+            for _ in range(6):
+                _t.sleep(10)
+                try:
+                    s = mem.stats(user_id=user_id) if hasattr(mem, "stats") else {}
+                    if s.get("facts", 0) > baseline or s.get("procedures", 0) > 0:
+                        learned = s
+                        break
+                except Exception:
+                    break
+            if learned:
+                print(f"\n   🧠 Memory now holds: {learned.get('entities', 0)} entities, "
+                      f"{learned.get('facts', 0)} facts, {learned.get('episodes', 0)} episodes, "
+                      f"{learned.get('procedures', 0)} workflows")
+                try:
+                    procs = mem.procedures(limit=3, user_id=user_id)
+                    if procs:
+                        print("\n   Learned workflows (these evolve as you succeed or fail):")
+                        for p in procs[:3]:
+                            print(f"      ⚙ {p.get('name', '?')} — {len(p.get('steps', []))} steps")
+                except Exception:
+                    pass
+            else:
+                print("   No new memories surfaced yet — either these sessions were already")
+                print("   in memory (extraction dedupes), or processing needs another minute.")
+
+        print("\n   Try asking Claude Code: \"what do you know about my projects?\"")
+        print("   Dashboard: https://mengram.io/dashboard")
         print("   Already-imported sessions are skipped on re-runs (use --reimport to force).")
         return
 

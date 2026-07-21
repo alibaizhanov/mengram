@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.26.1 — 2026-07-21
+
+### Improved
+- `mengram import claude-code` now shows what memory actually learned after
+  extraction (entities/facts/episodes/workflows + up to 3 learned workflow
+  names) instead of a bare counter, and reports honestly when sessions were
+  deduplicated against existing memory.
+
+
 ## 2.26.0 — 2026-07-20
 
 ### Added
