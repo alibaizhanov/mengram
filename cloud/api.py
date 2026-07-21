@@ -442,7 +442,16 @@ profile = m.get_profile()             # instant system prompt
         ],
     )
 
-    store = CloudStore(DATABASE_URL, pool_min=2, pool_max=10, redis_url=REDIS_URL)
+    # Connection budget: Supabase session-mode pooler caps clients at 15.
+    # api service (2 gunicorn workers × pool_max) + cron worker instance +
+    # deploy overlap (old and new instances alive simultaneously) must all
+    # fit under that cap — pool_max=10 caused "Worker failed to boot"
+    # (EMAXCONNSESSION) on deploys (observed 2026-07-21). Budget with 1/4:
+    # api 2×4=8, worker ≤4, overlap +2 → 14 < 15. History: pool_max=2
+    # deadlocked under 3+ concurrent requests; 4 keeps 4× that headroom.
+    _POOL_MIN = int(os.environ.get("POOL_MIN", "1"))
+    _POOL_MAX = int(os.environ.get("POOL_MAX", "4"))
+    store = CloudStore(DATABASE_URL, pool_min=_POOL_MIN, pool_max=_POOL_MAX, redis_url=REDIS_URL)
 
     # LLM client for extraction (shared)
     _llm_client = None
