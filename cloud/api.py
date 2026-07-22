@@ -7596,9 +7596,20 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
     @app.get("/v1/reflections", tags=["Insights"])
     async def get_reflections(scope: str = None, sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
-        """Get all reflections. Optional ?scope=entity|cross|temporal"""
+        """Get all reflections. Optional ?scope=entity|cross|temporal. Each item includes its id (deletable via DELETE /v1/reflections/{id})."""
         user_id = ctx.user_id
         return {"reflections": store.get_reflections(user_id, scope=scope, sub_user_id=sub_user_id)}
+
+    @app.delete("/v1/reflections/{reflection_id}", tags=["Insights"])
+    async def delete_reflection(reflection_id: str, sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
+        """Delete a single reflection by id. Use when a generated reflection is
+        wrong or polluted (e.g. cross-entity identity mixups) — the next
+        reflection pass will regenerate from clean facts."""
+        user_id = ctx.user_id
+        deleted = store.delete_reflection(user_id, reflection_id, sub_user_id=sub_user_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail=f"Reflection '{reflection_id}' not found")
+        return {"status": "deleted", "reflection_id": reflection_id}
 
     @app.get("/v1/insights", tags=["Insights"])
     async def get_insights(sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):

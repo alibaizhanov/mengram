@@ -3654,7 +3654,7 @@ Return ONLY JSON (no markdown):
         with self._cursor(dict_cursor=True) as cur:
             if scope:
                 cur.execute(
-                    """SELECT k.title, k.content, k.scope, k.confidence, k.refreshed_at,
+                    """SELECT k.id, k.title, k.content, k.scope, k.confidence, k.refreshed_at,
                               e.name as entity_name
                        FROM knowledge k
                        JOIN entities e ON e.id = k.entity_id
@@ -3664,7 +3664,7 @@ Return ONLY JSON (no markdown):
                 )
             else:
                 cur.execute(
-                    """SELECT k.title, k.content, k.scope, k.confidence, k.refreshed_at,
+                    """SELECT k.id, k.title, k.content, k.scope, k.confidence, k.refreshed_at,
                               e.name as entity_name
                        FROM knowledge k
                        JOIN entities e ON e.id = k.entity_id
@@ -3673,6 +3673,7 @@ Return ONLY JSON (no markdown):
                     (user_id, sub_user_id)
                 )
             return [{
+                "id": str(r["id"]),
                 "title": r["title"],
                 "content": r["content"],
                 "scope": r["scope"],
@@ -3680,6 +3681,28 @@ Return ONLY JSON (no markdown):
                 "entity": r["entity_name"],
                 "refreshed_at": r["refreshed_at"].isoformat() if r["refreshed_at"] else None,
             } for r in cur.fetchall()]
+
+    def delete_reflection(self, user_id: str, reflection_id: str,
+                          sub_user_id: str = "default") -> bool:
+        """Delete a single reflection by id (issue #54 follow-up — polluted
+        reflections couldn't be removed individually). Scoped to the owning
+        user and sub_user; only rows with type='reflection' are deletable
+        through this path."""
+        with self._cursor() as cur:
+            cur.execute(
+                """DELETE FROM knowledge k
+                   USING entities e
+                   WHERE k.entity_id = e.id
+                     AND k.id = %s AND k.user_id = %s
+                     AND e.sub_user_id = %s AND k.type = 'reflection'
+                   RETURNING k.id""",
+                (reflection_id, user_id, sub_user_id)
+            )
+            deleted = cur.fetchone() is not None
+        if deleted:
+            for sc in ("entity", "cross", "temporal", "all"):
+                self.cache.invalidate(f"reflections:{user_id}:{sub_user_id}:{sc}")
+        return deleted
 
     def get_insights(self, user_id: str, sub_user_id: str = "default") -> dict:
         """Get formatted insights for dashboard — profile, weekly, network, patterns."""
