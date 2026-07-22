@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.27.1 — 2026-07-22
+
+### Fixed
+- `mengram server --cloud` now resolves the API key from
+  `~/.mengram/config.json` when the env var is unset — same order as the
+  hooks (MCP hosts often spawn without the user's shell profile, which
+  made the server exit with 'Set MENGRAM_API_KEY' on otherwise-configured
+  machines, especially Windows).
+
+
 ## 2.27.0 — 2026-07-21
 
 ### Added

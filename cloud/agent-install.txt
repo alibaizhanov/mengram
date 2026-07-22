@@ -152,10 +152,32 @@ Steps:
      for the MCP server to load."
 
 ------- 4B. claude-code -------
-Run:    claude mcp add mengram -- mengram server --cloud
-(The `claude` CLI is required. If absent, tell user to install Claude Code.)
-Then tell the user: "MCP server registered. Run `/mcp` inside Claude Code to
-confirm 'mengram' is listed."
+PREFERRED: install the official plugin — it ships hooks (auto-save +
+auto-recall + profile-on-SessionStart, surviving /clear and compaction),
+the MCP server, AND a skill in one step:
+
+  claude plugin marketplace add alibaizhanov/mengram
+  claude plugin install mengram@mengram
+
+The plugin reads the API key from ~/.mengram/config.json (already written
+by Step 3) — no env var wiring needed.
+
+IMPORTANT: do NOT install MCP-only for Claude Code. MCP alone gives recall
+without automatic capture — the user's memory stays empty and searches
+return nothing (a common broken setup we actively detect server-side).
+
+MCP-only alternative (ONLY if the user explicitly asks for no hooks):
+  claude mcp add mengram -- mengram server --cloud
+
+Then tell the user: "Plugin installed. Run /mcp inside Claude Code to
+confirm 'mengram' is listed, and restart the session."
+
+RECOMMENDED FOLLOW-UP (kills the cold start): if ~/.claude/projects exists,
+offer the user:
+  mengram import claude-code
+This imports their recent session history into memory (secrets are redacted
+locally before upload; each session costs 1 add of monthly quota — the
+command asks for confirmation and shows what was learned).
 
 ------- 4C. cursor -------
 Config file path:    ~/.cursor/mcp.json   (create if absent)

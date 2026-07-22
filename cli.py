@@ -197,14 +197,16 @@ cd "{home_dir}"
 def cmd_server(args):
     """Start MCP server"""
     if getattr(args, 'cloud', False):
-        # Cloud mode — connect to cloud API
-        api_key = os.environ.get("MENGRAM_API_KEY", "")
-        base_url = os.environ.get("MENGRAM_URL", "https://mengram.io")
+        # Cloud mode — connect to cloud API. Credentials resolve env-first,
+        # then ~/.mengram/config.json — same order as hooks (issue #41 class:
+        # MCP hosts often spawn without the user's shell profile env).
+        api_key = _load_cloud_api_key()
+        base_url = _load_cloud_base_url()
         user_id = os.environ.get("MENGRAM_USER_ID", "default")
 
         if not api_key:
-            print("❌ Set MENGRAM_API_KEY environment variable")
-            print("   Get one: curl -X POST https://mengram.io/v1/signup -d '{\"email\": \"you@email.com\"}'")
+            print("❌ No API key found (checked MENGRAM_API_KEY env and ~/.mengram/config.json)")
+            print("   Get one: mengram setup   (or sign up at https://mengram.io)")
             sys.exit(1)
 
         print(f"🧠 Starting Mengram Cloud MCP server...", file=sys.stderr)
