@@ -20,6 +20,9 @@
 
 ```bash
 pip install mengram-ai   # or: npm install mengram-ai
+
+mengram try              # see what memory would know about you — local only,
+                         # no account, nothing leaves your machine
 ```
 
 ```python
@@ -51,31 +54,34 @@ Works in any agent with shell + file-edit + web-fetch tools. Prefer doing it man
 
 ---
 
-## Claude Code — Zero-Config Memory
+## Claude Code — Memory That Survives /clear AND Auto-Compaction
 
-Two commands. Claude Code remembers everything across sessions automatically.
+Persistent memory that survives `/clear`, **auto-compaction**, machine switches, and team handoffs — the SessionStart hook fires after every compact and re-injects your context. The summary can be lossy; the memory isn't.
 
 ```bash
-pip install mengram-ai
-mengram setup              # Sign up + install hooks (interactive)
-```
+# 1. Get a free key at https://mengram.io and save it once
+mkdir -p ~/.mengram && echo '{"api_key": "om-your-key-here"}' > ~/.mengram/config.json
 
-Or manually: `export MENGRAM_API_KEY=om-...` → `mengram hook install`
+# 2. Install the plugin (hooks + MCP server + skill)
+claude plugin marketplace add alibaizhanov/mengram
+claude plugin install mengram@mengram
+
+# 3. Skip the cold start — import your existing session history
+#    (secrets are redacted on your machine before anything is uploaded)
+mengram import claude-code
+```
 
 What happens:
 
 ```
-Session Start  →  Loads your cognitive profile (who you are, preferences, tech stack)
+Session Start  →  Loads your cognitive profile (fires after /clear, compaction, and restarts)
 Every Prompt   →  Searches past sessions for relevant context (auto-recall)
 After Response →  Saves new knowledge in background (auto-save)
 ```
 
-No manual saves. No tool calls. Claude just knows what you worked on yesterday.
+No manual saves. No tool calls. Claude just knows what you worked on yesterday — even after compaction ate the transcript.
 
-```bash
-mengram hook status     # check what's installed
-mengram hook uninstall  # remove all hooks
-```
+Prefer CLI-managed hooks instead of the plugin? `pip install mengram-ai && mengram setup` does the same via `mengram hook install`.
 
 ---
 
@@ -90,14 +96,15 @@ Every AI memory tool stores facts. Mengram stores **3 types of memory** — and 
 | **Procedural memory (workflows)** | **Yes** | No | No | No | No |
 | **Procedures evolve from failures** | **Yes** | No | No | No | No |
 | **Cognitive Profile** | **Yes** | No | No | No | No |
-| **Native multilingual (23 languages)** | **Yes** | No | No | No | No |
+| **Native multilingual retrieval (23 languages)** | **Yes** | Partial | No | No | No |
 | **Ask & Citations (synthesized answer)** | **Yes** | No | No | No | No |
 | Multi-user isolation | **Yes** | No | Yes | Yes | No |
 | Knowledge graph | **Yes** | No | Yes | Yes | Yes |
 | Claude Code hooks (auto-save/recall) | **Yes** | **Yes** | No | No | No |
-| LangChain + CrewAI + MCP | **Yes** | No | Partial | Partial | Partial |
-| **Import ChatGPT / Obsidian** | **Yes** | No | No | No | No |
-| Pricing | **Free tier** | Free / OSS | $19-249/mo | Enterprise | Self-host |
+| MCP server | **Yes** | Yes | Yes | Yes | Yes |
+| LangChain + CrewAI integrations | **Yes** | No | Partial | Partial | Partial |
+| **Import Claude Code history / ChatGPT / Obsidian** | **Yes** | No | No | No | No |
+| Pricing | **Free tier** | Free OSS (+cloud backup) | $19-249/mo | Enterprise | Self-host |
 
 ## Get Started in 30 Seconds
 
@@ -231,6 +238,19 @@ m.procedure_feedback(proc_id, success=False,
                      context="OOM error on step 3", failed_at_step=3)
 # → Procedure evolves to v3 with new step added
 ```
+
+Every failure-driven revision records **which assumption turned out false** — not just which step broke — and derives a precondition that travels with the procedure at recall time:
+
+```json
+{
+  "version": 3,
+  "violated_assumption": "the build container had enough memory for a full build",
+  "preconditions": ["check available memory before building"],
+  "success_count": 11, "fail_count": 2
+}
+```
+
+An agent loading v3 doesn't repeat the two mistakes that produced it — and knows what to verify before trusting the workflow.
 
 Or **fully automatic** — just add conversations and Mengram detects failures and evolves procedures:
 
