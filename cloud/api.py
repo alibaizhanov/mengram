@@ -1947,6 +1947,7 @@ m.add("I love hiking in the mountains")</code></pre>
             # Blog — high SEO value
             ("https://mengram.io/blog", "0.8", "weekly"),
             ("https://mengram.io/blog/claude-code-compaction-context-loss", "0.9", "weekly"),
+            ("https://mengram.io/blog/schema-lied-production-cascade", "0.8", "monthly"),
             ("https://mengram.io/blog/what-is-ai-memory", "0.8", "monthly"),
             ("https://mengram.io/blog/ai-memory-vs-rag", "0.8", "monthly"),
             ("https://mengram.io/blog/semantic-episodic-procedural-memory", "0.8", "monthly"),
@@ -2266,6 +2267,53 @@ m.add("I love hiking in the mountains")</code></pre>
 
     # ---- Blog posts (SEO content) ----
     BLOG_POSTS = {
+        "schema-lied-production-cascade": {
+            "slug": "schema-lied-production-cascade",
+            "title": "Our Schema Declared ON DELETE CASCADE. Production Didn't Have It.",
+            "date": "July 23, 2026",
+            "date_iso": "2026-07-23",
+            "read_time": "5",
+            "tags": ["Engineering", "PostgreSQL"],
+            "excerpt": "Users' 'deleted' data was never deleted: schema.sql promised CASCADE constraints that months of incremental migrations never created. How an end-to-end test against production caught it, and the 12,053 orphaned rows it exposed.",
+            "seo_title": "Your schema.sql Is Fiction: The Missing ON DELETE CASCADE That Kept 'Deleted' Data Alive",
+            "seo_description": "schema.sql declared ON DELETE CASCADE on every child table. Production tables, built by incremental migrations, had none. Deleted accounts left 12,053 orphaned rows. How a disposable-account e2e test caught what code review couldn't.",
+            "seo_keywords": "on delete cascade missing, schema drift production, postgres cascade not working, migration drift, schema.sql vs production, orphaned rows postgres, gdpr delete data postgres",
+            "content_html": """
+<h2>The setup</h2>
+<p>A user filed an issue: "I can't delete my account." Fair — there was no account deletion. GDPR-shaped hole, my fault, so I built it. The store method deleted the <code>users</code> row and trusted the foreign keys: our <code>schema.sql</code> declares <code>ON DELETE CASCADE</code> on every child table. Code review passed. Syntax checked. The SQL was correct.</p>
+
+<h2>The test I almost skipped</h2>
+<p>Before shipping, I ran an end-to-end test against production: signed up a disposable account, filled it with real data across every table (facts, events, workflows, embeddings), deleted it through the new endpoint — and then audited every table row-by-row with direct SQL.</p>
+<p>Result: <code>api_keys: 1, entities: 4, usage_log: 1</code> — still there.</p>
+
+<h2>The schema file is fiction. The database is fact.</h2>
+<p>Production had <strong>no cascade constraints at all</strong>. The schema file declares them — but production tables were created over months by incremental migrations (<code>CREATE TABLE IF NOT EXISTS ...</code>, <code>ALTER TABLE ADD COLUMN ...</code>) that never included the foreign keys. The pristine schema.sql is what a <em>fresh</em> install gets. Production is what history gets.</p>
+<p>It got worse. If cascades never worked, what about the regular "delete entity" feature we'd had for months? One audit query across the whole database later:</p>
+<p><strong>12,053 orphaned facts. 442 orphaned embeddings.</strong> Every entity deletion since launch had silently left its children behind. Users clicked a button that said "permanently delete" — the parent row vanished, the content stayed on disk, invisible to the API but very much alive.</p>
+<p>For a product whose whole pitch is "trust me with your personal memory," that's about the worst class of bug there is.</p>
+
+<h2>The fixes</h2>
+<ul>
+<li>Deletion is now fully explicit — children before parents, 22 tables, one transaction, zero reliance on cascades. The endpoint returns per-table deletion counts so the user can verify.</li>
+<li>Same treatment for single-entity and delete-all paths (they had the same disease).</li>
+<li>Second e2e round with a fresh disposable account: zero residue in every table.</li>
+</ul>
+
+<h2>Lessons that generalize</h2>
+<ol>
+<li><strong>Your schema file is fiction. The database is fact.</strong> Audit <code>information_schema.table_constraints</code>, not your repo.</li>
+<li><strong>"Syntax OK" and "code review passed" prove nothing about deletion.</strong> Only a row-level audit after a real delete does.</li>
+<li><strong>Test destructive paths against the real database</strong> (with a disposable account) — a fresh local install has exactly the constraints your production is missing, so local tests pass for the wrong reason.</li>
+</ol>
+<p>Check your own prod — this one-liner lists FK constraints and their delete rules:</p>
+<pre><code>SELECT conrelid::regclass AS table, conname,
+       CASE confdeltype WHEN 'c' THEN 'CASCADE' WHEN 'a' THEN 'NO ACTION'
+            WHEN 'r' THEN 'RESTRICT' WHEN 'n' THEN 'SET NULL' END AS on_delete
+FROM pg_constraint WHERE contype = 'f' ORDER BY 1;</code></pre>
+<p>If what you see doesn't match your schema file — welcome to the club, and go count your orphans.</p>
+<p><em>Context: this is Mengram (an AI memory layer) — the account-deletion work, the audit, and both e2e rounds are in the public commit history.</em></p>
+""",
+        },
         "claude-code-compaction-context-loss": {
             "slug": "claude-code-compaction-context-loss",
             "title": "Claude Code Forgets Everything After Compaction. Here's the Fix That Survives It",
