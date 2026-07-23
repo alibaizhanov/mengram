@@ -1957,6 +1957,9 @@ m.add("I love hiking in the mountains")</code></pre>
             ("https://mengram.io/blog/persist-context-claude-code", "0.9", "weekly"),
             ("https://mengram.io/blog/claude-code-memory-vs-memory-leak", "0.9", "weekly"),
             ("https://mengram.io/blog/claude-code-memory-md", "0.9", "weekly"),
+            ("https://mengram.io/blog/memory-api-for-ai-agents", "0.9", "weekly"),
+            ("https://mengram.io/blog/multi-user-memory-ai-agents", "0.9", "weekly"),
+            ("https://mengram.io/blog/procedural-memory-ai-agents", "0.9", "weekly"),
             ("https://mengram.io/blog/what-is-ai-memory", "0.8", "monthly"),
             ("https://mengram.io/blog/ai-memory-vs-rag", "0.8", "monthly"),
             ("https://mengram.io/blog/semantic-episodic-procedural-memory", "0.8", "monthly"),
@@ -2339,6 +2342,121 @@ m.add("I love hiking in the mountains")</code></pre>
 
     # ---- Blog posts (SEO content) ----
     BLOG_POSTS = {
+        "memory-api-for-ai-agents": {
+            "slug": "memory-api-for-ai-agents",
+            "title": "How to Add a Memory API to Your AI Agent Product (Per-User Memory in ~10 Lines)",
+            "date": "July 24, 2026",
+            "date_iso": "2026-07-24",
+            "read_time": "6",
+            "tags": ['Guide', 'Agents'],
+            "excerpt": "If you're building an agent product, every user needs their own memory — facts, history, and workflows that persist across sessions. Here's what a memory API needs to give you (isolation, server-side extraction, three memory types) and how to wire it up.",
+            "seo_title": "Memory API for AI Agents — Add Per-User Persistent Memory to Your Agent Product (2026)",
+            "seo_description": "Add a memory API to your AI agent product: per-user isolation, server-side fact/event/workflow extraction, and recall in ~10 lines. What to look for in an agent memory backend and how to integrate it via REST or MCP.",
+            "seo_keywords": "memory api for ai agents, agent memory backend, ai agent memory api, multi user memory llm, per user memory, memory layer for agents, mem0 alternative api",
+            "content_html": """
+<h2>What "memory" means for an agent product</h2>
+<p>When you ship an agent to real users, each user accumulates context — preferences, past interactions, decisions, the workflows your agent runs for them. Holding that in the context window doesn't scale (it resets, and it's not per-user). You need a <strong>memory API</strong>: a backend that stores and retrieves each user's memory, isolated from every other user's, and persists across sessions.</p>
+
+<h2>What a good agent memory API gives you</h2>
+<ul>
+<li><strong>Per-user isolation.</strong> One API key, memory scoped by <code>user_id</code> — user A never sees user B's memory.</li>
+<li><strong>Server-side extraction.</strong> You send raw conversation turns; the backend extracts facts, events, and workflows, deduplicates them, and resolves contradictions. You shouldn't have to prompt-engineer this yourself.</li>
+<li><strong>More than facts.</strong> Semantic (facts), episodic (events/decisions), and procedural (workflows) — because agents need to remember <em>how</em> to do things, not just <em>what</em> a user said.</li>
+<li><strong>Recall that ranks well.</strong> Hybrid retrieval (vector + keyword + fusion), recency/importance weighting, and honest quality signals.</li>
+<li><strong>An exit path.</strong> Full export and per-user deletion — for your users' trust and your own compliance.</li>
+</ul>
+
+<h2>Wiring it up (Mengram example)</h2>
+<pre><code>pip install mengram-ai
+
+from mengram import Mengram
+m = Mengram(api_key="om-...")
+
+# each of YOUR users gets an isolated store
+m.add([{"role": "user", "content": "I prefer email, and my last order arrived damaged"}],
+      user_id="customer-4812")
+
+# later, any session, any of your agents
+m.search("how should I contact this customer?", user_id="customer-4812")
+# -> prefers email; recent damaged-order incident</code></pre>
+<p>Same isolation over MCP for tool-native agents, and webhooks if you want to react when a user's memory changes. Full API on the <a href="https://mengram.io/for-agents">agent-builder page</a>.</p>
+
+<h2>Build vs. buy</h2>
+<p>You can build memory on Postgres + pgvector yourself — many teams start there. The parts that eat time are the ones a memory API handles for you: extraction quality, contradiction resolution, decay/ranking, multi-tenant isolation done right, and the export/delete lifecycle. If memory isn't your core product, buying the layer (or self-hosting an open one) is usually the faster path.</p>
+<p>Related: <a href="/blog/multi-user-memory-ai-agents">per-user memory isolation patterns</a> · <a href="/vs/mem0">Mengram vs Mem0</a></p>
+""",
+        },
+        "multi-user-memory-ai-agents": {
+            "slug": "multi-user-memory-ai-agents",
+            "title": "Multi-User Memory for AI Agents: Per-User Isolation Patterns That Don't Leak",
+            "date": "July 24, 2026",
+            "date_iso": "2026-07-24",
+            "read_time": "5",
+            "tags": ['Guide', 'Agents'],
+            "excerpt": "Shipping an agent to many users means each one needs isolated memory — and a leak between users is a serious bug. Here are the isolation patterns for multi-tenant agent memory, and the mistakes that cause cross-user leaks.",
+            "seo_title": "Multi-User Memory for AI Agents — Per-User Isolation Patterns (2026)",
+            "seo_description": "How to give each user of your AI agent isolated memory without cross-user leaks. Multi-tenant memory isolation patterns (user_id scoping, sub-users, per-key scopes) and the mistakes to avoid.",
+            "seo_keywords": "multi user memory, per user memory llm, multi tenant agent memory, ai agent memory isolation, user_id memory, memory per user ai",
+            "content_html": """
+<h2>Why isolation is the hard part</h2>
+<p>Storing memory is easy. Storing it so that user A's private facts never surface in user B's session — across thousands of users, over months — is the part that bites. A cross-user memory leak isn't a cosmetic bug; it's a privacy incident. Here's how to get it right.</p>
+
+<h2>Pattern 1: user_id scoping (the baseline)</h2>
+<p>Every write and every read carries a <code>user_id</code>. The store filters by it at query time. Simple and correct — as long as <em>every</em> path enforces it. The classic leak is a code path (an admin tool, a background job, a "get all" endpoint) that forgets the filter. Enforce it at the store layer, not per-endpoint, so nothing can bypass it.</p>
+
+<h2>Pattern 2: sub-users (users within a user)</h2>
+<p>If your product itself has tenants — say each of your customers has their own end-users — you need a second axis. A <code>sub_user_id</code> under each <code>user_id</code> gives you two levels of isolation without two accounts. Useful for B2B2C agent products.</p>
+
+<h2>Pattern 3: per-key scopes</h2>
+<p>Hand a component an API key that can only write to a specific scope. The agent physically cannot pollute memory outside its lane — isolation enforced by the credential, not by discipline.</p>
+
+<h2>The mistakes that cause leaks</h2>
+<ul>
+<li><strong>Filtering at read but not at write</strong> — mislabeled writes end up in the wrong bucket permanently.</li>
+<li><strong>Enforcing per-endpoint</strong> instead of at the store layer — one forgotten filter leaks.</li>
+<li><strong>Sharing embeddings across users</strong> — vector search returns another user's vectors if the namespace isn't scoped.</li>
+<li><strong>No capture boundary</strong> — sensitive content (health, legal, credentials) gets stored when it shouldn't, per user, with no way to scope it out.</li>
+</ul>
+
+<h2>Doing it with a memory layer</h2>
+<p><a href="https://mengram.io/for-agents">Mengram</a> gives you <code>user_id</code> isolation and a <code>sub_user_id</code> axis out of the box (one API key, isolated facts/events/workflows/profile per user), plus a server-side capture policy so sensitive categories are dropped before they're ever stored. Deletion is per-user and complete, with a per-table receipt.</p>
+<p>Related: <a href="/blog/memory-api-for-ai-agents">adding a memory API to your agent product</a></p>
+""",
+        },
+        "procedural-memory-ai-agents": {
+            "slug": "procedural-memory-ai-agents",
+            "title": "Procedural Memory for AI Agents: Workflows That Learn From Failure",
+            "date": "July 24, 2026",
+            "date_iso": "2026-07-24",
+            "read_time": "6",
+            "tags": ['Guide', 'Agents'],
+            "excerpt": "Most agent memory stores facts. Procedural memory stores how-to — the workflows an agent repeats — and crucially, revises them when they fail. Here's what procedural memory is, why it's the underserved layer, and how to use it.",
+            "seo_title": "Procedural Memory for AI Agents — Workflows That Evolve From Failure (2026)",
+            "seo_description": "Procedural memory lets AI agents remember how to do things, not just what happened — and revise workflows when they fail. What procedural memory is, why fact-only memory tools skip it, and how to store versioned, failure-aware workflows.",
+            "seo_keywords": "procedural memory ai agents, procedural memory llm, agent workflow memory, agent learns from failure, memp procedural memory, ai agent skill memory",
+            "content_html": """
+<h2>Three kinds of memory, and the one everyone skips</h2>
+<p>Psychology splits long-term memory into <strong>semantic</strong> (facts — "Paris is the capital of France"), <strong>episodic</strong> (events — "I visited Paris last spring"), and <strong>procedural</strong> (how-to — "I know how to ride a bike"). Nearly every AI memory tool ships the first two and skips the third. But procedural memory is where agents waste the most: an agent that re-derives your deploy process from scratch every run is a permanent intern, however smart the model.</p>
+
+<h2>Why procedural memory is harder</h2>
+<p>A fact is extracted once and stored. A workflow isn't — it has to <em>change</em> when it fails. A deploy procedure that worked ten times can break on the eleventh because an assumption shifted ("the migration had already run"). Procedural memory has to capture that failure and revise the workflow, or it rots into the same stale instructions it was meant to replace.</p>
+<p>There's fresh research on exactly this — the Memp paper (Zhejiang University + Alibaba) built procedural memory from agents' own trajectories and found the strongest strategy was <em>reflecting on failures to revise the stored procedure</em>, not just banking successes.</p>
+
+<h2>What good procedural memory records</h2>
+<ul>
+<li><strong>Versioned steps</strong> — v1 → v2 (added a step after a failure) → v3, not overwrite-in-place.</li>
+<li><strong>The violated assumption</strong> — not "step 3 failed" but "the belief that the migration had run turned out false." That's what prevents the repeat.</li>
+<li><strong>A precondition to check next time</strong> — derived from the failure, carried into recall so the agent verifies before trusting the workflow.</li>
+<li><strong>Success/failure counts per version</strong> — so a revision has to re-earn trust instead of inheriting it.</li>
+</ul>
+
+<h2>Using it</h2>
+<p><a href="https://mengram.io">Mengram</a> stores procedural memory as a first-class type: workflows auto-detected from repeated episodes, evolved on failure (recording the violated assumption + precondition), and returned by recall alongside their track record. An agent loading a proven v3 doesn't repeat the two mistakes that produced it.</p>
+<pre><code>m.procedures(query="deploy backend", user_id="user-123")
+# -> deploy-to-railway (v3, 11 successes) — verify first: alembic current == head</code></pre>
+<p>Related: <a href="/blog/semantic-episodic-procedural-memory">the three memory types explained</a> · <a href="/for-agents">memory API for agent builders</a></p>
+""",
+        },
         "persist-context-claude-code": {
             "slug": "persist-context-claude-code",
             "title": "How to Persist Context in Claude Code (So It Doesn't Start From Zero)",
