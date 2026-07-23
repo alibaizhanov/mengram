@@ -2000,7 +2000,7 @@ function switchTab(e, t) {
     if(t==='agents') loadAgentHistory();
     if(t==='procedures') loadProcedures();
     if(t==='billing') loadBilling();
-    if(t==='settings') { loadWebhooks(); loadTeams(); loadKeys(); }
+    if(t==='settings') { loadWebhooks(); loadTeams(); loadKeys(); loadCapturePolicy(); }
 }
 
 async function loadAll() { _updateNavHighlighting('graph'); loadStats(); loadGraph(); loadFeed(); loadAccount(); }
