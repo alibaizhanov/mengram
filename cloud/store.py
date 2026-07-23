@@ -1289,6 +1289,21 @@ class CloudStore:
             "net worth", "tax return", "account number", "routing number",
             "salary is", "annual income", "debit card", "iban", "wire transfer",
         ],
+        "credentials": [
+            "password is", "api key", "api_key", "secret key", "access token",
+            "private key", "ssh key", "-----begin", "bearer ", "client secret",
+            "2fa code", "otp code", "recovery code", "seed phrase", "mnemonic phrase",
+        ],
+        "location": [
+            "home address", "lives at", "street address", "zip code", "postal code",
+            "gps coordinates", "latitude", "longitude", "my address is",
+            "apartment number", "house number",
+        ],
+        "relationships": [
+            "my wife", "my husband", "my girlfriend", "my boyfriend", "my partner",
+            "my ex", "divorce", "affair", "custody", "my son", "my daughter",
+            "my child", "family conflict", "estranged",
+        ],
     }
 
     @staticmethod
