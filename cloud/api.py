@@ -1948,6 +1948,7 @@ m.add("I love hiking in the mountains")</code></pre>
             ("https://mengram.io/blog", "0.8", "weekly"),
             ("https://mengram.io/blog/claude-code-compaction-context-loss", "0.9", "weekly"),
             ("https://mengram.io/blog/schema-lied-production-cascade", "0.8", "monthly"),
+            ("https://mengram.io/blog/rrf-scores-not-similarities", "0.8", "monthly"),
             ("https://mengram.io/blog/what-is-ai-memory", "0.8", "monthly"),
             ("https://mengram.io/blog/ai-memory-vs-rag", "0.8", "monthly"),
             ("https://mengram.io/blog/semantic-episodic-procedural-memory", "0.8", "monthly"),
@@ -2267,6 +2268,39 @@ m.add("I love hiking in the mountains")</code></pre>
 
     # ---- Blog posts (SEO content) ----
     BLOG_POSTS = {
+        "rrf-scores-not-similarities": {
+            "slug": "rrf-scores-not-similarities",
+            "title": "Our Monitoring Said 62% of Retrievals Were Failing. The Bug Was Two Score Scales in One Column.",
+            "date": "July 23, 2026",
+            "date_iso": "2026-07-23",
+            "read_time": "5",
+            "tags": ["Engineering", "RAG"],
+            "excerpt": "A near-miss production incident: RRF fusion scores (~1/60) and cosine rerank scores (0-1) logged into the same top_score column made healthy retrieval look catastrophic. Why a fused ranking score is not a similarity, and how to monitor hybrid search without 3am false alarms.",
+            "seo_title": "RRF Scores Are Not Similarities: A Hybrid-Search Monitoring Post-Mortem",
+            "seo_description": "Reciprocal Rank Fusion outputs ~1/60 for a rank-1 hit; cosine rerank outputs 0-1. Mixing both in one score column made 62% of retrievals look failed. How to monitor hybrid search correctly — count zeros, not thresholds.",
+            "seo_keywords": "reciprocal rank fusion score, RRF score meaning, hybrid search monitoring, rerank vs fusion score, RAG retrieval quality, rrf k=60, vector search score threshold",
+            "content_html": """
+<h2>The scare</h2>
+<p>Hybrid retrieval over personal memory — vector similarity + BM25, fused with Reciprocal Rank Fusion, optional cross-encoder rerank on some tiers. Every search logs <code>top_score</code> for quality monitoring. Analyzing 10,706 logged searches, I applied the obvious threshold — <code>top_score &lt; 0.3</code> = weak retrieval. Result: 62% "failures," a dozen users at "100% failure with avg score 0.017," and a terrifying month-over-month "degradation." One of the "100% failed" users was a paying customer with a thousand searches. I was halfway into incident mode.</p>
+
+<h2>The tell</h2>
+<p>A search for an exact entity name — a guaranteed hit — logged top_score 0.0426. And the "failing" users all averaged 0.016-0.021. Then it clicked: RRF scores are <code>1/(k + rank)</code> with the standard k=60. Top rank = 1/60 ≈ 0.0167. My "catastrophic" users weren't failing — <strong>their top result was rank-1 almost every time.</strong> An average of 0.017 is what <em>perfect</em> RRF retrieval looks like.</p>
+
+<h2>What actually happened</h2>
+<p>Requests that go through the reranker log cosine-style scores (0-1 scale, 0.3+ = good). Requests on the raw RRF path log fusion scores (0.016-0.05 scale, where 0.017 = excellent). Both landed in the same <code>top_score</code> column with no scale tag. Every aggregate over that column — means, z-scores, my failure thresholds, even the health-monitoring cron — was averaging apples with orbital velocities. The "month-over-month degradation" was just the RRF-path share growing as more traffic moved to hybrid.</p>
+<p>What survived scale-correction: true failure (zero results) was 9-13%, driven mostly by two accounts whose agents were querying literally empty stores — a real problem, but a completely different one than "retrieval is broken."</p>
+
+<h2>Lessons that generalize</h2>
+<ol>
+<li><strong>A fused ranking score is not a similarity.</strong> RRF outputs rank information, not confidence. The moment you fuse, the score's absolute value stops meaning what your dashboards think it means.</li>
+<li><strong>Never store scores from different scoring regimes in one unlabeled column.</strong> Log a <code>score_kind</code> (or a scale-aware quality label computed at write time) — analysis-time guessing is how you get 3am false incidents.</li>
+<li><strong>The only scale-free failure signal is emptiness.</strong> Zero results means the same thing on every path. When in doubt, count zeros, not thresholds.</li>
+<li><strong>Validate your alarm against a known-good query before believing it.</strong> One exact-match search that "scored 0.04" saved me from paging myself.</li>
+</ol>
+<p>The k=60 default everyone inherits comes from Cormack, Clarke &amp; Buettcher (2009), "Reciprocal Rank Fusion outperforms Condorcet and individual rank learning methods." The trap applies to any RAG stack mixing rerankers with fusion scoring — grep your score column and look for a bimodal cluster around 1/60.</p>
+<p><em>Context: this is Mengram (an AI memory layer); the fix — a scale-aware quality label written alongside every search — is in the public commit history.</em></p>
+""",
+        },
         "schema-lied-production-cascade": {
             "slug": "schema-lied-production-cascade",
             "title": "Our Schema Declared ON DELETE CASCADE. Production Didn't Have It.",
