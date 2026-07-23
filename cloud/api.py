@@ -6342,6 +6342,25 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         """Shared extraction pipeline used by /v1/add and /v1/add_file."""
         created = []
         try:
+            # ---- Capture boundary: enforced BEFORE extraction/persistence ----
+            # Deterministic, server-side. Empty policy = capture everything.
+            capture_policy = {}
+            try:
+                capture_policy = store.get_capture_policy(user_id)
+            except Exception as e:
+                logger.error(f"⚠️ Capture policy fetch failed: {e}")
+            src = (metadata or {}).get("source")
+            allow_sources = capture_policy.get("allow_sources") or []
+            deny_sources = capture_policy.get("deny_sources") or []
+            if (allow_sources and src not in allow_sources) or (src and src in deny_sources):
+                logger.info(f"🚫 Capture policy: skipped add for user={user_id[:8]} source={src}")
+                if job_id:
+                    store.complete_job(job_id,
+                                       result={"entities": [], "skipped_by_policy": True, "source": src})
+                return created
+            _deny_keywords = store._compile_capture_policy(capture_policy)
+            _policy_dropped = 0
+
             extractor = get_llm()
             from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -6443,6 +6462,28 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                         else:
                             fact_strings.append(str(f))
 
+                    # Capture boundary: drop facts (and matching knowledge) that
+                    # hit the deny policy — before anything is persisted.
+                    if _deny_keywords:
+                        fact_strings, _dropped_f = store.apply_capture_policy_to_facts(
+                            fact_strings, _deny_keywords)
+                        _policy_dropped += len(_dropped_f)
+                        if entity_knowledge:
+                            kept_k = []
+                            for k in entity_knowledge:
+                                blob = f"{k.get('title', '')} {k.get('content', '')}"
+                                _, kd = store.apply_capture_policy_to_facts([blob], _deny_keywords)
+                                if kd:
+                                    _policy_dropped += 1
+                                else:
+                                    kept_k.append(k)
+                            entity_knowledge = kept_k
+                        # Nothing left worth saving for a brand-new entity → skip it.
+                        if not fact_strings and not entity_knowledge and not entity_relations:
+                            existing_id = store.get_entity_id(user_id, name, sub_user_id=sub_uid)
+                            if not existing_id:
+                                continue
+
                     archived = conflict_results.get(name)
                     if archived:
                         store.fire_webhooks(user_id, "memory_update", {
@@ -6527,6 +6568,12 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             for ep in all_episodes:
                 if not ep.summary:
                     continue
+                if _deny_keywords:
+                    ep_blob = f"{ep.summary} {ep.context or ''} {ep.outcome or ''}"
+                    _, ep_drop = store.apply_capture_policy_to_facts([ep_blob], _deny_keywords)
+                    if ep_drop:
+                        _policy_dropped += 1
+                        continue
                 try:
                     episode_id = store.save_episode(
                         user_id=user_id,
@@ -6554,6 +6601,14 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             for pr in all_procedures:
                 if not pr.name or not pr.steps:
                     continue
+                if _deny_keywords:
+                    pr_blob = pr.name + " " + " ".join(
+                        (s.get("action", "") + " " + s.get("detail", "")) if isinstance(s, dict) else str(s)
+                        for s in pr.steps)
+                    _, pr_drop = store.apply_capture_policy_to_facts([pr_blob], _deny_keywords)
+                    if pr_drop:
+                        _policy_dropped += 1
+                        continue
                 try:
                     proc_id = store.save_procedure(
                         user_id=user_id,
@@ -6673,15 +6728,17 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             store.cache.invalidate(f"search:{user_id}:{sub_uid}")
             store.cache.invalidate(f"searchall:{user_id}:{sub_uid}")
 
+            _policy_note = f", policy_dropped={_policy_dropped}" if _policy_dropped else ""
             logger.info(f"✅ Background add complete for {user_id} "
                        f"(entities={len(created)}, episodes={episodes_created}, "
-                       f"procedures={procedures_created}, linked={episodes_linked})")
+                       f"procedures={procedures_created}, linked={episodes_linked}{_policy_note})")
             store.complete_job(job_id, {
                 "created": created,
                 "count": len(created),
                 "episodes": episodes_created,
                 "procedures": procedures_created,
                 "episodes_linked": episodes_linked,
+                "dropped_by_policy": _policy_dropped,
             })
 
             # ---- Post-completion tasks (fire-and-forget, don't block job) ----
@@ -8061,6 +8118,43 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         count = store.delete_all_entities(user_id, sub_user_id=sub_user_id)
         logger.warning(f"🗑️ DELETE ALL | user={user_id[:8]} | deleted={count} entities")
         return {"status": "deleted", "count": count}
+
+    @app.get("/v1/capture-policy", tags=["System"])
+    async def get_capture_policy(ctx: AuthContext = Depends(auth)):
+        """Get the account's capture boundary — what extraction is allowed to
+        persist. Empty = capture everything (default). Deterministic,
+        server-side: category packs + custom keywords + source rules."""
+        policy = store.get_capture_policy(ctx.user_id)
+        return {
+            "capture_policy": policy,
+            "available_categories": list(store.CAPTURE_CATEGORY_PACKS.keys()),
+        }
+
+    class CapturePolicyRequest(BaseModel):
+        deny_categories: list[str] | None = None   # subset of available_categories
+        deny_keywords: list[str] | None = None      # custom words/phrases to never store
+        deny_sources: list[str] | None = None       # skip adds from these sources
+        allow_sources: list[str] | None = None      # if set, ONLY accept these sources
+
+    @app.put("/v1/capture-policy", tags=["System"])
+    async def set_capture_policy(req: CapturePolicyRequest, ctx: AuthContext = Depends(auth)):
+        """Set the capture boundary. Applied deterministically before any
+        extracted memory is persisted — facts, episodes, and procedures
+        matching a deny rule are dropped, never written. Enforced server-side,
+        not a prompt asking the model to behave."""
+        valid = set(store.CAPTURE_CATEGORY_PACKS.keys())
+        bad = [c for c in (req.deny_categories or []) if c not in valid]
+        if bad:
+            raise HTTPException(status_code=400,
+                                detail=f"Unknown categories: {bad}. Valid: {sorted(valid)}")
+        policy = {k: v for k, v in {
+            "deny_categories": req.deny_categories or [],
+            "deny_keywords": req.deny_keywords or [],
+            "deny_sources": req.deny_sources or [],
+            "allow_sources": req.allow_sources or [],
+        }.items() if v}
+        saved = store.set_capture_policy(ctx.user_id, policy)
+        return {"status": "saved", "capture_policy": saved}
 
     @app.delete("/v1/account", tags=["System"])
     async def delete_account(confirm: str = Query(""), ctx: AuthContext = Depends(auth)):

@@ -336,8 +336,16 @@ class CloudStore:
             """)
             # facts.superseded_by for tracking what replaced it
             cur.execute("""
-                ALTER TABLE facts ADD COLUMN IF NOT EXISTS superseded_by 
+                ALTER TABLE facts ADD COLUMN IF NOT EXISTS superseded_by
                 TEXT DEFAULT NULL
+            """)
+
+            # v2.28: per-account settings (capture policy lives here) — the
+            # capture boundary: deterministic, server-side control over what
+            # extraction is allowed to persist. Empty = capture everything
+            # (unchanged behavior for existing users).
+            cur.execute("""
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS settings JSONB DEFAULT '{}'
             """)
 
             # --- v1.5 Hybrid search: tsvector on embeddings ---
@@ -1255,6 +1263,86 @@ class CloudStore:
             self.conn.close()
 
     # ---- Auth ----
+
+    # Built-in keyword packs for the capture boundary. Deterministic,
+    # word-boundary substring matching — NOT a probabilistic classifier
+    # (a churned Pro user's explicit requirement: enforceable controls, not
+    # a prompt asking the model to behave). Opt-in per category; users tune
+    # with their own deny_keywords. Conservative on purpose; documented as
+    # keyword-based so operators know to review coverage.
+    CAPTURE_CATEGORY_PACKS = {
+        "health": [
+            "diagnosis", "diagnosed", "prescription", "prescribed", "medication",
+            "symptom", "disease", "illness", "patient", "medical record", "therapy",
+            "therapist", "mental health", "depression", "anxiety disorder",
+            "blood pressure", "diabetes", "cancer", "hiv", "pregnancy", "pregnant",
+            "surgery", "clinical", "psychiatric", "antidepressant",
+        ],
+        "legal": [
+            "lawsuit", "litigation", "attorney", "plaintiff", "defendant",
+            "settlement agreement", "subpoena", "court case", "legal proceeding",
+            "deposition", "indictment", "restraining order", "custody battle",
+            "criminal charge", "plea deal", "confidential settlement",
+        ],
+        "financial": [
+            "bank account", "credit card number", "social security number", "ssn",
+            "net worth", "tax return", "account number", "routing number",
+            "salary is", "annual income", "debit card", "iban", "wire transfer",
+        ],
+    }
+
+    @staticmethod
+    def _compile_capture_policy(policy: dict) -> list:
+        """Build the effective deny-keyword list (lowercased) from a policy's
+        enabled category packs plus custom deny_keywords. Pure/deterministic."""
+        if not policy:
+            return []
+        kws: list = []
+        for cat in (policy.get("deny_categories") or []):
+            kws.extend(CloudStore.CAPTURE_CATEGORY_PACKS.get(cat, []))
+        for kw in (policy.get("deny_keywords") or []):
+            if isinstance(kw, str) and kw.strip():
+                kws.append(kw.strip())
+        return [k.lower() for k in kws]
+
+    @staticmethod
+    def apply_capture_policy_to_facts(facts: list, deny_keywords: list) -> tuple:
+        """Split facts into (kept, dropped) by the compiled deny-keyword list.
+        Word-boundary-ish: matches keyword as a substring after lowercasing,
+        so multi-word phrases ('bank account') and single terms ('ssn') both
+        work. Deterministic — same input always yields same split."""
+        if not deny_keywords or not facts:
+            return list(facts), []
+        kept, dropped = [], []
+        for f in facts:
+            text = (f if isinstance(f, str) else str(f)).lower()
+            if any(kw in text for kw in deny_keywords):
+                dropped.append(f)
+            else:
+                kept.append(f)
+        return kept, dropped
+
+    def get_capture_policy(self, user_id: str) -> dict:
+        """Read the account's capture policy (empty dict = capture everything)."""
+        with self._cursor() as cur:
+            cur.execute("SELECT settings->'capture_policy' FROM users WHERE id = %s", (user_id,))
+            row = cur.fetchone()
+            return (row[0] if row and row[0] else {}) or {}
+
+    def set_capture_policy(self, user_id: str, policy: dict) -> dict:
+        """Persist the account's capture policy. Merges into settings JSONB."""
+        with self._cursor() as cur:
+            cur.execute(
+                """UPDATE users
+                   SET settings = COALESCE(settings, '{}'::jsonb)
+                                  || jsonb_build_object('capture_policy', %s::jsonb)
+                   WHERE id = %s
+                   RETURNING settings->'capture_policy'""",
+                (json.dumps(policy), user_id)
+            )
+            row = cur.fetchone()
+        self.cache.invalidate(f"capture_policy:{user_id}")
+        return (row[0] if row else policy) or policy
 
     def create_user(self, email: str) -> str:
         """Create user, return user_id."""
