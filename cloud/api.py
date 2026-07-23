@@ -1963,6 +1963,7 @@ m.add("I love hiking in the mountains")</code></pre>
             ("https://mengram.io/blog/does-cursor-remember-between-sessions", "0.9", "weekly"),
             ("https://mengram.io/blog/cursor-rules-memory", "0.9", "weekly"),
             ("https://mengram.io/blog/cursor-mcp-memory-setup", "0.9", "weekly"),
+            ("https://mengram.io/blog/give-claude-chatgpt-long-term-memory-mcp", "0.9", "weekly"),
             ("https://mengram.io/blog/what-is-ai-memory", "0.8", "monthly"),
             ("https://mengram.io/blog/ai-memory-vs-rag", "0.8", "monthly"),
             ("https://mengram.io/blog/semantic-episodic-procedural-memory", "0.8", "monthly"),
@@ -2187,7 +2188,7 @@ m.add("I love hiking in the mountains")</code></pre>
             "website": "https://www.getzep.com",
             "seo_title": "Mengram vs Zep — AI Memory Comparison (2026)",
             "seo_description": "Compare Mengram and Zep for AI agent memory. Mengram offers 3 memory types, procedural learning, and native multilingual support in 23 languages. Open-source, plans from $5/mo vs Zep enterprise pricing.",
-            "seo_keywords": "Zep alternative, Mengram vs Zep, AI memory comparison, getzep alternative, multilingual AI memory, AI memory API",
+            "seo_keywords": "Zep alternative, zep pricing, zep ai memory pricing 2026, zep memory pricing, zep alternatives, Mengram vs Zep, AI memory comparison, getzep alternative, multilingual AI memory, AI memory API",
         },
         "letta": {
             "slug": "letta",
@@ -2221,7 +2222,7 @@ m.add("I love hiking in the mountains")</code></pre>
             "website": "https://www.letta.com",
             "seo_title": "Mengram vs Letta (MemGPT) — AI Memory Comparison (2026)",
             "seo_description": "Compare Mengram and Letta (MemGPT) for AI agent memory. Mengram offers semantic + episodic + procedural memory, self-improving workflows, and native multilingual support in 23 languages. Plans from $5/mo.",
-            "seo_keywords": "Letta alternative, MemGPT alternative, Mengram vs Letta, AI memory comparison, multilingual AI memory, best AI memory tool 2026",
+            "seo_keywords": "Letta alternative, MemGPT alternative, letta formerly memgpt, letta vs memgpt 2026, letta successor to memgpt, letta vs memgpt differences, Mengram vs Letta, AI memory comparison, multilingual AI memory, best AI memory tool 2026",
         },
         "langmem": {
             "slug": "langmem",
@@ -2345,6 +2346,42 @@ m.add("I love hiking in the mountains")</code></pre>
 
     # ---- Blog posts (SEO content) ----
     BLOG_POSTS = {
+        "give-claude-chatgpt-long-term-memory-mcp": {
+            "slug": "give-claude-chatgpt-long-term-memory-mcp",
+            "title": "How to Give Claude or ChatGPT Long-Term Memory Using MCP",
+            "date": "July 24, 2026",
+            "date_iso": "2026-07-24",
+            "read_time": "5",
+            "tags": ["Guide", "MCP"],
+            "excerpt": "The Model Context Protocol (MCP) lets you attach a persistent memory backend to Claude, ChatGPT, Cursor, and other MCP clients — so they remember across sessions. Here is exactly how the memory-over-MCP setup works and how to wire it up.",
+            "seo_title": "How to Give Claude or ChatGPT Long-Term Memory Using MCP (2026)",
+            "seo_description": "Give Claude, ChatGPT, or Cursor long-term memory using MCP. How a memory MCP server works, how to add it to your client config, and the one instruction that makes the agent actually use it.",
+            "seo_keywords": "give claude long-term memory mcp, chatgpt long term memory mcp, how to give claude memory, mcp memory server, long term memory claude chatgpt, claude memory mcp, add memory to claude",
+            "content_html": """
+<h2>The idea: memory as an MCP server</h2>
+<p>The Model Context Protocol (MCP) is an open standard for connecting AI clients to external tools and data. A <strong>memory MCP server</strong> exposes tools like <code>remember</code>, <code>recall</code>, and <code>search</code> — so any MCP-capable client (Claude Desktop, Claude Code, ChatGPT with connectors, Cursor, Windsurf) can store and retrieve long-term memory that lives outside the context window and survives across sessions.</p>
+
+<h2>Why MCP is the right layer</h2>
+<p>Without it, each client is stateless — it forgets between sessions. Building memory into one client doesn't help the others. MCP solves both: memory lives in a server keyed to you, and every MCP client can reach the same store, so context built in Claude is available in Cursor and vice versa.</p>
+
+<h2>How to set it up</h2>
+<p>1. <strong>Pick a memory backend that speaks MCP.</strong> <a href="https://mengram.io">Mengram</a> runs a remote MCP server at <code>mengram.io/mcp</code> (listed in the official MCP registry); it does server-side extraction of facts, events, and workflows so you send raw text and it structures the memory.</p>
+<p>2. <strong>Add it to your client's config.</strong> For Claude Desktop / Cursor, add the server to the MCP config (a JSON block with the URL and your Bearer key). For Claude Code, install the plugin. For ChatGPT, add it as a custom connector in settings.</p>
+<pre><code>{
+  "mcpServers": {
+    "mengram": {
+      "url": "https://mengram.io/mcp",
+      "headers": { "Authorization": "Bearer om-your-key" }
+    }
+  }
+}</code></pre>
+<p>3. <strong>Tell the model when to use it.</strong> An MCP tool the model forgets to call is useless. Add one instruction to your system prompt / rules: "Before answering anything user-specific, call recall. When the user states a durable fact, decision, or preference, call remember."</p>
+
+<h2>What you get</h2>
+<p>Cross-session memory (it remembers you next time), cross-tool memory (same store from Claude, ChatGPT, Cursor), and — with a memory layer that does more than facts — episodic events and procedural workflows too. Claude Code users can go further with hooks that capture automatically; see <a href="/blog/does-claude-code-remember-between-sessions">does Claude Code remember between sessions</a>.</p>
+<p>Try a zero-account local preview of what memory would know from your history: <code>pip install mengram-ai &amp;&amp; mengram try</code>.</p>
+""",
+        },
         "does-cursor-remember-between-sessions": {
             "slug": "does-cursor-remember-between-sessions",
             "title": "Does Cursor Remember Between Sessions? (And How to Make It)",
