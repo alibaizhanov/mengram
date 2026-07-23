@@ -1960,6 +1960,9 @@ m.add("I love hiking in the mountains")</code></pre>
             ("https://mengram.io/blog/memory-api-for-ai-agents", "0.9", "weekly"),
             ("https://mengram.io/blog/multi-user-memory-ai-agents", "0.9", "weekly"),
             ("https://mengram.io/blog/procedural-memory-ai-agents", "0.9", "weekly"),
+            ("https://mengram.io/blog/does-cursor-remember-between-sessions", "0.9", "weekly"),
+            ("https://mengram.io/blog/cursor-rules-memory", "0.9", "weekly"),
+            ("https://mengram.io/blog/cursor-mcp-memory-setup", "0.9", "weekly"),
             ("https://mengram.io/blog/what-is-ai-memory", "0.8", "monthly"),
             ("https://mengram.io/blog/ai-memory-vs-rag", "0.8", "monthly"),
             ("https://mengram.io/blog/semantic-episodic-procedural-memory", "0.8", "monthly"),
@@ -2342,6 +2345,103 @@ m.add("I love hiking in the mountains")</code></pre>
 
     # ---- Blog posts (SEO content) ----
     BLOG_POSTS = {
+        "does-cursor-remember-between-sessions": {
+            "slug": "does-cursor-remember-between-sessions",
+            "title": "Does Cursor Remember Between Sessions? (And How to Make It)",
+            "date": "July 24, 2026",
+            "date_iso": "2026-07-24",
+            "read_time": "5",
+            "tags": ['Cursor', 'Guide'],
+            "excerpt": "Cursor reads your .cursorrules and can reference open files, but it doesn't carry decisions, context, or history across new sessions by default. Here's what persists, what doesn't, and how to add real cross-session memory via MCP.",
+            "seo_title": "Does Cursor Remember Between Sessions? What Persists and How to Add Memory (2026)",
+            "seo_description": "Does Cursor remember between sessions? Not really — .cursorrules is static and context resets each session. What persists, what doesn't, and how to add persistent cross-session (and cross-tool) memory to Cursor via MCP.",
+            "seo_keywords": "does cursor remember between sessions, cursor memory between sessions, cursor remember context, cursor persistent memory, cursor forgets, cursor session memory",
+            "content_html": """
+<h2>Short answer</h2>
+<p><strong>Not by default.</strong> Cursor reads your <code>.cursorrules</code> file and can reference files you have open or @-mention, but it doesn't remember the decisions you made, the reasoning behind them, or what happened in previous sessions. Each new chat starts close to zero and you re-establish context.</p>
+
+<h2>What persists</h2>
+<ul>
+<li><strong>.cursorrules / rules files</strong> — static instructions loaded into context. Good for stable conventions; limited to what you wrote by hand.</li>
+<li><strong>Open / @-mentioned files</strong> — Cursor sees your code, so it can re-read it. Re-reading code isn't remembering your decisions about it.</li>
+<li><strong>Codebase indexing</strong> — helps Cursor find relevant code, but it's retrieval over files, not memory of your intent or history.</li>
+</ul>
+
+<h2>What doesn't</h2>
+<p>Decisions, constraints stated once, approaches you rejected, and anything from a prior chat. The rules file is a snapshot you maintain by hand, and it drifts — it'll say "3-step deploy" for a month after the process became four steps.</p>
+
+<h2>How to add real memory to Cursor</h2>
+<p>Cursor supports the Model Context Protocol (MCP), so you can give it a memory backend as an MCP server. Add a memory server to <code>~/.cursor/mcp.json</code>, then a short paragraph in your rules telling Cursor when to use it:</p>
+<blockquote>Before starting significant work, call <code>recall</code> with the task topic. After completing significant work or when the user states a decision or constraint, call <code>remember</code> with a one-line summary.</blockquote>
+<p>With that, capture and recall become part of every session instead of manual bookkeeping. <a href="https://mengram.io">Mengram</a> provides the MCP server (and the same memory works across Claude Code, Codex, and the API — so context built in one tool is there in the others).</p>
+<p>Related: <a href="/blog/cursor-mcp-memory-setup">setting up an MCP memory server for Cursor</a> · <a href="/blog/cursor-rules-memory">.cursorrules and its limits</a></p>
+""",
+        },
+        "cursor-rules-memory": {
+            "slug": "cursor-rules-memory",
+            "title": ".cursorrules and Memory: Why Rules Files Can't Remember Yesterday's Decisions",
+            "date": "July 24, 2026",
+            "date_iso": "2026-07-24",
+            "read_time": "5",
+            "tags": ['Cursor', 'Guide'],
+            "excerpt": ".cursorrules gives Cursor static project instructions. It's useful for conventions but can't capture what happened in a session or the decision you made an hour ago. Here's what it's good for, where it breaks, and how to add the dynamic half.",
+            "seo_title": ".cursorrules and Memory — What Rules Files Do and Their Limits (2026)",
+            "seo_description": ".cursorrules gives Cursor static instructions loaded every session. What it covers, why it drifts out of date, and how to add automatic memory that captures decisions and history a rules file can't.",
+            "seo_keywords": "cursor rules memory, .cursorrules, cursor rules file, make cursor remember, cursor project rules, cursor memory rules",
+            "content_html": """
+<h2>What .cursorrules does well</h2>
+<p><code>.cursorrules</code> (and the newer rules directory) gives Cursor project-specific instructions loaded into every session: your stack, conventions, style rules, and hard constraints. It's free, version-controllable, and shared across your team. For stable facts that rarely change, it's exactly the right tool.</p>
+
+<h2>Where it breaks</h2>
+<p>A rules file is a <strong>static snapshot you maintain by hand.</strong> That creates three problems:</p>
+<ul>
+<li><strong>It only holds what you wrote down.</strong> The decision from an hour ago isn't in it unless you stopped and added it.</li>
+<li><strong>It drifts.</strong> Your process changes; the file still describes the old one until someone updates it.</li>
+<li><strong>It has no capture step.</strong> Nothing writes to it automatically — so session history, outcomes, and evolving workflows never land there.</li>
+</ul>
+
+<h2>The dynamic half: memory that updates itself</h2>
+<p>Keep the boring stable stuff in <code>.cursorrules</code>, and add a memory layer for the things that change — decisions, session history, workflows. Via MCP, Cursor can call <code>remember</code>/<code>recall</code> against a backend that captures as you work and surfaces relevant context per prompt.</p>
+<p><a href="https://mengram.io">Mengram</a> pairs with your rules file rather than replacing it: rules for what never changes, memory for what does. It can even generate an up-to-date rules file from what it has learned.</p>
+<p>Related: <a href="/blog/does-cursor-remember-between-sessions">does Cursor remember between sessions?</a></p>
+""",
+        },
+        "cursor-mcp-memory-setup": {
+            "slug": "cursor-mcp-memory-setup",
+            "title": "Setting Up an MCP Memory Server for Cursor (Step by Step)",
+            "date": "July 24, 2026",
+            "date_iso": "2026-07-24",
+            "read_time": "5",
+            "tags": ['Cursor', 'Guide'],
+            "excerpt": "Cursor supports MCP, which means you can give it a persistent memory backend as a server. Here's how to wire up an MCP memory server in Cursor, plus the one rules paragraph that makes the agent actually use it.",
+            "seo_title": "MCP Memory Server for Cursor — Setup Guide (2026)",
+            "seo_description": "How to set up an MCP memory server for Cursor so it remembers across sessions. Configure ~/.cursor/mcp.json, add the rules paragraph that triggers recall/remember, and get cross-tool memory.",
+            "seo_keywords": "cursor mcp memory server, memory mcp server cursor, cursor mcp memory, mcp memory cursor, cursor memory server setup, cursor persistent memory mcp",
+            "content_html": """
+<h2>Why MCP is the right path for Cursor</h2>
+<p>Cursor doesn't have lifecycle hooks the way Claude Code does, but it does support the Model Context Protocol. That means you can attach a memory backend as an MCP server — the agent gets <code>remember</code> / <code>recall</code> / <code>search</code> tools, and your memory lives outside the context window and outside static files.</p>
+
+<h2>Step 1: add the MCP server</h2>
+<p>Edit <code>~/.cursor/mcp.json</code> (create it if it doesn't exist) and add your memory server. For a remote (hosted) server it looks like:</p>
+<pre><code>{
+  "mcpServers": {
+    "mengram": {
+      "url": "https://mengram.io/mcp",
+      "headers": { "Authorization": "Bearer om-your-key" }
+    }
+  }
+}</code></pre>
+<p>Reload Cursor (Cmd/Ctrl+Shift+P → Reload Window). The memory tools should now be available to the agent.</p>
+
+<h2>Step 2: the rules paragraph that makes it automatic</h2>
+<p>An MCP tool the agent forgets to call is useless. Add this to your rules so recall/capture become part of every session:</p>
+<blockquote>Before starting significant work, call <code>recall</code> with the task topic. After completing significant work, or when the user states a decision, preference, or constraint, call <code>remember</code> with a one-line summary.</blockquote>
+
+<h2>Step 3 (optional): seed it and go cross-tool</h2>
+<p>Because it's a memory layer, not a file, the same store works from Claude Code and the API too — context built in one tool shows up in the others. With <a href="https://mengram.io">Mengram</a> you can also preview what memory would know from your existing history with zero account: <code>pip install mengram-ai &amp;&amp; mengram try</code>.</p>
+<p>Related: <a href="/blog/does-cursor-remember-between-sessions">does Cursor remember between sessions?</a> · <a href="/blog/cursor-rules-memory">.cursorrules and its limits</a></p>
+""",
+        },
         "memory-api-for-ai-agents": {
             "slug": "memory-api-for-ai-agents",
             "title": "How to Add a Memory API to Your AI Agent Product (Per-User Memory in ~10 Lines)",
