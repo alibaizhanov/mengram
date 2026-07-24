@@ -252,4 +252,113 @@
 - [ ] Capterra URL (после approval)
 - [ ] Product Hunt URL (после launch)
 
+---
+---
+
+# PART 2 — Dev Ecosystem Quick Wins (added 2026-07-24)
+
+Приоритетные площадки из growth-ресерча. Статус проверен 2026-07-24:
+- ✅ **Official MCP Registry** — уже опубликованы (`io.github.alibaizhanov/mengram`, active с 2026-07-20, v2.25.4)
+- ✅ **awesome-mcp-servers** (91k⭐) — уже залистены в Knowledge & Memory с Glama-бейджем
+- ✅ **GitHub topics** — 20/20 слотов заняты правильными
+- ✅ **Плагин** — `claude plugin validate` проходит
+- ✅ **`/mcp` endpoint** возвращает 401 без ключа (api.py) — совместим со сканером Smithery
+
+## A. Claude Code Community Marketplace ⭐⭐⭐ (главный приоритет)
+
+**URL:** https://platform.claude.com/plugins/submit (форма Console — для индивидуальных авторов; форма claude.ai требует Team/Enterprise org)
+**Login:** твой Anthropic Console аккаунт
+**Время:** 10 мин. Review: автоматическая валидация + safety screening; после апрува плагин попадает в `anthropics/claude-plugins-community`, юзеры ставят через `/plugin marketplace add anthropics/claude-plugins-community` → `@claude-community`. Каталог синкается nightly.
+**Официальный маркетплейс** (`claude-plugins-official`) курируется Anthropic отдельно, заявок нет — попадание туда = их решение. Community — наш вход.
+
+| Field | Value |
+|---|---|
+| Repo | https://github.com/alibaizhanov/mengram |
+| Plugin path | integrations/claude-code-plugin |
+| Name | mengram |
+| Version | 0.1.3 |
+| Description | Persistent memory for Claude Code that survives /clear, machine switches, and team handoffs. Procedural memory learns your workflows from failures. Same memory in Cursor, Codex, and any MCP client. |
+| Category | productivity |
+
+**После апрува:** проверить https://github.com/anthropics/claude-plugins-community/blob/main/.claude-plugin/marketplace.json на "mengram".
+
+## B. awesome-claude-code (~50k⭐) ⭐⭐
+
+**URL формы:** https://github.com/hesreallyhim/awesome-claude-code/issues/new?template=recommend-resource.yml
+**⚠️ ТОЛЬКО веб-форма issue, заполненная человеком. PR и `gh` CLI запрещены правилами репо.**
+**Секция:** Memory & Context Persistence
+**Их стиль:** описание, не питч; одна строка; без эмодзи; не обращаться к читателю.
+
+Готовый текст описания:
+> Hosted memory layer for Claude Code with three memory types — semantic facts, episodic events, and procedural workflows that learn from failures and recall with preconditions. Hooks auto-save and auto-recall context across sessions; the same memory is available from Cursor and any MCP client; imports existing Claude Code history via `mengram import claude-code`.
+
+**Реальность:** мейнтейнер selective, пишет "get users first". Если отклонят — не страшно, вернёмся после роста звёзд.
+
+## C. Glama claim ⭐
+
+**Наша страница:** https://glama.ai/mcp/servers/@alibaizhanov/mengram (существует, "Quality: not tested", не заклеймлена)
+**Процесс:** зайти на glama.ai → Sign in через GitHub OAuth (аккаунт alibaizhanov с write-доступом к репо) → найти свой сервер → Claim. После клейма: доступ к usage-отчётам, редактирование метаданных. Quality-скор поднимется после их автосканирования (Dockerfile в репо помогает — у нас есть Dockerfile.selfhost).
+**Время:** 10 мин.
+
+## D. Smithery ⭐⭐
+
+**URL:** https://smithery.ai/new — вставить `https://mengram.io/mcp` → publish flow. Имя: `@mengram/mengram` или `@alibaizhanov/mengram`.
+**Технически готовы:** endpoint отдаёт 401 (не 403) незалогиненным — их сканер это требует. При сканировании попросят аутентифицироваться ключом (возьми свободный ключ с mengram.io).
+**Если скан не пройдёт:** отдать статичную карточку `/.well-known/mcp/server-card.json` (скажи мне — сделаю).
+**После публикации:** Settings → Verification на странице сервера (official-vendor checklist).
+**Время:** 30 мин.
+
+## E. cursor.directory ⭐⭐
+
+**URL:** https://cursor.directory/plugins/new
+**Login:** GitHub или Google
+**Процесс:** вставить URL репо → система автодетектит компоненты по Open Plugins standard (ищет `.mcp.json` в КОРНЕ репо) → Submit → async security review.
+**⚠️ Требуется `.mcp.json` в корне репо** — у нас он в `integrations/claude-code-plugin/`. Я подготовил корневой `.mcp.json` (копия, см. коммит) — бонус: любой, кто откроет репо в Claude Code/Cursor, получит предложение подключить Mengram MCP.
+**Время:** 10 мин после коммита.
+
+## F. PulseMCP ⭐
+
+**Статус:** в поиске PulseMCP нас НЕТ, хотя они автоматически забирают официальный registry (ingest daily, process weekly — наша запись от 20 июля могла ещё не пройти цикл).
+**Действие:** форма https://www.pulsemcp.com/submit — вставить https://github.com/alibaizhanov/mengram. Если через неделю не появимся — письмо на hello@pulsemcp.com (могу отправить через Resend).
+**Время:** 5 мин.
+
+## G. console.dev ⭐⭐
+
+**Что:** еженедельная рассылка ревью devtools, 30k+ подписчиков, четверг. Бесплатно, no sponsored reviews. Критерии (console.dev/selection-criteria): developer-first, self-service signup, вписывается в daily workflow — мы подходим.
+**Процесс:** письмо на hello@console.dev (могу отправить через Resend от ali@mengram.io, reply-to the.baizhanov@gmail.com — драфт ниже, жду твоего ОК).
+
+Драфт письма:
+> Subject: Devtool recommendation: Mengram — AI memory that learns how you work
+>
+> Hi David & team,
+>
+> I'd like to recommend Mengram (https://mengram.io) for review.
+>
+> It's a memory layer for AI coding agents: semantic facts, episodic events, and procedural workflows that learn from failures — when a workflow fails, the revision records which assumption was violated, and the derived precondition travels with the workflow at recall time. Works with Claude Code (plugin with auto-save/auto-recall hooks), Cursor, and any MCP client; one memory across all of them. `mengram import claude-code` warms it up from existing session history in one command.
+>
+> Self-service signup with a free tier (no card), REST API + Python/JS SDKs, core is Apache 2.0. Built by a solo founder.
+>
+> Happy to answer anything.
+>
+> Ali Baizhanov
+
+## H. mcp.so (15 мин, low value, но бесплатно)
+
+**URL:** https://mcp.so — форма submit, вставить GitHub URL. SEO-хвост.
+
+## Суммарный план по времени
+
+| # | Площадка | Кто | Время |
+|---|---|---|---|
+| A | Claude community marketplace | ты (Console login) | 10 мин |
+| B | awesome-claude-code issue form | ты (форма, human-only) | 5 мин |
+| C | Glama claim | ты (GitHub OAuth) | 10 мин |
+| D | Smithery | ты (login) | 30 мин |
+| E | cursor.directory | ты (login) — после коммита root .mcp.json | 10 мин |
+| F | PulseMCP form | ты | 5 мин |
+| G | console.dev email | я через Resend (жду ОК) | — |
+| H | mcp.so | ты | 15 мин |
+
+**Итого ~1.5 часа твоего времени → покрыты все high-syndication поверхности.**
+
 Через месяц зайди в Plausible/Google Analytics, посмотри откуда приходят visitors. Те directories что приносят 0 — игнорируй на следующих итерациях. Те что приносят 10+ — обновляй ежеквартально с новыми скриншотами/фичами.

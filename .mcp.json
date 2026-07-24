@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "mengram": {
+      "type": "http",
+      "url": "https://mengram.io/mcp",
+      "headers": {
+        "Authorization": "Bearer ${MENGRAM_API_KEY}"
+      }
+    }
+  }
+}
