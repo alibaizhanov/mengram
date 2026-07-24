@@ -462,12 +462,16 @@ profile = m.get_profile()             # instant system prompt
         if _llm_client is None:
             from engine.extractor.llm_client import create_llm_client
             llm_model = os.environ.get("LLM_MODEL", "")
+            model_list_url = os.environ.get("MODEL_LIST_URL", "")
+            provider_sort = os.environ.get("PROVIDER_SORT", "")
             llm_config = {
                 "provider": os.environ.get("LLM_PROVIDER", "anthropic"),
                 "anthropic": {"api_key": os.environ.get("ANTHROPIC_API_KEY", ""),
                               **({"model": llm_model} if llm_model else {})},
                 "openai": {"api_key": os.environ.get("OPENAI_API_KEY", ""),
-                            **({"model": llm_model} if llm_model else {})},
+                            **({"model": llm_model} if llm_model else {}),
+                            **({"model_list_url": model_list_url} if model_list_url else {}),
+                            **({"provider_sort": provider_sort} if provider_sort else {})},
             }
             _llm_client = create_llm_client(llm_config)
             from engine.extractor.conversation_extractor import ConversationExtractor
@@ -486,7 +490,6 @@ profile = m.get_profile()             # instant system prompt
 
     # ---- Re-ranking (Cohere Rerank → LLM fallback) ----
     _cohere_client = None
-    _openai_rerank_client = None
 
     def _summarize_for_embedding(text: str, max_chars: int = 1500) -> str:
         """Summarize long text for embedding. Preserves key facts for search."""
@@ -583,17 +586,13 @@ profile = m.get_profile()             # instant system prompt
             except Exception as e:
                 logger.warning(f"⚠️ Cohere rerank failed, falling back: {e}")
 
-        # Fallback: LLM rerank
+        # Fallback: LLM rerank — uses the shared free-model-fallback LLM client
         openai_key = os.environ.get("OPENAI_API_KEY", "")
         if not openai_key:
             return results
 
         try:
-            nonlocal _openai_rerank_client
-            if _openai_rerank_client is None:
-                import openai
-                _openai_rerank_client = openai.OpenAI(api_key=openai_key)
-            client = _openai_rerank_client
+            llm = get_llm().llm
 
             candidates = []
             for i, r in enumerate(results):
@@ -618,14 +617,7 @@ Return ONLY a JSON array of indices of relevant entities, e.g. [0, 2, 4].
 If none are relevant, return [].
 Be strict — only include entities that directly answer or relate to the query."""
 
-            resp = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": prompt}],
-                max_completion_tokens=100,
-                temperature=0,
-            )
-
-            text = (resp.choices[0].message.content or "").strip()
+            text = llm.complete(prompt).strip()
             if not text:
                 return results
 
