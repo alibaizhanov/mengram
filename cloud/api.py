@@ -1736,11 +1736,12 @@ m.add("I love hiking in the mountains")</code></pre>
         html = html.replace("{{VERSION}}", __version__)
         return html
 
-    @app.get("/pricing")
+    @app.get("/pricing", response_class=HTMLResponse)
     async def pricing():
-        """Pricing page — 301 redirect to landing page pricing section."""
-        from starlette.responses import RedirectResponse
-        return RedirectResponse("/#pricing", status_code=301)
+        """Standalone pricing page (moved off the landing 2026-07)."""
+        p = Path(__file__).parent / "pricing.html"
+        html = p.read_text(encoding="utf-8")
+        return html.replace("{{VERSION}}", __version__)
 
     @app.get("/robots.txt", response_class=PlainTextResponse)
     async def robots():
@@ -1935,7 +1936,7 @@ m.add("I love hiking in the mountains")</code></pre>
             # Core — highest priority
             ("https://mengram.io", "1.0", "weekly"),
             ("https://mengram.io/for-agents", "0.9", "weekly"),
-            # /pricing removed — 301 redirects to /#pricing (no duplicate content)
+            ("https://mengram.io/pricing", "0.9", "weekly"),
             # Claude Code — high SEO value
             ("https://mengram.io/vs/claude-mem", "0.9", "weekly"),
             # VS comparison — high SEO value

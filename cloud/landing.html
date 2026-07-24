@@ -293,6 +293,18 @@
             text-align: center;
             letter-spacing: 0.01em;
         }
+        .hero-proof {
+            margin-top: 12px;
+            font-size: 12px;
+            color: var(--text-3);
+            text-align: center;
+        }
+        .hero-proof a {
+            color: var(--text-2);
+            text-decoration: none;
+            border-bottom: 1px dotted var(--border-hover);
+        }
+        .hero-proof a:hover { color: var(--accent); }
 
         /* ---- Platforms bar ---- */
         .platforms {
@@ -1559,32 +1571,9 @@
         @media (max-width: 768px) { .fw-grid { grid-template-columns: 1fr; } }
 
         /* ---- Scroll Animations ---- */
-        .reveal {
-            opacity: 0;
-            transform: translateY(24px);
-            transition: opacity 0.6s ease, transform 0.6s ease;
-        }
-        .reveal.visible {
-            opacity: 1;
-            transform: translateY(0);
-        }
-        .stagger > .reveal:nth-child(1) { transition-delay: 0s; }
-        .stagger > .reveal:nth-child(2) { transition-delay: 0.1s; }
-        .stagger > .reveal:nth-child(3) { transition-delay: 0.15s; }
-        .stagger > .reveal:nth-child(4) { transition-delay: 0.2s; }
-        .stagger > .reveal:nth-child(5) { transition-delay: 0.25s; }
-        .stagger > .reveal:nth-child(6) { transition-delay: 0.3s; }
-        .stagger > .reveal:nth-child(7) { transition-delay: 0.35s; }
-        .stagger > .reveal:nth-child(8) { transition-delay: 0.4s; }
-        .stagger > .reveal:nth-child(9) { transition-delay: 0.45s; }
-        .stagger > .reveal:nth-child(10) { transition-delay: 0.5s; }
-        .stagger > .reveal:nth-child(11) { transition-delay: 0.55s; }
-        .stagger > .reveal:nth-child(12) { transition-delay: 0.6s; }
-        .stagger > .reveal:nth-child(13) { transition-delay: 0.65s; }
-        .stagger > .reveal:nth-child(14) { transition-delay: 0.7s; }
-        @media (prefers-reduced-motion: reduce) {
-            .reveal { opacity: 1; transform: none; transition: none; }
-        }
+        /* Scroll-reveal animations removed 2026-07: none of Mem0/Supermemory/Zep hide
+           content behind fade-ins — pages render instantly. Class kept in markup as no-op. */
+        .reveal { opacity: 1; }
 
         /* ---- Confetti Particles ---- */
         @keyframes confettiBurst {
@@ -1869,7 +1858,7 @@
                 <a href="#install">Install</a>
                 <a href="#features">Features</a>
                 <a href="#playground">Playground</a>
-                <a href="#pricing">Pricing</a>
+                <a href="/pricing">Pricing</a>
                 <a href="https://github.com/alibaizhanov/mengram">GitHub</a>
                 <a href="/blog">Blog</a>
                 <a href="/dashboard">Console</a>
@@ -1907,6 +1896,7 @@
                 </a>
             </div>
             <p class="reveal hero-reassure" style="transition-delay:0.5s">No credit card. No trial. Free forever tier with 40 memories/mo.</p>
+            <p class="hero-proof">Listed in the <a href="https://registry.modelcontextprotocol.io">official MCP Registry</a> · <a href="https://github.com/punkpeye/awesome-mcp-servers">awesome-mcp-servers</a> · <a href="#claude-code-plugin">Claude Code plugin</a> · <a href="https://github.com/alibaizhanov/mengram">Apache 2.0 core</a></p>
         </section>
 
         <!-- Sound familiar? — the pains in the user's own words -->
@@ -2130,132 +2120,6 @@ results = m.search(<span class="c-str">"What does Ali prefer?"</span>)</div>
                         <p>This is a demo account with sample data. Want your own?</p>
                         <a href="#signup" class="signup-btn" style="display:inline-block;text-decoration:none;padding:10px 24px;">Sign up free &rarr;</a>
                     </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Pricing -->
-        <section class="pricing-section" id="pricing">
-            <h2 class="reveal">Simple, predictable pricing</h2>
-            <p class="reveal">Start free. Upgrade when you need more.</p>
-            <div style="display:flex;justify-content:center;margin-bottom:32px;" class="reveal">
-                <div style="display:flex;align-items:center;gap:8px;">
-                    <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:3px;">
-                        <button id="lp-toggle-monthly" onclick="setLandingBilling('monthly')" style="padding:6px 14px;border:none;border-radius:6px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;background:var(--accent);color:#fff;">Monthly</button>
-                        <button id="lp-toggle-annual" onclick="setLandingBilling('annual')" style="padding:6px 14px;border:none;border-radius:6px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:500;background:transparent;color:var(--text-2);">Annual</button>
-                    </div>
-                    <span style="background:#7c3aed22;color:var(--accent);font-size:12px;font-weight:600;padding:4px 10px;border-radius:6px;">Save 20%</span>
-                </div>
-            </div>
-            <div class="pricing-grid stagger">
-                <!-- Free -->
-                <div class="price-card reveal">
-                    <h3>Free</h3>
-                    <div class="price-amount">$0</div>
-                    <div class="price-desc">Try it out — no credit card needed.</div>
-                    <ul class="price-features">
-                        <li>40 memory adds / month</li>
-                        <li>200 searches / month</li>
-                        <li>3 agent runs</li>
-                        <li>3 sub-users</li>
-                        <li>20 req/min rate limit</li>
-                        <li>Vector search (no reranking)</li>
-                        <li class="excluded">No procedure evolution</li>
-                        <li class="excluded">No smart triggers</li>
-                    </ul>
-                    <a href="#signup" class="price-btn">Get started free</a>
-                </div>
-                <!-- Starter -->
-                <div class="price-card reveal" data-plan="starter">
-                    <h3>Starter</h3>
-                    <div class="price-amount">$5 <span>/ month</span></div>
-                    <div class="price-desc">For personal projects and indie developers.</div>
-                    <ul class="price-features">
-                        <li>100 memory adds / month</li>
-                        <li>500 searches / month</li>
-                        <li>10 agent runs</li>
-                        <li>10 sub-users</li>
-                        <li>60 req/min rate limit</li>
-                        <li>Vector search (no reranking)</li>
-                        <li>2 webhooks</li>
-                        <li>1 team</li>
-                    </ul>
-                    <a href="#signup" onclick="return pricingCTA('starter')" class="price-btn">Upgrade to Starter</a>
-                </div>
-                <!-- Pro -->
-                <div class="price-card featured reveal" data-plan="pro">
-                    <div class="price-badge">Most Popular</div>
-                    <h3>Pro</h3>
-                    <div class="price-amount">$19 <span>/ month</span></div>
-                    <div class="price-desc">For production apps and power users.</div>
-                    <ul class="price-features">
-                        <li>1,000 memory adds / month</li>
-                        <li>10,000 searches / month</li>
-                        <li>50 agent runs</li>
-                        <li>50 sub-users</li>
-                        <li>120 req/min rate limit</li>
-                        <li>LLM-powered reranking</li>
-                        <li>Procedure evolution</li>
-                        <li>Smart triggers</li>
-                        <li>10 webhooks</li>
-                        <li>5 teams</li>
-                    </ul>
-                    <a href="#signup" onclick="return pricingCTA('pro')" class="price-btn primary">Upgrade to Pro</a>
-                </div>
-                <!-- Growth -->
-                <div class="price-card reveal" data-plan="growth">
-                    <h3>Growth</h3>
-                    <div class="price-amount">$59 <span>/ month</span></div>
-                    <div class="price-desc">For scaling apps that need more volume.</div>
-                    <ul class="price-features">
-                        <li>3,000 memory adds / month</li>
-                        <li>20,000 searches / month</li>
-                        <li>Unlimited agent runs</li>
-                        <li>100 sub-users</li>
-                        <li>200 req/min rate limit</li>
-                        <li>Cohere cross-encoder reranking</li>
-                        <li>Procedure evolution</li>
-                        <li>Smart triggers</li>
-                        <li>25 webhooks</li>
-                        <li>10 teams</li>
-                    </ul>
-                    <a href="#signup" onclick="return pricingCTA('growth')" class="price-btn">Upgrade to Growth</a>
-                </div>
-                <!-- Business -->
-                <div class="price-card reveal" data-plan="business">
-                    <h3>Business</h3>
-                    <div class="price-amount">$99 <span>/ month</span></div>
-                    <div class="price-desc">For teams and high-volume applications.</div>
-                    <ul class="price-features">
-                        <li>8,000 memory adds / month</li>
-                        <li>30,000 searches / month</li>
-                        <li>Unlimited agent runs</li>
-                        <li>Unlimited sub-users</li>
-                        <li>300 req/min rate limit</li>
-                        <li>Cohere cross-encoder reranking</li>
-                        <li>Procedure evolution</li>
-                        <li>Smart triggers</li>
-                        <li>50 webhooks</li>
-                        <li>Unlimited teams</li>
-                    </ul>
-                    <a href="#signup" onclick="return pricingCTA('business')" class="price-btn">Upgrade to Business</a>
-                </div>
-                <!-- Enterprise -->
-                <div class="price-card reveal">
-                    <h3>Enterprise</h3>
-                    <div class="price-amount">Custom</div>
-                    <div class="price-desc">For organizations with custom requirements.</div>
-                    <ul class="price-features">
-                        <li>Custom memory & search limits</li>
-                        <li>Dedicated infrastructure</li>
-                        <li>Custom rate limits</li>
-                        <li>SSO & access controls</li>
-                        <li>Priority support & SLA</li>
-                        <li>Custom integrations</li>
-                        <li>Data residency options</li>
-                        <li>On-premise deployment</li>
-                    </ul>
-                    <a href="#" class="price-btn" onclick="openEnterpriseModal(); return false;">Contact Us</a>
                 </div>
             </div>
         </section>
@@ -2802,28 +2666,6 @@ POST /v1/add → {<span class="c-str">"messages"</span>: [...], <span class="c-s
             </div>
         </section>
 
-        <!-- Enterprise Modal -->
-        <div class="modal-overlay" id="enterprise-modal" style="display:none;">
-            <div class="modal-box">
-                <button class="modal-close" onclick="closeEnterpriseModal()">&times;</button>
-                <h3>Get in touch</h3>
-                <p style="color:var(--text-2);margin-bottom:24px;">Tell us about your project and we'll get back within 24 hours.</p>
-                <form id="enterprise-form" onsubmit="submitEnterprise(event)">
-                    <div class="form-row">
-                        <input type="text" name="name" placeholder="Your name" required>
-                        <input type="email" name="email" placeholder="Work email" required>
-                    </div>
-                    <div class="form-row">
-                        <input type="text" name="company" placeholder="Company">
-                        <input type="text" name="team_size" placeholder="Team size">
-                    </div>
-                    <textarea name="message" placeholder="Tell us about your use case and requirements" rows="4"></textarea>
-                    <button type="submit" class="price-btn primary" id="enterprise-submit" style="width:100%;margin-top:12px;">Send</button>
-                    <p id="enterprise-status" style="text-align:center;margin-top:12px;font-size:14px;"></p>
-                </form>
-            </div>
-        </div>
-
         <!-- Signup -->
         <section class="signup-section" id="signup">
             <div class="signup-box reveal">
@@ -2901,21 +2743,6 @@ POST /v1/add → {<span class="c-str">"messages"</span>: [...], <span class="c-s
         // (signup/verify/playground); for managed mengram.io this resolves
         // to https://mengram.io naturally. Fixes #36.
         const API_URL = window.location.origin;
-
-        // ---- Scroll Reveal (Intersection Observer) ----
-        (function initScrollReveal() {
-            var observer = new IntersectionObserver(function(entries) {
-                entries.forEach(function(entry) {
-                    if (entry.isIntersecting) {
-                        entry.target.classList.add('visible');
-                        observer.unobserve(entry.target);
-                    }
-                });
-            }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
-            document.querySelectorAll('.reveal').forEach(function(el) {
-                observer.observe(el);
-            });
-        })();
 
         // ---- Hero Terminal Typewriter ----
         (function initTerminal() {
@@ -3002,46 +2829,6 @@ POST /v1/add → {<span class="c-str">"messages"</span>: [...], <span class="c-s
         function esc(s) { if(!s)return ''; const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
 
         // Landing page billing toggle
-        const LP_PRICES = {
-            starter:  { monthly: 5,  annual: 48 },
-            pro:      { monthly: 19, annual: 180 },
-            growth:   { monthly: 59, annual: 566 },
-            business: { monthly: 99, annual: 948 },
-        };
-        let _lpBilling = 'monthly';
-
-        function setLandingBilling(cycle) {
-            _lpBilling = cycle;
-            document.getElementById('lp-toggle-monthly').style.background = cycle === 'monthly' ? 'var(--accent)' : 'transparent';
-            document.getElementById('lp-toggle-monthly').style.color = cycle === 'monthly' ? '#fff' : 'var(--text-2)';
-            document.getElementById('lp-toggle-monthly').style.fontWeight = cycle === 'monthly' ? '600' : '500';
-            document.getElementById('lp-toggle-annual').style.background = cycle === 'annual' ? 'var(--accent)' : 'transparent';
-            document.getElementById('lp-toggle-annual').style.color = cycle === 'annual' ? '#fff' : 'var(--text-2)';
-            document.getElementById('lp-toggle-annual').style.fontWeight = cycle === 'annual' ? '600' : '500';
-            document.querySelectorAll('.price-card').forEach(card => {
-                const plan = card.dataset.plan;
-                if (!plan || !LP_PRICES[plan]) return;
-                const info = LP_PRICES[plan];
-                const amountEl = card.querySelector('.price-amount');
-                if (cycle === 'annual') {
-                    amountEl.innerHTML = '$' + info.annual + ' <span>/ year</span>';
-                } else {
-                    amountEl.innerHTML = '$' + info.monthly + ' <span>/ month</span>';
-                }
-            });
-        }
-
-        function pricingCTA(plan) {
-            if (localStorage.getItem('mengram_key')) {
-                const billing = _lpBilling === 'annual' ? '&billing=annual' : '';
-                window.location.href = '/dashboard?tab=billing&plan=' + plan + billing;
-                return false;
-            }
-            sessionStorage.setItem('wanted_plan', plan);
-            if (_lpBilling === 'annual') sessionStorage.setItem('wanted_billing', 'annual');
-            return true; // follow href="#signup"
-        }
-
         function showInstall(e, tab) {
             document.querySelectorAll('.install-tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.install-panel').forEach(p => p.classList.remove('active'));
@@ -3700,7 +3487,7 @@ POST /v1/add → {<span class="c-str">"messages"</span>: [...], <span class="c-s
                 { icon: _i('<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>'), label: 'Before / After', href: '#before-after', hint: 'Section' },
                 { icon: _i('<rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/>'), label: 'AI Agents', href: '#agents', hint: 'Section' },
                 { icon: _i('<path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/>'), label: 'Features', href: '#features', hint: 'Section' },
-                { icon: _i('<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>'), label: 'Pricing', href: '#pricing', hint: 'Section' },
+                { icon: _i('<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>'), label: 'Pricing', href: '/pricing', hint: 'Page' },
                 { icon: _i('<path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.78 7.78 5.5 5.5 0 0 1 7.78-7.78zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>'), label: 'Get API Key', href: '#signup', hint: 'Section' },
                 { icon: _i('<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>'), label: 'API Documentation', href: 'https://docs.mengram.io', hint: 'External' },
                 { icon: _i('<path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/>'), label: 'GitHub Repository', href: 'https://github.com/alibaizhanov/mengram', hint: 'External' },
@@ -3784,57 +3571,6 @@ POST /v1/add → {<span class="c-str">"messages"</span>: [...], <span class="c-s
         })();
 
         // ---- Enterprise Modal ----
-        function openEnterpriseModal() {
-            document.getElementById('enterprise-modal').style.display = 'flex';
-            document.body.style.overflow = 'hidden';
-        }
-        function closeEnterpriseModal() {
-            document.getElementById('enterprise-modal').style.display = 'none';
-            document.body.style.overflow = '';
-        }
-        document.getElementById('enterprise-modal').addEventListener('click', function(e) {
-            if (e.target === this) closeEnterpriseModal();
-        });
-        function submitEnterprise(e) {
-            e.preventDefault();
-            var form = document.getElementById('enterprise-form');
-            var btn = document.getElementById('enterprise-submit');
-            var status = document.getElementById('enterprise-status');
-            var data = {
-                name: form.name.value,
-                email: form.email.value,
-                company: form.company.value,
-                team_size: form.team_size.value,
-                message: form.message.value,
-            };
-            btn.disabled = true;
-            btn.textContent = 'Sending...';
-            status.textContent = '';
-            fetch('/enterprise-inquiry', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data),
-            })
-            .then(function(r) { return r.json(); })
-            .then(function(d) {
-                if (d.status === 'ok') {
-                    status.style.color = 'var(--green)';
-                    status.textContent = 'Sent! We\'ll get back to you within 24 hours.';
-                    form.reset();
-                } else {
-                    status.style.color = 'var(--orange)';
-                    status.textContent = d.detail || 'Something went wrong. Try again.';
-                }
-            })
-            .catch(function() {
-                status.style.color = 'var(--orange)';
-                status.textContent = 'Network error. Please try again.';
-            })
-            .finally(function() {
-                btn.disabled = false;
-                btn.textContent = 'Send';
-            });
-        }
     </script>
 </body>
 </html>
