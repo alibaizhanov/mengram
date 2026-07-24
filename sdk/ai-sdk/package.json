@@ -1,0 +1,52 @@
+{
+  "name": "mengram-ai-sdk",
+  "version": "0.1.0",
+  "description": "Mengram memory tools for the Vercel AI SDK — semantic, episodic, and procedural memory (workflows that learn from failures) for generateText/streamText agents.",
+  "type": "module",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.js"
+    }
+  },
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alibaizhanov/mengram",
+    "directory": "sdk/ai-sdk"
+  },
+  "homepage": "https://mengram.io",
+  "keywords": [
+    "ai",
+    "ai-sdk",
+    "vercel-ai-sdk",
+    "memory",
+    "agent-memory",
+    "procedural-memory",
+    "mengram",
+    "tools",
+    "llm"
+  ],
+  "author": "Ali Baizhanov",
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "mengram-ai": "^2.25.3"
+  },
+  "peerDependencies": {
+    "ai": ">=5.0.0",
+    "zod": ">=3.23.0"
+  },
+  "devDependencies": {
+    "ai": "^7.0.37",
+    "zod": "^4.4.3"
+  }
+}

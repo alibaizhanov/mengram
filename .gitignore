@@ -46,3 +46,7 @@ Thumbs.db
 
 # Obsidian
 .obsidian/
+
+# Node
+node_modules/
+package-lock.json
