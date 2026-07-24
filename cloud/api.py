@@ -462,12 +462,14 @@ profile = m.get_profile()             # instant system prompt
         if _llm_client is None:
             from engine.extractor.llm_client import create_llm_client
             llm_model = os.environ.get("LLM_MODEL", "")
+            model_list_url = os.environ.get("MODEL_LIST_URL", "")
             llm_config = {
                 "provider": os.environ.get("LLM_PROVIDER", "anthropic"),
                 "anthropic": {"api_key": os.environ.get("ANTHROPIC_API_KEY", ""),
                               **({"model": llm_model} if llm_model else {})},
                 "openai": {"api_key": os.environ.get("OPENAI_API_KEY", ""),
-                            **({"model": llm_model} if llm_model else {})},
+                            **({"model": llm_model} if llm_model else {}),
+                            **({"model_list_url": model_list_url} if model_list_url else {})},
             }
             _llm_client = create_llm_client(llm_config)
             from engine.extractor.conversation_extractor import ConversationExtractor
