@@ -71,7 +71,12 @@ try:
     from importlib.metadata import version as _pkg_version
     __version__ = _pkg_version("mengram-ai")
 except Exception:
-    __version__ = "2.23.0"  # fallback for dev/docker
+    try:
+        import re as _vre
+        _pyproject = (Path(__file__).resolve().parent.parent / "pyproject.toml").read_text()
+        __version__ = _vre.search(r'^version = "([^"]+)"', _pyproject, _vre.M).group(1)
+    except Exception:
+        __version__ = "unknown"
 
 # ---- Config ----
 
