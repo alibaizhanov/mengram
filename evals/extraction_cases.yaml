@@ -1,0 +1,96 @@
+# Golden extraction cases — every real bug or user complaint becomes a case here, forever.
+#
+# Contract per case:
+#   conversation:      [{role, content}] fed to ConversationExtractor.extract (prompt v2)
+#   must_extract:      keywords that MUST appear in extracted facts (case-insensitive, all required)
+#   must_not_extract:  keywords that must NOT appear in any fact/episode/procedure
+#   expect_procedure:  name-keyword + min_steps when a workflow must be captured
+#   expect_no_output:  true when nothing should be extracted at all
+#
+# Sources: #54 reflection pollution, supersession bug (Apr 2026), capture-boundary
+# churn case (mark@mb3, Jul 2026), v2 prompt spec (assistant-noise filtering),
+# ExtractedProcedure.steps list[dict] regression.
+
+- id: assistant-noise-filtered
+  note: "v2 prompt spec: assistant chatter must not become user facts"
+  conversation:
+    - role: user
+      content: "I switched our staging DB to Postgres 16 yesterday."
+    - role: assistant
+      content: "Great choice! I personally love MySQL too, and I think MongoDB is fantastic for flexibility. As an AI, I process millions of queries."
+  must_extract: ["postgres 16", "staging"]
+  must_not_extract: ["mysql", "mongodb", "millions of queries"]
+
+- id: identity-not-polluted-by-thirdparty
+  note: "#54 class: facts about other people must not attach to the primary user"
+  conversation:
+    - role: user
+      content: "My coworker Elena Petrova prefers tabs over spaces and uses Windows. I myself am strictly spaces and macOS."
+  must_extract: ["spaces", "macos"]
+  must_not_extract_for_primary: ["tabs", "windows"]
+
+- id: small-talk-no-facts
+  note: "empty chatter must extract nothing durable"
+  conversation:
+    - role: user
+      content: "hey how are you today?"
+    - role: assistant
+      content: "Doing great, how can I help?"
+    - role: user
+      content: "lol nothing much, just bored"
+  expect_no_output: true
+
+- id: procedure-steps-are-dicts
+  note: "regression: ExtractedProcedure.steps must stay list[dict] with action field"
+  conversation:
+    - role: user
+      content: "Finally nailed our release flow: first run the migration check script, then tag the release in git, then deploy to staging, wait for smoke tests, and only then promote to prod."
+  expect_procedure:
+    name_keyword: "release"
+    min_steps: 4
+
+- id: failure-outcome-captured
+  note: "episodes must keep negative outcomes — they feed procedure evolution"
+  conversation:
+    - role: user
+      content: "Deploy failed again today — I pushed before running migrations and the DB crashed. Took an hour to roll back. Lesson: always run migrations before push."
+  must_extract: ["migrations", "before push"]
+  expect_episode_keyword: "deploy"
+
+- id: contradiction-both-sides-present
+  note: "supersession bug class: new fact must be extracted so archive_contradicted_facts can pair old->new; silent drop = data loss"
+  existing_context: "Ali: works at Google as SWE"
+  conversation:
+    - role: user
+      content: "Big news — I left Google last month and joined Anthropic as a research engineer."
+  must_extract: ["anthropic", "research engineer"]
+
+- id: secrets-never-stored
+  note: "keys pasted in chat must not become facts"
+  conversation:
+    - role: user
+      content: "For the deploy use key sk-proj-AbCdEf123456789 and remember my Railway token is 8f3a-secret-token-999."
+  must_not_extract: ["sk-proj-AbCdEf123456789", "8f3a-secret-token-999"]
+
+- id: multilingual-russian
+  note: "23-language promise: Russian input extracts clean facts"
+  conversation:
+    - role: user
+      content: "Я перевёл проект на FastAPI и больше не использую Flask. База — Supabase."
+  must_extract: ["fastapi", "supabase"]
+  must_not_extract_as_current: ["flask"]
+
+- id: preference-with-reason
+  note: "decisions should keep their why (Casetext lesson: what without why goes stale)"
+  conversation:
+    - role: user
+      content: "We chose Cohere embeddings over OpenAI because multilingual retrieval quality matters for our Russian users."
+  must_extract: ["cohere", "multilingual"]
+
+- id: health-content-flagged
+  note: "capture-boundary churn case: health facts must be category-tagged so policy can drop them pre-persistence"
+  conversation:
+    - role: user
+      content: "Quick note — my doctor increased my blood pressure medication dosage yesterday. Anyway, back to the API design."
+  must_extract: ["api"]
+  expect_category_tag: "health"
