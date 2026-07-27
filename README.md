@@ -114,7 +114,7 @@ Every AI memory tool stores facts. Mengram stores **3 types of memory** — and 
 pip install mengram-ai
 ```
 
-**2. Setup** (creates account + installs Claude Code hooks)
+**2. Setup** — one command does everything: account, Claude Code hooks, MCP configs for detected tools (Cursor, Claude Desktop, Windsurf), history import, and a round-trip check
 
 ```bash
 mengram setup

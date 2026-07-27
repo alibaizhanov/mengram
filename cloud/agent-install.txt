@@ -10,6 +10,14 @@ YOUR JOB: Install Mengram (a memory layer for AI agents), authenticate the user,
 configure the MCP server in the host AI tool you are running in, and verify
 the install works end-to-end. Then report success.
 
+FAST PATH (mengram-ai >= 2.28.0): after `pip install mengram-ai`, the single
+command `mengram setup` performs the whole flow itself — signup, Claude Code
+hooks, MCP configs for detected tools (Cursor / Claude Desktop / Windsurf),
+history import, and a round-trip verify. If your environment supports
+interactive commands, prefer running `mengram setup` and relay only its
+email/code prompts to the user. Fall back to the manual steps below when it
+is unavailable or fails.
+
 CRITICAL RULES:
 - Do not ask the user for confirmation between every step. Just execute.
 - Ask the user ONLY for: (a) their email (once, if no API key exists yet) and
