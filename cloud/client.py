@@ -456,6 +456,13 @@ class CloudMemory:
         except Exception:
             return False
 
+    def weekly_stats(self, user_id: str = "default") -> dict[str, Any]:
+        """Weekly memory report (facts/procedures learned, recalls, preventions)."""
+        params = {}
+        if user_id and user_id != "default":
+            params["sub_user_id"] = user_id
+        return self._request("GET", "/v1/stats/weekly", params=params)
+
     def stats(self, user_id: str = "default") -> dict[str, Any]:
         """Get usage statistics."""
         params = {}

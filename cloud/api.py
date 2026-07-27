@@ -8781,6 +8781,12 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         user_id = ctx.user_id
         return store.get_stats(user_id, sub_user_id=sub_user_id)
 
+    @app.get("/v1/stats/weekly", tags=["System"])
+    async def stats_weekly(sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
+        """Weekly memory report: facts/procedures learned, recalls served,
+        repeated-mistake preventions."""
+        return store.weekly_stats(ctx.user_id, sub_user_id=sub_user_id)
+
     @app.get("/v1/intelligence", tags=["System"])
     async def intelligence(sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
         """Intelligence dashboard — compound learning metrics."""

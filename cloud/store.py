@@ -3893,6 +3893,94 @@ Return ONLY JSON (no markdown):
         self.cache.set(cache_key, result, ttl=30)
         return result
 
+    def _touch_procedures_last_used(self, ids: list) -> None:
+        """Mark procedures as used — feeds recency ranking and the weekly
+        'repeated mistakes prevented' stat. Best-effort, never raises."""
+        if not ids:
+            return
+        try:
+            with self._cursor() as cur:
+                cur.execute(
+                    "UPDATE procedures SET last_used = NOW() WHERE id = ANY(%s::uuid[])",
+                    (ids,)
+                )
+        except Exception:
+            pass
+
+    def weekly_stats(self, user_id: str, sub_user_id: str = "default") -> dict:
+        """Weekly memory report: facts/procedures learned, recalls served,
+        and repeated-mistake preventions (procedures with past failures that
+        were recalled this week)."""
+        with self._cursor(dict_cursor=True) as cur:
+            cur.execute(
+                """SELECT COUNT(*) FILTER (WHERE f.created_at > NOW() - INTERVAL '7 days') AS this_week,
+                          COUNT(*) FILTER (WHERE f.created_at > NOW() - INTERVAL '14 days'
+                                             AND f.created_at <= NOW() - INTERVAL '7 days') AS prev_week
+                   FROM facts f
+                   JOIN entities e ON e.id = f.entity_id
+                   WHERE e.user_id = %s AND e.sub_user_id = %s
+                     AND e.name NOT LIKE '\\_%%' AND f.archived = FALSE""",
+                (user_id, sub_user_id)
+            )
+            f = cur.fetchone()
+
+            cur.execute(
+                """SELECT COUNT(*) AS cnt FROM procedures
+                   WHERE user_id = %s AND sub_user_id = %s
+                     AND created_at > NOW() - INTERVAL '7 days'""",
+                (user_id, sub_user_id)
+            )
+            procs_new = cur.fetchone()["cnt"]
+
+            cur.execute(
+                """SELECT name, version FROM procedures
+                   WHERE user_id = %s AND sub_user_id = %s
+                     AND parent_version_id IS NOT NULL
+                     AND created_at > NOW() - INTERVAL '7 days'
+                   ORDER BY created_at DESC LIMIT 1""",
+                (user_id, sub_user_id)
+            )
+            bump = cur.fetchone()
+
+            cur.execute(
+                """SELECT COUNT(*) AS cnt FROM usage_log
+                   WHERE user_id = %s AND action IN ('search', 'search_all')
+                     AND created_at > NOW() - INTERVAL '7 days'""",
+                (user_id,)
+            )
+            recalls = cur.fetchone()["cnt"]
+
+            cur.execute(
+                """SELECT p.name, p.fail_count,
+                          (SELECT MAX(pe.created_at) FROM procedure_evolution pe
+                            WHERE pe.procedure_id IN (p.id, p.parent_version_id)) AS last_bitten
+                   FROM procedures p
+                   WHERE p.user_id = %s AND p.sub_user_id = %s
+                     AND p.fail_count > 0 AND p.is_current = TRUE
+                     AND p.last_used > NOW() - INTERVAL '7 days'
+                   ORDER BY p.last_used DESC LIMIT 5""",
+                (user_id, sub_user_id)
+            )
+            prevented = [
+                {
+                    "name": r["name"],
+                    "fail_count": r["fail_count"],
+                    "last_bitten": r["last_bitten"].date().isoformat() if r["last_bitten"] else None,
+                }
+                for r in cur.fetchall()
+            ]
+
+        return {
+            "facts_learned": f["this_week"],
+            "facts_prev_week": f["prev_week"],
+            "procedures_learned": procs_new,
+            "latest_version_bump": (
+                {"name": bump["name"], "version": bump["version"]} if bump else None
+            ),
+            "recalls_served": recalls,
+            "prevented": prevented,
+        }
+
     # ---- Cognitive Profile ----
 
     def get_profile(self, user_id: str, force: bool = False, sub_user_id: str = "default") -> dict:
@@ -5354,7 +5442,8 @@ REFLECTIONS/PATTERNS:
                 if max_s > 0:
                     for r in results:
                         r["score"] = round(r["score"] / max_s, 4)
-            return results
+        self._touch_procedures_last_used([r["id"] for r in results])
+        return results
 
     def search_procedures_text(self, user_id: str, query: str,
                                top_k: int = 5, sub_user_id: str = "default") -> list[dict]:
@@ -5397,7 +5486,8 @@ REFLECTIONS/PATTERNS:
                     "metadata": row.get("metadata") or {},
                     "memory_type": "procedural",
                 })
-            return results
+        self._touch_procedures_last_used([r["id"] for r in results])
+        return results
 
     def procedure_feedback(self, user_id: str, procedure_id: str, success: bool, sub_user_id: str = "default") -> dict:
         """Record success/failure feedback for a procedure."""

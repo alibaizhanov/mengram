@@ -1029,6 +1029,112 @@ def cmd_doctor(args):
     print("OK: round-trip succeeded.")
 
 
+def _render_weekly(stats: dict, week_label: str, color: bool = True) -> str:
+    """Render the weekly memory report box (<=58 cols, screenshot-friendly).
+
+    Spec: ccusage-style box-drawing, no emoji inside boxes, hero block =
+    repeated mistakes prevented with 'last bitten' dates.
+    """
+    W = 58
+    BLUE = "\033[34m" if color else ""
+    YELLOW = "\033[1;33m" if color else ""
+    GREEN = "\033[32m" if color else ""
+    DIM = "\033[2m" if color else ""
+    R = "\033[0m" if color else ""
+
+    def pad(s: str, n: int) -> str:
+        return s + " " * max(0, n - len(s))
+
+    lines = []
+    title = f"MENGRAM · Your AI's memory — {week_label}"
+    lines.append("╭" + "─" * (W - 2) + "╮")
+    lines.append("│" + " " * (W - 2) + "│")
+    lines.append("│   " + BLUE + pad(title, W - 8) + R + "   │")
+    lines.append("│" + " " * (W - 2) + "│")
+    lines.append("╰" + "─" * (W - 2) + "╯")
+    lines.append("")
+
+    facts = stats.get("facts_learned", 0)
+    prev = stats.get("facts_prev_week", 0)
+    delta = facts - prev
+    delta_s = (GREEN + f"▲ {delta}" + R) if delta > 0 else (DIM + f"▼ {abs(delta)}" + R) if delta < 0 else (DIM + "=" + R)
+    lines.append(f"  Facts learned        {facts:>5}    {delta_s} vs last week")
+
+    procs = stats.get("procedures_learned", 0)
+    bump = stats.get("latest_version_bump")
+    bump_s = ""
+    if bump:
+        v = bump.get("version", 1)
+        bump_s = f"{bump.get('name', '')[:24]} v{v - 1} → v{v}"
+    lines.append(f"  Procedures learned   {procs:>5}    " + DIM + bump_s + R)
+
+    recalls = stats.get("recalls_served", 0)
+    lines.append(f"  Recalls served       {recalls:>5}")
+    lines.append("")
+
+    prevented = stats.get("prevented", [])
+    n = len(prevented)
+    lines.append("┌" + "─" * (W - 2) + "┐")
+    header = pad("  REPEATED MISTAKES PREVENTED", W - 12) + f"{n:>4}"
+    lines.append("│" + YELLOW + pad(header, W - 2) + R + "│")
+    if prevented:
+        lines.append("│" + " " * (W - 2) + "│")
+        for p in prevented:
+            name = (p.get("name") or "?")[:28]
+            bitten = p.get("last_bitten")
+            if bitten:
+                try:
+                    import datetime as _dt
+                    bitten = _dt.date.fromisoformat(bitten).strftime("%b %d")
+                except (ValueError, TypeError):
+                    pass
+                tail = f"last bitten: {bitten}"
+            else:
+                tail = f"{p.get('fail_count', 0)} past failures"
+            row = f"  · {pad(name, 28)} {tail}"
+            lines.append("│" + pad(row, W - 2)[: W - 2] + "│")
+    else:
+        lines.append("│" + pad("  0 — clean week", W - 2) + "│")
+    lines.append("└" + "─" * (W - 2) + "┘")
+    lines.append("")
+    lines.append(DIM + "  Share it: mengram weekly --share" + R)
+    return "\n".join(lines)
+
+
+def cmd_weekly(args):
+    """Print the weekly memory report."""
+    import datetime as _dt
+
+    api_key = _load_cloud_api_key()
+    if not api_key:
+        print("No API key. Run `mengram setup` first.", file=sys.stderr)
+        sys.exit(1)
+    from cloud.client import CloudMemory
+    mem = CloudMemory(api_key=api_key, base_url=_load_cloud_base_url())
+    user_id = getattr(args, "user_id", None) or "default"
+    stats = mem.weekly_stats(user_id=user_id)
+
+    today = _dt.date.today()
+    start = today - _dt.timedelta(days=6)
+    week_label = f"week of {start.strftime('%b %d')}–{today.strftime('%d')}"
+    color = sys.stdout.isatty() and not getattr(args, "no_color", False)
+    print(_render_weekly(stats, week_label, color=color))
+
+    if getattr(args, "share", False):
+        n = len(stats.get("prevented", []))
+        facts = stats.get("facts_learned", 0)
+        recalls = stats.get("recalls_served", 0)
+        post = (f"My AI stopped me from repeating {n} old mistake{'s' if n != 1 else ''} this week. "
+                f"{facts} facts, {recalls} recalls. It remembers what I don't. 🧠 mengram.io")
+        print("\n--- ready to post ---\n" + post)
+        try:
+            import subprocess
+            subprocess.run(["pbcopy"], input=post.encode(), check=True)
+            print("(copied to clipboard)")
+        except Exception:
+            pass
+
+
 def _ask_yes(prompt: str, default: bool = True) -> bool:
     """input() with a default that survives non-interactive runs (agents, pipes)."""
     suffix = " [Y/n]: " if default else " [y/N]: "
@@ -1817,6 +1923,11 @@ def main():
     p_web.add_argument("--no-open", action="store_true", help="Don't open browser")
 
     # setup (interactive signup + hook install)
+    p_weekly = sub.add_parser("weekly", help="Weekly memory report (facts, procedures, prevented repeats)")
+    p_weekly.add_argument("--share", action="store_true", help="Also print + copy a ready-to-post summary")
+    p_weekly.add_argument("--no-color", action="store_true", help="Plain output (for piping)")
+    p_weekly.add_argument("--user-id", default=None, dest="user_id")
+
     p_setup = sub.add_parser("setup", help="Sign up and configure Mengram (interactive)")
     p_setup.add_argument("--email", help="Email (skip prompt)")
     p_setup.add_argument("--key", help="API key (skip signup, just save key + install hooks)")
@@ -1868,6 +1979,8 @@ def main():
         cmd_auto_context(args)
     elif args.command == "web":
         cmd_web(args)
+    elif args.command == "weekly":
+        cmd_weekly(args)
     elif args.command == "setup":
         cmd_setup(args)
     elif args.command == "signup":
