@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mengram-crewai"
+version = "0.1.0"
+description = "Mengram memory tools for CrewAI agents — semantic, episodic, and procedural memory (workflows that learn from failures)."
+readme = "README.md"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Ali Baizhanov", email = "ali@mengram.io" }]
+requires-python = ">=3.10"
+dependencies = [
+    "mengram-ai>=2.28.0",
+    "crewai>=1.0.0",
+    "pydantic>=2.0",
+]
+keywords = ["crewai", "memory", "agent-memory", "procedural-memory", "mengram", "ai-agents"]
+
+[project.urls]
+Homepage = "https://mengram.io"
+Repository = "https://github.com/alibaizhanov/mengram"
+
+[tool.setuptools]
+packages = ["mengram_crewai"]
