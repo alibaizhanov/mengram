@@ -1029,6 +1029,71 @@ def cmd_doctor(args):
     print("OK: round-trip succeeded.")
 
 
+def _ask_yes(prompt: str, default: bool = True) -> bool:
+    """input() with a default that survives non-interactive runs (agents, pipes)."""
+    suffix = " [Y/n]: " if default else " [y/N]: "
+    try:
+        if not sys.stdin.isatty():
+            return default
+        answer = input(prompt + suffix).strip().lower()
+    except EOFError:
+        return default
+    if not answer:
+        return default
+    return answer in ("y", "yes")
+
+
+def _mcp_server_entry(api_key: str) -> dict:
+    """Canonical MCP config entry — same shape as the landing docs."""
+    mengram_bin = shutil.which("mengram") or "mengram"
+    return {
+        "command": mengram_bin,
+        "args": ["server", "--cloud"],
+        "env": {
+            "MENGRAM_API_KEY": api_key,
+            "MENGRAM_URL": _load_cloud_base_url(),
+        },
+    }
+
+
+def _write_mcp_config(config_path: Path, entry: dict) -> str:
+    """Merge mengram into an MCP config file. Returns: written | already | corrupt."""
+    config = {}
+    if config_path.exists():
+        try:
+            with open(config_path) as f:
+                config = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            return "corrupt"  # never clobber a file we can't parse
+    servers = config.setdefault("mcpServers", {})
+    if "mengram" in servers:
+        return "already"
+    if config_path.exists():
+        try:
+            shutil.copy2(config_path, str(config_path) + ".bak-mengram")
+        except OSError:
+            pass
+    servers["mengram"] = entry
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(config_path, "w") as f:
+        json.dump(config, f, indent=2)
+    return "written"
+
+
+def _detect_mcp_tools() -> list:
+    """Detect installed AI tools that take an MCP config. Returns [(name, config_path)]."""
+    tools = []
+    if (Path.home() / ".cursor").exists():
+        tools.append(("Cursor", Path.home() / ".cursor" / "mcp.json"))
+    claude_desktop = get_claude_desktop_config_path()
+    if claude_desktop.parent.exists():
+        tools.append(("Claude Desktop", claude_desktop))
+    windsurf_dir = Path.home() / ".codeium" / "windsurf"
+    if windsurf_dir.exists():
+        tools.append(("Windsurf", windsurf_dir / "mcp_config.json"))
+    return tools
+
+
 def cmd_setup(args):
     """Interactive signup + API key setup + hook install."""
     print("\n  Welcome to Mengram — AI memory for your apps\n")
@@ -1124,13 +1189,71 @@ def cmd_setup(args):
     no_hooks = getattr(args, "no_hooks", False)
     if not no_hooks:
         try:
+            os.environ["MENGRAM_API_KEY"] = api_key  # hook install reads env
             cmd_hook_install(args)
         except SystemExit:
             pass
     else:
         print("\n  Skipped hook install (--no-hooks).")
 
-    print("\n  Done! Restart Claude Code — it now remembers everything.\n")
+    configured = []
+
+    # Detect other AI tools and wire up MCP configs (Cursor, Claude Desktop, Windsurf)
+    if not getattr(args, "no_tools", False):
+        tools = _detect_mcp_tools()
+        if tools:
+            names = ", ".join(t[0] for t in tools)
+            print(f"\n  Detected: {names}")
+            if _ask_yes("  Connect Mengram memory to them too?"):
+                entry = _mcp_server_entry(api_key)
+                for name, path in tools:
+                    result = _write_mcp_config(path, entry)
+                    if result == "written":
+                        configured.append(name)
+                        print(f"  ✓ {name}: {path}")
+                    elif result == "already":
+                        print(f"  ✓ {name}: already configured")
+                    else:
+                        print(f"  ! {name}: could not parse {path} — skipped (add manually, see mengram.io/#install)")
+
+    # Warm start: import existing Claude Code history so memory is useful from minute one
+    imported = False
+    if not getattr(args, "no_import", False):
+        projects_dir = Path.home() / ".claude" / "projects"
+        if projects_dir.exists() and any(projects_dir.iterdir()):
+            print("\n  Found local Claude Code session history.")
+            if _ask_yes("  Import your recent sessions so memory starts warm?"):
+                import_args = argparse.Namespace(
+                    import_type="claude-code", last=20, project="",
+                    reimport=False, yes=True, user_id=None,
+                )
+                try:
+                    cmd_import(import_args)
+                    imported = True
+                except SystemExit:
+                    pass
+                except Exception as e:
+                    print(f"  Import skipped ({e}) — run `mengram import claude-code` later.")
+
+    # Verify the round-trip end-to-end
+    if not getattr(args, "no_verify", False):
+        print("\n  Verifying round-trip ...")
+        mengram_bin = shutil.which("mengram")
+        if mengram_bin:
+            import subprocess
+            try:
+                r = subprocess.run([mengram_bin, "doctor"], capture_output=True, text=True, timeout=90)
+                tail = (r.stdout.strip().splitlines() or [""])[-1]
+                print(f"  {tail}" if tail.startswith("OK") else "  Verify inconclusive — run `mengram doctor` for details.")
+            except Exception:
+                print("  Verify skipped — run `mengram doctor` later.")
+
+    print("\n  Done! Restart Claude Code" + (
+        " (and " + ", ".join(configured) + ")" if configured else ""
+    ) + " — it now remembers everything.")
+    if imported:
+        print('  Try asking: "What do you know about my projects?"')
+    print()
 
 
 def cmd_hook_install(args):
@@ -1698,6 +1821,9 @@ def main():
     p_setup.add_argument("--email", help="Email (skip prompt)")
     p_setup.add_argument("--key", help="API key (skip signup, just save key + install hooks)")
     p_setup.add_argument("--no-hooks", action="store_true", help="Skip Claude Code hook install")
+    p_setup.add_argument("--no-tools", action="store_true", help="Skip Cursor/Claude Desktop/Windsurf MCP config")
+    p_setup.add_argument("--no-import", action="store_true", help="Skip Claude Code history import")
+    p_setup.add_argument("--no-verify", action="store_true", help="Skip round-trip verification")
 
     # signup (non-interactive — designed for agent-driven installs)
     p_signup = sub.add_parser(
