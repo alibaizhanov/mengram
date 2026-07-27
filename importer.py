@@ -463,7 +463,13 @@ _CC_SECRET_PATTERNS = _re.compile(
 
 
 def _cc_redact(text: str) -> str:
-    return _CC_SECRET_PATTERNS.sub("[REDACTED]", text)
+    # Prefer the canonical redactor (shared with server-side extraction); fall
+    # back to the local prefix set on client-only installs without `engine`.
+    try:
+        from engine.extractor.redact import redact_secrets
+        return redact_secrets(text)
+    except Exception:
+        return _CC_SECRET_PATTERNS.sub("[REDACTED]", text)
 _CC_STATE_FILE = Path.home() / ".mengram" / "claude-code-imported.json"
 
 # Per-turn / per-session budgets: enough signal for extraction without

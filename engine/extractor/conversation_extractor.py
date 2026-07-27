@@ -29,6 +29,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from engine.extractor.llm_client import LLMClient
+from engine.extractor.redact import redact_secrets
 
 _logger = logging.getLogger("mengram")
 
@@ -709,7 +710,7 @@ class ConversationExtractor:
         lines = []
         for msg in conversation:
             role = "User" if msg["role"] == "user" else "Assistant"
-            lines.append(f"{role}: {msg['content']}")
+            lines.append(f"{role}: {redact_secrets(str(msg['content']))}")
         return "\n\n".join(lines)
 
     def _parse_response(self, raw: str) -> ExtractionResult:
