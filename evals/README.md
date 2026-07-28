@@ -31,14 +31,17 @@ Costs real tokens (~10 LLM calls per full run). Exit 0 = all pass.
 - `qualified_past` — `{keyword, markers}`: every fact mentioning the keyword must carry a
   past-tense marker (supersession — a bare "uses X" would be the data-loss bug)
 - `expect_procedure` / `expect_episode_keyword` / `expect_no_output`
-- `known_gap: true` — reports failures but does not fail the suite (tracked TODO, not regression)
+- `expect_capture_drop` — `{deny_categories, dropped_keyword, kept_keyword}`: runs the
+  extracted facts through the REAL `apply_capture_policy_to_facts` deny-filter and asserts
+  the sensitive fact drops while the work fact survives (end-to-end privacy guarantee)
+- `known_gap: true` — reports failures but does not fail the suite (tracked TODO)
 
-## Current cases (10, 9 enforced + 1 known-gap)
+## Current cases (10, all enforced)
 
 Sourced from real incidents: #54 identity pollution, Apr-2026 supersession data-loss,
-capture-boundary churn, assistant-noise filtering, `steps list[dict]` regression,
-secrets hygiene, multilingual + Russian supersession, transient-state filtering.
+capture-boundary churn (mark@mb3), assistant-noise filtering, `steps list[dict]`
+regression, secrets hygiene, multilingual + Russian supersession, transient-state
+filtering, and the end-to-end health→capture-policy drop.
 
-**Known gap:** the extractor does not yet emit category tags (health/legal/financial…),
-so capture-policy can't drop them pre-persistence at extraction time. Tracked in
-`health-content-flagged` (known_gap). Next grind target.
+Note: capture-policy matches deny keywords against fact TEXT at persistence time — it
+does not need the extractor to emit category tags. The health case tests that real path.

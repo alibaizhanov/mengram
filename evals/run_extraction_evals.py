@@ -135,6 +135,22 @@ def run_case(extractor, case, verbose=False):
                 failures.append(f"qualified_past: {qp['keyword']!r} mentioned as current "
                                 f"(no past marker): {bad[0][:100]!r}")
 
+    # Capture-policy end-to-end: extracted facts are run through the REAL
+    # deterministic deny-filter; sensitive facts must drop, work facts must stay.
+    if cp := case.get("expect_capture_drop"):
+        from cloud.store import CloudStore
+        deny = CloudStore._compile_capture_policy({"deny_categories": cp["deny_categories"]})
+        fact_list = [getattr(f, "content", "") for e in result.entities for f in e.facts]
+        kept, dropped = CloudStore.apply_capture_policy_to_facts(fact_list, deny)
+        dropped_text = " ".join(dropped).lower()
+        kept_text = " ".join(kept).lower()
+        if cp["dropped_keyword"].lower() not in dropped_text:
+            failures.append(f"capture-policy: expected a fact with {cp['dropped_keyword']!r} to be "
+                            f"DROPPED (dropped={dropped}, kept={kept})")
+        if cp["kept_keyword"].lower() not in kept_text:
+            failures.append(f"capture-policy: expected {cp['kept_keyword']!r} to SURVIVE "
+                            f"(kept={kept})")
+
     if kw := case.get("expect_episode_keyword"):
         if not any(kw.lower() in f"{ep.summary} {ep.context}".lower() for ep in result.episodes):
             failures.append(f"no episode mentioning {kw!r}")

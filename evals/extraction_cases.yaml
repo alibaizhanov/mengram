@@ -95,11 +95,13 @@
       content: "We chose Cohere embeddings over OpenAI because multilingual retrieval quality matters for our Russian users."
   must_extract: ["cohere", "multilingual"]
 
-- id: health-content-flagged
-  note: "capture-boundary: health facts should be category-tagged so policy can drop them. KNOWN GAP — extractor does not yet emit categories; tracked for the capture-policy grind."
-  known_gap: true
+- id: health-dropped-by-capture-policy
+  note: "capture-boundary end-to-end (mark@mb3 churn cause): with the health category enabled, the health fact is dropped pre-persistence while the work fact survives"
   conversation:
     - role: user
-      content: "Quick note — my doctor increased my blood pressure medication dosage yesterday. Anyway, back to the API design."
-  must_extract: ["api"]
-  expect_category_tag: "health"
+      content: "Quick note — my doctor increased my blood pressure medication dosage yesterday. Anyway, back to the API design using FastAPI."
+  must_extract: ["fastapi"]
+  expect_capture_drop:
+    deny_categories: ["health"]
+    dropped_keyword: "blood pressure"   # a health fact carrying this must be dropped
+    kept_keyword: "fastapi"             # the work fact must survive
