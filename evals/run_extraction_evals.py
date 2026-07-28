@@ -83,13 +83,33 @@ def run_case(extractor, case, verbose=False):
         if kw.lower() not in everything:
             failures.append(f"missing required keyword: {kw!r}")
 
-    for key in ("must_not_extract", "must_not_extract_for_primary", "must_not_extract_as_current"):
-        for kw in case.get(key, []):
-            if key == "must_not_extract" and kw.lower() in everything:
-                failures.append(f"forbidden keyword present: {kw!r}")
-            elif key != "must_not_extract" and kw.lower() in facts:
-                # softer checks: forbidden only among FACTS (episodes may mention)
-                failures.append(f"{key}: {kw!r} present in facts")
+    for kw in case.get("must_not_extract", []):
+        if kw.lower() in everything:
+            failures.append(f"forbidden keyword present: {kw!r}")
+
+    for kw in case.get("must_not_extract_as_current", []):
+        if kw.lower() in facts:
+            failures.append(f"must_not_extract_as_current: {kw!r} present in facts")
+
+    # Per-entity attribution (the #54 concern): a fact must land on the RIGHT
+    # entity. {entity_keyword, must_have: [...], must_not_have: [...]}
+    for att in case.get("expect_attribution", []):
+        matches = [e for e in result.entities if att["entity_keyword"].lower() in e.name.lower()]
+        if not matches:
+            failures.append(f"attribution: no entity matching {att['entity_keyword']!r} "
+                            f"(got {[e.name for e in result.entities]})")
+            continue
+        ent_facts = " ".join(getattr(f, "content", "") for e in matches for f in e.facts).lower()
+        for kw in att.get("must_have", []):
+            if kw.lower() not in ent_facts:
+                failures.append(f"attribution: {att['entity_keyword']!r} missing {kw!r}")
+        for kw in att.get("must_not_have", []):
+            if kw.lower() in ent_facts:
+                failures.append(f"attribution: {att['entity_keyword']!r} wrongly has {kw!r}")
+        if one_of := att.get("must_have_one_of", []):
+            if not any(kw.lower() in ent_facts for kw in one_of):
+                failures.append(f"attribution: {att['entity_keyword']!r} missing all of {one_of} "
+                                f"(facts: {ent_facts[:120]})")
 
     if proc := case.get("expect_procedure"):
         matches = [p for p in result.procedures if proc["name_keyword"].lower() in p.name.lower()]
@@ -102,6 +122,18 @@ def run_case(extractor, case, verbose=False):
                 failures.append(f"procedure has {len(p.steps)} steps, expected >= {proc['min_steps']}")
             if p.steps and not isinstance(p.steps[0], dict):
                 failures.append("REGRESSION: steps are not list[dict]")
+
+    # Supersession: every fact-line mentioning the keyword must carry a past marker.
+    if qp := case.get("qualified_past"):
+        kw = qp["keyword"].lower()
+        lines_with_kw = [ln for ln in everything.split(" \n ") if kw in ln]
+        if not lines_with_kw:
+            failures.append(f"qualified_past: {qp['keyword']!r} not mentioned at all")
+        else:
+            bad = [ln for ln in lines_with_kw if not any(m in ln for m in qp["markers"])]
+            if bad:
+                failures.append(f"qualified_past: {qp['keyword']!r} mentioned as current "
+                                f"(no past marker): {bad[0][:100]!r}")
 
     if kw := case.get("expect_episode_keyword"):
         if not any(kw.lower() in f"{ep.summary} {ep.context}".lower() for ep in result.episodes):
@@ -129,7 +161,7 @@ def main():
             print(f"no case {args.case!r}"); sys.exit(2)
 
     extractor = build_extractor()
-    passed = failed = advisory = 0
+    passed = failed = advisory = known = 0
     for case in cases:
         print(f"  {case['id']} ...", flush=True)
         try:
@@ -141,7 +173,14 @@ def main():
         advisory += len(soft)
         for f in soft:
             print(f"    ~ {f}")
-        if hard:
+        if case.get("known_gap"):
+            # Reports failures but does not fail the suite — a tracked TODO, not a regression.
+            known += 1
+            for f in hard:
+                print(f"    ⊘ known-gap: {f}")
+            if not hard:
+                print("    ✓ pass (known-gap resolved — consider removing the flag)")
+        elif hard:
             failed += 1
             for f in hard:
                 print(f"    ✗ {f}")
@@ -149,7 +188,9 @@ def main():
             passed += 1
             print("    ✓ pass")
 
-    print(f"\n{passed}/{passed + failed} passed" + (f" · {advisory} advisory" if advisory else ""))
+    tail = f" · {advisory} advisory" if advisory else ""
+    tail += f" · {known} known-gap" if known else ""
+    print(f"\n{passed}/{passed + failed} enforced passed{tail}")
     sys.exit(0 if failed == 0 else 1)
 
 

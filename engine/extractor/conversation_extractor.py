@@ -400,6 +400,9 @@ DO NOT EXTRACT — meta-conversation noise:
 - The User asking the Assistant to do something ("can you search for X", "help me with Y")
   — unless it reveals a personal fact about the User (e.g. "search for flights to Tokyo" → User plans to visit Tokyo)
 - Any fact that describes what happened IN this conversation rather than about the real world
+- Transient momentary states with no lasting significance: "I'm bored", "I'm tired right now",
+  "feeling hungry", "lol nothing much" — these are not durable facts. (A persistent pattern IS
+  a fact: "often feels burned out at work" → keep.)
 
 IMAGE DESCRIPTIONS:
 - Messages may contain "[Shared image: <description>]" — treat as REAL content the person shared

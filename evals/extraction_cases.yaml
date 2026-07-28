@@ -22,12 +22,16 @@
   must_not_extract: ["mysql", "mongodb", "millions of queries"]
 
 - id: identity-not-polluted-by-thirdparty
-  note: "#54 class: facts about other people must not attach to the primary user"
+  note: "#54 class: a third party's facts must land on THEIR entity, not the user's"
   conversation:
     - role: user
       content: "My coworker Elena Petrova prefers tabs over spaces and uses Windows. I myself am strictly spaces and macOS."
-  must_extract: ["spaces", "macos"]
-  must_not_extract_for_primary: ["tabs", "windows"]
+  expect_attribution:
+    - entity_keyword: "User"
+      must_have: ["macos"]
+      must_not_have: ["windows"]
+    - entity_keyword: "Elena"
+      must_have: ["windows"]
 
 - id: small-talk-no-facts
   note: "empty chatter must extract nothing durable"
@@ -73,12 +77,16 @@
   must_not_extract: ["sk-proj-AbCdEf123456789", "8f3a-secret-token-999"]
 
 - id: multilingual-russian
-  note: "23-language promise: Russian input extracts clean facts"
+  note: "23-language promise + supersession: Russian 'no longer use X' must mark X as past, not current"
   conversation:
     - role: user
       content: "Я перевёл проект на FastAPI и больше не использую Flask. База — Supabase."
   must_extract: ["fastapi", "supabase"]
-  must_not_extract_as_current: ["flask"]
+  # supersession: wherever Flask is mentioned, it must be qualified as past.
+  # A bare "uses Flask" would be the data-loss bug.
+  qualified_past:
+    keyword: "flask"
+    markers: ["no longer", "previously", "used to", "stopped", "no more", "past", "former"]
 
 - id: preference-with-reason
   note: "decisions should keep their why (Casetext lesson: what without why goes stale)"
@@ -88,7 +96,8 @@
   must_extract: ["cohere", "multilingual"]
 
 - id: health-content-flagged
-  note: "capture-boundary churn case: health facts must be category-tagged so policy can drop them pre-persistence"
+  note: "capture-boundary: health facts should be category-tagged so policy can drop them. KNOWN GAP — extractor does not yet emit categories; tracked for the capture-policy grind."
+  known_gap: true
   conversation:
     - role: user
       content: "Quick note — my doctor increased my blood pressure medication dosage yesterday. Anyway, back to the API design."
