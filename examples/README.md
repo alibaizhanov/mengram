@@ -10,6 +10,18 @@ Ready-to-run AI agents that showcase Mengram's 3 memory types. Each template is 
 
 ## Templates
 
+### 🌙 Kimi K3 + Memory — *give your Kimi agent long-term memory*
+
+**Stack:** `openai` client pointed at Moonshot + `mengram-ai` (offline mode needs neither)
+
+A minimal Kimi K3 agent with Mengram wired in as memory tools — it recalls facts and learned procedures across sessions. Kimi speaks the OpenAI API, so it's a drop-in. Multilingual (Chinese + English).
+
+```bash
+cd kimi-memory
+python kimi_agent.py --offline                     # walkthrough, no keys
+MOONSHOT_API_KEY=... MENGRAM_API_KEY=om-... python kimi_agent.py "what do you know about my deploy setup?"
+```
+
 ### ⭐ Procedural Memory Demo — *an agent that stops repeating its own mistakes*
 
 **Stack:** none for `--offline` (runs in 10s, no account), `mengram-ai` for `--cloud`
