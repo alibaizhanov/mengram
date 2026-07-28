@@ -5565,43 +5565,81 @@ REFLECTIONS/PATTERNS:
 
         old_version = old["version"]
         new_version = old_version + 1
+        new_metadata = metadata if metadata is not None else (old.get("metadata") or {})
 
-        # Mark old version as not current
-        with self._cursor() as cur:
-            cur.execute(
-                "UPDATE procedures SET is_current = FALSE, updated_at = NOW() WHERE id = %s",
-                (procedure_id,)
-            )
+        # --- Cross-procedure regression gate (v1) ---------------------------
+        # Before promoting, check whether this revision silently breaks another
+        # current procedure that shared surface with it. If so, quarantine the
+        # new version for review instead of shipping it to an agent. The one
+        # problem the 2025-26 procedural-memory literature leaves open.
+        from cloud.regression_gate import find_regressions
+        new_proc_view = {
+            "id": None, "name": old["name"],
+            "entity_names": old["entity_names"],
+            "steps": new_steps,
+            "trigger_condition": new_trigger or old["trigger_condition"],
+            "metadata": new_metadata,
+        }
+        regressions = []
+        try:
+            others = [p for p in self.get_procedures(user_id, limit=200, sub_user_id=sub_user_id)
+                      if str(p.get("id")) != str(procedure_id)]
+            regressions = find_regressions(old, new_proc_view, others)
+        except Exception as e:
+            logger.warning(f"regression gate skipped ({e})")
 
-        # Create new version. Metadata carries forward (previously dropped on
-        # evolution) — callers may pass an updated dict, e.g. with accumulated
-        # preconditions from failure-driven revisions.
+        gated = bool(regressions)
+        if gated:
+            gate_meta = dict(new_metadata)
+            gate_meta["status"] = "needs_review"
+            gate_meta["quarantine_reason"] = regressions
+            new_metadata = gate_meta
+
+        # Only retire the old current version if the new one is safe to promote.
+        if not gated:
+            with self._cursor() as cur:
+                cur.execute(
+                    "UPDATE procedures SET is_current = FALSE, updated_at = NOW() WHERE id = %s",
+                    (procedure_id,)
+                )
+
+        # Create new version. If gated, it lands as NOT current (quarantined) —
+        # the last known-good version stays authoritative until review.
         new_proc_id = self.save_procedure(
             user_id=user_id,
             name=old["name"],
             trigger_condition=new_trigger or old["trigger_condition"],
             steps=new_steps,
             entity_names=old["entity_names"],
-            metadata=metadata if metadata is not None else (old.get("metadata") or None),
+            metadata=new_metadata,
             version=new_version,
             parent_version_id=procedure_id,
             evolved_from_episode=episode_id,
-            is_current=True,
+            is_current=not gated,
             sub_user_id=sub_user_id,
         )
 
         # Log evolution
         with self._cursor() as cur:
+            log_diff = dict(diff or {})
+            if gated:
+                log_diff["quarantined"] = regressions
             cur.execute(
                 """INSERT INTO procedure_evolution
                    (procedure_id, episode_id, change_type, diff,
                     version_before, version_after)
                    VALUES (%s, %s, %s, %s::jsonb, %s, %s)""",
-                (new_proc_id, episode_id, change_type,
-                 json.dumps(diff or {}), old_version, new_version)
+                (new_proc_id, episode_id,
+                 "quarantined" if gated else change_type,
+                 json.dumps(log_diff), old_version, new_version)
             )
 
-        logger.info(f"🔄 Procedure evolved: {old['name']} v{old_version} → v{new_version}")
+        if gated:
+            names = ", ".join(r["dependent_name"] or "?" for r in regressions)
+            logger.info(f"🚧 Procedure revision quarantined: {old['name']} "
+                        f"v{old_version}→v{new_version} may break: {names}")
+        else:
+            logger.info(f"🔄 Procedure evolved: {old['name']} v{old_version} → v{new_version}")
         return new_proc_id
 
     def get_procedure_history(self, user_id: str, procedure_id: str, sub_user_id: str = "default") -> list[dict]:
