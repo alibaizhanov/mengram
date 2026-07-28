@@ -439,6 +439,63 @@ def cmd_auto_recall(args):
         _emit_hook_exit(EVENT, args, HOOK, "error")
 
 
+def _weekly_state_path():
+    return Path.home() / ".mengram" / "weekly-shown.json"
+
+
+def _iso_week_now():
+    import datetime as _dt
+    y, w, _ = _dt.date.today().isocalendar()
+    return f"{y}-W{w:02d}"
+
+
+def _maybe_weekly_message(mem, user_id):
+    """Once per ISO week, on the first SessionStart, return a compact plain-text
+    weekly report to show the user via systemMessage. Best-effort: any failure
+    (quota, network, no data) silently returns None. Never nags an empty week."""
+    try:
+        week = _iso_week_now()
+        state_path = _weekly_state_path()
+        shown = {}
+        if state_path.exists():
+            try:
+                shown = json.loads(state_path.read_text())
+            except Exception:
+                shown = {}
+        key = user_id or "default"
+        if shown.get(key) == week:
+            return None  # already shown this week
+
+        stats = mem.weekly_stats(user_id=user_id)
+        # Mark shown regardless (so we don't retry every session all week)
+        shown[key] = week
+        try:
+            state_path.parent.mkdir(parents=True, exist_ok=True)
+            state_path.write_text(json.dumps(shown))
+        except Exception:
+            pass
+
+        facts = stats.get("facts_learned", 0)
+        procs = stats.get("procedures_learned", 0)
+        recalls = stats.get("recalls_served", 0)
+        prevented = stats.get("prevented", [])
+        if not (facts or procs or recalls or prevented):
+            return None  # empty week — don't nag
+
+        lines = ["🧠 Mengram — your AI's memory, past 7 days:"]
+        lines.append(f"   {facts} facts learned · {procs} procedures · {recalls} recalls served")
+        if prevented:
+            lines.append(f"   Repeated mistakes prevented: {len(prevented)}")
+            for p in prevented[:3]:
+                bitten = p.get("last_bitten")
+                tail = f" (last bitten {bitten})" if bitten else ""
+                lines.append(f"     · {(p.get('name') or '?')[:40]}{tail}")
+        lines.append("   Full report: run  mengram weekly --share")
+        return "\n".join(lines)
+    except Exception:
+        return None
+
+
 def cmd_auto_context(args):
     """Hook handler — called by Claude Code on SessionStart. Loads cognitive profile as context."""
     HOOK = "auto-context"
@@ -455,12 +512,15 @@ def cmd_auto_context(args):
         mem = CloudMemory(api_key=api_key, base_url=base_url)
         profile = mem.get_profile(user_id=user_id)
 
+        weekly_msg = None if getattr(args, "no_weekly", False) else _maybe_weekly_message(mem, user_id)
+
         system_prompt = profile.get("system_prompt", "")
         if not system_prompt:
-            _emit_hook_exit(EVENT, args, HOOK, "no profile")
+            _emit_hook_exit(EVENT, args, HOOK, "no profile", system_message=weekly_msg)
 
         context = f"[Mengram Memory — user context loaded from past sessions]\n{system_prompt}"
-        _emit_hook_exit(EVENT, args, HOOK, f"context loaded ({len(system_prompt)} chars)", context=context)
+        _emit_hook_exit(EVENT, args, HOOK, f"context loaded ({len(system_prompt)} chars)",
+                        context=context, system_message=weekly_msg)
 
     except SystemExit:
         raise
@@ -802,7 +862,7 @@ def _hook_marker(hook_name: str, status: str) -> str:
     return f"[mengram:{hook_name}] {status}"
 
 
-def _emit_hook_exit(hook_event_name, args, hook_name, status, context=None):
+def _emit_hook_exit(hook_event_name, args, hook_name, status, context=None, system_message=None):
     """Emit a Claude Code hook JSON response and exit(0).
 
     Non-verbose (default): preserves prior silent behavior — suppressOutput
@@ -834,6 +894,13 @@ def _emit_hook_exit(hook_event_name, args, hook_name, status, context=None):
             }
     elif not context:
         payload["suppressOutput"] = True
+
+    # User-facing message (e.g. the weekly report) — shown to the human, never
+    # added to Claude's context. Appended after any verbose marker.
+    if system_message:
+        prior = payload.get("systemMessage", "")
+        payload["systemMessage"] = (prior + "\n\n" + system_message) if prior else system_message
+        payload.pop("suppressOutput", None)
 
     print(json.dumps(payload))
     sys.exit(0)
@@ -1915,6 +1982,8 @@ def main():
     p_autocontext.add_argument("--user-id", default=None)
     p_autocontext.add_argument("--verbose", action="store_true",
                                 help="Emit a status marker for each hook invocation")
+    p_autocontext.add_argument("--no-weekly", action="store_true",
+                                help="Suppress the once-a-week memory report")
 
     # web
     p_web = sub.add_parser("web", help="Start Web UI (chat + knowledge graph)")
