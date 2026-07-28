@@ -7213,18 +7213,31 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             # ---- Single batch embed call for ALL items ----
             episode_embeddings = {}  # episode_id -> embedding vector
             if embedder and embed_items:
+                from cloud.embedder import EmbeddingQuotaExceeded
                 all_texts = [item[2] for item in embed_items]
-                all_embeddings = embedder.embed_batch(all_texts)
-                for (item_type, item_id, text), emb in zip(embed_items, all_embeddings):
-                    if item_type == "entity":
-                        store.save_embedding(item_id, text, emb)
-                    elif item_type == "chunk":
-                        store.save_chunk_embedding(item_id, text, emb)
-                    elif item_type == "episode":
-                        store.save_episode_embedding(item_id, text, emb)
-                        episode_embeddings[item_id] = emb
-                    elif item_type == "procedure":
-                        store.save_procedure_embedding(item_id, text, emb)
+                try:
+                    all_embeddings = embedder.embed_batch(all_texts)
+                except EmbeddingQuotaExceeded as e:
+                    # Entities/episodes/procedures above are already persisted —
+                    # only search embeddings are missing. Degrade gracefully
+                    # instead of failing the whole add: log clearly so the
+                    # operator knows to check their embedding provider key/quota.
+                    logger.error(
+                        f"⚠️ Embedding provider unavailable (quota/auth) for user={user_id[:8]}, "
+                        f"saved without embeddings — check EMBEDDING_PROVIDER credentials: {e}"
+                    )
+                    all_embeddings = None
+                if all_embeddings:
+                    for (item_type, item_id, text), emb in zip(embed_items, all_embeddings):
+                        if item_type == "entity":
+                            store.save_embedding(item_id, text, emb)
+                        elif item_type == "chunk":
+                            store.save_chunk_embedding(item_id, text, emb)
+                        elif item_type == "episode":
+                            store.save_episode_embedding(item_id, text, emb)
+                            episode_embeddings[item_id] = emb
+                        elif item_type == "procedure":
+                            store.save_procedure_embedding(item_id, text, emb)
 
             # ---- Episode auto-linking (uses pre-computed embeddings) ----
             for episode_id, (ep, ep_text) in episode_embed_map.items():
