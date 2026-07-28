@@ -61,6 +61,11 @@ def test_dependent_already_satisfies():
     b = proc("B", "seed", steps=[{"step": 1, "action": "run migrations", "detail": "then insert"}])
     assert dependent_lacks_precondition(b, "run migrations before push") is False
 
+def test_negated_mention_does_not_count_as_satisfying():
+    # "no encryption header" contains the tokens but means the opposite
+    b = proc("B", "backup", steps=[{"step": 1, "action": "put object", "detail": "no encryption header"}])
+    assert dependent_lacks_precondition(b, "set SSE-KMS encryption header on put") is True
+
 
 # --- end-to-end regression detection ------------------------------------------
 def test_regression_detected():

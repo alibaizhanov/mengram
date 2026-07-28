@@ -80,21 +80,41 @@ def newly_added_preconditions(old_proc: dict, new_proc: dict) -> list:
     return [p for p in preconditions(new_proc) if p not in before]
 
 
+_NEGATORS = frozenset({"no", "not", "without", "skip", "skips", "skipping",
+                       "never", "dont", "doesnt", "don't", "doesn't", "n't"})
+
+
+def _covered_tokens(text: str) -> set:
+    """Tokens that positively appear in text, EXCLUDING tokens inside a negated
+    span. "no encryption header" must not count as covering encryption/header —
+    the dependent explicitly does NOT do it (fixes the s3-encryption miss)."""
+    words = _WORD.findall(text.lower())
+    covered, i = set(), 0
+    while i < len(words):
+        w = words[i]
+        if w in _NEGATORS:
+            i += 4  # drop the next few tokens governed by the negation
+            continue
+        if w not in _STOP and len(w) > 2:
+            covered.add(w)
+        i += 1
+    return covered
+
+
 def dependent_lacks_precondition(dependent: dict, precondition: str) -> bool:
     """True if `dependent` does NOT already satisfy `precondition`.
 
     A revision to A that adds a precondition K can break B if B invokes A's
-    effect but never satisfies K itself. We approximate 'satisfies K' by token
-    overlap between K and B's own steps/preconditions: if B's text already talks
-    about K's key tokens, assume it handles it; otherwise it's a candidate break.
+    effect but never satisfies K itself. We approximate 'satisfies K' by
+    negation-aware token overlap between K and B's own steps/preconditions: if B
+    positively does K's key tokens, assume it handles it; otherwise candidate break.
     """
     k_tokens = _tokens(precondition)
     if not k_tokens:
         return False
-    covered = _tokens(_procedure_text(dependent))
+    covered = _covered_tokens(_procedure_text(dependent))
     for p in preconditions(dependent):
-        covered |= _tokens(p)
-    # dependent satisfies K if it covers a majority of K's meaningful tokens
+        covered |= _covered_tokens(p)
     overlap = len(k_tokens & covered)
     return overlap < max(1, (len(k_tokens) + 1) // 2)
 

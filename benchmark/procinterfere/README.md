@@ -18,6 +18,9 @@ interference."* Nobody measures it. This does.
 **Silent-regression rate** — the % of memory revisions that break a dependent
 procedure and get promoted anyway, with no flag. Lower is better.
 
+Over 18 paired cases across 12 domains (Postgres, S3, Stripe, GitHub, Terraform,
+Redis, Kafka, SQS, Cloudflare, OpenAI, LaunchDarkly, DNS):
+
 ```
 system          silent-regression   false-quarantine
 ----------------------------------------------------
