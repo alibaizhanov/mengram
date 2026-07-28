@@ -10,6 +10,7 @@ Closed feedback loop between episodic and procedural memory:
 
 import json
 import logging
+import re
 
 logger = logging.getLogger("mengram")
 
@@ -472,31 +473,48 @@ class EvolutionEngine:
                            summary: str = "", context: str = "") -> bool:
         """Determine if an episode represents a failure.
 
-        Checks:
-        1. emotional_valence == "negative" → always True (primary signal)
-        2. emotional_valence == "positive" → always False
-        3. For neutral/mixed: scan outcome/summary/context for failure indicators
-        4. Negators override indicators ("fixed the error" is NOT a failure)
+        1. emotional_valence == "negative" → True (primary signal)
+        2. emotional_valence == "positive" → False
+        3. Neutral/mixed: weigh failure indicators against negators.
+
+        A negator no longer vetoes the whole episode from anywhere in the text
+        (fix #62): a positive word describing a different run, the local env, or
+        a workaround must not suppress a real failure. Instead we count
+        word-boundary matches and require indicators to outweigh negators, after
+        pulling out phrases like "worked around" / "rolling back" that are
+        themselves failure signals (a workaround implies something broke).
         """
         if emotional_valence == "negative":
             return True
         if emotional_valence == "positive":
             return False
 
-        # Neutral/mixed: scan text
         text = f"{outcome or ''} {summary or ''} {context or ''}".lower()
 
-        # Negators override — if the failure was resolved, it's not a failure
-        for negator in FAILURE_NEGATORS:
-            if negator in text:
-                return False
+        # Phrases that read as negators word-by-word but actually mean a failure
+        # occurred (there was a problem to work around / roll back / revert).
+        FAILURE_PHRASES = ["worked around", "work around", "workaround",
+                           "rolling back", "rolled back", "revert"]
+        indicator_hits = 0
+        for phrase in FAILURE_PHRASES:
+            n = text.count(phrase)
+            if n:
+                indicator_hits += n
+                text = text.replace(phrase, " ")  # consume so 'worked' isn't re-counted
 
-        # Check for failure indicators
-        for indicator in FAILURE_INDICATORS:
-            if indicator in text:
-                return True
+        def _wb_count(term: str) -> int:
+            # word-boundary for alnum terms; plain substring for phrases/symbols
+            if term.replace(" ", "").isalnum() and " " not in term:
+                return len(re.findall(r"\b" + re.escape(term) + r"\b", text))
+            return text.count(term)
 
-        return False
+        indicator_hits += sum(_wb_count(t) for t in FAILURE_INDICATORS)
+        negator_hits = sum(_wb_count(t) for t in FAILURE_NEGATORS)
+
+        # Failure if there's any failure signal that negators don't outnumber.
+        # Ties go to failure — better to evolve on a borderline case than to
+        # silently drop a real failure from the evolution path.
+        return indicator_hits > 0 and indicator_hits >= negator_hits
 
     def suggest_cross_procedure_updates(self, user_id: str,
                                           evolved_procedure_id: str,
