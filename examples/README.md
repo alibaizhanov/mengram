@@ -10,6 +10,18 @@ Ready-to-run AI agents that showcase Mengram's 3 memory types. Each template is 
 
 ## Templates
 
+### ⭐ Procedural Memory Demo — *an agent that stops repeating its own mistakes*
+
+**Stack:** none for `--offline` (runs in 10s, no account), `mengram-ai` for `--cloud`
+
+The 100-line head-to-head: the same agent runs a deploy task twice — botches it the first time, recalls what it learned and ships clean the second time. The fastest way to *see* what a static CLAUDE.md can't do.
+
+```bash
+cd procedural-memory-demo
+python deploy_agent.py --offline          # see it now, no account
+MENGRAM_API_KEY=om-... python deploy_agent.py --cloud   # the real thing
+```
+
 ### 1. DevOps Agent — *Experience-Driven Procedures*
 
 **Stack:** CloudMemory SDK (no LLM key needed)

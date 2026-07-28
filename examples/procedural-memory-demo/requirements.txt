@@ -1,0 +1,2 @@
+# Only needed for --cloud mode. --offline mode has zero dependencies.
+mengram-ai>=2.30.0
