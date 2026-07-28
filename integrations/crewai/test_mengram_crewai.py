@@ -16,9 +16,11 @@ from mengram_crewai import (
 
 def fake_client():
     m = MagicMock()
-    m.search.return_value = [
-        {"entity": "Ali", "type": "person", "facts": ["prefers dark mode", "uses Vim"]},
-    ]
+    m.search_all.return_value = {
+        "semantic": [{"entity": "Ali", "type": "person", "facts": ["prefers dark mode", "uses Vim"]}],
+        "episodic": [{"summary": "shipped the deploy fix"}],
+        "procedural": [{"name": "deploy", "version": 3}],
+    }
     m.add_text.return_value = {"status": "queued"}
     m.procedures.return_value = [{
         "name": "deploy", "version": 3, "success_count": 11, "fail_count": 1,
@@ -38,10 +40,12 @@ def test_search_formats_results():
     with patched(fake_client()):
         out = MengramSearchTool(api_key="om-x")._run(query="preferences")
     assert "Ali (person)" in out and "dark mode" in out
+    assert "event — shipped the deploy fix" in out
+    assert "procedure — deploy" in out
 
 
 def test_search_empty():
-    c = fake_client(); c.search.return_value = []
+    c = fake_client(); c.search_all.return_value = {"semantic": [], "episodic": [], "procedural": []}
     with patched(c):
         out = MengramSearchTool(api_key="om-x")._run(query="nothing")
     assert "No memories" in out

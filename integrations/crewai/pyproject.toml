@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mengram-crewai"
-version = "0.1.0"
+version = "0.2.0"
 description = "Mengram memory tools for CrewAI agents — semantic, episodic, and procedural memory (workflows that learn from failures)."
 readme = "README.md"
 license = { text = "Apache-2.0" }
