@@ -335,7 +335,13 @@ def create_mcp_server(brain: MengramBrain) -> "Server":
             ),
             Tool(
                 name="procedure_feedback",
-                description="Report success or failure of a procedure. Tracks reliability over time.",
+                description=(
+                    "Report success or failure of a procedure. Tracks a reliability "
+                    "track record (success/fail counts) over time. Note: this local "
+                    "self-hosted backend only counts outcomes — failure-driven "
+                    "evolution (revising a procedure into a new version from a failure "
+                    "context) runs on the Mengram cloud backend, not here."
+                ),
                 inputSchema={
                     "type": "object",
                     "properties": {

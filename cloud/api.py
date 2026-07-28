@@ -4308,7 +4308,7 @@ session = client.beta.sessions.create(
 <tr style="border-bottom:1px solid #1a1a2e;"><td style="padding:10px;"><code>search_all</code></td><td style="padding:10px;">Unified search across all 3 memory types</td></tr>
 <tr style="border-bottom:1px solid #1a1a2e;"><td style="padding:10px;"><code>context_for</code></td><td style="padding:10px;">Get relevant context pack for a specific task</td></tr>
 <tr style="border-bottom:1px solid #1a1a2e;"><td style="padding:10px;"><code>list_procedures</code></td><td style="padding:10px;">Retrieve learned workflows with success/failure tracking</td></tr>
-<tr style="border-bottom:1px solid #1a1a2e;"><td style="padding:10px;"><code>procedure_feedback</code></td><td style="padding:10px;">Report outcomes — procedures evolve automatically on failure</td></tr>
+<tr style="border-bottom:1px solid #1a1a2e;"><td style="padding:10px;"><code>procedure_feedback</code></td><td style="padding:10px;">Report outcomes — on <code>success=false</code> with a <code>context</code>, the procedure evolves into a revised version (cloud backend)</td></tr>
 <tr><td style="padding:10px;"><code>reflect</code></td><td style="padding:10px;">Trigger AI reflection to find patterns across memories</td></tr>
 </tbody>
 </table>
