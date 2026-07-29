@@ -6343,11 +6343,12 @@ m.delete_webhook(webhook_id=1)</code></pre>
         # Don't reveal whether email exists — always say "code sent"
         user_id = store.get_user_by_email(email)
         if user_id:
-            # Self-hosted: skip verification, reset key immediately
+            # Self-hosted: skip verification, issue a dashboard key immediately
+            # (additive — does not revoke existing keys, incl. a connector token)
             if DISABLE_EMAIL_VERIFICATION:
-                new_key = store.reset_api_key(user_id)
-                logger.info(f"✅ API key reset (email verification disabled) for {email}")
-                return {"message": "New API key generated.", "api_key": new_key}
+                new_key = store.create_api_key(user_id, name="dashboard")
+                logger.info(f"✅ Dashboard key issued (email verification disabled) for {email}")
+                return {"message": "Signed in.", "api_key": new_key}
 
             code = f"{secrets.randbelow(900000) + 100000}"
             store.save_email_code(email, code)
@@ -6378,12 +6379,15 @@ m.delete_webhook(webhook_id=1)</code></pre>
         if not user_id:
             raise HTTPException(status_code=404, detail="Account not found")
 
-        new_key = store.reset_api_key(user_id)
-        _send_api_key_email(email, new_key, is_reset=True)
+        # Non-destructive sign-in: issue an additional dashboard key without
+        # revoking existing keys (e.g. a live Claude-connector token). Rotating
+        # or revoking keys is done per-key in Settings, not here.
+        new_key = store.create_api_key(user_id, name="dashboard")
+        _send_api_key_email(email, new_key, is_reset=False)
 
         return SignupResponse(
             api_key=new_key,
-            message="New API key generated. Old keys are now inactive."
+            message="Signed in. A new dashboard key was created; your other keys stay active."
         )
 
     # ---- GitHub OAuth ----
@@ -8915,20 +8919,31 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         user_id = ctx.user_id
         if target_user_id != user_id:
             raise HTTPException(status_code=403, detail="Cannot access another user's profile")
-        use_quota(ctx, "rules")  # profile uses LLM, shares quota with rules
         # force=true bypasses cache → LLM call, restrict to paid plans
         if force and ctx.plan in ("free", "starter"):
             force = False
-        return store.get_profile(target_user_id, force=force, sub_user_id=sub_user_id)
+        # Meter "rules" only for a real LLM (re)generation; cached/empty reads are free.
+        was_cached = (not force) and store.cache.get(f"profile:{target_user_id}:{sub_user_id}") is not None
+        result = store.get_profile(target_user_id, force=force, sub_user_id=sub_user_id)
+        if not was_cached and result.get("status") == "ok":
+            use_quota(ctx, "rules")
+        return result
 
     @app.get("/v1/profile", tags=["Memory"])
     async def get_own_profile(force: bool = False, sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
         """Cognitive Profile for the authenticated user."""
         user_id = ctx.user_id
-        use_quota(ctx, "rules")  # profile uses LLM, shares quota with rules
         if force and ctx.plan in ("free", "starter"):
             force = False
-        return store.get_profile(user_id, force=force, sub_user_id=sub_user_id)
+        # Meter "rules" only for a real LLM (re)generation. A cached profile or an
+        # empty-memory profile is a free read — important because the MCP connector
+        # fetches this per request while building server instructions, which used
+        # to exhaust the small free "rules" quota on the first connect.
+        was_cached = (not force) and store.cache.get(f"profile:{user_id}:{sub_user_id}") is not None
+        result = store.get_profile(user_id, force=force, sub_user_id=sub_user_id)
+        if not was_cached and result.get("status") == "ok":
+            use_quota(ctx, "rules")
+        return result
 
     @app.get("/v1/rules", tags=["Memory"])
     async def generate_rules(

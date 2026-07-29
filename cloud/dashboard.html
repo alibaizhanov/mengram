@@ -925,13 +925,13 @@
             </div>
             <div id="reset-step-code" style="display:none">
                 <input type="text" class="login-input" id="reset-code" placeholder="6-digit code" maxlength="6" inputmode="numeric">
-                <button class="login-btn" onclick="verifyResetCode()">Get New Key</button>
+                <button class="login-btn" onclick="verifyResetCode()">Sign In</button>
             </div>
             <div class="login-error" id="reset-error" style="display:none"></div>
             <div id="reset-result" style="display:none;text-align:left;margin-top:12px;background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.15);padding:16px;border-radius:10px;"></div>
         </div>
         <div class="login-links">
-            <span id="link-forgot" style="cursor:pointer;color:var(--accent);" onclick="showResetFlow()">Lost your key?</span>
+            <span id="link-forgot" style="cursor:pointer;color:var(--accent);" onclick="showResetFlow()">No key? Sign in with email</span>
             <span id="link-back" style="display:none;cursor:pointer;color:var(--accent);" onclick="showKeyLogin()">← Back to login</span>
             &nbsp;·&nbsp; Don't have a key? <a href="/">Sign up free →</a>
         </div>
@@ -1910,7 +1910,7 @@ async function sendResetCode() {
                 const res = document.getElementById('reset-result');
                 res.style.display = 'block';
                 localStorage.setItem('mengram_key', d.api_key);
-                res.innerHTML = `<strong style="color:var(--green);">New key generated!</strong><p style="margin-top:8px;font-size:13px;color:var(--text-2);">Save it:</p><div style="margin-top:8px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:13px;word-break:break-all;">${esc(d.api_key)}</div><button onclick="copyText('${d.api_key.replace(/'/g,"\\'")}','API key');this.textContent='Copied!';setTimeout(()=>this.textContent='Copy Key',2000)" style="margin-top:8px;padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;width:100%;">Copy Key</button><button onclick="tryLogin('${d.api_key.replace(/'/g,"\\'")}')" style="margin-top:6px;padding:8px 16px;background:var(--bg-card);color:var(--accent);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:13px;width:100%;">Open Console with this key →</button>`;
+                res.innerHTML = `<strong style="color:var(--green);">Signed in!</strong><p style="margin-top:8px;font-size:13px;color:var(--text-2);">Your dashboard key:</p><div style="margin-top:8px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:13px;word-break:break-all;">${esc(d.api_key)}</div><button onclick="copyText('${d.api_key.replace(/'/g,"\\'")}','API key');this.textContent='Copied!';setTimeout(()=>this.textContent='Copy Key',2000)" style="margin-top:8px;padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;width:100%;">Copy Key</button><button onclick="tryLogin('${d.api_key.replace(/'/g,"\\'")}')" style="margin-top:6px;padding:8px 16px;background:var(--bg-card);color:var(--accent);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:13px;width:100%;">Open Console with this key →</button>`;
             } else {
                 _resetEmail = email;
                 document.getElementById('reset-step-email').style.display = 'none';
@@ -1933,7 +1933,7 @@ async function verifyResetCode() {
             const res = document.getElementById('reset-result');
             res.style.display = 'block';
             localStorage.setItem('mengram_key', d.api_key);
-            res.innerHTML = `<strong style="color:var(--green);">New key generated!</strong><p style="margin-top:8px;font-size:13px;color:var(--text-2);">Save it — old keys are now inactive:</p><div style="margin-top:8px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:13px;word-break:break-all;">${esc(d.api_key)}</div><button onclick="copyText('${d.api_key.replace(/'/g,"\\'")}','API key');this.textContent='Copied!';setTimeout(()=>this.textContent='Copy Key',2000)" style="margin-top:8px;padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;width:100%;">Copy Key</button><button onclick="tryLogin('${d.api_key.replace(/'/g,"\\'")}')" style="margin-top:6px;padding:8px 16px;background:var(--bg-card);color:var(--accent);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:13px;width:100%;">Open Console with this key →</button>`;
+            res.innerHTML = `<strong style="color:var(--green);">Signed in!</strong><p style="margin-top:8px;font-size:13px;color:var(--text-2);">Your dashboard key — other keys stay active:</p><div style="margin-top:8px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:13px;word-break:break-all;">${esc(d.api_key)}</div><button onclick="copyText('${d.api_key.replace(/'/g,"\\'")}','API key');this.textContent='Copied!';setTimeout(()=>this.textContent='Copy Key',2000)" style="margin-top:8px;padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;width:100%;">Copy Key</button><button onclick="tryLogin('${d.api_key.replace(/'/g,"\\'")}')" style="margin-top:6px;padding:8px 16px;background:var(--bg-card);color:var(--accent);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:13px;width:100%;">Open Console with this key →</button>`;
         } else { err.textContent = detailMsg(d.detail, 'Invalid code'); err.style.display = 'block'; }
     } catch(e) { err.textContent = 'Network error'; err.style.display = 'block'; }
 }
