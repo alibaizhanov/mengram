@@ -972,7 +972,7 @@ Be strict — only include entities that directly answer or relate to the query.
         html = f"""
         <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:0 auto;padding:40px 24px;color:#e8e8f0;background:#0a0a12;border-radius:16px">
             <div style="text-align:center;margin-bottom:32px">
-                <svg width="36" height="36" viewBox="0 0 120 120"><path d="M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68" fill="none" stroke="#a855f7" stroke-width="8" stroke-linecap="round"/><circle cx="62" cy="68" r="8" fill="#a855f7"/><circle cx="62" cy="68" r="3.5" fill="white"/></svg>
+                <svg width="36" height="36" viewBox="0 0 100 100"><path d="M22 65 V44 C22 36 36 36 40 44 V65 M40 44 C44 36 58 36 58 44 V54 C58 63 70 64 73 54" fill="none" stroke="#a855f7" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/><circle cx="75" cy="51" r="8" fill="#a855f7"/><circle cx="75" cy="51" r="3" fill="white"/></svg>
                 <h1 style="font-size:22px;font-weight:700;margin:8px 0 4px;color:#e8e8f0">Mengram</h1>
             </div>
             {body_html}
@@ -1047,7 +1047,7 @@ Be strict — only include entities that directly answer or relate to the query.
         html = f"""
         <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:0 auto;padding:40px 24px;color:#e8e8f0;background:#0a0a12;border-radius:16px">
             <div style="text-align:center;margin-bottom:32px">
-                <svg width="36" height="36" viewBox="0 0 120 120"><path d="M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68" fill="none" stroke="#a855f7" stroke-width="8" stroke-linecap="round"/><circle cx="62" cy="68" r="8" fill="#a855f7"/><circle cx="62" cy="68" r="3.5" fill="white"/></svg>
+                <svg width="36" height="36" viewBox="0 0 100 100"><path d="M22 65 V44 C22 36 36 36 40 44 V65 M40 44 C44 36 58 36 58 44 V54 C58 63 70 64 73 54" fill="none" stroke="#a855f7" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/><circle cx="75" cy="51" r="8" fill="#a855f7"/><circle cx="75" cy="51" r="3" fill="white"/></svg>
                 <h1 style="font-size:22px;font-weight:700;margin:8px 0 4px;color:#e8e8f0">Mengram</h1>
             </div>
             <p style="font-size:15px;color:#c8c8d8;line-height:1.6">
@@ -1200,7 +1200,7 @@ Be strict — only include entities that directly answer or relate to the query.
                 html = f"""
             <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:0 auto;padding:40px 24px;color:#e8e8f0;background:#0a0a12;border-radius:16px">
                 <div style="text-align:center;margin-bottom:32px">
-                    <svg width="36" height="36" viewBox="0 0 120 120"><path d="M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68" fill="none" stroke="#a855f7" stroke-width="8" stroke-linecap="round"/><circle cx="62" cy="68" r="8" fill="#a855f7"/><circle cx="62" cy="68" r="3.5" fill="white"/></svg>
+                    <svg width="36" height="36" viewBox="0 0 100 100"><path d="M22 65 V44 C22 36 36 36 40 44 V65 M40 44 C44 36 58 36 58 44 V54 C58 63 70 64 73 54" fill="none" stroke="#a855f7" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/><circle cx="75" cy="51" r="8" fill="#a855f7"/><circle cx="75" cy="51" r="3" fill="white"/></svg>
                     <h1 style="font-size:22px;font-weight:700;margin:8px 0 4px;color:#e8e8f0">Mengram</h1>
                 </div>
                 <p style="font-size:15px;color:#c8c8d8;line-height:1.6">Your API key has been reset. Old keys are now deactivated.</p>
@@ -1404,7 +1404,7 @@ m.search("query", agent_id="my-agent")</code></pre>
                 "html": f"""
                 <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:0 auto;padding:40px 24px;color:#e8e8f0;background:#0a0a12;border-radius:16px">
                     <div style="text-align:center;margin-bottom:32px">
-                        <svg width="36" height="36" viewBox="0 0 120 120"><path d="M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68" fill="none" stroke="#a855f7" stroke-width="8" stroke-linecap="round"/><circle cx="62" cy="68" r="8" fill="#a855f7"/><circle cx="62" cy="68" r="3.5" fill="white"/></svg>
+                        <svg width="36" height="36" viewBox="0 0 100 100"><path d="M22 65 V44 C22 36 36 36 40 44 V65 M40 44 C44 36 58 36 58 44 V54 C58 63 70 64 73 54" fill="none" stroke="#a855f7" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/><circle cx="75" cy="51" r="8" fill="#a855f7"/><circle cx="75" cy="51" r="3" fill="white"/></svg>
                         <h1 style="font-size:22px;font-weight:700;margin:8px 0 4px;color:#e8e8f0">Mengram</h1>
                     </div>
                     <p style="font-size:15px;color:#c8c8d8;line-height:1.6">Hi,</p>
@@ -1448,7 +1448,7 @@ m.search("query", agent_id="my-agent")</code></pre>
                 return f"""
                 <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:0 auto;padding:40px 24px;color:#e8e8f0;background:#0a0a12;border-radius:16px">
                     <div style="text-align:center;margin-bottom:32px">
-                        <svg width="36" height="36" viewBox="0 0 120 120"><path d="M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68" fill="none" stroke="#a855f7" stroke-width="8" stroke-linecap="round"/><circle cx="62" cy="68" r="8" fill="#a855f7"/><circle cx="62" cy="68" r="3.5" fill="white"/></svg>
+                        <svg width="36" height="36" viewBox="0 0 100 100"><path d="M22 65 V44 C22 36 36 36 40 44 V65 M40 44 C44 36 58 36 58 44 V54 C58 63 70 64 73 54" fill="none" stroke="#a855f7" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/><circle cx="75" cy="51" r="8" fill="#a855f7"/><circle cx="75" cy="51" r="3" fill="white"/></svg>
                         <h1 style="font-size:22px;font-weight:700;margin:8px 0 4px;color:#e8e8f0">Mengram</h1>
                     </div>
                     {body_html}
