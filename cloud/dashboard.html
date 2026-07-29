@@ -47,23 +47,41 @@
             --red-dim: rgba(248, 113, 113, 0.1);
         }
         [data-theme="light"] {
-            --bg: #f5f5f7;
-            --bg-card: #ffffff;
-            --bg-elevated: #f0f0f3;
-            --bg-hover: #e8e8ec;
-            --border: #d8d8e0;
-            --border-hover: #c0c0c8;
-            --text: #1a1a2e;
-            --text-2: #5a5a78;
-            --text-3: #9898b0;
-            --accent-dim: rgba(168, 85, 247, 0.08);
-            --accent-glow: rgba(168, 85, 247, 0.15);
-            --green-dim: rgba(16, 185, 129, 0.08);
-            --blue-dim: rgba(59, 130, 246, 0.08);
-            --orange-dim: rgba(245, 158, 11, 0.08);
-            --pink-dim: rgba(236, 72, 153, 0.08);
-            --red-dim: rgba(239, 68, 68, 0.08);
+            /* Rowboat-style light — approved 2026-07-29. Violet-tinted neutrals,
+               one violet accent, "600" semantic colours that read on white. */
+            --bg: #F4F3FA;
+            --bg-card: #FFFFFF;
+            --bg-elevated: #F3F0FB;
+            --bg-hover: #EDE9F7;
+            --border: #E9E5F4;
+            --border-hover: #D6CCEC;
+            --text: #191524;
+            --text-2: #6B6580;
+            --text-3: #A29BB6;
+            --accent: #7C3AED;
+            --accent-dim: rgba(124, 58, 237, 0.10);
+            --accent-glow: rgba(124, 58, 237, 0.18);
+            --green: #059669;
+            --green-dim: rgba(5, 150, 105, 0.10);
+            --blue: #2563EB;
+            --blue-dim: rgba(37, 99, 235, 0.08);
+            --orange: #EA580C;
+            --orange-dim: rgba(234, 88, 12, 0.08);
+            --pink: #DB2777;
+            --pink-dim: rgba(219, 39, 119, 0.08);
+            --red: #DC2626;
+            --red-dim: rgba(220, 38, 38, 0.08);
         }
+        /* Command / key / artifact chips stay dark on the light theme (a small
+           "terminal" chip reads as code and keeps the API key legible). */
+        [data-theme="light"] .path-cmd,
+        [data-theme="light"] .welcome-key-row,
+        [data-theme="light"] .m-know pre {
+            background: #14121F; border-color: #2A2740; color: #C9C4D6;
+        }
+        [data-theme="light"] .path-cmd code,
+        [data-theme="light"] .welcome-key-row code,
+        [data-theme="light"] .m-know pre { color: #34D399; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { background: var(--bg); color: var(--text); font-family: 'Sora', sans-serif; -webkit-font-smoothing: antialiased; min-height: 100vh; }
 
@@ -1430,7 +1448,7 @@ function toggleTheme() {
 }
 (function initTheme() {
     const saved = localStorage.getItem('mengram_theme');
-    if (saved === 'light') {
+    if (saved !== 'dark') {   // light is the default; only an explicit choice keeps dark
         document.documentElement.dataset.theme = 'light';
         const el = document.getElementById('theme-toggle');
         if (el) el.innerHTML = THEME_SUN;
