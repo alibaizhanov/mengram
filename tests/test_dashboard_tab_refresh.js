@@ -68,7 +68,12 @@ assert(autoRefreshGate('pro', '1', true), 'maintainer can opt hosted plans in');
 // A background refresh must not blank the list to a skeleton, must insert only
 // rows that aren't on screen, must place them under the date divider, and must
 // do nothing at all when the backend total is unchanged.
-const quietSrc = scripts.match(/async function _refreshFeedQuietly\(box\)[\s\S]*?\n\}/)[0];
+// Both functions run together: the refresh hands off to the stats debouncer,
+// so exercising the real one keeps the ordering guarantee under test rather
+// than stubbing the very thing that enforces it.
+const quietSrc = scripts.match(/async function _refreshFeedQuietly\(box\)[\s\S]*?\n\}/)[0]
+    + '\nlet _statsAfterFeed = null;\n'
+    + scripts.match(/function _refreshStatsAfterFeed\(\)[\s\S]*?\n\}/)[0];
 
 function runQuietRefresh({ total, feedTotal }) {
     const divider = { __id: 'DIVIDER' };
@@ -83,6 +88,7 @@ function runQuietRefresh({ total, feedTotal }) {
     };
     divider.nextSibling = sibling;
     let statsLoaded = false;
+    let statsAt = -1;
     const sandbox = {
         API: '', H: () => ({}), FEED_PAGE: 30,
         _feedOffset: 0, _feedTotal: feedTotal,
@@ -103,12 +109,19 @@ function runQuietRefresh({ total, feedTotal }) {
             }),
         },
         _renderFeedItem: it => it.id,
-        loadStats: () => { statsLoaded = true; },
-        setTimeout: () => {},
+        loadStats: () => { statsLoaded = true; statsAt = requests.length; },
+        // Run the debounced callback straight away so the assertion sees the
+        // real effect; the marker-cleanup timeout stays a no-op (no delay arg).
+        setTimeout: (fn, ms) => { if (ms === 120) fn(); },
+        clearTimeout: () => {},
     };
     const keys = Object.keys(sandbox);
     new Function(...keys, `${quietSrc}; return _refreshFeedQuietly(null);`)(...keys.map(k => sandbox[k]));
-    return { inserted, requests, get statsLoaded() { return statsLoaded; } };
+    return {
+        inserted, requests,
+        get statsLoaded() { return statsLoaded; },
+        get statsAt() { return statsAt; },
+    };
 }
 
 // Same harness, but nothing on screen matches — so all three rows are new.
@@ -141,6 +154,7 @@ function runQuietRefreshBatch() {
         _renderFeedItem: it => it.id,
         loadStats: () => {},
         setTimeout: () => {},
+        clearTimeout: () => {},
     };
     const keys = Object.keys(sandbox);
     new Function(...keys, `${quietSrc}; return _refreshFeedQuietly(null);`)(...keys.map(k => sandbox[k]));
@@ -199,6 +213,7 @@ function runQuietRefreshBatch() {
         _renderFeedItem: it => it.id,
         loadStats: () => {},
         setTimeout: () => {},
+        clearTimeout: () => {},
     };
     const keys = Object.keys(sandbox);
     new Function(...keys, `${quietSrc}; return _refreshFeedQuietly(null);`)(...keys.map(k => sandbox[k]));
@@ -210,6 +225,71 @@ function runQuietRefreshBatch() {
 }
 
 assert(!/renderSkeleton/.test(quietSrc), 'quiet refresh must never blank the list to a skeleton');
+
+// Regression: the header counters animate, and the feed refresh starts one on
+// every change. Two overlapping runs used to leave two requestAnimationFrame
+// loops writing to the same element, each with its own step and target, and
+// whichever frame landed last decided the value — so the counter could come to
+// rest on a number the server never reported.
+function countUpRace({ from, first, second, interrupt }) {
+    const src = scripts.match(/let _countUpRun = 0;[\s\S]*?\nfunction countUp\(el, target, duration=600\)[\s\S]*?\n\}/)[0];
+    // Record every write so an abandoned run that keeps painting is visible;
+    // the final value alone cannot show it, since both runs end on their target.
+    const writes = [];
+    let _text = String(from);
+    const el = {
+        dataset: {},
+        get textContent() { return _text; },
+        set textContent(v) { _text = String(v); writes.push(Number(v)); },
+    };
+    let queue = [];
+    const sandbox = {
+        requestAnimationFrame: fn => { queue.push(fn); },
+    };
+    const keys = Object.keys(sandbox);
+    const countUp = new Function(...keys, `${src}; return countUp;`)(...keys.map(k => sandbox[k]));
+
+    countUp(el, first);
+    // Let the first animation get partway, mid-flight.
+    for (let i = 0; i < interrupt; i++) {
+        const pending = queue; queue = [];
+        pending.forEach(fn => fn());
+    }
+    const writesBeforeRetarget = writes.length;
+    countUp(el, second);
+    // Drain everything still queued, both loops included.
+    for (let i = 0; i < 500 && queue.length; i++) {
+        const pending = queue; queue = [];
+        pending.forEach(fn => fn());
+    }
+    return { final: Number(el.textContent), after: writes.slice(writesBeforeRetarget) };
+}
+
+// Interrupted mid-animation, the newest target must win exactly.
+assert.strictEqual(countUpRace({ from: 3900, first: 3991, second: 3989, interrupt: 5 }).final, 3989,
+    'a counter interrupted mid-animation must settle on the newest value');
+// Same target twice must not drift.
+assert.strictEqual(countUpRace({ from: 3900, first: 3989, second: 3989, interrupt: 5 }).final, 3989,
+    'a repeated target must settle exactly, not overshoot');
+// Downward correction after an upward run: the case seen on screen.
+assert.strictEqual(countUpRace({ from: 3989, first: 4050, second: 3991, interrupt: 3 }).final, 3991,
+    'a counter must land on the last requested value even when direction flips');
+// Interrupted before the first frame ran at all.
+assert.strictEqual(countUpRace({ from: 100, first: 900, second: 105, interrupt: 0 }).final, 105,
+    'an immediate re-target must not leave the first run animating');
+
+// The final value alone proves nothing: an abandoned run also ends by writing
+// its own target, so both implementations land on the same last number. What
+// the generation counter actually buys is that the abandoned run stops
+// painting — otherwise two tickers alternate on one element and the counter
+// visibly jitters between two unrelated values before settling.
+//
+// After a downward re-target every write must descend. A surviving upward
+// ticker interleaves rising values among them, which is exactly the jitter
+// seen on screen.
+const flip = countUpRace({ from: 3989, first: 4050, second: 3991, interrupt: 3 });
+assert(flip.after.every((v, i) => i === 0 || v <= flip.after[i - 1]),
+    `writes after a downward re-target must descend monotonically, got ${flip.after}`);
 
 const changed = runQuietRefresh({ total: 3, feedTotal: 2 });
 const unchanged = runQuietRefresh({ total: 3, feedTotal: 3 });
@@ -231,6 +311,13 @@ setImmediate(() => {
             'newest row animates first, each later row delayed further');
     });
     assert(changed.statsLoaded, 'stats strip refreshes when the feed changed');
+    // Regression: /v1/stats used to be fired alongside the feed fetch, so the
+    // two responses could cross and the counter settled on a number matching
+    // neither the rows on screen nor the database (observed live: 3991 shown,
+    // 3989 after a reload). Reading stats only after both feed requests are in
+    // keeps the counter at or ahead of the rows, never behind them.
+    assert.strictEqual(changed.statsAt, changed.requests.length,
+        'stats must be read after the feed responses, not raced against them');
     // Unchanged feed: the cheap probe fires, the full page fetch must not.
     assert.strictEqual(unchanged.requests.length, 1, 'unchanged total costs exactly one probe request');
     assert(unchanged.requests[0].includes('limit=1'), 'probe asks for a single row, not a full page');

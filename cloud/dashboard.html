@@ -2880,12 +2880,27 @@ async function triggerReflection() {
     }
 }
 
+// Counters animate, so a second call can arrive while the first is still
+// running — the feed refresh triggers one on every change. Two live loops on
+// one element interleave writes and the value settles wherever the last frame
+// happened to land, which is how a counter ends up showing a number the server
+// never reported. Each run therefore claims the element and stops as soon as a
+// newer run takes over: the most recent target always wins.
+let _countUpRun = 0;
 function countUp(el, target, duration=600) {
-    const start = parseInt(el.textContent) || 0;
-    if (start === target) return;
+    if (!el) return;
+    const run = ++_countUpRun;
+    el.dataset.countRun = String(run);
+    // Read the pending target, not the rendered text: mid-animation the text is
+    // a rounded in-between frame, and starting from it drops the remainder.
+    const start = Number(el.dataset.countTarget ?? el.textContent) || 0;
+    el.dataset.countTarget = String(target);
+    if (start === target) { el.textContent = target; return; }
     const step = (target - start) / (duration / 16);
     let current = start;
     const tick = () => {
+        // A newer countUp owns the element now; this loop must not write again.
+        if (el.dataset.countRun !== String(run)) return;
         current += step;
         if ((step > 0 && current >= target) || (step < 0 && current <= target)) {
             el.textContent = target;
@@ -3069,13 +3084,10 @@ async function _refreshFeedQuietly(box) {
 
     const onScreen = new Set([...list.querySelectorAll('.feed-item')].map(el => el.dataset.factId));
     const fresh = d.feed.filter(it => !onScreen.has(String(it.id)));
-    // Counters live above the feed and move with it, so refresh them whenever
-    // the feed itself changed — including when the change is a deletion.
-    loadStats();
     // Only remember this total once the rows are actually on screen. Recording
     // it earlier means any later bail-out leaves the probe thinking it is up to
     // date, and the feed then stays frozen until a manual reload.
-    if (!fresh.length) { _feedTotal = d.total; return; }
+    if (!fresh.length) { _feedTotal = d.total; _refreshStatsAfterFeed(); return; }
 
     // Rows belong under the first date divider, not above it: the divider
     // labels the group ("Today"), so inserting before it strands new rows
@@ -3100,10 +3112,28 @@ async function _refreshFeedQuietly(box) {
         list.insertBefore(el, after);
     });
     _feedTotal = d.total;
+    _refreshStatsAfterFeed();
     // Drop the marker once the last row has finished, so re-renders don't replay it.
     setTimeout(() => list.querySelectorAll('.feed-item-new')
         .forEach(el => { el.classList.remove('feed-item-new'); el.style.removeProperty('--feed-stagger'); }),
         1000 + Math.min(fresh.length, 6) * 180);
+}
+
+// The counters sit above the feed and have to move with it. Reading /v1/stats
+// only after the feed response is in keeps the two in order: anything that
+// landed in between shows up as a counter ahead of the rows, never behind them.
+// Firing both at once instead let the two responses cross, and the counter
+// settled on a value that matched neither the rows on screen nor the database.
+//
+// This bounds the gap to one request; it cannot close it. /v1/stats and
+// /v1/feed are separate queries, so with extraction running there is always
+// real movement between them. An exact counter needs both served from one
+// snapshot — the feed response carrying the counts — which is an API change.
+let _statsAfterFeed = null;
+function _refreshStatsAfterFeed() {
+    // Collapse bursts: several refreshes in flight should cost one stats read.
+    if (_statsAfterFeed) clearTimeout(_statsAfterFeed);
+    _statsAfterFeed = setTimeout(() => { _statsAfterFeed = null; loadStats(); }, 120);
 }
 
 function _renderFeedItem(it) {
