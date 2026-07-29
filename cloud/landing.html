@@ -435,8 +435,8 @@
             font-size: 18px;
         }
         .how-num.n1 { background: var(--accent-dim); color: var(--accent); }
-        .how-num.n2 { background: var(--green-dim); color: var(--green); }
-        .how-num.n3 { background: rgba(96, 165, 250, 0.1); color: var(--blue); }
+        .how-num.n2 { background: var(--accent-dim); color: var(--accent); }
+        .how-num.n3 { background: var(--accent-dim); color: var(--accent); }
         .how-card h3 {
             font-size: 18px;
             font-weight: 600;
@@ -1172,8 +1172,8 @@
         }
         .pg-dot { width:8px;height:8px;border-radius:50%;display:inline-block; }
         .pg-dot-semantic { background:var(--accent); }
-        .pg-dot-episodic { background:var(--blue); }
-        .pg-dot-procedural { background:var(--green); }
+        .pg-dot-episodic { background:#c084fc; }
+        .pg-dot-procedural { background:#7c3aed; }
         .pg-card {
             background:var(--bg);border:1px solid var(--border);border-radius:10px;
             padding:14px 16px;margin-bottom:8px;font-size:13px;line-height:1.6;
@@ -1534,7 +1534,7 @@
             padding: 1px;
             background: conic-gradient(
                 from var(--gradient-angle),
-                var(--accent), #7c3aed, var(--blue), var(--green), var(--accent)
+                var(--accent), #7c3aed, #818cf8, #c084fc, var(--accent)
             );
             -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
             -webkit-mask-composite: xor;
@@ -3329,9 +3329,10 @@ POST /v1/add → {<span class="c-str">"messages"</span>: [...], <span class="c-s
             });
 
             // Color map for entity types
+            // Analogous violet palette — distinguishable node types, one brand hue family
             var typeColors = {
-                person: '#f472b6', technology: '#a855f7', system: '#60a5fa',
-                infrastructure: '#fb923c', artifact: '#34d399', unknown: '#9898b0'
+                person: '#e879f9', technology: '#a855f7', system: '#818cf8',
+                infrastructure: '#c084fc', artifact: '#a78bfa', unknown: '#9898b0'
             };
 
             var svg = '<svg class="pg-graph" viewBox="0 0 ' + W + ' ' + H + '">';
