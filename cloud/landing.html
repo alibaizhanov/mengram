@@ -70,14 +70,16 @@
         /* Code & terminal blocks stay dark on the light page — re-scope text tokens
            to light values inside them (backgrounds are already dark). Border stays
            light so the card edge reads against the page. */
-        .terminal, .code-box, .install-prompt-box {
+        .terminal, .code-box, .install-prompt-box, .step-cmd, .api-key-display {
             --text: #ECEAF6;
             --text-2: #A7A2BC;
             --text-3: #7B7593;
             --bg-elevated: #262436;
             --accent: #C4B5FD;
             --green: #34D399;
+            color: #ECEAF6;   /* apply it — bare <code>/<pre> text must be light on the dark island */
         }
+        .code-box code, .code-box pre { color: #ECEAF6; }
 
         /* Rowboat-composition hero: your tools → one memory graph → pitch */
         .hero-rb { padding: 36px 0 24px; }
@@ -1060,13 +1062,14 @@
             display: flex;
             align-items: center;
             gap: 8px;
-            background: rgba(0,0,0,0.4);
+            background: #14121F;
+            border: 1px solid #2A2740;
             border-radius: 8px;
             padding: 10px 14px;
             margin-top: 10px;
             font-family: 'JetBrains Mono', monospace;
             font-size: 13px;
-            color: var(--green);
+            color: #34D399;
             word-break: break-all;
         }
         .api-key-display button {
@@ -1128,8 +1131,8 @@
         .step-cmd {
             display: flex;
             align-items: center;
-            background: rgba(0,0,0,0.4);
-            border: 1px solid rgba(255,255,255,0.08);
+            background: #14121F;
+            border: 1px solid #2A2740;
             border-radius: 6px;
             padding: 6px 10px;
             gap: 8px;
@@ -1138,13 +1141,13 @@
             flex: 1;
             font-family: 'JetBrains Mono', monospace;
             font-size: 0.8rem;
-            color: var(--green);
+            color: #34D399;
             word-break: break-all;
         }
         .step-cmd button {
-            background: var(--bg-elevated);
-            border: 1px solid var(--border);
-            color: var(--text-2);
+            background: #24213A;
+            border: 1px solid #37324F;
+            color: #C4BEDA;
             padding: 3px 10px;
             border-radius: 4px;
             cursor: pointer;
