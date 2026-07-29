@@ -37,14 +37,14 @@ dependencies = [
     "pyyaml>=6.0",
     "numpy>=1.24",
     "certifi>=2024.0",
-    "mcp>=1.0",
+    "mcp==1.28.1",
 ]
 
 [project.optional-dependencies]
 anthropic = ["anthropic>=0.40"]
 openai = ["openai>=1.0"]
 embeddings = ["sentence-transformers>=2.2"]
-mcp = ["mcp>=1.0"]
+mcp = ["mcp==1.28.1"]
 api = ["fastapi>=0.100", "uvicorn>=0.20", "gunicorn>=21.0", "resend>=2.0", "psycopg2-binary>=2.9"]
 async = ["httpx>=0.25"]
 langchain = ["langchain-core>=0.2"]
@@ -53,7 +53,7 @@ all = [
     "anthropic>=0.40",
     "openai>=1.0",
     "sentence-transformers>=2.2",
-    "mcp>=1.0",
+    "mcp==1.28.1",
     "fastapi>=0.100",
     "uvicorn>=0.20",
     "langchain-core>=0.2",
