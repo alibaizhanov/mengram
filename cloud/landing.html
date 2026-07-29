@@ -3417,6 +3417,28 @@ POST /v1/add → {<span class="c-str">"messages"</span>: [...], <span class="c-s
                 .catch(function() {});
         })();
 
+        // ---- Playground: auto-build the demo graph on scroll-into-view ----
+        // Fires once, only if the user hasn't typed. pgSampleLoad(0) renders a
+        // pre-baked result (no API call), so this is free and the knowledge graph
+        // assembles itself as the visitor arrives — no click required.
+        (function autoPlayground() {
+            var section = document.getElementById('playground');
+            var input = document.getElementById('pg-extract-input');
+            if (!section || !input || typeof pgSampleLoad !== 'function') return;
+            if (!('IntersectionObserver' in window)) return;
+            var fired = false;
+            var obs = new IntersectionObserver(function(entries) {
+                for (var i = 0; i < entries.length; i++) {
+                    if (entries[i].isIntersecting && !fired) {
+                        fired = true;
+                        obs.disconnect();
+                        if (!input.value.trim()) pgSampleLoad(0);  // pre-baked demo, no network
+                    }
+                }
+            }, { threshold: 0.25 });
+            obs.observe(section);
+        })();
+
         // ---- Announcement Banner Dismiss ----
         function dismissBanner() {
             var bar = document.getElementById('announce-bar');
