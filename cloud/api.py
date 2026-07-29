@@ -10505,7 +10505,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
     try:
         from mcp.server.sse import SseServerTransport
-        from api.cloud_mcp_server import create_cloud_mcp_server as _create_mcp
+        from api.cloud_mcp_server import create_cloud_mcp_server as _create_mcp, DIRECTORY_CONNECTOR_TOOLS
         from cloud.client import CloudMemory as _CloudMemory
         from starlette.responses import JSONResponse as _JSONResponse
 
@@ -10571,7 +10571,13 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 return value.  transport.handle_request() writes the response
                 directly via the ASGI ``send`` callable and returns None —
                 a function endpoint would cause TypeError after every request.
+
+                ``tool_filter`` (optional) restricts the served tools to a
+                curated subset — used for the slim Connectors Directory surface.
                 """
+
+                def __init__(self, tool_filter=None):
+                    self._tool_filter = tool_filter
 
                 async def __call__(self, scope, receive, send):
                     request = Request(scope, receive, send)
@@ -10591,7 +10597,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                     base = os.environ.get("MENGRAM_INTERNAL_URL") \
                         or f"http://127.0.0.1:{os.environ.get('PORT', '8000')}"
                     mem = _CloudMemory(api_key=key, base_url=base)
-                    mcp_server = _create_mcp(mem)
+                    mcp_server = _create_mcp(mem, tool_filter=self._tool_filter)
 
                     transport = StreamableHTTPServerTransport(
                         mcp_session_id=None,
@@ -10611,6 +10617,13 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
             app.add_route("/mcp", _MCPStreamableHandler(), methods=["GET", "POST", "DELETE"])
             logger.info("✅ MCP Streamable HTTP transport enabled at /mcp")
+
+            # Slim, curated surface for the Claude Connectors Directory listing —
+            # same handler, restricted to the DIRECTORY_CONNECTOR_TOOLS subset.
+            app.add_route("/mcp/connector", _MCPStreamableHandler(DIRECTORY_CONNECTOR_TOOLS),
+                          methods=["GET", "POST", "DELETE"])
+            logger.info("✅ MCP Connectors Directory surface at /mcp/connector (%d tools)",
+                        len(DIRECTORY_CONNECTOR_TOOLS))
 
         except ImportError:
             logger.info("ℹ️  MCP Streamable HTTP not available (mcp>=1.26 required)")
