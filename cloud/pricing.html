@@ -12,22 +12,23 @@
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Sora:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
         :root {
-            --bg: #05050a;
-            --bg-card: #0a0a14;
-            --bg-elevated: #0f0f1a;
-            --border: #1a1a2e;
-            --border-hover: #2a2a44;
-            --text: #e8e8f0;
-            --text-2: #9898b0;
-            --text-3: #5a5a78;
-            --accent: #a855f7;
-            --accent-dim: rgba(168, 85, 247, 0.12);
-            --accent-glow: rgba(168, 85, 247, 0.25);
-            --green: #34d399;
-            --green-dim: rgba(52, 211, 153, 0.1);
-            --blue: #60a5fa;
-            --orange: #fb923c;
-            --pink: #f472b6;
+            /* Light direction — matches landing (approved 2026-07-29) */
+            --bg: #F6F5FB;
+            --bg-card: #FFFFFF;
+            --bg-elevated: #F0EDF8;
+            --border: #E7E3F2;
+            --border-hover: #D6CCEC;
+            --text: #171320;
+            --text-2: #6B6580;
+            --text-3: #9A93AC;
+            --accent: #7C3AED;
+            --accent-dim: rgba(124, 58, 237, 0.10);
+            --accent-glow: rgba(124, 58, 237, 0.20);
+            --green: #059669;
+            --green-dim: rgba(5, 150, 105, 0.10);
+            --blue: #2563EB;
+            --orange: #EA580C;
+            --pink: #DB2777;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -524,10 +525,10 @@
 
         /* Code blocks inside panels */
         .code-box {
-            background: rgba(0,0,0,0.4);
+            background: #F5F3FC;
             border: 1px solid var(--border);
             border-radius: 10px;
-            padding: 14px 18px;
+            padding: 14px 66px 14px 16px;
             margin-top: 10px;
             font-family: 'JetBrains Mono', monospace;
             font-size: 13px;
@@ -547,10 +548,10 @@
             font-family: 'Sora', sans-serif;
         }
         .code-box .copy-btn:hover { color: var(--text); border-color: var(--border-hover); }
-        .c-kw { color: #c084fc; }
-        .c-str { color: #34d399; }
+        .c-kw { color: #7c3aed; }
+        .c-str { color: #059669; }
         .c-cmt { color: var(--text-3); }
-        .c-fn { color: #60a5fa; }
+        .c-fn { color: #2563eb; }
 
         /* ---- Install in one prompt ---- */
         .install-prompt-section {
@@ -961,7 +962,8 @@
             display: flex;
             align-items: center;
             gap: 8px;
-            background: rgba(0,0,0,0.4);
+            background: #F5F3FC;
+            border: 1px solid var(--border);
             border-radius: 8px;
             padding: 10px 14px;
             margin-top: 10px;
@@ -1029,8 +1031,8 @@
         .step-cmd {
             display: flex;
             align-items: center;
-            background: rgba(0,0,0,0.4);
-            border: 1px solid rgba(255,255,255,0.08);
+            background: #F5F3FC;
+            border: 1px solid var(--border);
             border-radius: 6px;
             padding: 6px 10px;
             gap: 8px;
