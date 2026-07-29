@@ -70,16 +70,11 @@
         /* Code & terminal blocks stay dark on the light page — re-scope text tokens
            to light values inside them (backgrounds are already dark). Border stays
            light so the card edge reads against the page. */
-        .terminal, .code-box, .install-prompt-box, .step-cmd, .api-key-display {
-            --text: #ECEAF6;
-            --text-2: #A7A2BC;
-            --text-3: #7B7593;
-            --bg-elevated: #262436;
-            --accent: #C4B5FD;
-            --green: #34D399;
-            color: #ECEAF6;   /* apply it — bare <code>/<pre> text must be light on the dark island */
+        /* Terminal stays dark if ever used; other code blocks are light on the light theme. */
+        .terminal {
+            --text: #ECEAF6; --text-2: #A7A2BC; --text-3: #7B7593; color: #ECEAF6;
         }
-        .code-box code, .code-box pre { color: #ECEAF6; }
+        .code-box code, .code-box pre { color: var(--text); }
 
         /* Rowboat-composition hero: your tools → one memory graph → pitch */
         .hero-rb { padding: 36px 0 24px; }
@@ -625,10 +620,10 @@
 
         /* Code blocks inside panels */
         .code-box {
-            background: #14121F;
+            background: #F5F3FC;
             border: 1px solid var(--border);
             border-radius: 10px;
-            padding: 14px 18px;
+            padding: 14px 66px 14px 16px;
             margin-top: 10px;
             font-family: 'JetBrains Mono', monospace;
             font-size: 13px;
@@ -648,10 +643,10 @@
             font-family: 'Sora', sans-serif;
         }
         .code-box .copy-btn:hover { color: var(--text); border-color: var(--border-hover); }
-        .c-kw { color: #c084fc; }
-        .c-str { color: #34d399; }
+        .c-kw { color: #7c3aed; }
+        .c-str { color: #059669; }
         .c-cmt { color: var(--text-3); }
-        .c-fn { color: #60a5fa; }
+        .c-fn { color: #2563eb; }
 
         /* ---- Install in one prompt ---- */
         .install-prompt-section {
@@ -1062,14 +1057,14 @@
             display: flex;
             align-items: center;
             gap: 8px;
-            background: #14121F;
-            border: 1px solid #2A2740;
+            background: #F5F3FC;
+            border: 1px solid var(--border);
             border-radius: 8px;
             padding: 10px 14px;
             margin-top: 10px;
             font-family: 'JetBrains Mono', monospace;
             font-size: 13px;
-            color: #34D399;
+            color: #059669;
             word-break: break-all;
         }
         .api-key-display button {
@@ -1131,8 +1126,8 @@
         .step-cmd {
             display: flex;
             align-items: center;
-            background: #14121F;
-            border: 1px solid #2A2740;
+            background: #F5F3FC;
+            border: 1px solid var(--border);
             border-radius: 6px;
             padding: 6px 10px;
             gap: 8px;
@@ -1141,13 +1136,13 @@
             flex: 1;
             font-family: 'JetBrains Mono', monospace;
             font-size: 0.8rem;
-            color: #34D399;
+            color: #059669;
             word-break: break-all;
         }
         .step-cmd button {
-            background: #24213A;
-            border: 1px solid #37324F;
-            color: #C4BEDA;
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            color: var(--text-3);
             padding: 3px 10px;
             border-radius: 4px;
             cursor: pointer;
