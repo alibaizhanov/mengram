@@ -1899,8 +1899,14 @@ class CloudStore:
                 for r in cur.fetchall()
             ]
 
-    def save_oauth_code(self, code: str, user_id: str, redirect_uri: str, state: str):
-        """Save OAuth authorization code (expires in 5 min)."""
+    def save_oauth_code(self, code: str, user_id: str, redirect_uri: str, state: str,
+                        code_challenge: str = None, code_challenge_method: str = None):
+        """Save OAuth authorization code (expires in 5 min).
+
+        Stores the PKCE challenge (RFC 7636) when provided so the token exchange
+        can verify the ``code_verifier``. Columns are added idempotently so the
+        table upgrades in place for the legacy (non-PKCE) ChatGPT flow.
+        """
         with self._cursor() as cur:
             cur.execute(
                 """CREATE TABLE IF NOT EXISTS oauth_codes (
@@ -1908,27 +1914,43 @@ class CloudStore:
                     user_id TEXT NOT NULL,
                     redirect_uri TEXT,
                     state TEXT,
+                    code_challenge TEXT,
+                    code_challenge_method TEXT,
                     created_at TIMESTAMPTZ DEFAULT NOW()
                 )"""
             )
+            cur.execute("ALTER TABLE oauth_codes ADD COLUMN IF NOT EXISTS code_challenge TEXT")
+            cur.execute("ALTER TABLE oauth_codes ADD COLUMN IF NOT EXISTS code_challenge_method TEXT")
             cur.execute(
-                """INSERT INTO oauth_codes (code, user_id, redirect_uri, state)
-                   VALUES (%s, %s, %s, %s)""",
-                (code, user_id, redirect_uri, state)
+                """INSERT INTO oauth_codes (code, user_id, redirect_uri, state, code_challenge, code_challenge_method)
+                   VALUES (%s, %s, %s, %s, %s, %s)""",
+                (code, user_id, redirect_uri, state, code_challenge, code_challenge_method)
             )
 
     def verify_oauth_code(self, code: str) -> Optional[dict]:
-        """Verify and consume OAuth code. Returns {user_id, redirect_uri, state} or None."""
+        """Verify and consume OAuth code. Returns
+        {user_id, redirect_uri, state, code_challenge, code_challenge_method} or None."""
         with self._cursor(dict_cursor=True) as cur:
+            # Idempotent guard: a pre-deploy code redeemed before the first new
+            # save_oauth_code ran would otherwise hit a missing column.
+            cur.execute("ALTER TABLE oauth_codes ADD COLUMN IF NOT EXISTS code_challenge TEXT")
+            cur.execute("ALTER TABLE oauth_codes ADD COLUMN IF NOT EXISTS code_challenge_method TEXT")
             cur.execute(
-                """SELECT user_id, redirect_uri, state FROM oauth_codes
+                """SELECT user_id, redirect_uri, state, code_challenge, code_challenge_method
+                   FROM oauth_codes
                    WHERE code = %s AND created_at > NOW() - INTERVAL '5 minutes'""",
                 (code,)
             )
             row = cur.fetchone()
             if row:
                 cur.execute("DELETE FROM oauth_codes WHERE code = %s", (code,))
-                return {"user_id": str(row["user_id"]), "redirect_uri": row["redirect_uri"], "state": row["state"]}
+                return {
+                    "user_id": str(row["user_id"]),
+                    "redirect_uri": row["redirect_uri"],
+                    "state": row["state"],
+                    "code_challenge": row["code_challenge"],
+                    "code_challenge_method": row["code_challenge_method"],
+                }
             return None
 
     # ---- Entities ----

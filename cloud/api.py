@@ -6682,11 +6682,16 @@ a{{color:#a855f7;text-decoration:none}}
         redirect_uri: str = "",
         state: str = "",
         response_type: str = "code",
+        code_challenge: str = "",
+        code_challenge_method: str = "",
     ):
-        """OAuth authorize page — shows email login."""
+        """OAuth authorize page — shows email login. Carries the PKCE challenge
+        (RFC 7636) through the login step so the token exchange can verify it."""
         from urllib.parse import quote
         redirect_uri_encoded = quote(redirect_uri, safe="")
         state_encoded = quote(state, safe="")
+        code_challenge_encoded = quote(code_challenge, safe="")
+        code_challenge_method_encoded = quote(code_challenge_method, safe="")
         return HTMLResponse(f"""<!DOCTYPE html>
 <html><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -6733,6 +6738,8 @@ a{{color:#a855f7;text-decoration:none}}
 <script>
 const redirectUri = decodeURIComponent("{redirect_uri_encoded}");
 const state = decodeURIComponent("{state_encoded}");
+const codeChallenge = decodeURIComponent("{code_challenge_encoded}");
+const codeChallengeMethod = decodeURIComponent("{code_challenge_method_encoded}");
 
 async function sendCode() {{
   const email = document.getElementById('email').value.trim();
@@ -6759,7 +6766,7 @@ async function verifyCode() {{
   const res = await fetch('/oauth/verify', {{
     method: 'POST',
     headers: {{'Content-Type': 'application/json'}},
-    body: JSON.stringify({{email, code, redirect_uri: redirectUri, state}})
+    body: JSON.stringify({{email, code, redirect_uri: redirectUri, state, code_challenge: codeChallenge, code_challenge_method: codeChallengeMethod}})
   }});
   const data = await res.json();
   if (data.redirect) {{
@@ -6826,6 +6833,8 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         code = req.get("code", "").strip()
         redirect_uri = req.get("redirect_uri", "")
         state = req.get("state", "")
+        code_challenge = req.get("code_challenge", "")
+        code_challenge_method = req.get("code_challenge_method", "")
 
         # Brute-force protection: 5 attempts/min per email, 20/min per IP
         if not _check_rate_limit(f"verify:{email}", 5):
@@ -6851,9 +6860,11 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             if parsed.scheme == "http" and parsed.hostname not in ("localhost", "127.0.0.1"):
                 return {"error": "redirect_uri must use HTTPS"}
 
-        # Create OAuth authorization code
+        # Create OAuth authorization code (with PKCE challenge when provided)
         oauth_code = secrets.token_urlsafe(32)
-        store.save_oauth_code(oauth_code, user_id, redirect_uri, state)
+        store.save_oauth_code(oauth_code, user_id, redirect_uri, state,
+                              code_challenge=code_challenge or None,
+                              code_challenge_method=code_challenge_method or None)
 
         # Build redirect URL
         separator = "&" if "?" in redirect_uri else "?"
@@ -6868,6 +6879,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         client_id: str = Form(""),
         client_secret: str = Form(""),
         redirect_uri: str = Form(""),
+        code_verifier: str = Form(""),
     ):
         """Exchange OAuth code for access token."""
         if grant_type != "authorization_code":
@@ -6882,15 +6894,87 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         if redirect_uri and stored_redirect and redirect_uri != stored_redirect:
             raise HTTPException(status_code=400, detail="redirect_uri mismatch")
 
+        # PKCE verification (RFC 7636) — required whenever a challenge was stored
+        # at /authorize (Claude and every OAuth 2.1 client sends one; the legacy
+        # ChatGPT flow sends none and skips this branch).
+        challenge = result.get("code_challenge")
+        if challenge:
+            if not code_verifier:
+                raise HTTPException(status_code=400, detail="code_verifier required")
+            method = (result.get("code_challenge_method") or "plain").upper()
+            if method == "S256":
+                import hashlib as _hashlib
+                import base64 as _base64
+                digest = _hashlib.sha256(code_verifier.encode("ascii")).digest()
+                computed = _base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+            elif method == "PLAIN":
+                computed = code_verifier
+            else:
+                raise HTTPException(status_code=400, detail="Unsupported code_challenge_method")
+            if not secrets.compare_digest(computed, challenge):
+                raise HTTPException(status_code=400, detail="Invalid code_verifier")
+
         # Get or create API key for this user
         user_id = result["user_id"]
-        api_key = store.create_api_key(user_id, name="chatgpt-oauth")
+        api_key = store.create_api_key(user_id, name="oauth-connector")
 
         return {
             "access_token": api_key,
             "token_type": "Bearer",
             "scope": "read write",
         }
+
+    # ---- OAuth 2.1 discovery + dynamic registration (MCP / Claude Connectors) ----
+    # These make the OAuth flow above discoverable by MCP clients (RFC 9728,
+    # RFC 8414, RFC 7591). Token validation is already handled by verify_api_key
+    # since the access_token issued above IS a Mengram API key.
+
+    _OAUTH_ISSUER = "https://mengram.io"
+
+    @app.get("/.well-known/oauth-authorization-server", include_in_schema=False)
+    async def oauth_authorization_server_metadata():
+        """Authorization Server Metadata (RFC 8414)."""
+        return {
+            "issuer": _OAUTH_ISSUER,
+            "authorization_endpoint": f"{_OAUTH_ISSUER}/oauth/authorize",
+            "token_endpoint": f"{_OAUTH_ISSUER}/oauth/token",
+            "registration_endpoint": f"{_OAUTH_ISSUER}/oauth/register",
+            "response_types_supported": ["code"],
+            "grant_types_supported": ["authorization_code"],
+            "code_challenge_methods_supported": ["S256"],
+            "token_endpoint_auth_methods_supported": ["none", "client_secret_post"],
+            "scopes_supported": ["read", "write"],
+        }
+
+    @app.get("/.well-known/oauth-protected-resource", include_in_schema=False)
+    @app.get("/.well-known/oauth-protected-resource/{resource_path:path}", include_in_schema=False)
+    async def oauth_protected_resource_metadata(resource_path: str = ""):
+        """Protected Resource Metadata (RFC 9728) — points MCP clients at the AS.
+        Served at the root and at any resource path suffix Claude probes."""
+        return {
+            "resource": f"{_OAUTH_ISSUER}/mcp/connector",
+            "authorization_servers": [_OAUTH_ISSUER],
+            "bearer_methods_supported": ["header"],
+            "scopes_supported": ["read", "write"],
+        }
+
+    @app.post("/oauth/register", status_code=201, include_in_schema=False)
+    async def oauth_register(req: dict):
+        """Dynamic Client Registration (RFC 7591). Public client + PKCE, so no
+        client secret is issued; the authorize/token flow above validates via
+        PKCE and redirect_uri, not a client secret."""
+        client_id = "mcp_" + secrets.token_urlsafe(16)
+        resp = {
+            "client_id": client_id,
+            "token_endpoint_auth_method": "none",
+            "grant_types": ["authorization_code"],
+            "response_types": ["code"],
+            "redirect_uris": req.get("redirect_uris") or [],
+        }
+        for k in ("client_name", "client_uri", "scope", "logo_uri"):
+            if req.get(k):
+                resp[k] = req[k]
+        return resp
 
     @app.get("/health", include_in_schema=False)
     @app.get("/v1/health", tags=["System"])
@@ -10581,14 +10665,19 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
                 async def __call__(self, scope, receive, send):
                     request = Request(scope, receive, send)
+                    # Point unauthenticated MCP clients (Claude Connectors) at the
+                    # OAuth flow via RFC 9728 resource metadata. API-key clients
+                    # (CLI/Cursor config) simply send the key and never see this.
+                    _www = {"WWW-Authenticate":
+                            'Bearer resource_metadata="https://mengram.io/.well-known/oauth-protected-resource"'}
                     key = _extract_mcp_key(request)
                     if not key:
-                        resp = _JSONResponse({"error": "Missing API key"}, status_code=401)
+                        resp = _JSONResponse({"error": "Missing API key"}, status_code=401, headers=_www)
                         await resp(scope, receive, send)
                         return
                     uid = store.verify_api_key(key)
                     if not uid:
-                        resp = _JSONResponse({"error": "Invalid API key"}, status_code=401)
+                        resp = _JSONResponse({"error": "Invalid API key"}, status_code=401, headers=_www)
                         await resp(scope, receive, send)
                         return
 
