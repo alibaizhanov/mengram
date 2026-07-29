@@ -6674,7 +6674,7 @@ a{{color:#a855f7;text-decoration:none}}
             return {"status": "renamed", "key_id": key_id, "name": name}
         raise HTTPException(status_code=404, detail="Key not found")
 
-    # ---- OAuth (for ChatGPT Custom GPTs) ----
+    # ---- OAuth (Claude Connectors + ChatGPT Custom GPTs) ----
 
     @app.get("/oauth/authorize")
     async def oauth_authorize(
@@ -6719,7 +6719,7 @@ a{{color:#a855f7;text-decoration:none}}
 <div class="card">
   <div class="logo"><svg width='32' height='32' viewBox='0 0 120 120'><path d='M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68' fill='none' stroke='#a855f7' stroke-width='8' stroke-linecap='round'/><circle cx='62' cy='68' r='8' fill='#a855f7'/><circle cx='62' cy='68' r='3.5' fill='white'/></svg></div>
   <h1>Sign in to Mengram</h1>
-  <p>Connect your memory to ChatGPT</p>
+  <p>Connect your memory to your AI assistant</p>
 
   <div id="step1" class="step active">
     <input type="email" id="email" placeholder="your@email.com" autofocus>
