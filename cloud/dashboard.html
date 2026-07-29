@@ -1919,6 +1919,10 @@ window.addEventListener('focus', () => {
 // minutes. This watchdog compares against the wall clock instead of trusting
 // the interval, and fires the refresh the interval owed us.
 setInterval(() => {
+    // Also re-arms a timer that never started: the plan gate is only known
+    // once /v1/me answers, so a slow or failed response can leave the feature
+    // available but idle. _sync is a no-op when it is already running.
+    _syncFeedAutoRefresh();
     if (!_feedTimer) return;
     if (Date.now() - _feedLastRefresh < FEED_REFRESH_MS * 1.5) return;
     _feedLastRefresh = Date.now();
@@ -2357,6 +2361,11 @@ async function loadAccount() {
             _plan = d.plan || '';
             const arSection = document.getElementById('feed-autorefresh-section');
             if (arSection) arSection.style.display = _feedAutoRefreshAvailable() ? '' : 'none';
+            // The plan gates auto-refresh, and it only arrives here — after the
+            // initial switchTabDirect() has already run and found the feature
+            // unavailable. Without this the timer never starts on a fresh load,
+            // and only a later tab switch brings it to life.
+            _syncFeedAutoRefresh();
             document.getElementById('account-email').textContent = d.email;
             document.getElementById('account-email').title = d.email;
             const planEl = document.getElementById('account-plan');
