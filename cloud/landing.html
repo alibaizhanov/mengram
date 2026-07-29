@@ -3432,7 +3432,11 @@ POST /v1/add → {<span class="c-str">"messages"</span>: [...], <span class="c-s
                     if (entries[i].isIntersecting && !fired) {
                         fired = true;
                         obs.disconnect();
-                        if (!input.value.trim()) pgSampleLoad(0);  // pre-baked demo, no network
+                        if (!input.value.trim()) {
+                            pgSampleLoad(0);  // renders the pre-baked demo result (no network)
+                            var r = document.getElementById('pg-extract-results');
+                            if (r) r.classList.add('show');  // reveal it (demo path skips 'show')
+                        }
                     }
                 }
             }, { threshold: 0.25 });
