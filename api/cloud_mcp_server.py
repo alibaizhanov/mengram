@@ -28,7 +28,7 @@ from urllib.parse import unquote
 try:
     from mcp.server import Server
     from mcp.server.stdio import stdio_server
-    from mcp.types import Tool, TextContent, Resource, ResourceTemplate
+    from mcp.types import Tool, TextContent, Resource, ResourceTemplate, Icon
     MCP_AVAILABLE = True
 except ImportError:
     MCP_AVAILABLE = False
@@ -237,7 +237,12 @@ def create_cloud_mcp_server(
             f"{profile}"
         )
 
-    server = Server("mengram-cloud", instructions=instructions)
+    server = Server(
+        "mengram-cloud",
+        instructions=instructions,
+        website_url="https://mengram.io",
+        icons=[Icon(src="https://mengram.io/icon.svg", mimeType="image/svg+xml", sizes=["any"])],
+    )
 
     # ---- Resources ----
 

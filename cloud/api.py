@@ -6717,7 +6717,7 @@ a{{color:#a855f7;text-decoration:none}}
 </style>
 </head><body>
 <div class="card">
-  <div class="logo"><svg width='32' height='32' viewBox='0 0 120 120'><path d='M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68' fill='none' stroke='#a855f7' stroke-width='8' stroke-linecap='round'/><circle cx='62' cy='68' r='8' fill='#a855f7'/><circle cx='62' cy='68' r='3.5' fill='white'/></svg></div>
+  <div class="logo"><svg width='34' height='34' viewBox='0 0 100 100'><path d='M22 65 V44 C22 36 36 36 40 44 V65 M40 44 C44 36 58 36 58 44 V54 C58 63 70 64 73 54' fill='none' stroke='#7c3aed' stroke-width='10' stroke-linecap='round' stroke-linejoin='round'/><circle cx='75' cy='51' r='8' fill='#7c3aed'/><circle cx='75' cy='51' r='3' fill='#fff'/></svg></div>
   <h1>Sign in to Mengram</h1>
   <p>Connect your memory to your AI assistant</p>
 
@@ -6923,6 +6923,21 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             "token_type": "Bearer",
             "scope": "read write",
         }
+
+    @app.get("/icon.svg", include_in_schema=False)
+    async def brand_icon():
+        """Stable URL for the Mengram mark — advertised to MCP clients via
+        serverInfo.icons so the connector tile can show it, and reusable as a
+        hosted favicon/og asset."""
+        svg = (
+            "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>"
+            "<path d='M22 65 V44 C22 36 36 36 40 44 V65 M40 44 C44 36 58 36 58 44 V54 C58 63 70 64 73 54' "
+            "fill='none' stroke='#7c3aed' stroke-width='10' stroke-linecap='round' stroke-linejoin='round'/>"
+            "<circle cx='75' cy='51' r='8' fill='#7c3aed'/>"
+            "<circle cx='75' cy='51' r='3' fill='#fff'/></svg>"
+        )
+        return HTMLResponse(svg, media_type="image/svg+xml",
+                            headers={"Cache-Control": "public, max-age=86400"})
 
     # ---- OAuth 2.1 discovery + dynamic registration (MCP / Claude Connectors) ----
     # These make the OAuth flow above discoverable by MCP clients (RFC 9728,
