@@ -1834,8 +1834,8 @@
     <!-- Announcement Banner -->
     <div class="announce-bar" id="announce-bar">
         <span class="announce-new">NEW</span>
-        Claude Managed Agents + Mengram: 29 memory tools via MCP &mdash; your agents remember everything
-        <a href="https://docs.mengram.io/managed-agents">See how &rarr;</a>
+        One-click memory for Claude &mdash; add Mengram as a connector on claude.ai &amp; Desktop, no setup
+        <a href="https://docs.mengram.io/claude-connector">Add it &rarr;</a>
         <button class="announce-close" onclick="dismissBanner()" aria-label="Dismiss">&times;</button>
     </div>
 
@@ -1922,9 +1922,9 @@
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;max-width:920px;margin:0 auto;">
                 <div class="install-prompt-card" style="text-align:left;">
                     <span class="install-prompt-eyebrow">For your AI tools</span>
-                    <h2 class="install-prompt-title" style="font-size:22px;">One memory across Claude Code, Cursor, Codex</h2>
-                    <p class="install-prompt-sub">Survives <code>/clear</code>, auto-compaction, and machine switches. Install the plugin, import your history, done.</p>
-                    <p style="margin-top:10px;"><a href="#claude-code-plugin" style="color:var(--accent);text-decoration:none;font-weight:600;">Install in 2 commands ↓</a></p>
+                    <h2 class="install-prompt-title" style="font-size:22px;">One memory across Claude, Cursor, Codex</h2>
+                    <p class="install-prompt-sub">Survives <code>/clear</code>, auto-compaction, and machine switches. Add the one-click Claude connector — or install the CLI for Claude Code, Cursor &amp; Windsurf.</p>
+                    <p style="margin-top:10px;"><a href="#claude-connector" style="color:var(--accent);text-decoration:none;font-weight:600;">Add to Claude in one click ↓</a></p>
                 </div>
                 <div class="install-prompt-card" style="text-align:left;">
                     <span class="install-prompt-eyebrow">For your agent product</span>
@@ -1932,6 +1932,20 @@
                     <p class="install-prompt-sub">Isolated memory per <code>user_id</code> — facts, events, and workflows that evolve from failures. REST + MCP + webhooks, server-side extraction.</p>
                     <p style="margin-top:10px;"><a href="/for-agents" style="color:var(--accent);text-decoration:none;font-weight:600;">API quickstart →</a></p>
                 </div>
+            </div>
+        </section>
+
+        <!-- Add to Claude in one click (remote MCP connector) — the zero-setup door -->
+        <section class="install-prompt-section reveal" id="claude-connector">
+            <div class="install-prompt-card">
+                <span class="install-prompt-eyebrow">New · Zero setup · claude.ai &amp; Desktop</span>
+                <h2 class="install-prompt-title">Add memory to Claude in one click.</h2>
+                <p class="install-prompt-sub">No terminal, no config, no key to paste. In Claude: <strong>Settings → Connectors → Add custom connector</strong>, paste the URL below (leave the OAuth fields empty), and sign in with an email code. Set a preference once and Claude recalls it weeks later — across every chat, on claude.ai, Desktop, and Cowork.</p>
+                <div class="code-box install-prompt-box">
+                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+<pre>https://mengram.io/mcp/connector</pre>
+                </div>
+                <p class="install-prompt-fineprint">Free tier, no card — the email step creates your account. Works on Free, Pro, Max, Team &amp; Enterprise. <a href="https://docs.mengram.io/claude-connector">Full guide &rarr;</a></p>
             </div>
         </section>
 
