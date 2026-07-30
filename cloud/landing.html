@@ -102,6 +102,12 @@
         .rb-src .ico { fill:var(--accent); }
         .rb-legend { position:absolute; left:20px; bottom:16px; display:flex; gap:15px; background:#fff; border:1px solid var(--border); border-radius:10px; padding:8px 13px; font-size:11.5px; color:var(--text-2); box-shadow:0 8px 22px -14px rgba(76,29,149,.28); }
         .rb-legend i { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; vertical-align:middle; }
+        /* live hero graph: pulses flowing along the wires + breathing halo */
+        .rb-flow { fill:var(--node-2); }
+        .rb-flow.hot { fill:var(--node-deep); }
+        @keyframes rbHalo { 0%,100%{ opacity:.55; } 50%{ opacity:1; } }
+        .rb-halo-pulse { animation: rbHalo 3.4s ease-in-out infinite; }
+        @media (prefers-reduced-motion: reduce){ .rb-flow{ display:none; } .rb-halo-pulse{ animation:none; } }
         .rb-pitch { padding:48px 44px; display:flex; flex-direction:column; justify-content:center; border-left:1px solid var(--border); text-align:left; }
         @media (max-width: 900px){ .rb-pitch { border-left:0; border-top:1px solid var(--border); padding:36px 28px; } }
         .rb-eyebrow { font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.2em; text-transform:uppercase; color:var(--violet-deep); display:inline-flex; align-items:center; gap:8px; margin:0 0 20px; }
@@ -1925,27 +1931,33 @@
                 <div class="rb-canvas">
                     <div class="rb-srchdr">Your tools</div>
                     <svg viewBox="0 0 760 560" preserveAspectRatio="xMidYMid meet" aria-label="Your AI tools feed one memory graph">
-                        <path class="rb-wire" d="M150 150 C 230 160, 250 220, 300 250"/>
-                        <path class="rb-wire" d="M150 250 C 220 250, 250 250, 300 250"/>
-                        <path class="rb-wire" d="M150 350 C 230 340, 250 280, 300 250"/>
+                        <path id="rbw1" class="rb-wire" d="M150 150 C 230 160, 250 220, 300 250"/>
+                        <path id="rbw2" class="rb-wire" d="M150 250 C 220 250, 250 250, 300 250"/>
+                        <path id="rbw3" class="rb-wire" d="M150 350 C 230 340, 250 280, 300 250"/>
                         <g class="rb-src"><rect x="40" y="130" width="118" height="40" rx="10"/><circle class="ico" cx="62" cy="150" r="5"/><text x="80" y="154">Claude</text></g>
                         <g class="rb-src"><rect x="40" y="230" width="118" height="40" rx="10"/><circle class="ico" cx="62" cy="250" r="5"/><text x="80" y="254">Cursor</text></g>
                         <g class="rb-src"><rect x="40" y="330" width="118" height="40" rx="10"/><circle class="ico" cx="62" cy="350" r="5"/><text x="80" y="354">ChatGPT</text></g>
-                        <path class="rb-gedge hot" d="M300 250 C 380 210, 470 190, 512 156"/>
+                        <path id="rbe1" class="rb-gedge hot" d="M300 250 C 380 210, 470 190, 512 156"/>
                         <path class="rb-gedge" d="M300 250 C 360 310, 420 340, 470 366"/>
                         <path class="rb-gedge" d="M300 250 C 250 320, 210 360, 186 392"/>
-                        <path class="rb-gedge hot" d="M300 250 C 330 350, 350 420, 372 470"/>
+                        <path id="rbe2" class="rb-gedge hot" d="M300 250 C 330 350, 350 420, 372 470"/>
                         <path class="rb-gedge" d="M512 156 C 580 220, 570 320, 470 366"/>
                         <path class="rb-gedge" d="M470 366 C 440 430, 410 452, 372 470"/>
                         <text class="rb-gel" x="418" y="200">deploys</text>
                         <text class="rb-gel" x="392" y="326">caches</text>
                         <text class="rb-gel" x="236" y="330">uses</text>
                         <text class="rb-gel" x="356" y="376">learned</text>
-                        <g transform="translate(300 250)"><circle r="20" fill="var(--violet-soft)"/><circle r="12" fill="var(--accent)" stroke="#fff" stroke-width="2"/><circle r="4" fill="#fff"/><text class="rb-glabel" x="0" y="-26" text-anchor="middle">FastAPI</text><text class="rb-gtype" x="0" y="36" text-anchor="middle">technology</text></g>
+                        <g transform="translate(300 250)"><circle class="rb-halo-pulse" r="20" fill="var(--violet-soft)"/><circle r="12" fill="var(--accent)" stroke="#fff" stroke-width="2"/><circle r="4" fill="#fff"/><text class="rb-glabel" x="0" y="-26" text-anchor="middle">FastAPI</text><text class="rb-gtype" x="0" y="36" text-anchor="middle">technology</text></g>
                         <g transform="translate(520 154)"><circle r="9" fill="var(--node)" stroke="#fff" stroke-width="2"/><circle r="3.2" fill="#fff"/><text class="rb-glabel" x="0" y="-18" text-anchor="middle">Railway</text></g>
                         <g transform="translate(476 368)"><circle r="9" fill="var(--node)" stroke="#fff" stroke-width="2"/><circle r="3.2" fill="#fff"/><text class="rb-glabel" x="16" y="4" text-anchor="start">Redis</text></g>
                         <g transform="translate(180 392)"><circle r="9" fill="var(--node)" stroke="#fff" stroke-width="2"/><circle r="3.2" fill="#fff"/><text class="rb-glabel" x="0" y="26" text-anchor="middle">PostgreSQL</text></g>
                         <g transform="translate(372 472)"><circle r="10" fill="var(--node-deep)" stroke="#fff" stroke-width="2"/><circle r="3.4" fill="#fff"/><text class="rb-glabel" x="0" y="28" text-anchor="middle">deploy-to-railway</text><text class="rb-gtype" x="0" y="44" text-anchor="middle">procedure · 11✓/1✗</text></g>
+                        <!-- flowing memory pulses (sources -> graph, graph -> nodes) -->
+                        <circle class="rb-flow" r="3"><animateMotion dur="2.4s" begin="0s" repeatCount="indefinite"><mpath href="#rbw1"/></animateMotion></circle>
+                        <circle class="rb-flow" r="3"><animateMotion dur="2.4s" begin="0.8s" repeatCount="indefinite"><mpath href="#rbw2"/></animateMotion></circle>
+                        <circle class="rb-flow" r="3"><animateMotion dur="2.4s" begin="1.6s" repeatCount="indefinite"><mpath href="#rbw3"/></animateMotion></circle>
+                        <circle class="rb-flow hot" r="2.6"><animateMotion dur="2.9s" begin="0.5s" repeatCount="indefinite"><mpath href="#rbe1"/></animateMotion></circle>
+                        <circle class="rb-flow hot" r="2.6"><animateMotion dur="2.9s" begin="1.3s" repeatCount="indefinite"><mpath href="#rbe2"/></animateMotion></circle>
                     </svg>
                     <div class="rb-legend"><span><i style="background:var(--node)"></i>facts</span><span><i style="background:var(--node-2)"></i>events</span><span><i style="background:var(--node-deep)"></i>procedures</span></div>
                 </div>
