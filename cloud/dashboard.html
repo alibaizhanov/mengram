@@ -210,9 +210,10 @@
         .empty a { color: var(--accent); text-decoration: none; }
 
         /* Graph */
-        .graph-box { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; height: calc(100vh - 200px); position: relative; overflow: hidden; }
+        /* Rowboat-style framed "stage": dotted canvas, soft rounding + shadow */
+        .graph-box { background-color: var(--bg-elevated); background-image: radial-gradient(circle at 46% 42%, var(--bg-card), transparent 60%), radial-gradient(var(--border) 1.1px, transparent 1.1px); background-size: auto, 22px 22px; border: 1px solid var(--border); border-radius: 22px; height: calc(100vh - 200px); position: relative; overflow: hidden; box-shadow: 0 40px 90px -60px var(--accent-glow), 0 2px 8px rgba(23,19,32,0.04); }
         .graph-box > svg { width: 100%; height: 100%; }
-        .graph-legend { position: absolute; bottom: 16px; left: 16px; display: flex; gap: 14px; font-size: 11px; color: var(--text-2); background: var(--bg-card); padding: 8px 14px; border-radius: 8px; backdrop-filter: blur(8px); border: 1px solid var(--border); }
+        .graph-legend { position: absolute; bottom: 16px; left: 16px; display: flex; gap: 14px; font-size: 11px; color: var(--text-2); background: var(--bg-card); padding: 9px 14px; border-radius: 11px; backdrop-filter: blur(8px); border: 1px solid var(--border); box-shadow: 0 10px 30px -18px var(--accent-glow); }
         .ldot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 4px; }
         .graph-panel { position: absolute; right: 16px; top: 16px; width: 320px; max-height: calc(100% - 32px); overflow-y: auto; background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; z-index: 10; transform: translateX(calc(100% + 32px)); opacity: 0; pointer-events: none; transition: transform 0.25s ease, opacity 0.2s ease; }
         .graph-panel.open { transform: translateX(0); opacity: 1; pointer-events: auto; }
@@ -3122,54 +3123,51 @@ function renderGraph(data) {
             .on('drag',(e,d)=>{d.fx=e.x;d.fy=e.y;})
             .on('end',(e,d)=>{if(!e.active)sim.alphaTarget(0);d.fx=null;d.fy=null;}));
 
-    // Outer glow circle
-    node.append('circle').attr('r',d=>d.r+4).attr('fill',d=>d.c).attr('fill-opacity',0)
-        .attr('class','node-glow');
+    // Soft halo (always visible, deepens on hover/select)
+    node.append('circle').attr('r',d=>d.r+7).attr('fill',d=>d.c).attr('fill-opacity',0.16)
+        .attr('class','node-glow').style('pointer-events','none');
 
-    // Main circle
-    node.append('circle').attr('r',d=>d.r).attr('fill',d=>d.c).attr('fill-opacity',0.15)
-        .attr('stroke',d=>d.c).attr('stroke-width',1.5).style('cursor','pointer')
+    // Main solid circle with white ring
+    node.append('circle').attr('r',d=>d.r).attr('fill',d=>d.c)
+        .attr('stroke','#fff').attr('stroke-width',2.5).style('cursor','pointer')
+        .attr('class','node-core')
         .on('click',(e,d)=>{e.stopPropagation();openGraphPanel(d.id, node, link, links);});
 
-    // Node type icon (only for nodes large enough)
+    // White type glyph (large nodes) or centre pip (small nodes)
     node.each(function(d) {
         if (d.r >= 10) {
-            const iconSize = Math.min(d.r * 0.8, 12);
+            const iconSize = Math.min(d.r * 0.85, 13);
             const iconG = d3.select(this).append('g')
                 .attr('transform', `translate(${-iconSize/2},${-iconSize/2})`)
                 .style('pointer-events','none');
             iconG.append('svg')
                 .attr('viewBox','0 0 24 24')
                 .attr('width', iconSize).attr('height', iconSize)
-                .attr('fill','none').attr('stroke',d.c).attr('stroke-width',2)
+                .attr('fill','none').attr('stroke','#fff').attr('stroke-width',2.2)
                 .attr('stroke-linecap','round').attr('stroke-linejoin','round')
                 .html((_typeIcon(d.type||'unknown')).replace(/<\/?svg[^>]*>/g,''));
+        } else {
+            d3.select(this).append('circle').attr('r',Math.max(2,d.r*0.34)).attr('fill','#fff')
+                .style('pointer-events','none').attr('class','node-pip');
         }
     });
 
-    // Glow + scale on hover
+    // Halo + scale on hover (dimming uses group opacity, so fill stays solid)
     node.on('mouseenter', function(e,d) {
         d3.select(this).select('.node-glow')
             .transition().duration(150)
-            .attr('fill-opacity',0.18).attr('r', d.r*1.2 + 4);
-        d3.select(this).selectAll('circle').filter(':not(.node-glow)')
+            .attr('fill-opacity',0.3).attr('r', d.r*1.2 + 7);
+        d3.select(this).select('.node-core')
             .transition().duration(150)
-            .attr('r', d.r*1.2).attr('fill-opacity',0.35).attr('stroke-width',2.5);
+            .attr('r', d.r*1.14).attr('stroke-width',3);
         d3.select(this).raise();
     })
     .on('mouseleave', function(e,d) {
         const sel = d3.select(this);
-        const glow = sel.select('.node-glow');
-        const core = sel.selectAll('circle').filter(':not(.node-glow)');
-        if(d._selected) {
-            // Keep selection highlight; just reset hover scale
-            glow.transition().duration(150).attr('r', d.r + 4);
-            core.transition().duration(150).attr('r', d.r);
-        } else {
-            glow.transition().duration(150).attr('fill-opacity',0).attr('r', d.r + 4);
-            core.transition().duration(150)
-                .attr('r', d.r).attr('fill-opacity',0.15).attr('stroke-width',1.5);
-        }
+        sel.select('.node-glow').transition().duration(150)
+            .attr('fill-opacity', d._selected?0.32:0.16).attr('r', d._selected?d.r+9:d.r+7);
+        sel.select('.node-core').transition().duration(150)
+            .attr('r', d.r).attr('stroke-width', d._selected?3:2.5);
     });
 
     node.append('text').text(d=>d.id).attr('dy',d=>d.r+14).attr('text-anchor','middle')
@@ -3210,9 +3208,9 @@ async function openGraphPanel(name, nodeSelection, linkSelection, linksData) {
         });
         nodeSelection.each(function(d) {
             const el = d3.select(this);
-            if(d.id === name) { d._selected = true; el.select('circle').attr('fill-opacity',0.5).attr('stroke-width',3); el.attr('opacity',1); }
-            else if(connected.has(d.id)) { d._selected = false; el.select('circle').attr('fill-opacity',0.25); el.attr('opacity',0.9); }
-            else { d._selected = false; el.select('circle').attr('fill-opacity',0.08).attr('stroke-width',1); el.attr('opacity',0.3); }
+            if(d.id === name) { d._selected = true; el.select('.node-core').attr('stroke-width',3); el.select('.node-glow').attr('fill-opacity',0.34).attr('r',d.r+9); el.attr('opacity',1); }
+            else if(connected.has(d.id)) { d._selected = false; el.select('.node-glow').attr('fill-opacity',0.16).attr('r',d.r+7); el.select('.node-core').attr('stroke-width',2.5); el.attr('opacity',0.95); }
+            else { d._selected = false; el.select('.node-glow').attr('fill-opacity',0.06); el.select('.node-core').attr('stroke-width',1.5); el.attr('opacity',0.3); }
         });
         if(linkSelection) linkSelection.each(function(d) {
             const s = typeof d.source === 'object' ? d.source.id : d.source;
@@ -3246,7 +3244,8 @@ function closeGraphPanel() {
     // Reset node highlights
     if(_graphNodeRef) _graphNodeRef.each(function(d) {
         d._selected = false;
-        d3.select(this).select('circle').attr('fill-opacity',0.15).attr('stroke-width',1.5);
+        d3.select(this).select('.node-core').attr('stroke-width',2.5);
+        d3.select(this).select('.node-glow').attr('fill-opacity',0.16).attr('r',d.r+7);
         d3.select(this).attr('opacity',1);
     });
     if(_graphLinkRef) _graphLinkRef.attr('opacity',1);
