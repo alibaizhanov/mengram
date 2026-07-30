@@ -109,6 +109,10 @@
         .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px; color: var(--text-2); font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s; margin-bottom: 2px; }
         .nav-item:hover { background: var(--bg-elevated); color: var(--text); }
         .nav-item.active { background: var(--accent-dim); color: var(--accent); }
+        .nav-item .nav-txt { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+        .nav-item .nav-title { font-weight: 560; font-size: 14px; }
+        .nav-item .nav-sub-label { font-size: 11px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 400; }
+        .nav-item.active .nav-sub-label { color: var(--accent); opacity: 0.65; }
         .nav-item .icon { font-size: 16px; width: 20px; text-align: center; display: inline-flex; align-items: center; justify-content: center; }
         .nav-item .icon svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
         .ie-icon svg { width: 48px; height: 48px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
@@ -467,7 +471,16 @@
         .proc-card:hover { border-color: var(--accent); transform: translateY(-1px); }
         .proc-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
         .proc-name { font-size: 15px; font-weight: 600; }
-        .proc-version { background: var(--green-dim); color: var(--green); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500; }
+        .proc-version { background: var(--accent-dim); color: var(--accent); padding: 2px 7px; border-radius: 6px; font-size: 11px; font-weight: 500; font-family: 'JetBrains Mono', monospace; }
+        .proc-track { margin-left: auto; display: flex; align-items: center; gap: 10px; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+        .proc-track .ok { color: var(--green); }
+        .proc-track .bad { color: var(--red); }
+        .proc-track .proc-new { color: var(--text-3); background: var(--bg-elevated); border-radius: 20px; padding: 1px 8px; font-size: 11px; }
+        .proc-bar.wide { width: 100%; margin-top: 12px; height: 6px; }
+        .proc-steps-row { margin-top: 11px; display: flex; flex-wrap: wrap; gap: 6px; }
+        .pstep { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 7px; padding: 3px 9px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-2); }
+        .pstep-more { color: var(--text-3); }
+        .proc-stepcount { font-size: 12px; color: var(--text-3); }
         .proc-trigger { color: var(--text-2); font-size: 13px; margin-bottom: 8px; line-height: 1.4; }
         .proc-meta { display: flex; gap: 16px; font-size: 12px; color: var(--text-3); align-items: center; }
         .proc-bar { height: 4px; background: var(--bg-elevated); border-radius: 2px; overflow: hidden; width: 80px; }
@@ -962,7 +975,7 @@
         <div class="sidebar-logo"><svg width="20" height="20" viewBox="0 0 100 100" style="vertical-align:middle;margin-right:4px;"><path d="M22 65 V44 C22 36 36 36 40 44 V65 M40 44 C44 36 58 36 58 44 V54 C58 63 70 64 73 54" fill="none" stroke="#a855f7" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/><circle cx="75" cy="51" r="8" fill="#a855f7"/><circle cx="75" cy="51" r="3" fill="#fff"/></svg> Mengram</div>
         <div class="sidebar-nav">
             <div class="nav-group active" data-group="memory">
-                <div class="nav-item active" onclick="switchGroup(event,'memory')"><span class="icon"><svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7z"/><path d="M10 21h4"/></svg></span> Memory <span class="chevron">▸</span></div>
+                <div class="nav-item active" onclick="switchGroup(event,'memory')"><span class="icon"><svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7z"/><path d="M10 21h4"/></svg></span><span class="nav-txt"><span class="nav-title">Memory</span><span class="nav-sub-label">Graph · search · entities</span></span><span class="chevron">▸</span></div>
                 <div class="nav-sub-items">
                     <div class="nav-sub active" data-tab="graph" onclick="switchTab(event,'graph')">Knowledge Graph</div>
                     <div class="nav-sub" data-tab="search" onclick="switchTab(event,'search')">Search</div>
@@ -971,7 +984,7 @@
                 </div>
             </div>
             <div class="nav-group" data-group="intelligence">
-                <div class="nav-item" onclick="switchGroup(event,'intelligence')"><span class="icon"><svg viewBox="0 0 24 24"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg></span> Intelligence <span class="chevron">▸</span></div>
+                <div class="nav-item" onclick="switchGroup(event,'intelligence')"><span class="icon"><svg viewBox="0 0 24 24"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg></span><span class="nav-txt"><span class="nav-title">Intelligence</span><span class="nav-sub-label">Overview · agents · insights</span></span><span class="chevron">▸</span></div>
                 <div class="nav-sub-items">
                     <div class="nav-sub" data-tab="overview" onclick="switchTab(event,'overview')">Overview</div>
                     <div class="nav-sub" data-tab="agents" onclick="switchTab(event,'agents')">Agents</div>
@@ -979,10 +992,10 @@
                 </div>
             </div>
             <div class="nav-group" data-group="procedures">
-                <div class="nav-item" onclick="switchGroup(event,'procedures')"><span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M12 15V9"/><path d="m8.7 7.5 2.6 3"/><path d="m15.3 7.5-2.6 3"/></svg></span> Procedures</div>
+                <div class="nav-item" onclick="switchGroup(event,'procedures')"><span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M12 15V9"/><path d="m8.7 7.5 2.6 3"/><path d="m15.3 7.5-2.6 3"/></svg></span><span class="nav-txt"><span class="nav-title">Procedures</span><span class="nav-sub-label">Workflows · regression-gated</span></span></div>
             </div>
             <div class="nav-group" data-group="account">
-                <div class="nav-item" onclick="switchGroup(event,'account')"><span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span> Account <span class="chevron">▸</span></div>
+                <div class="nav-item" onclick="switchGroup(event,'account')"><span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span class="nav-txt"><span class="nav-title">Account</span><span class="nav-sub-label">Billing · settings</span></span><span class="chevron">▸</span></div>
                 <div class="nav-sub-items">
                     <div class="nav-sub" data-tab="billing" onclick="switchTab(event,'billing')">Billing</div>
                     <div class="nav-sub" data-tab="settings" onclick="switchTab(event,'settings')">Settings</div>
@@ -4020,24 +4033,30 @@ async function loadProcedures() {
         }
         let html = '<div class="proc-list stagger">';
         for (const p of procs) {
-            const steps = (p.steps || []).length;
+            const stepList = (p.steps || []);
             const v = p.version || 1;
-            const vBadge = v > 1 ? `<span class="proc-version">v${v}</span>` : '';
+            const vBadge = `<span class="proc-version">v${v}</span>`;
             const success = p.success_count || 0;
             const fail = p.failure_count || 0;
             const total = success + fail;
             const ratio = total > 0 ? Math.round((success / total) * 100) : 0;
+            const track = total > 0
+                ? `<span class="proc-track"><span class="ok">${success} ✓</span><span class="bad">${fail} ✗</span></span>`
+                : `<span class="proc-track"><span class="proc-new">new</span></span>`;
+            const chips = stepList.slice(0,4).map(s => {
+                const a = (s && typeof s === 'object') ? (s.action || s.description || s.text || '') : s;
+                const t = String(a || '').trim();
+                return t ? `<span class="pstep">${esc(t.length > 40 ? t.slice(0,40)+'…' : t)}</span>` : '';
+            }).join('');
+            const extra = stepList.length > 4 ? `<span class="pstep pstep-more">+${stepList.length-4}</span>` : '';
             html += `<div class="proc-card" onclick="showProcedureDetail('${p.id}')">
                 <div class="proc-head">
                     <span class="proc-name">${esc(p.name)}</span> ${vBadge}
+                    ${track}
                 </div>
-                <div class="proc-trigger">${esc(p.trigger_condition || p.trigger || '')}</div>
-                <div class="proc-meta">
-                    <span>${steps} steps</span>
-                    <span style="color:var(--green);">${success} success</span>
-                    <span style="color:var(--red);">${fail} fail</span>
-                    ${total > 0 ? `<div class="proc-bar"><div class="proc-bar-fill" style="width:${ratio}%"></div></div>` : ''}
-                </div>
+                ${(p.trigger_condition || p.trigger) ? `<div class="proc-trigger">${esc(p.trigger_condition || p.trigger)}</div>` : ''}
+                ${total > 0 ? `<div class="proc-bar wide"><div class="proc-bar-fill" style="width:${ratio}%"></div></div>` : ''}
+                <div class="proc-steps-row">${chips || `<span class="proc-stepcount">${stepList.length} steps</span>`}${extra}</div>
             </div>`;
         }
         html += '</div>';
