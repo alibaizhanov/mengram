@@ -105,6 +105,9 @@
         /* live hero graph: pulses flowing along the wires + breathing halo */
         .rb-flow { fill:var(--node-2); }
         .rb-flow.hot { fill:var(--node-deep); }
+        .rb-node { cursor: grab; }
+        .rb-node.dragging { cursor: grabbing; }
+        .rb-node text { user-select:none; -webkit-user-select:none; pointer-events:none; }
         @keyframes rbHalo { 0%,100%{ opacity:.55; } 50%{ opacity:1; } }
         .rb-halo-pulse { animation: rbHalo 3.4s ease-in-out infinite; }
         @media (prefers-reduced-motion: reduce){ .rb-flow{ display:none; } .rb-halo-pulse{ animation:none; } }
@@ -1937,27 +1940,21 @@
                         <g class="rb-src"><rect x="40" y="130" width="118" height="40" rx="10"/><circle class="ico" cx="62" cy="150" r="5"/><text x="80" y="154">Claude</text></g>
                         <g class="rb-src"><rect x="40" y="230" width="118" height="40" rx="10"/><circle class="ico" cx="62" cy="250" r="5"/><text x="80" y="254">Cursor</text></g>
                         <g class="rb-src"><rect x="40" y="330" width="118" height="40" rx="10"/><circle class="ico" cx="62" cy="350" r="5"/><text x="80" y="354">ChatGPT</text></g>
-                        <path id="rbe1" class="rb-gedge hot" d="M300 250 C 380 210, 470 190, 512 156"/>
-                        <path class="rb-gedge" d="M300 250 C 360 310, 420 340, 470 366"/>
-                        <path class="rb-gedge" d="M300 250 C 250 320, 210 360, 186 392"/>
-                        <path id="rbe2" class="rb-gedge hot" d="M300 250 C 330 350, 350 420, 372 470"/>
-                        <path class="rb-gedge" d="M512 156 C 580 220, 570 320, 470 366"/>
-                        <path class="rb-gedge" d="M470 366 C 440 430, 410 452, 372 470"/>
-                        <text class="rb-gel" x="418" y="200">deploys</text>
-                        <text class="rb-gel" x="392" y="326">caches</text>
-                        <text class="rb-gel" x="236" y="330">uses</text>
-                        <text class="rb-gel" x="356" y="376">learned</text>
-                        <g transform="translate(300 250)"><circle class="rb-halo-pulse" r="20" fill="var(--violet-soft)"/><circle r="12" fill="var(--accent)" stroke="#fff" stroke-width="2"/><circle r="4" fill="#fff"/><text class="rb-glabel" x="0" y="-26" text-anchor="middle">FastAPI</text><text class="rb-gtype" x="0" y="36" text-anchor="middle">technology</text></g>
-                        <g transform="translate(520 154)"><circle r="9" fill="var(--node)" stroke="#fff" stroke-width="2"/><circle r="3.2" fill="#fff"/><text class="rb-glabel" x="0" y="-18" text-anchor="middle">Railway</text></g>
-                        <g transform="translate(476 368)"><circle r="9" fill="var(--node)" stroke="#fff" stroke-width="2"/><circle r="3.2" fill="#fff"/><text class="rb-glabel" x="16" y="4" text-anchor="start">Redis</text></g>
-                        <g transform="translate(180 392)"><circle r="9" fill="var(--node)" stroke="#fff" stroke-width="2"/><circle r="3.2" fill="#fff"/><text class="rb-glabel" x="0" y="26" text-anchor="middle">PostgreSQL</text></g>
-                        <g transform="translate(372 472)"><circle r="10" fill="var(--node-deep)" stroke="#fff" stroke-width="2"/><circle r="3.4" fill="#fff"/><text class="rb-glabel" x="0" y="28" text-anchor="middle">deploy-to-railway</text><text class="rb-gtype" x="0" y="44" text-anchor="middle">procedure · 11✓/1✗</text></g>
-                        <!-- flowing memory pulses (sources -> graph, graph -> nodes) -->
-                        <circle class="rb-flow" r="3"><animateMotion dur="2.4s" begin="0s" repeatCount="indefinite"><mpath href="#rbw1"/></animateMotion></circle>
-                        <circle class="rb-flow" r="3"><animateMotion dur="2.4s" begin="0.8s" repeatCount="indefinite"><mpath href="#rbw2"/></animateMotion></circle>
-                        <circle class="rb-flow" r="3"><animateMotion dur="2.4s" begin="1.6s" repeatCount="indefinite"><mpath href="#rbw3"/></animateMotion></circle>
-                        <circle class="rb-flow hot" r="2.6"><animateMotion dur="2.9s" begin="0.5s" repeatCount="indefinite"><mpath href="#rbe1"/></animateMotion></circle>
-                        <circle class="rb-flow hot" r="2.6"><animateMotion dur="2.9s" begin="1.3s" repeatCount="indefinite"><mpath href="#rbe2"/></animateMotion></circle>
+                        <path id="rbe1" class="rb-gedge hot" data-from="fastapi" data-to="railway" d="M300 250 C 380 210, 470 190, 512 156"/>
+                        <path id="rbe3" class="rb-gedge" data-from="fastapi" data-to="redis" d="M300 250 C 360 310, 420 340, 470 366"/>
+                        <path id="rbe4" class="rb-gedge" data-from="fastapi" data-to="postgres" d="M300 250 C 250 320, 210 360, 186 392"/>
+                        <path id="rbe2" class="rb-gedge hot" data-from="fastapi" data-to="proc" d="M300 250 C 330 350, 350 420, 372 470"/>
+                        <path id="rbe5" class="rb-gedge" data-from="railway" data-to="redis" d="M512 156 C 580 220, 570 320, 470 366"/>
+                        <path id="rbe6" class="rb-gedge" data-from="redis" data-to="proc" d="M470 366 C 440 430, 410 452, 372 470"/>
+                        <text id="rbl-deploys" class="rb-gel" x="418" y="200">deploys</text>
+                        <text id="rbl-caches" class="rb-gel" x="392" y="326">caches</text>
+                        <text id="rbl-uses" class="rb-gel" x="236" y="330">uses</text>
+                        <text id="rbl-learned" class="rb-gel" x="356" y="376">learned</text>
+                        <g id="rbn-fastapi" class="rb-node" transform="translate(300 250)"><circle class="rb-halo-pulse" r="20" fill="var(--violet-soft)"/><circle r="12" fill="var(--accent)" stroke="#fff" stroke-width="2"/><circle r="4" fill="#fff"/><text class="rb-glabel" x="0" y="-26" text-anchor="middle">FastAPI</text><text class="rb-gtype" x="0" y="36" text-anchor="middle">technology</text></g>
+                        <g id="rbn-railway" class="rb-node" transform="translate(520 154)"><circle r="9" fill="var(--node)" stroke="#fff" stroke-width="2"/><circle r="3.2" fill="#fff"/><text class="rb-glabel" x="0" y="-18" text-anchor="middle">Railway</text></g>
+                        <g id="rbn-redis" class="rb-node" transform="translate(476 368)"><circle r="9" fill="var(--node)" stroke="#fff" stroke-width="2"/><circle r="3.2" fill="#fff"/><text class="rb-glabel" x="16" y="4" text-anchor="start">Redis</text></g>
+                        <g id="rbn-postgres" class="rb-node" transform="translate(180 392)"><circle r="9" fill="var(--node)" stroke="#fff" stroke-width="2"/><circle r="3.2" fill="#fff"/><text class="rb-glabel" x="0" y="26" text-anchor="middle">PostgreSQL</text></g>
+                        <g id="rbn-proc" class="rb-node" transform="translate(372 472)"><circle r="10" fill="var(--node-deep)" stroke="#fff" stroke-width="2"/><circle r="3.4" fill="#fff"/><text class="rb-glabel" x="0" y="28" text-anchor="middle">deploy-to-railway</text><text class="rb-gtype" x="0" y="44" text-anchor="middle">procedure · 11✓/1✗</text></g>
                     </svg>
                     <div class="rb-legend"><span><i style="background:var(--node)"></i>facts</span><span><i style="background:var(--node-2)"></i>events</span><span><i style="background:var(--node-deep)"></i>procedures</span></div>
                 </div>
@@ -3691,6 +3688,76 @@ POST /v1/add → {<span class="c-str">"messages"</span>: [...], <span class="c-s
         })();
 
         // ---- Enterprise Modal ----
+    </script>
+    <script>
+    /* Hero memory graph — gentle node drift + drag (rowboatlabs-style). Progressive enhancement. */
+    (function(){
+        const svg = document.querySelector('.rb-canvas svg');
+        if(!svg) return;
+        const REDUCE = matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const NODES = {
+            fastapi:{el:'rbn-fastapi', drift:3}, railway:{el:'rbn-railway', drift:5},
+            redis:{el:'rbn-redis', drift:5}, postgres:{el:'rbn-postgres', drift:5}, proc:{el:'rbn-proc', drift:5}
+        };
+        const SRC = { claude:{x:158,y:150}, cursor:{x:158,y:250}, chatgpt:{x:158,y:350} };
+        const EDGES = [
+            {el:'rbe1', from:'fastapi', to:'railway', k:34, label:'rbl-deploys'},
+            {el:'rbe3', from:'fastapi', to:'redis', k:30, label:'rbl-caches'},
+            {el:'rbe4', from:'fastapi', to:'postgres', k:-30, label:'rbl-uses'},
+            {el:'rbe2', from:'fastapi', to:'proc', k:26, label:'rbl-learned'},
+            {el:'rbe5', from:'railway', to:'redis', k:40},
+            {el:'rbe6', from:'redis', to:'proc', k:24}
+        ];
+        const WIRES = [
+            {el:'rbw1', from:SRC.claude, to:'fastapi', k:14},
+            {el:'rbw2', from:SRC.cursor, to:'fastapi', k:6},
+            {el:'rbw3', from:SRC.chatgpt, to:'fastapi', k:-14}
+        ];
+        const FLOWS = [
+            {p:'rbw1', dur:2.4, ph:0.0}, {p:'rbw2', dur:2.4, ph:0.33}, {p:'rbw3', dur:2.4, ph:0.66},
+            {p:'rbe1', dur:2.9, ph:0.2, hot:true}, {p:'rbe2', dur:2.9, ph:0.6, hot:true}
+        ];
+        let i=0;
+        for(const id in NODES){ const n=NODES[id]; n.g=document.getElementById(n.el);
+            const m=/translate\(\s*([-\d.]+)[\s,]+([-\d.]+)/.exec(n.g.getAttribute('transform'));
+            n.bx=+m[1]; n.by=+m[2]; n.x=n.bx; n.y=n.by; n.phase=i*1.3; n.spd=0.32+(i%3)*0.05; n.fixed=false; i++; }
+        EDGES.forEach(e=>{ e.pathEl=document.getElementById(e.el); if(e.label) e.labelEl=document.getElementById(e.label); });
+        WIRES.forEach(w=>w.pathEl=document.getElementById(w.el));
+        const NS='http://www.w3.org/2000/svg';
+        FLOWS.forEach(f=>{ const c=document.createElementNS(NS,'circle'); c.setAttribute('r', f.hot?2.6:3);
+            c.setAttribute('class','rb-flow'+(f.hot?' hot':'')); svg.appendChild(c); f.dot=c; f.path=document.getElementById(f.p); });
+        function pt(ref){ return (typeof ref==='string') ? {x:NODES[ref].x, y:NODES[ref].y} : ref; }
+        function arc(a,b,k){ const mx=(a.x+b.x)/2,my=(a.y+b.y)/2,dx=b.x-a.x,dy=b.y-a.y,L=Math.hypot(dx,dy)||1,nx=-dy/L,ny=dx/L;
+            const cx=mx+nx*k, cy=my+ny*k;
+            return {d:`M${a.x.toFixed(1)} ${a.y.toFixed(1)} Q ${cx.toFixed(1)} ${cy.toFixed(1)} ${b.x.toFixed(1)} ${b.y.toFixed(1)}`, cx:cx, cy:cy}; }
+        let t0=null;
+        function frame(ts){
+            if(t0==null) t0=ts; const t=(ts-t0)/1000;
+            for(const id in NODES){ const n=NODES[id]; if(n.fixed) continue;
+                const a = REDUCE?0:n.drift;
+                n.x = n.bx + (a? Math.sin(t*n.spd+n.phase)*a : 0);
+                n.y = n.by + (a? Math.cos(t*n.spd*0.9+n.phase)*a*0.85 : 0);
+                n.g.setAttribute('transform',`translate(${n.x.toFixed(1)} ${n.y.toFixed(1)})`); }
+            WIRES.forEach(w=>{ w.pathEl.setAttribute('d', arc(pt(w.from),pt(w.to),w.k).d); });
+            EDGES.forEach(e=>{ const r=arc(pt(e.from),pt(e.to),e.k); e.pathEl.setAttribute('d', r.d);
+                if(e.labelEl){ e.labelEl.setAttribute('x', r.cx.toFixed(1)); e.labelEl.setAttribute('y', (r.cy-3).toFixed(1)); } });
+            if(!REDUCE) FLOWS.forEach(f=>{ const len=f.path.getTotalLength(); if(!len) return;
+                const u=((t/f.dur)+f.ph)%1, p=f.path.getPointAtLength(len*u);
+                f.dot.setAttribute('cx',p.x.toFixed(1)); f.dot.setAttribute('cy',p.y.toFixed(1));
+                f.dot.setAttribute('opacity',(0.2+0.6*Math.sin(u*Math.PI)).toFixed(2)); });
+            requestAnimationFrame(frame);
+        }
+        requestAnimationFrame(frame);
+        // drag
+        let drag=null;
+        function toSVG(ev){ const p=svg.createSVGPoint(); p.x=ev.clientX; p.y=ev.clientY; const m=svg.getScreenCTM(); return m?p.matrixTransform(m.inverse()):{x:ev.clientX,y:ev.clientY}; }
+        for(const id in NODES){ const n=NODES[id];
+            n.g.addEventListener('pointerdown',ev=>{ ev.preventDefault(); drag=n; n.fixed=true; n.g.classList.add('dragging'); try{n.g.setPointerCapture(ev.pointerId);}catch(_){}} );
+            n.g.addEventListener('pointermove',ev=>{ if(drag!==n) return; const q=toSVG(ev); n.x=q.x; n.y=q.y; n.g.setAttribute('transform',`translate(${n.x.toFixed(1)} ${n.y.toFixed(1)})`); });
+            const end=()=>{ if(drag!==n) return; n.fixed=false; n.bx=n.x; n.by=n.y; n.phase=-((performance.now()-t0)/1000)*n.spd; n.g.classList.remove('dragging'); drag=null; };
+            n.g.addEventListener('pointerup',end); n.g.addEventListener('pointercancel',end); n.g.addEventListener('lostpointercapture',end);
+        }
+    })();
     </script>
 </body>
 </html>
