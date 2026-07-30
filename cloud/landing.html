@@ -108,9 +108,7 @@
         .rb-node { cursor: grab; }
         .rb-node.dragging { cursor: grabbing; }
         .rb-node text { user-select:none; -webkit-user-select:none; pointer-events:none; }
-        @keyframes rbHalo { 0%,100%{ opacity:.55; } 50%{ opacity:1; } }
-        .rb-halo-pulse { animation: rbHalo 3.4s ease-in-out infinite; }
-        @media (prefers-reduced-motion: reduce){ .rb-flow{ display:none; } .rb-halo-pulse{ animation:none; } }
+        @media (prefers-reduced-motion: reduce){ .rb-flow{ display:none; } }
         .rb-pitch { padding:48px 44px; display:flex; flex-direction:column; justify-content:center; border-left:1px solid var(--border); text-align:left; }
         @media (max-width: 900px){ .rb-pitch { border-left:0; border-top:1px solid var(--border); padding:36px 28px; } }
         .rb-eyebrow { font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.2em; text-transform:uppercase; color:var(--violet-deep); display:inline-flex; align-items:center; gap:8px; margin:0 0 20px; }
@@ -3714,8 +3712,8 @@ POST /v1/add → {<span class="c-str">"messages"</span>: [...], <span class="c-s
             {el:'rbw3', from:SRC.chatgpt, to:'fastapi', k:-14}
         ];
         const FLOWS = [
-            {p:'rbw1', dur:2.4, ph:0.0}, {p:'rbw2', dur:2.4, ph:0.33}, {p:'rbw3', dur:2.4, ph:0.66},
-            {p:'rbe1', dur:2.9, ph:0.2, hot:true}, {p:'rbe2', dur:2.9, ph:0.6, hot:true}
+            {p:'rbw1', dur:1.5, ph:0.0}, {p:'rbw2', dur:1.5, ph:0.33}, {p:'rbw3', dur:1.5, ph:0.66},
+            {p:'rbe1', dur:1.8, ph:0.2, hot:true}, {p:'rbe2', dur:1.8, ph:0.6, hot:true}
         ];
         let i=0;
         for(const id in NODES){ const n=NODES[id]; n.g=document.getElementById(n.el);
@@ -3725,7 +3723,7 @@ POST /v1/add → {<span class="c-str">"messages"</span>: [...], <span class="c-s
         WIRES.forEach(w=>w.pathEl=document.getElementById(w.el));
         const NS='http://www.w3.org/2000/svg';
         FLOWS.forEach(f=>{ const c=document.createElementNS(NS,'circle'); c.setAttribute('r', f.hot?2.6:3);
-            c.setAttribute('class','rb-flow'+(f.hot?' hot':'')); svg.appendChild(c); f.dot=c; f.path=document.getElementById(f.p); });
+            c.setAttribute('class','rb-flow'+(f.hot?' hot':'')); c.setAttribute('opacity','0.9'); svg.appendChild(c); f.dot=c; f.path=document.getElementById(f.p); });
         function pt(ref){ return (typeof ref==='string') ? {x:NODES[ref].x, y:NODES[ref].y} : ref; }
         function arc(a,b,k){ const mx=(a.x+b.x)/2,my=(a.y+b.y)/2,dx=b.x-a.x,dy=b.y-a.y,L=Math.hypot(dx,dy)||1,nx=-dy/L,ny=dx/L;
             const cx=mx+nx*k, cy=my+ny*k;
@@ -3733,18 +3731,13 @@ POST /v1/add → {<span class="c-str">"messages"</span>: [...], <span class="c-s
         let t0=null;
         function frame(ts){
             if(t0==null) t0=ts; const t=(ts-t0)/1000;
-            for(const id in NODES){ const n=NODES[id]; if(n.fixed) continue;
-                const a = REDUCE?0:n.drift;
-                n.x = n.bx + (a? Math.sin(t*n.spd+n.phase)*a : 0);
-                n.y = n.by + (a? Math.cos(t*n.spd*0.9+n.phase)*a*0.85 : 0);
-                n.g.setAttribute('transform',`translate(${n.x.toFixed(1)} ${n.y.toFixed(1)})`); }
+            // nodes stay put (Rowboat-style — no ambient drift); they move only when dragged
             WIRES.forEach(w=>{ w.pathEl.setAttribute('d', arc(pt(w.from),pt(w.to),w.k).d); });
             EDGES.forEach(e=>{ const r=arc(pt(e.from),pt(e.to),e.k); e.pathEl.setAttribute('d', r.d);
                 if(e.labelEl){ e.labelEl.setAttribute('x', r.cx.toFixed(1)); e.labelEl.setAttribute('y', (r.cy-3).toFixed(1)); } });
             if(!REDUCE) FLOWS.forEach(f=>{ const len=f.path.getTotalLength(); if(!len) return;
                 const u=((t/f.dur)+f.ph)%1, p=f.path.getPointAtLength(len*u);
-                f.dot.setAttribute('cx',p.x.toFixed(1)); f.dot.setAttribute('cy',p.y.toFixed(1));
-                f.dot.setAttribute('opacity',(0.2+0.6*Math.sin(u*Math.PI)).toFixed(2)); });
+                f.dot.setAttribute('cx',p.x.toFixed(1)); f.dot.setAttribute('cy',p.y.toFixed(1)); });
             requestAnimationFrame(frame);
         }
         requestAnimationFrame(frame);
