@@ -7197,16 +7197,14 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                         continue
                     created.append(name)
 
-                    chunks = [name] + [f"{name}: {fs}" for fs in fact_strings]
-                    for r in entity_relations:
-                        target = r.get("target", "")
-                        rel_type = r.get("type", "")
-                        if target and rel_type:
-                            chunks.append(f"{name} {rel_type} {target}")
-                    for k in entity_knowledge:
-                        kt = f"{k['title']} {k['content']}"
-                        chunks.append(_summarize_for_embedding(kt) if len(kt) > 2000 else kt)
-                    embedding_queue.append((entity_id, chunks))
+                    # Chunks cover the entity's full current state, not just
+                    # this conversation's facts — the embedding set is replaced
+                    # wholesale, so anything left out stops being searchable.
+                    try:
+                        embedding_queue.append((entity_id, store.build_entity_chunks(
+                            entity_id, name, summarize=_summarize_for_embedding)))
+                    except Exception as e:
+                        logger.warning(f"⚠️ Chunk build failed for '{name}': {e}")
 
                 # -- Refresh context for next window (includes just-saved entities) --
                 if win_start + WINDOW_SIZE < len(conversation):
@@ -7222,11 +7220,24 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             embed_items = []  # [(save_fn, text)]
 
             # Entity embeddings
+            # Only chunks that aren't embedded yet go to the API; chunks that
+            # dropped out of the entity are retired after the batch succeeds.
+            stale_by_entity = {}
             if embedder and embedding_queue:
+                _dims = getattr(embedder, "dimensions", 1536)
                 for entity_id, chunks in embedding_queue:
-                    store.delete_embeddings(entity_id)
+                    try:
+                        existing = store.get_embedded_chunk_texts(entity_id, _dims)
+                    except Exception as e:
+                        logger.warning(f"⚠️ Embedding lookup failed for {entity_id}: {e}")
+                        existing = set()
+                    wanted = set(chunks)
+                    stale = [t for t in existing if t not in wanted]
+                    if stale:
+                        stale_by_entity[entity_id] = stale
                     for chunk in chunks:
-                        embed_items.append(("entity", entity_id, chunk))
+                        if chunk not in existing:
+                            embed_items.append(("entity", entity_id, chunk))
 
             # Raw conversation chunk
             conv_chunk_text = None
@@ -7307,7 +7318,6 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                             (s.get("action", "") if isinstance(s, dict) else str(s)) for s in pr.steps[:10]
                         )
                         pr_text = f"{pr.name}. {pr.trigger or ''}. Steps: {steps_summary}"
-                        store.delete_procedure_embeddings(proc_id)
                         embed_items.append(("procedure", proc_id, pr_text))
                     procedures_created += 1
                 except Exception as e:
@@ -7318,6 +7328,22 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             if embedder and embed_items:
                 all_texts = [item[2] for item in embed_items]
                 all_embeddings = embedder.embed_batch(all_texts)
+                if len(all_embeddings) != len(embed_items):
+                    # zip() would silently drop the tail and leave entities with
+                    # a partial embedding set; keep the existing one instead.
+                    logger.error(
+                        f"⚠️ Embedder returned {len(all_embeddings)} vectors for "
+                        f"{len(embed_items)} chunks — skipping embedding update")
+                    all_embeddings = []
+
+                # A procedure's text is rewritten wholesale, so its old vector
+                # goes only once the replacement is in hand — deleting up-front
+                # left it unsearchable whenever the embed call failed.
+                if all_embeddings:
+                    for item_type, item_id, _text in embed_items:
+                        if item_type == "procedure":
+                            store.delete_procedure_embeddings(item_id)
+
                 for (item_type, item_id, text), emb in zip(embed_items, all_embeddings):
                     if item_type == "entity":
                         store.save_embedding(item_id, text, emb)
@@ -7328,6 +7354,14 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                         episode_embeddings[item_id] = emb
                     elif item_type == "procedure":
                         store.save_procedure_embedding(item_id, text, emb)
+
+            # Retire chunks the entity no longer has (archived facts, dropped
+            # relations). Runs even when nothing new needed embedding.
+            for entity_id, stale in stale_by_entity.items():
+                try:
+                    store.delete_embeddings_for_texts(entity_id, stale)
+                except Exception as e:
+                    logger.warning(f"⚠️ Stale embedding cleanup failed for {entity_id}: {e}")
 
             # ---- Episode auto-linking (uses pre-computed embeddings) ----
             for episode_id, (ep, ep_text) in episode_embed_map.items():
@@ -8253,17 +8287,14 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             if not entity_id:
                 continue
 
-            chunks = [name] + entity.get("facts", [])
-            for r in entity.get("relations", []):
-                target = r.get("target", "")
-                rel_type = r.get("type", "")
-                if target and rel_type:
-                    chunks.append(f"{name} {rel_type} {target}")
-            for k in entity.get("knowledge", []):
-                chunks.append(f"{k.get('title', '')} {k.get('content', '')}")
-
-            store.delete_embeddings(entity_id)
+            chunks = store.build_entity_chunks(
+                entity_id, name, summarize=_summarize_for_embedding)
             embeddings = embedder.embed_batch(chunks)
+            if len(embeddings) != len(chunks):
+                logger.error(f"⚠️ Reindex skipped '{name}': embedder returned "
+                             f"{len(embeddings)} vectors for {len(chunks)} chunks")
+                continue
+            store.delete_embeddings(entity_id)
             for chunk, emb in zip(chunks, embeddings):
                 store.save_embedding(entity_id, chunk, emb)
             count += 1
