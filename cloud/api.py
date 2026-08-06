@@ -7559,8 +7559,11 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         user_id = ctx.user_id
         sub_uid = req.user_id or "default"
 
-        # Dry run: extract and return preview without saving
+        # Dry run: extract and return preview without saving. Metered like a
+        # real add — it runs the same LLM extraction, so leaving it free made
+        # /v1/add an unlimited extraction API for anyone passing dry_run.
         if req.dry_run:
+            use_quota(ctx, "add")
             extractor = get_llm()
             existing_context = ""
             try:

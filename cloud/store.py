@@ -4713,6 +4713,19 @@ REFLECTIONS/PATTERNS:
 
         period_start = datetime.date.today().replace(day=1)
         with self._cursor() as cur:
+            # A call bigger than the whole allowance can never fit, and the
+            # INSERT arm below carries no bound — it fires on the period's
+            # first call, when no counter row exists yet — so an oversized
+            # request would otherwise sail through once a month.
+            if count > max_allowed:
+                cur.execute(
+                    f"SELECT {column} FROM usage_counters WHERE user_id = %s AND period_start = %s",
+                    (user_id, period_start)
+                )
+                r = cur.fetchone()
+                current = r[0] if r else 0
+                raise ValueError(f"quota_exceeded:{action}:{current}:{max_allowed}")
+
             # Atomic: increment only if current value < max_allowed
             cur.execute(
                 f"""INSERT INTO usage_counters (user_id, period_start, {column})
