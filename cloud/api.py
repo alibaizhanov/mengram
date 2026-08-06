@@ -35,6 +35,7 @@ from dataclasses import dataclass
 from pydantic import BaseModel, Field
 
 from cloud.store import CloudStore, _normalize_fact
+from cloud.oauth_policy import redirect_uri_error as _redirect_uri_error
 
 
 # ---- Auth Context ----
@@ -6691,7 +6692,36 @@ a{{color:#a855f7;text-decoration:none}}
     ):
         """OAuth authorize page — shows email login. Carries the PKCE challenge
         (RFC 7636) through the login step so the token exchange can verify it."""
-        from urllib.parse import quote
+        from urllib.parse import quote, urlparse
+        import html as _html
+
+        # Refuse before the user is asked for anything — a rejected target
+        # should never get as far as showing a Mengram-branded login form.
+        _redirect_error = _redirect_uri_error(redirect_uri)
+        if _redirect_error:
+            return HTMLResponse(
+                f"<!DOCTYPE html><meta charset='utf-8'>"
+                f"<div style=\"font-family:system-ui;max-width:32rem;margin:15vh auto;"
+                f"padding:0 1.5rem;line-height:1.6\">"
+                f"<h1 style='font-size:1.25rem'>Sign-in blocked</h1>"
+                f"<p>{_html.escape(_redirect_error)}. Mengram will not send an "
+                f"authorization code to this destination.</p>"
+                f"<p style='color:#666;font-size:.9rem'>If you started this from "
+                f"an AI assistant, open the connector settings and try again.</p>"
+                f"</div>",
+                status_code=400,
+            )
+
+        # Name the destination on the card: the one thing that lets someone
+        # spot a code being routed somewhere they didn't intend.
+        _dest_host = _html.escape((urlparse(redirect_uri).hostname or "") if redirect_uri else "")
+        destination_note = (
+            f"<p style='color:#888;margin-bottom:24px;font-size:14px'>Connecting your "
+            f"memory to <strong style='color:#e0e0e0'>{_dest_host}</strong></p>"
+            if _dest_host else
+            "<p style='color:#888;margin-bottom:24px;font-size:14px'>"
+            "Connect your memory to your AI assistant</p>"
+        )
         redirect_uri_encoded = quote(redirect_uri, safe="")
         state_encoded = quote(state, safe="")
         code_challenge_encoded = quote(code_challenge, safe="")
@@ -6723,7 +6753,7 @@ a{{color:#a855f7;text-decoration:none}}
 <div class="card">
   <div class="logo"><svg width='34' height='34' viewBox='0 0 100 100'><path d='M22 65 V44 C22 36 36 36 40 44 V65 M40 44 C44 36 58 36 58 44 V54 C58 63 70 64 73 54' fill='none' stroke='#7c3aed' stroke-width='10' stroke-linecap='round' stroke-linejoin='round'/><circle cx='75' cy='51' r='8' fill='#7c3aed'/><circle cx='75' cy='51' r='3' fill='#fff'/></svg></div>
   <h1>Sign in to Mengram</h1>
-  <p>Connect your memory to your AI assistant</p>
+  {destination_note}
 
   <div id="step1" class="step active">
     <input type="email" id="email" placeholder="your@email.com" autofocus>
@@ -6847,22 +6877,19 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         if not _check_rate_limit(f"verify_ip:{client_ip}", 20):
             return {"error": "Too many attempts. Try again in 60 seconds."}
 
+        # Re-validated here because /oauth/authorize is only the UI and this
+        # endpoint is callable directly. Checked before the email code is
+        # consumed so a rejected target doesn't burn the user's one-shot code.
+        _redirect_error = _redirect_uri_error(redirect_uri)
+        if _redirect_error:
+            return {"error": _redirect_error}
+
         if not store.verify_email_code(email, code):
             return {"error": "Invalid or expired code"}
 
         user_id = store.get_user_by_email(email)
         if not user_id:
             return {"error": "User not found"}
-
-        # Validate redirect_uri — must be HTTPS or localhost
-        if redirect_uri:
-            from urllib.parse import urlparse
-            parsed = urlparse(redirect_uri)
-            if parsed.scheme not in ("https", "http"):
-                return {"error": "Invalid redirect_uri scheme"}
-            # Allow localhost for dev, require HTTPS for everything else
-            if parsed.scheme == "http" and parsed.hostname not in ("localhost", "127.0.0.1"):
-                return {"error": "redirect_uri must use HTTPS"}
 
         # Create OAuth authorization code (with PKCE challenge when provided)
         oauth_code = secrets.token_urlsafe(32)
@@ -7197,16 +7224,14 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                         continue
                     created.append(name)
 
-                    chunks = [name] + [f"{name}: {fs}" for fs in fact_strings]
-                    for r in entity_relations:
-                        target = r.get("target", "")
-                        rel_type = r.get("type", "")
-                        if target and rel_type:
-                            chunks.append(f"{name} {rel_type} {target}")
-                    for k in entity_knowledge:
-                        kt = f"{k['title']} {k['content']}"
-                        chunks.append(_summarize_for_embedding(kt) if len(kt) > 2000 else kt)
-                    embedding_queue.append((entity_id, chunks))
+                    # Chunks cover the entity's full current state, not just
+                    # this conversation's facts — the embedding set is replaced
+                    # wholesale, so anything left out stops being searchable.
+                    try:
+                        embedding_queue.append((entity_id, store.build_entity_chunks(
+                            entity_id, name, summarize=_summarize_for_embedding)))
+                    except Exception as e:
+                        logger.warning(f"⚠️ Chunk build failed for '{name}': {e}")
 
                 # -- Refresh context for next window (includes just-saved entities) --
                 if win_start + WINDOW_SIZE < len(conversation):
@@ -7222,11 +7247,24 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             embed_items = []  # [(save_fn, text)]
 
             # Entity embeddings
+            # Only chunks that aren't embedded yet go to the API; chunks that
+            # dropped out of the entity are retired after the batch succeeds.
+            stale_by_entity = {}
             if embedder and embedding_queue:
+                _dims = getattr(embedder, "dimensions", 1536)
                 for entity_id, chunks in embedding_queue:
-                    store.delete_embeddings(entity_id)
+                    try:
+                        existing = store.get_embedded_chunk_texts(entity_id, _dims)
+                    except Exception as e:
+                        logger.warning(f"⚠️ Embedding lookup failed for {entity_id}: {e}")
+                        existing = set()
+                    wanted = set(chunks)
+                    stale = [t for t in existing if t not in wanted]
+                    if stale:
+                        stale_by_entity[entity_id] = stale
                     for chunk in chunks:
-                        embed_items.append(("entity", entity_id, chunk))
+                        if chunk not in existing:
+                            embed_items.append(("entity", entity_id, chunk))
 
             # Raw conversation chunk
             conv_chunk_text = None
@@ -7307,7 +7345,6 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                             (s.get("action", "") if isinstance(s, dict) else str(s)) for s in pr.steps[:10]
                         )
                         pr_text = f"{pr.name}. {pr.trigger or ''}. Steps: {steps_summary}"
-                        store.delete_procedure_embeddings(proc_id)
                         embed_items.append(("procedure", proc_id, pr_text))
                     procedures_created += 1
                 except Exception as e:
@@ -7318,6 +7355,22 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             if embedder and embed_items:
                 all_texts = [item[2] for item in embed_items]
                 all_embeddings = embedder.embed_batch(all_texts)
+                if len(all_embeddings) != len(embed_items):
+                    # zip() would silently drop the tail and leave entities with
+                    # a partial embedding set; keep the existing one instead.
+                    logger.error(
+                        f"⚠️ Embedder returned {len(all_embeddings)} vectors for "
+                        f"{len(embed_items)} chunks — skipping embedding update")
+                    all_embeddings = []
+
+                # A procedure's text is rewritten wholesale, so its old vector
+                # goes only once the replacement is in hand — deleting up-front
+                # left it unsearchable whenever the embed call failed.
+                if all_embeddings:
+                    for item_type, item_id, _text in embed_items:
+                        if item_type == "procedure":
+                            store.delete_procedure_embeddings(item_id)
+
                 for (item_type, item_id, text), emb in zip(embed_items, all_embeddings):
                     if item_type == "entity":
                         store.save_embedding(item_id, text, emb)
@@ -7328,6 +7381,14 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                         episode_embeddings[item_id] = emb
                     elif item_type == "procedure":
                         store.save_procedure_embedding(item_id, text, emb)
+
+            # Retire chunks the entity no longer has (archived facts, dropped
+            # relations). Runs even when nothing new needed embedding.
+            for entity_id, stale in stale_by_entity.items():
+                try:
+                    store.delete_embeddings_for_texts(entity_id, stale)
+                except Exception as e:
+                    logger.warning(f"⚠️ Stale embedding cleanup failed for {entity_id}: {e}")
 
             # ---- Episode auto-linking (uses pre-computed embeddings) ----
             for episode_id, (ep, ep_text) in episode_embed_map.items():
@@ -7525,8 +7586,11 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         user_id = ctx.user_id
         sub_uid = req.user_id or "default"
 
-        # Dry run: extract and return preview without saving
+        # Dry run: extract and return preview without saving. Metered like a
+        # real add — it runs the same LLM extraction, so leaving it free made
+        # /v1/add an unlimited extraction API for anyone passing dry_run.
         if req.dry_run:
+            use_quota(ctx, "add")
             extractor = get_llm()
             existing_context = ""
             try:
@@ -8253,17 +8317,14 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             if not entity_id:
                 continue
 
-            chunks = [name] + entity.get("facts", [])
-            for r in entity.get("relations", []):
-                target = r.get("target", "")
-                rel_type = r.get("type", "")
-                if target and rel_type:
-                    chunks.append(f"{name} {rel_type} {target}")
-            for k in entity.get("knowledge", []):
-                chunks.append(f"{k.get('title', '')} {k.get('content', '')}")
-
-            store.delete_embeddings(entity_id)
+            chunks = store.build_entity_chunks(
+                entity_id, name, summarize=_summarize_for_embedding)
             embeddings = embedder.embed_batch(chunks)
+            if len(embeddings) != len(chunks):
+                logger.error(f"⚠️ Reindex skipped '{name}': embedder returned "
+                             f"{len(embeddings)} vectors for {len(chunks)} chunks")
+                continue
+            store.delete_embeddings(entity_id)
             for chunk, emb in zip(chunks, embeddings):
                 store.save_embedding(entity_id, chunk, emb)
             count += 1
@@ -9695,6 +9756,24 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         except Exception:
             return None
 
+    def _lock_still_held(conn) -> bool:
+        """Whether the lock connection is still usable. The Supabase pooler
+        drops idle connections, which silently releases the advisory lock — a
+        loop that never rechecks keeps running while another instance is free
+        to grab the same lock and double-fire."""
+        if conn is None or conn.closed:
+            return False
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1")
+            return True
+        except Exception:
+            try:
+                conn.close()
+            except Exception:
+                pass
+            return False
+
     # Lock IDs (arbitrary unique ints)
     _LOCK_TRIGGER_CRON = 900001
     _LOCK_DRIP_CRON = 900002
@@ -9703,12 +9782,17 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     def _trigger_cron_loop():
         """Background thread that processes triggers every 5 minutes."""
         _time.sleep(30)  # Initial delay to let server start
-        _lock_conn = _try_advisory_lock(_LOCK_TRIGGER_CRON)
-        if not _lock_conn:
-            logger.info("🧠 Trigger cron: another worker holds the lock, skipping")
-            return
-        logger.info("🧠 Smart trigger cron started (every 5 min)")
+        # The lock is retried every tick rather than once at startup: on a
+        # rolling deploy the incoming instance loses the race to the outgoing
+        # one, and giving up left this cron dead until the next restart.
+        _lock_conn = None
         while True:
+            if not _lock_still_held(_lock_conn):
+                _lock_conn = _try_advisory_lock(_LOCK_TRIGGER_CRON)
+                if not _lock_conn:
+                    _time.sleep(300)
+                    continue
+                logger.info("🧠 Smart trigger cron started (every 5 min)")
             try:
                 result = store.process_all_triggers()
                 if result["fired"] > 0:
@@ -9726,12 +9810,14 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     def _drip_email_cron_loop():
         """Background thread that sends onboarding drip emails every 30 minutes."""
         _time.sleep(60)  # Initial delay
-        _lock_conn = _try_advisory_lock(_LOCK_DRIP_CRON)
-        if not _lock_conn:
-            logger.info("📧 Drip email cron: another worker holds the lock, skipping")
-            return
-        logger.info("📧 Onboarding drip email cron started (every 30 min)")
+        _lock_conn = None  # reacquired every tick — see _trigger_cron_loop
         while True:
+            if not _lock_still_held(_lock_conn):
+                _lock_conn = _try_advisory_lock(_LOCK_DRIP_CRON)
+                if not _lock_conn:
+                    _time.sleep(300)
+                    continue
+                logger.info("📧 Onboarding drip email cron started (every 30 min)")
             try:
                 import secrets as _secrets
 
@@ -9905,12 +9991,14 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         import traceback
         logger.info("🩺 Memory Health cron: thread alive, sleeping 120s before first run")
         _time.sleep(120)  # Initial delay so this doesn't pile on with drip cron
-        _lock_conn = _try_advisory_lock(_LOCK_HEALTH_CRON)
-        if not _lock_conn:
-            logger.info("🩺 Memory Health cron: another worker holds the lock, skipping")
-            return
-        logger.info("🩺 Memory Health aggregation cron started (every 6h, 5min retry on error)")
+        _lock_conn = None  # reacquired every tick — see _trigger_cron_loop
         while True:
+            if not _lock_still_held(_lock_conn):
+                _lock_conn = _try_advisory_lock(_LOCK_HEALTH_CRON)
+                if not _lock_conn:
+                    _time.sleep(300)
+                    continue
+                logger.info("🩺 Memory Health aggregation cron started (every 6h, 5min retry on error)")
             iteration_failed = False
             try:
                 result = store.aggregate_memory_health(window_hours=24)
@@ -9956,14 +10044,16 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         import traceback
         logger.info("🌙 Reflection cron: thread alive, sleeping 180s before first run")
         _time.sleep(180)
-        _lock_conn = _try_advisory_lock(_LOCK_REFLECTION_CRON)
-        if not _lock_conn:
-            logger.info("🌙 Reflection cron: another worker holds the lock, skipping")
-            return
-        logger.info(
-            f"🌙 Reflection cron started (every 24h, batch up to {_REFLECTION_BATCH_SIZE} users)"
-        )
+        _lock_conn = None  # reacquired every tick — see _trigger_cron_loop
         while True:
+            if not _lock_still_held(_lock_conn):
+                _lock_conn = _try_advisory_lock(_LOCK_REFLECTION_CRON)
+                if not _lock_conn:
+                    _time.sleep(300)
+                    continue
+                logger.info(
+                    f"🌙 Reflection cron started (every 24h, batch up to {_REFLECTION_BATCH_SIZE} users)"
+                )
             iteration_failed = False
             try:
                 users_due = store.get_users_due_for_reflection(
