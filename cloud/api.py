@@ -9729,6 +9729,24 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         except Exception:
             return None
 
+    def _lock_still_held(conn) -> bool:
+        """Whether the lock connection is still usable. The Supabase pooler
+        drops idle connections, which silently releases the advisory lock — a
+        loop that never rechecks keeps running while another instance is free
+        to grab the same lock and double-fire."""
+        if conn is None or conn.closed:
+            return False
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1")
+            return True
+        except Exception:
+            try:
+                conn.close()
+            except Exception:
+                pass
+            return False
+
     # Lock IDs (arbitrary unique ints)
     _LOCK_TRIGGER_CRON = 900001
     _LOCK_DRIP_CRON = 900002
@@ -9737,12 +9755,17 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     def _trigger_cron_loop():
         """Background thread that processes triggers every 5 minutes."""
         _time.sleep(30)  # Initial delay to let server start
-        _lock_conn = _try_advisory_lock(_LOCK_TRIGGER_CRON)
-        if not _lock_conn:
-            logger.info("🧠 Trigger cron: another worker holds the lock, skipping")
-            return
-        logger.info("🧠 Smart trigger cron started (every 5 min)")
+        # The lock is retried every tick rather than once at startup: on a
+        # rolling deploy the incoming instance loses the race to the outgoing
+        # one, and giving up left this cron dead until the next restart.
+        _lock_conn = None
         while True:
+            if not _lock_still_held(_lock_conn):
+                _lock_conn = _try_advisory_lock(_LOCK_TRIGGER_CRON)
+                if not _lock_conn:
+                    _time.sleep(300)
+                    continue
+                logger.info("🧠 Smart trigger cron started (every 5 min)")
             try:
                 result = store.process_all_triggers()
                 if result["fired"] > 0:
@@ -9760,12 +9783,14 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     def _drip_email_cron_loop():
         """Background thread that sends onboarding drip emails every 30 minutes."""
         _time.sleep(60)  # Initial delay
-        _lock_conn = _try_advisory_lock(_LOCK_DRIP_CRON)
-        if not _lock_conn:
-            logger.info("📧 Drip email cron: another worker holds the lock, skipping")
-            return
-        logger.info("📧 Onboarding drip email cron started (every 30 min)")
+        _lock_conn = None  # reacquired every tick — see _trigger_cron_loop
         while True:
+            if not _lock_still_held(_lock_conn):
+                _lock_conn = _try_advisory_lock(_LOCK_DRIP_CRON)
+                if not _lock_conn:
+                    _time.sleep(300)
+                    continue
+                logger.info("📧 Onboarding drip email cron started (every 30 min)")
             try:
                 import secrets as _secrets
 
@@ -9939,12 +9964,14 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         import traceback
         logger.info("🩺 Memory Health cron: thread alive, sleeping 120s before first run")
         _time.sleep(120)  # Initial delay so this doesn't pile on with drip cron
-        _lock_conn = _try_advisory_lock(_LOCK_HEALTH_CRON)
-        if not _lock_conn:
-            logger.info("🩺 Memory Health cron: another worker holds the lock, skipping")
-            return
-        logger.info("🩺 Memory Health aggregation cron started (every 6h, 5min retry on error)")
+        _lock_conn = None  # reacquired every tick — see _trigger_cron_loop
         while True:
+            if not _lock_still_held(_lock_conn):
+                _lock_conn = _try_advisory_lock(_LOCK_HEALTH_CRON)
+                if not _lock_conn:
+                    _time.sleep(300)
+                    continue
+                logger.info("🩺 Memory Health aggregation cron started (every 6h, 5min retry on error)")
             iteration_failed = False
             try:
                 result = store.aggregate_memory_health(window_hours=24)
@@ -9990,14 +10017,16 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         import traceback
         logger.info("🌙 Reflection cron: thread alive, sleeping 180s before first run")
         _time.sleep(180)
-        _lock_conn = _try_advisory_lock(_LOCK_REFLECTION_CRON)
-        if not _lock_conn:
-            logger.info("🌙 Reflection cron: another worker holds the lock, skipping")
-            return
-        logger.info(
-            f"🌙 Reflection cron started (every 24h, batch up to {_REFLECTION_BATCH_SIZE} users)"
-        )
+        _lock_conn = None  # reacquired every tick — see _trigger_cron_loop
         while True:
+            if not _lock_still_held(_lock_conn):
+                _lock_conn = _try_advisory_lock(_LOCK_REFLECTION_CRON)
+                if not _lock_conn:
+                    _time.sleep(300)
+                    continue
+                logger.info(
+                    f"🌙 Reflection cron started (every 24h, batch up to {_REFLECTION_BATCH_SIZE} users)"
+                )
             iteration_failed = False
             try:
                 users_due = store.get_users_due_for_reflection(
