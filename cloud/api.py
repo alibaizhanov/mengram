@@ -35,6 +35,7 @@ from dataclasses import dataclass
 from pydantic import BaseModel, Field
 
 from cloud.store import CloudStore, _normalize_fact
+from cloud.oauth_policy import redirect_uri_error as _redirect_uri_error
 
 
 # ---- Auth Context ----
@@ -6691,7 +6692,36 @@ a{{color:#a855f7;text-decoration:none}}
     ):
         """OAuth authorize page — shows email login. Carries the PKCE challenge
         (RFC 7636) through the login step so the token exchange can verify it."""
-        from urllib.parse import quote
+        from urllib.parse import quote, urlparse
+        import html as _html
+
+        # Refuse before the user is asked for anything — a rejected target
+        # should never get as far as showing a Mengram-branded login form.
+        _redirect_error = _redirect_uri_error(redirect_uri)
+        if _redirect_error:
+            return HTMLResponse(
+                f"<!DOCTYPE html><meta charset='utf-8'>"
+                f"<div style=\"font-family:system-ui;max-width:32rem;margin:15vh auto;"
+                f"padding:0 1.5rem;line-height:1.6\">"
+                f"<h1 style='font-size:1.25rem'>Sign-in blocked</h1>"
+                f"<p>{_html.escape(_redirect_error)}. Mengram will not send an "
+                f"authorization code to this destination.</p>"
+                f"<p style='color:#666;font-size:.9rem'>If you started this from "
+                f"an AI assistant, open the connector settings and try again.</p>"
+                f"</div>",
+                status_code=400,
+            )
+
+        # Name the destination on the card: the one thing that lets someone
+        # spot a code being routed somewhere they didn't intend.
+        _dest_host = _html.escape((urlparse(redirect_uri).hostname or "") if redirect_uri else "")
+        destination_note = (
+            f"<p style='color:#888;margin-bottom:24px;font-size:14px'>Connecting your "
+            f"memory to <strong style='color:#e0e0e0'>{_dest_host}</strong></p>"
+            if _dest_host else
+            "<p style='color:#888;margin-bottom:24px;font-size:14px'>"
+            "Connect your memory to your AI assistant</p>"
+        )
         redirect_uri_encoded = quote(redirect_uri, safe="")
         state_encoded = quote(state, safe="")
         code_challenge_encoded = quote(code_challenge, safe="")
@@ -6723,7 +6753,7 @@ a{{color:#a855f7;text-decoration:none}}
 <div class="card">
   <div class="logo"><svg width='34' height='34' viewBox='0 0 100 100'><path d='M22 65 V44 C22 36 36 36 40 44 V65 M40 44 C44 36 58 36 58 44 V54 C58 63 70 64 73 54' fill='none' stroke='#7c3aed' stroke-width='10' stroke-linecap='round' stroke-linejoin='round'/><circle cx='75' cy='51' r='8' fill='#7c3aed'/><circle cx='75' cy='51' r='3' fill='#fff'/></svg></div>
   <h1>Sign in to Mengram</h1>
-  <p>Connect your memory to your AI assistant</p>
+  {destination_note}
 
   <div id="step1" class="step active">
     <input type="email" id="email" placeholder="your@email.com" autofocus>
@@ -6847,22 +6877,19 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         if not _check_rate_limit(f"verify_ip:{client_ip}", 20):
             return {"error": "Too many attempts. Try again in 60 seconds."}
 
+        # Re-validated here because /oauth/authorize is only the UI and this
+        # endpoint is callable directly. Checked before the email code is
+        # consumed so a rejected target doesn't burn the user's one-shot code.
+        _redirect_error = _redirect_uri_error(redirect_uri)
+        if _redirect_error:
+            return {"error": _redirect_error}
+
         if not store.verify_email_code(email, code):
             return {"error": "Invalid or expired code"}
 
         user_id = store.get_user_by_email(email)
         if not user_id:
             return {"error": "User not found"}
-
-        # Validate redirect_uri — must be HTTPS or localhost
-        if redirect_uri:
-            from urllib.parse import urlparse
-            parsed = urlparse(redirect_uri)
-            if parsed.scheme not in ("https", "http"):
-                return {"error": "Invalid redirect_uri scheme"}
-            # Allow localhost for dev, require HTTPS for everything else
-            if parsed.scheme == "http" and parsed.hostname not in ("localhost", "127.0.0.1"):
-                return {"error": "redirect_uri must use HTTPS"}
 
         # Create OAuth authorization code (with PKCE challenge when provided)
         oauth_code = secrets.token_urlsafe(32)
