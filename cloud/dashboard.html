@@ -18,7 +18,7 @@
     <script>window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)},plausible.init=plausible.init||function(i){plausible.o=i||{}};plausible.init()</script>
     <meta name="robots" content="noindex, nofollow">
     <title>Mengram — Memory Console</title>
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Cpath d='M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68' fill='none' stroke='%23a855f7' stroke-width='10' stroke-linecap='round'/%3E%3Ccircle cx='62' cy='68' r='10' fill='%23a855f7'/%3E%3Ccircle cx='62' cy='68' r='4.5' fill='%23fff'/%3E%3C/svg%3E">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%237c3aed'/%3E%3Cg transform='translate(0 -1.6) scale(0.32)'%3E%3Cpath d='M22 65 V44 C22 36 36 36 40 44 V65 M40 44 C44 36 58 36 58 44 V54 C58 63 70 64 73 54' fill='none' stroke='%23ffffff' stroke-width='10' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='75' cy='51' r='8' fill='%23ffffff'/%3E%3Ccircle cx='75' cy='51' r='3' fill='%237c3aed'/%3E%3C/g%3E%3C/svg%3E">
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Sora:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
     <style>
@@ -47,23 +47,41 @@
             --red-dim: rgba(248, 113, 113, 0.1);
         }
         [data-theme="light"] {
-            --bg: #f5f5f7;
-            --bg-card: #ffffff;
-            --bg-elevated: #f0f0f3;
-            --bg-hover: #e8e8ec;
-            --border: #d8d8e0;
-            --border-hover: #c0c0c8;
-            --text: #1a1a2e;
-            --text-2: #5a5a78;
-            --text-3: #9898b0;
-            --accent-dim: rgba(168, 85, 247, 0.08);
-            --accent-glow: rgba(168, 85, 247, 0.15);
-            --green-dim: rgba(16, 185, 129, 0.08);
-            --blue-dim: rgba(59, 130, 246, 0.08);
-            --orange-dim: rgba(245, 158, 11, 0.08);
-            --pink-dim: rgba(236, 72, 153, 0.08);
-            --red-dim: rgba(239, 68, 68, 0.08);
+            /* Rowboat-style light — approved 2026-07-29. Violet-tinted neutrals,
+               one violet accent, "600" semantic colours that read on white. */
+            --bg: #F4F3FA;
+            --bg-card: #FFFFFF;
+            --bg-elevated: #F3F0FB;
+            --bg-hover: #EDE9F7;
+            --border: #E9E5F4;
+            --border-hover: #D6CCEC;
+            --text: #191524;
+            --text-2: #6B6580;
+            --text-3: #A29BB6;
+            --accent: #7C3AED;
+            --accent-dim: rgba(124, 58, 237, 0.10);
+            --accent-glow: rgba(124, 58, 237, 0.18);
+            --green: #059669;
+            --green-dim: rgba(5, 150, 105, 0.10);
+            --blue: #2563EB;
+            --blue-dim: rgba(37, 99, 235, 0.08);
+            --orange: #EA580C;
+            --orange-dim: rgba(234, 88, 12, 0.08);
+            --pink: #DB2777;
+            --pink-dim: rgba(219, 39, 119, 0.08);
+            --red: #DC2626;
+            --red-dim: rgba(220, 38, 38, 0.08);
         }
+        /* Command / key / artifact chips stay dark on the light theme (a small
+           "terminal" chip reads as code and keeps the API key legible). */
+        [data-theme="light"] .path-cmd,
+        [data-theme="light"] .welcome-key-row,
+        [data-theme="light"] .m-know pre {
+            background: #14121F; border-color: #2A2740; color: #C9C4D6;
+        }
+        [data-theme="light"] .path-cmd code,
+        [data-theme="light"] .welcome-key-row code,
+        [data-theme="light"] .m-know pre { color: #34D399; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { background: var(--bg); color: var(--text); font-family: 'Sora', sans-serif; -webkit-font-smoothing: antialiased; min-height: 100vh; }
 
@@ -91,6 +109,10 @@
         .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px; color: var(--text-2); font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s; margin-bottom: 2px; }
         .nav-item:hover { background: var(--bg-elevated); color: var(--text); }
         .nav-item.active { background: var(--accent-dim); color: var(--accent); }
+        .nav-item .nav-txt { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+        .nav-item .nav-title { font-weight: 560; font-size: 14px; }
+        .nav-item .nav-sub-label { font-size: 11px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 400; }
+        .nav-item.active .nav-sub-label { color: var(--accent); opacity: 0.65; }
         .nav-item .icon { font-size: 16px; width: 20px; text-align: center; display: inline-flex; align-items: center; justify-content: center; }
         .nav-item .icon svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
         .ie-icon svg { width: 48px; height: 48px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
@@ -192,9 +214,10 @@
         .empty a { color: var(--accent); text-decoration: none; }
 
         /* Graph */
-        .graph-box { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; height: calc(100vh - 200px); position: relative; overflow: hidden; }
+        /* Rowboat-style framed "stage": dotted canvas, soft rounding + shadow */
+        .graph-box { background-color: var(--bg-elevated); background-image: radial-gradient(circle at 46% 42%, var(--bg-card), transparent 60%), radial-gradient(var(--border) 1.1px, transparent 1.1px); background-size: auto, 22px 22px; border: 1px solid var(--border); border-radius: 22px; height: calc(100vh - 200px); position: relative; overflow: hidden; box-shadow: 0 40px 90px -60px var(--accent-glow), 0 2px 8px rgba(23,19,32,0.04); }
         .graph-box > svg { width: 100%; height: 100%; }
-        .graph-legend { position: absolute; bottom: 16px; left: 16px; display: flex; gap: 14px; font-size: 11px; color: var(--text-2); background: var(--bg-card); padding: 8px 14px; border-radius: 8px; backdrop-filter: blur(8px); border: 1px solid var(--border); }
+        .graph-legend { position: absolute; bottom: 16px; left: 16px; display: flex; gap: 14px; font-size: 11px; color: var(--text-2); background: var(--bg-card); padding: 9px 14px; border-radius: 11px; backdrop-filter: blur(8px); border: 1px solid var(--border); box-shadow: 0 10px 30px -18px var(--accent-glow); }
         .ldot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 4px; }
         .graph-panel { position: absolute; right: 16px; top: 16px; width: 320px; max-height: calc(100% - 32px); overflow-y: auto; background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; z-index: 10; transform: translateX(calc(100% + 32px)); opacity: 0; pointer-events: none; transition: transform 0.25s ease, opacity 0.2s ease; }
         .graph-panel.open { transform: translateX(0); opacity: 1; pointer-events: auto; }
@@ -448,7 +471,16 @@
         .proc-card:hover { border-color: var(--accent); transform: translateY(-1px); }
         .proc-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
         .proc-name { font-size: 15px; font-weight: 600; }
-        .proc-version { background: var(--green-dim); color: var(--green); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500; }
+        .proc-version { background: var(--accent-dim); color: var(--accent); padding: 2px 7px; border-radius: 6px; font-size: 11px; font-weight: 500; font-family: 'JetBrains Mono', monospace; }
+        .proc-track { margin-left: auto; display: flex; align-items: center; gap: 10px; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+        .proc-track .ok { color: var(--green); }
+        .proc-track .bad { color: var(--red); }
+        .proc-track .proc-new { color: var(--text-3); background: var(--bg-elevated); border-radius: 20px; padding: 1px 8px; font-size: 11px; }
+        .proc-bar.wide { width: 100%; margin-top: 12px; height: 6px; }
+        .proc-steps-row { margin-top: 11px; display: flex; flex-wrap: wrap; gap: 6px; }
+        .pstep { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 7px; padding: 3px 9px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-2); }
+        .pstep-more { color: var(--text-3); }
+        .proc-stepcount { font-size: 12px; color: var(--text-3); }
         .proc-trigger { color: var(--text-2); font-size: 13px; margin-bottom: 8px; line-height: 1.4; }
         .proc-meta { display: flex; gap: 16px; font-size: 12px; color: var(--text-3); align-items: center; }
         .proc-bar { height: 4px; background: var(--bg-elevated); border-radius: 2px; overflow: hidden; width: 80px; }
@@ -877,7 +909,7 @@
 <!-- Mobile header -->
 <div class="mobile-header" id="mobile-header">
     <button class="hamburger" id="hamburger" onclick="toggleMobileMenu()"><span></span><span></span><span></span></button>
-    <div class="mobile-logo"><svg width="18" height="18" viewBox="0 0 120 120"><path d="M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68" fill="none" stroke="#a855f7" stroke-width="8" stroke-linecap="round"/><circle cx="62" cy="68" r="8" fill="#a855f7"/><circle cx="62" cy="68" r="3.5" fill="#fff"/></svg> Mengram</div>
+    <div class="mobile-logo"><svg width="18" height="18" viewBox="0 0 100 100"><path d="M22 65 V44 C22 36 36 36 40 44 V65 M40 44 C44 36 58 36 58 44 V54 C58 63 70 64 73 54" fill="none" stroke="#a855f7" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/><circle cx="75" cy="51" r="8" fill="#a855f7"/><circle cx="75" cy="51" r="3" fill="#fff"/></svg> Mengram</div>
 </div>
 <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileMenu()"></div>
 
@@ -911,7 +943,7 @@
 
 <div class="login-screen" id="login-screen">
     <div class="login-box">
-        <h1><svg width="28" height="28" viewBox="0 0 120 120" style="vertical-align:middle;margin-right:4px;"><path d="M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68" fill="none" stroke="#a855f7" stroke-width="8" stroke-linecap="round"/><circle cx="62" cy="68" r="8" fill="#a855f7"/><circle cx="62" cy="68" r="3.5" fill="#fff"/></svg> Mengram</h1>
+        <h1><svg width="28" height="28" viewBox="0 0 100 100" style="vertical-align:middle;margin-right:4px;"><path d="M22 65 V44 C22 36 36 36 40 44 V65 M40 44 C44 36 58 36 58 44 V54 C58 63 70 64 73 54" fill="none" stroke="#a855f7" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/><circle cx="75" cy="51" r="8" fill="#a855f7"/><circle cx="75" cy="51" r="3" fill="#fff"/></svg> Mengram</h1>
         <p>Enter your API key to access your Memory Console.</p>
         <div id="login-key">
             <input type="password" class="login-input" id="key-input" placeholder="om-..." autocomplete="off">
@@ -925,13 +957,13 @@
             </div>
             <div id="reset-step-code" style="display:none">
                 <input type="text" class="login-input" id="reset-code" placeholder="6-digit code" maxlength="6" inputmode="numeric">
-                <button class="login-btn" onclick="verifyResetCode()">Get New Key</button>
+                <button class="login-btn" onclick="verifyResetCode()">Sign In</button>
             </div>
             <div class="login-error" id="reset-error" style="display:none"></div>
             <div id="reset-result" style="display:none;text-align:left;margin-top:12px;background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.15);padding:16px;border-radius:10px;"></div>
         </div>
         <div class="login-links">
-            <span id="link-forgot" style="cursor:pointer;color:var(--accent);" onclick="showResetFlow()">Lost your key?</span>
+            <span id="link-forgot" style="cursor:pointer;color:var(--accent);" onclick="showResetFlow()">No key? Sign in with email</span>
             <span id="link-back" style="display:none;cursor:pointer;color:var(--accent);" onclick="showKeyLogin()">← Back to login</span>
             &nbsp;·&nbsp; Don't have a key? <a href="/">Sign up free →</a>
         </div>
@@ -940,10 +972,10 @@
 
 <div class="app" id="app">
     <div class="sidebar">
-        <div class="sidebar-logo"><svg width="20" height="20" viewBox="0 0 120 120" style="vertical-align:middle;margin-right:4px;"><path d="M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68" fill="none" stroke="#a855f7" stroke-width="8" stroke-linecap="round"/><circle cx="62" cy="68" r="8" fill="#a855f7"/><circle cx="62" cy="68" r="3.5" fill="#fff"/></svg> Mengram</div>
+        <div class="sidebar-logo"><svg width="20" height="20" viewBox="0 0 100 100" style="vertical-align:middle;margin-right:4px;"><path d="M22 65 V44 C22 36 36 36 40 44 V65 M40 44 C44 36 58 36 58 44 V54 C58 63 70 64 73 54" fill="none" stroke="#a855f7" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/><circle cx="75" cy="51" r="8" fill="#a855f7"/><circle cx="75" cy="51" r="3" fill="#fff"/></svg> Mengram</div>
         <div class="sidebar-nav">
             <div class="nav-group active" data-group="memory">
-                <div class="nav-item active" onclick="switchGroup(event,'memory')"><span class="icon"><svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7z"/><path d="M10 21h4"/></svg></span> Memory <span class="chevron">▸</span></div>
+                <div class="nav-item active" onclick="switchGroup(event,'memory')"><span class="icon"><svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7z"/><path d="M10 21h4"/></svg></span><span class="nav-txt"><span class="nav-title">Memory</span><span class="nav-sub-label">Graph · search · entities</span></span><span class="chevron">▸</span></div>
                 <div class="nav-sub-items">
                     <div class="nav-sub active" data-tab="graph" onclick="switchTab(event,'graph')">Knowledge Graph</div>
                     <div class="nav-sub" data-tab="search" onclick="switchTab(event,'search')">Search</div>
@@ -952,7 +984,7 @@
                 </div>
             </div>
             <div class="nav-group" data-group="intelligence">
-                <div class="nav-item" onclick="switchGroup(event,'intelligence')"><span class="icon"><svg viewBox="0 0 24 24"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg></span> Intelligence <span class="chevron">▸</span></div>
+                <div class="nav-item" onclick="switchGroup(event,'intelligence')"><span class="icon"><svg viewBox="0 0 24 24"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg></span><span class="nav-txt"><span class="nav-title">Intelligence</span><span class="nav-sub-label">Overview · agents · insights</span></span><span class="chevron">▸</span></div>
                 <div class="nav-sub-items">
                     <div class="nav-sub" data-tab="overview" onclick="switchTab(event,'overview')">Overview</div>
                     <div class="nav-sub" data-tab="agents" onclick="switchTab(event,'agents')">Agents</div>
@@ -960,10 +992,10 @@
                 </div>
             </div>
             <div class="nav-group" data-group="procedures">
-                <div class="nav-item" onclick="switchGroup(event,'procedures')"><span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M12 15V9"/><path d="m8.7 7.5 2.6 3"/><path d="m15.3 7.5-2.6 3"/></svg></span> Procedures</div>
+                <div class="nav-item" onclick="switchGroup(event,'procedures')"><span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M12 15V9"/><path d="m8.7 7.5 2.6 3"/><path d="m15.3 7.5-2.6 3"/></svg></span><span class="nav-txt"><span class="nav-title">Procedures</span><span class="nav-sub-label">Workflows · regression-gated</span></span></div>
             </div>
             <div class="nav-group" data-group="account">
-                <div class="nav-item" onclick="switchGroup(event,'account')"><span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span> Account <span class="chevron">▸</span></div>
+                <div class="nav-item" onclick="switchGroup(event,'account')"><span class="icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span class="nav-txt"><span class="nav-title">Account</span><span class="nav-sub-label">Billing · settings</span></span><span class="chevron">▸</span></div>
                 <div class="nav-sub-items">
                     <div class="nav-sub" data-tab="billing" onclick="switchTab(event,'billing')">Billing</div>
                     <div class="nav-sub" data-tab="settings" onclick="switchTab(event,'settings')">Settings</div>
@@ -1373,7 +1405,7 @@
         </div>
         <!-- Step 1: Add Memory -->
         <div class="ob-wizard-step" id="ob-wiz-step-1">
-            <div class="ob-wiz-icon"><svg viewBox="0 0 120 120" width="48" height="48"><path d="M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68" fill="none" stroke="#a855f7" stroke-width="8" stroke-linecap="round"/><circle cx="62" cy="68" r="8" fill="#a855f7"/><circle cx="62" cy="68" r="3.5" fill="#fff"/></svg></div>
+            <div class="ob-wiz-icon"><svg viewBox="0 0 100 100" width="48" height="48"><path d="M22 65 V44 C22 36 36 36 40 44 V65 M40 44 C44 36 58 36 58 44 V54 C58 63 70 64 73 54" fill="none" stroke="#a855f7" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/><circle cx="75" cy="51" r="8" fill="#a855f7"/><circle cx="75" cy="51" r="3" fill="#fff"/></svg></div>
             <h2>Add your first memory</h2>
             <p>Tell your AI something about yourself. Edit the text below or use our example.</p>
             <textarea id="ob-wiz-text" rows="3">I'm a software engineer who uses Python and TypeScript. I work on web apps and deploy to the cloud. I'm exploring AI agents with persistent memory.</textarea>
@@ -1430,7 +1462,7 @@ function toggleTheme() {
 }
 (function initTheme() {
     const saved = localStorage.getItem('mengram_theme');
-    if (saved === 'light') {
+    if (saved !== 'dark') {   // light is the default; only an explicit choice keeps dark
         document.documentElement.dataset.theme = 'light';
         const el = document.getElementById('theme-toggle');
         if (el) el.innerHTML = THEME_SUN;
@@ -1910,7 +1942,7 @@ async function sendResetCode() {
                 const res = document.getElementById('reset-result');
                 res.style.display = 'block';
                 localStorage.setItem('mengram_key', d.api_key);
-                res.innerHTML = `<strong style="color:var(--green);">New key generated!</strong><p style="margin-top:8px;font-size:13px;color:var(--text-2);">Save it:</p><div style="margin-top:8px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:13px;word-break:break-all;">${esc(d.api_key)}</div><button onclick="copyText('${d.api_key.replace(/'/g,"\\'")}','API key');this.textContent='Copied!';setTimeout(()=>this.textContent='Copy Key',2000)" style="margin-top:8px;padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;width:100%;">Copy Key</button><button onclick="tryLogin('${d.api_key.replace(/'/g,"\\'")}')" style="margin-top:6px;padding:8px 16px;background:var(--bg-card);color:var(--accent);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:13px;width:100%;">Open Console with this key →</button>`;
+                res.innerHTML = `<strong style="color:var(--green);">Signed in!</strong><p style="margin-top:8px;font-size:13px;color:var(--text-2);">Your dashboard key:</p><div style="margin-top:8px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:13px;word-break:break-all;">${esc(d.api_key)}</div><button onclick="copyText('${d.api_key.replace(/'/g,"\\'")}','API key');this.textContent='Copied!';setTimeout(()=>this.textContent='Copy Key',2000)" style="margin-top:8px;padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;width:100%;">Copy Key</button><button onclick="tryLogin('${d.api_key.replace(/'/g,"\\'")}')" style="margin-top:6px;padding:8px 16px;background:var(--bg-card);color:var(--accent);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:13px;width:100%;">Open Console with this key →</button>`;
             } else {
                 _resetEmail = email;
                 document.getElementById('reset-step-email').style.display = 'none';
@@ -1933,7 +1965,7 @@ async function verifyResetCode() {
             const res = document.getElementById('reset-result');
             res.style.display = 'block';
             localStorage.setItem('mengram_key', d.api_key);
-            res.innerHTML = `<strong style="color:var(--green);">New key generated!</strong><p style="margin-top:8px;font-size:13px;color:var(--text-2);">Save it — old keys are now inactive:</p><div style="margin-top:8px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:13px;word-break:break-all;">${esc(d.api_key)}</div><button onclick="copyText('${d.api_key.replace(/'/g,"\\'")}','API key');this.textContent='Copied!';setTimeout(()=>this.textContent='Copy Key',2000)" style="margin-top:8px;padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;width:100%;">Copy Key</button><button onclick="tryLogin('${d.api_key.replace(/'/g,"\\'")}')" style="margin-top:6px;padding:8px 16px;background:var(--bg-card);color:var(--accent);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:13px;width:100%;">Open Console with this key →</button>`;
+            res.innerHTML = `<strong style="color:var(--green);">Signed in!</strong><p style="margin-top:8px;font-size:13px;color:var(--text-2);">Your dashboard key — other keys stay active:</p><div style="margin-top:8px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:13px;word-break:break-all;">${esc(d.api_key)}</div><button onclick="copyText('${d.api_key.replace(/'/g,"\\'")}','API key');this.textContent='Copied!';setTimeout(()=>this.textContent='Copy Key',2000)" style="margin-top:8px;padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;width:100%;">Copy Key</button><button onclick="tryLogin('${d.api_key.replace(/'/g,"\\'")}')" style="margin-top:6px;padding:8px 16px;background:var(--bg-card);color:var(--accent);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:13px;width:100%;">Open Console with this key →</button>`;
         } else { err.textContent = detailMsg(d.detail, 'Invalid code'); err.style.display = 'block'; }
     } catch(e) { err.textContent = 'Network error'; err.style.display = 'block'; }
 }
@@ -3104,54 +3136,51 @@ function renderGraph(data) {
             .on('drag',(e,d)=>{d.fx=e.x;d.fy=e.y;})
             .on('end',(e,d)=>{if(!e.active)sim.alphaTarget(0);d.fx=null;d.fy=null;}));
 
-    // Outer glow circle
-    node.append('circle').attr('r',d=>d.r+4).attr('fill',d=>d.c).attr('fill-opacity',0)
-        .attr('class','node-glow');
+    // Soft halo (always visible, deepens on hover/select)
+    node.append('circle').attr('r',d=>d.r+7).attr('fill',d=>d.c).attr('fill-opacity',0.16)
+        .attr('class','node-glow').style('pointer-events','none');
 
-    // Main circle
-    node.append('circle').attr('r',d=>d.r).attr('fill',d=>d.c).attr('fill-opacity',0.15)
-        .attr('stroke',d=>d.c).attr('stroke-width',1.5).style('cursor','pointer')
+    // Main solid circle with white ring
+    node.append('circle').attr('r',d=>d.r).attr('fill',d=>d.c)
+        .attr('stroke','#fff').attr('stroke-width',2.5).style('cursor','pointer')
+        .attr('class','node-core')
         .on('click',(e,d)=>{e.stopPropagation();openGraphPanel(d.id, node, link, links);});
 
-    // Node type icon (only for nodes large enough)
+    // White type glyph (large nodes) or centre pip (small nodes)
     node.each(function(d) {
         if (d.r >= 10) {
-            const iconSize = Math.min(d.r * 0.8, 12);
+            const iconSize = Math.min(d.r * 0.85, 13);
             const iconG = d3.select(this).append('g')
                 .attr('transform', `translate(${-iconSize/2},${-iconSize/2})`)
                 .style('pointer-events','none');
             iconG.append('svg')
                 .attr('viewBox','0 0 24 24')
                 .attr('width', iconSize).attr('height', iconSize)
-                .attr('fill','none').attr('stroke',d.c).attr('stroke-width',2)
+                .attr('fill','none').attr('stroke','#fff').attr('stroke-width',2.2)
                 .attr('stroke-linecap','round').attr('stroke-linejoin','round')
                 .html((_typeIcon(d.type||'unknown')).replace(/<\/?svg[^>]*>/g,''));
+        } else {
+            d3.select(this).append('circle').attr('r',Math.max(2,d.r*0.34)).attr('fill','#fff')
+                .style('pointer-events','none').attr('class','node-pip');
         }
     });
 
-    // Glow + scale on hover
+    // Halo + scale on hover (dimming uses group opacity, so fill stays solid)
     node.on('mouseenter', function(e,d) {
         d3.select(this).select('.node-glow')
             .transition().duration(150)
-            .attr('fill-opacity',0.18).attr('r', d.r*1.2 + 4);
-        d3.select(this).selectAll('circle').filter(':not(.node-glow)')
+            .attr('fill-opacity',0.3).attr('r', d.r*1.2 + 7);
+        d3.select(this).select('.node-core')
             .transition().duration(150)
-            .attr('r', d.r*1.2).attr('fill-opacity',0.35).attr('stroke-width',2.5);
+            .attr('r', d.r*1.14).attr('stroke-width',3);
         d3.select(this).raise();
     })
     .on('mouseleave', function(e,d) {
         const sel = d3.select(this);
-        const glow = sel.select('.node-glow');
-        const core = sel.selectAll('circle').filter(':not(.node-glow)');
-        if(d._selected) {
-            // Keep selection highlight; just reset hover scale
-            glow.transition().duration(150).attr('r', d.r + 4);
-            core.transition().duration(150).attr('r', d.r);
-        } else {
-            glow.transition().duration(150).attr('fill-opacity',0).attr('r', d.r + 4);
-            core.transition().duration(150)
-                .attr('r', d.r).attr('fill-opacity',0.15).attr('stroke-width',1.5);
-        }
+        sel.select('.node-glow').transition().duration(150)
+            .attr('fill-opacity', d._selected?0.32:0.16).attr('r', d._selected?d.r+9:d.r+7);
+        sel.select('.node-core').transition().duration(150)
+            .attr('r', d.r).attr('stroke-width', d._selected?3:2.5);
     });
 
     node.append('text').text(d=>d.id).attr('dy',d=>d.r+14).attr('text-anchor','middle')
@@ -3192,9 +3221,9 @@ async function openGraphPanel(name, nodeSelection, linkSelection, linksData) {
         });
         nodeSelection.each(function(d) {
             const el = d3.select(this);
-            if(d.id === name) { d._selected = true; el.select('circle').attr('fill-opacity',0.5).attr('stroke-width',3); el.attr('opacity',1); }
-            else if(connected.has(d.id)) { d._selected = false; el.select('circle').attr('fill-opacity',0.25); el.attr('opacity',0.9); }
-            else { d._selected = false; el.select('circle').attr('fill-opacity',0.08).attr('stroke-width',1); el.attr('opacity',0.3); }
+            if(d.id === name) { d._selected = true; el.select('.node-core').attr('stroke-width',3); el.select('.node-glow').attr('fill-opacity',0.34).attr('r',d.r+9); el.attr('opacity',1); }
+            else if(connected.has(d.id)) { d._selected = false; el.select('.node-glow').attr('fill-opacity',0.16).attr('r',d.r+7); el.select('.node-core').attr('stroke-width',2.5); el.attr('opacity',0.95); }
+            else { d._selected = false; el.select('.node-glow').attr('fill-opacity',0.06); el.select('.node-core').attr('stroke-width',1.5); el.attr('opacity',0.3); }
         });
         if(linkSelection) linkSelection.each(function(d) {
             const s = typeof d.source === 'object' ? d.source.id : d.source;
@@ -3228,7 +3257,8 @@ function closeGraphPanel() {
     // Reset node highlights
     if(_graphNodeRef) _graphNodeRef.each(function(d) {
         d._selected = false;
-        d3.select(this).select('circle').attr('fill-opacity',0.15).attr('stroke-width',1.5);
+        d3.select(this).select('.node-core').attr('stroke-width',2.5);
+        d3.select(this).select('.node-glow').attr('fill-opacity',0.16).attr('r',d.r+7);
         d3.select(this).attr('opacity',1);
     });
     if(_graphLinkRef) _graphLinkRef.attr('opacity',1);
@@ -4003,24 +4033,30 @@ async function loadProcedures() {
         }
         let html = '<div class="proc-list stagger">';
         for (const p of procs) {
-            const steps = (p.steps || []).length;
+            const stepList = (p.steps || []);
             const v = p.version || 1;
-            const vBadge = v > 1 ? `<span class="proc-version">v${v}</span>` : '';
+            const vBadge = `<span class="proc-version">v${v}</span>`;
             const success = p.success_count || 0;
             const fail = p.failure_count || 0;
             const total = success + fail;
             const ratio = total > 0 ? Math.round((success / total) * 100) : 0;
+            const track = total > 0
+                ? `<span class="proc-track"><span class="ok">${success} ✓</span><span class="bad">${fail} ✗</span></span>`
+                : `<span class="proc-track"><span class="proc-new">new</span></span>`;
+            const chips = stepList.slice(0,4).map(s => {
+                const a = (s && typeof s === 'object') ? (s.action || s.description || s.text || '') : s;
+                const t = String(a || '').trim();
+                return t ? `<span class="pstep">${esc(t.length > 40 ? t.slice(0,40)+'…' : t)}</span>` : '';
+            }).join('');
+            const extra = stepList.length > 4 ? `<span class="pstep pstep-more">+${stepList.length-4}</span>` : '';
             html += `<div class="proc-card" onclick="showProcedureDetail('${p.id}')">
                 <div class="proc-head">
                     <span class="proc-name">${esc(p.name)}</span> ${vBadge}
+                    ${track}
                 </div>
-                <div class="proc-trigger">${esc(p.trigger_condition || p.trigger || '')}</div>
-                <div class="proc-meta">
-                    <span>${steps} steps</span>
-                    <span style="color:var(--green);">${success} success</span>
-                    <span style="color:var(--red);">${fail} fail</span>
-                    ${total > 0 ? `<div class="proc-bar"><div class="proc-bar-fill" style="width:${ratio}%"></div></div>` : ''}
-                </div>
+                ${(p.trigger_condition || p.trigger) ? `<div class="proc-trigger">${esc(p.trigger_condition || p.trigger)}</div>` : ''}
+                ${total > 0 ? `<div class="proc-bar wide"><div class="proc-bar-fill" style="width:${ratio}%"></div></div>` : ''}
+                <div class="proc-steps-row">${chips || `<span class="proc-stepcount">${stepList.length} steps</span>`}${extra}</div>
             </div>`;
         }
         html += '</div>';

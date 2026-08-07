@@ -35,6 +35,7 @@ from dataclasses import dataclass
 from pydantic import BaseModel, Field
 
 from cloud.store import CloudStore, _normalize_fact
+from cloud.oauth_policy import redirect_uri_error as _redirect_uri_error
 
 
 # ---- Auth Context ----
@@ -972,7 +973,7 @@ Be strict — only include entities that directly answer or relate to the query.
         html = f"""
         <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:0 auto;padding:40px 24px;color:#e8e8f0;background:#0a0a12;border-radius:16px">
             <div style="text-align:center;margin-bottom:32px">
-                <svg width="36" height="36" viewBox="0 0 120 120"><path d="M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68" fill="none" stroke="#a855f7" stroke-width="8" stroke-linecap="round"/><circle cx="62" cy="68" r="8" fill="#a855f7"/><circle cx="62" cy="68" r="3.5" fill="white"/></svg>
+                <svg width="36" height="36" viewBox="0 0 100 100"><path d="M22 65 V44 C22 36 36 36 40 44 V65 M40 44 C44 36 58 36 58 44 V54 C58 63 70 64 73 54" fill="none" stroke="#a855f7" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/><circle cx="75" cy="51" r="8" fill="#a855f7"/><circle cx="75" cy="51" r="3" fill="white"/></svg>
                 <h1 style="font-size:22px;font-weight:700;margin:8px 0 4px;color:#e8e8f0">Mengram</h1>
             </div>
             {body_html}
@@ -1047,7 +1048,7 @@ Be strict — only include entities that directly answer or relate to the query.
         html = f"""
         <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:0 auto;padding:40px 24px;color:#e8e8f0;background:#0a0a12;border-radius:16px">
             <div style="text-align:center;margin-bottom:32px">
-                <svg width="36" height="36" viewBox="0 0 120 120"><path d="M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68" fill="none" stroke="#a855f7" stroke-width="8" stroke-linecap="round"/><circle cx="62" cy="68" r="8" fill="#a855f7"/><circle cx="62" cy="68" r="3.5" fill="white"/></svg>
+                <svg width="36" height="36" viewBox="0 0 100 100"><path d="M22 65 V44 C22 36 36 36 40 44 V65 M40 44 C44 36 58 36 58 44 V54 C58 63 70 64 73 54" fill="none" stroke="#a855f7" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/><circle cx="75" cy="51" r="8" fill="#a855f7"/><circle cx="75" cy="51" r="3" fill="white"/></svg>
                 <h1 style="font-size:22px;font-weight:700;margin:8px 0 4px;color:#e8e8f0">Mengram</h1>
             </div>
             <p style="font-size:15px;color:#c8c8d8;line-height:1.6">
@@ -1200,7 +1201,7 @@ Be strict — only include entities that directly answer or relate to the query.
                 html = f"""
             <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:0 auto;padding:40px 24px;color:#e8e8f0;background:#0a0a12;border-radius:16px">
                 <div style="text-align:center;margin-bottom:32px">
-                    <svg width="36" height="36" viewBox="0 0 120 120"><path d="M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68" fill="none" stroke="#a855f7" stroke-width="8" stroke-linecap="round"/><circle cx="62" cy="68" r="8" fill="#a855f7"/><circle cx="62" cy="68" r="3.5" fill="white"/></svg>
+                    <svg width="36" height="36" viewBox="0 0 100 100"><path d="M22 65 V44 C22 36 36 36 40 44 V65 M40 44 C44 36 58 36 58 44 V54 C58 63 70 64 73 54" fill="none" stroke="#a855f7" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/><circle cx="75" cy="51" r="8" fill="#a855f7"/><circle cx="75" cy="51" r="3" fill="white"/></svg>
                     <h1 style="font-size:22px;font-weight:700;margin:8px 0 4px;color:#e8e8f0">Mengram</h1>
                 </div>
                 <p style="font-size:15px;color:#c8c8d8;line-height:1.6">Your API key has been reset. Old keys are now deactivated.</p>
@@ -1404,7 +1405,7 @@ m.search("query", agent_id="my-agent")</code></pre>
                 "html": f"""
                 <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:0 auto;padding:40px 24px;color:#e8e8f0;background:#0a0a12;border-radius:16px">
                     <div style="text-align:center;margin-bottom:32px">
-                        <svg width="36" height="36" viewBox="0 0 120 120"><path d="M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68" fill="none" stroke="#a855f7" stroke-width="8" stroke-linecap="round"/><circle cx="62" cy="68" r="8" fill="#a855f7"/><circle cx="62" cy="68" r="3.5" fill="white"/></svg>
+                        <svg width="36" height="36" viewBox="0 0 100 100"><path d="M22 65 V44 C22 36 36 36 40 44 V65 M40 44 C44 36 58 36 58 44 V54 C58 63 70 64 73 54" fill="none" stroke="#a855f7" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/><circle cx="75" cy="51" r="8" fill="#a855f7"/><circle cx="75" cy="51" r="3" fill="white"/></svg>
                         <h1 style="font-size:22px;font-weight:700;margin:8px 0 4px;color:#e8e8f0">Mengram</h1>
                     </div>
                     <p style="font-size:15px;color:#c8c8d8;line-height:1.6">Hi,</p>
@@ -1448,7 +1449,7 @@ m.search("query", agent_id="my-agent")</code></pre>
                 return f"""
                 <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:0 auto;padding:40px 24px;color:#e8e8f0;background:#0a0a12;border-radius:16px">
                     <div style="text-align:center;margin-bottom:32px">
-                        <svg width="36" height="36" viewBox="0 0 120 120"><path d="M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68" fill="none" stroke="#a855f7" stroke-width="8" stroke-linecap="round"/><circle cx="62" cy="68" r="8" fill="#a855f7"/><circle cx="62" cy="68" r="3.5" fill="white"/></svg>
+                        <svg width="36" height="36" viewBox="0 0 100 100"><path d="M22 65 V44 C22 36 36 36 40 44 V65 M40 44 C44 36 58 36 58 44 V54 C58 63 70 64 73 54" fill="none" stroke="#a855f7" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/><circle cx="75" cy="51" r="8" fill="#a855f7"/><circle cx="75" cy="51" r="3" fill="white"/></svg>
                         <h1 style="font-size:22px;font-weight:700;margin:8px 0 4px;color:#e8e8f0">Mengram</h1>
                     </div>
                     {body_html}
@@ -6343,11 +6344,12 @@ m.delete_webhook(webhook_id=1)</code></pre>
         # Don't reveal whether email exists — always say "code sent"
         user_id = store.get_user_by_email(email)
         if user_id:
-            # Self-hosted: skip verification, reset key immediately
+            # Self-hosted: skip verification, issue a dashboard key immediately
+            # (additive — does not revoke existing keys, incl. a connector token)
             if DISABLE_EMAIL_VERIFICATION:
-                new_key = store.reset_api_key(user_id)
-                logger.info(f"✅ API key reset (email verification disabled) for {email}")
-                return {"message": "New API key generated.", "api_key": new_key}
+                new_key = store.create_api_key(user_id, name="dashboard")
+                logger.info(f"✅ Dashboard key issued (email verification disabled) for {email}")
+                return {"message": "Signed in.", "api_key": new_key}
 
             code = f"{secrets.randbelow(900000) + 100000}"
             store.save_email_code(email, code)
@@ -6378,12 +6380,15 @@ m.delete_webhook(webhook_id=1)</code></pre>
         if not user_id:
             raise HTTPException(status_code=404, detail="Account not found")
 
-        new_key = store.reset_api_key(user_id)
-        _send_api_key_email(email, new_key, is_reset=True)
+        # Non-destructive sign-in: issue an additional dashboard key without
+        # revoking existing keys (e.g. a live Claude-connector token). Rotating
+        # or revoking keys is done per-key in Settings, not here.
+        new_key = store.create_api_key(user_id, name="dashboard")
+        _send_api_key_email(email, new_key, is_reset=False)
 
         return SignupResponse(
             api_key=new_key,
-            message="New API key generated. Old keys are now inactive."
+            message="Signed in. A new dashboard key was created; your other keys stay active."
         )
 
     # ---- GitHub OAuth ----
@@ -6674,7 +6679,7 @@ a{{color:#a855f7;text-decoration:none}}
             return {"status": "renamed", "key_id": key_id, "name": name}
         raise HTTPException(status_code=404, detail="Key not found")
 
-    # ---- OAuth (for ChatGPT Custom GPTs) ----
+    # ---- OAuth (Claude Connectors + ChatGPT Custom GPTs) ----
 
     @app.get("/oauth/authorize")
     async def oauth_authorize(
@@ -6682,11 +6687,45 @@ a{{color:#a855f7;text-decoration:none}}
         redirect_uri: str = "",
         state: str = "",
         response_type: str = "code",
+        code_challenge: str = "",
+        code_challenge_method: str = "",
     ):
-        """OAuth authorize page — shows email login."""
-        from urllib.parse import quote
+        """OAuth authorize page — shows email login. Carries the PKCE challenge
+        (RFC 7636) through the login step so the token exchange can verify it."""
+        from urllib.parse import quote, urlparse
+        import html as _html
+
+        # Refuse before the user is asked for anything — a rejected target
+        # should never get as far as showing a Mengram-branded login form.
+        _redirect_error = _redirect_uri_error(redirect_uri)
+        if _redirect_error:
+            return HTMLResponse(
+                f"<!DOCTYPE html><meta charset='utf-8'>"
+                f"<div style=\"font-family:system-ui;max-width:32rem;margin:15vh auto;"
+                f"padding:0 1.5rem;line-height:1.6\">"
+                f"<h1 style='font-size:1.25rem'>Sign-in blocked</h1>"
+                f"<p>{_html.escape(_redirect_error)}. Mengram will not send an "
+                f"authorization code to this destination.</p>"
+                f"<p style='color:#666;font-size:.9rem'>If you started this from "
+                f"an AI assistant, open the connector settings and try again.</p>"
+                f"</div>",
+                status_code=400,
+            )
+
+        # Name the destination on the card: the one thing that lets someone
+        # spot a code being routed somewhere they didn't intend.
+        _dest_host = _html.escape((urlparse(redirect_uri).hostname or "") if redirect_uri else "")
+        destination_note = (
+            f"<p style='color:#888;margin-bottom:24px;font-size:14px'>Connecting your "
+            f"memory to <strong style='color:#e0e0e0'>{_dest_host}</strong></p>"
+            if _dest_host else
+            "<p style='color:#888;margin-bottom:24px;font-size:14px'>"
+            "Connect your memory to your AI assistant</p>"
+        )
         redirect_uri_encoded = quote(redirect_uri, safe="")
         state_encoded = quote(state, safe="")
+        code_challenge_encoded = quote(code_challenge, safe="")
+        code_challenge_method_encoded = quote(code_challenge_method, safe="")
         return HTMLResponse(f"""<!DOCTYPE html>
 <html><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -6712,9 +6751,9 @@ a{{color:#a855f7;text-decoration:none}}
 </style>
 </head><body>
 <div class="card">
-  <div class="logo"><svg width='32' height='32' viewBox='0 0 120 120'><path d='M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68' fill='none' stroke='#a855f7' stroke-width='8' stroke-linecap='round'/><circle cx='62' cy='68' r='8' fill='#a855f7'/><circle cx='62' cy='68' r='3.5' fill='white'/></svg></div>
+  <div class="logo"><svg width='34' height='34' viewBox='0 0 100 100'><path d='M22 65 V44 C22 36 36 36 40 44 V65 M40 44 C44 36 58 36 58 44 V54 C58 63 70 64 73 54' fill='none' stroke='#7c3aed' stroke-width='10' stroke-linecap='round' stroke-linejoin='round'/><circle cx='75' cy='51' r='8' fill='#7c3aed'/><circle cx='75' cy='51' r='3' fill='#fff'/></svg></div>
   <h1>Sign in to Mengram</h1>
-  <p>Connect your memory to ChatGPT</p>
+  {destination_note}
 
   <div id="step1" class="step active">
     <input type="email" id="email" placeholder="your@email.com" autofocus>
@@ -6733,6 +6772,8 @@ a{{color:#a855f7;text-decoration:none}}
 <script>
 const redirectUri = decodeURIComponent("{redirect_uri_encoded}");
 const state = decodeURIComponent("{state_encoded}");
+const codeChallenge = decodeURIComponent("{code_challenge_encoded}");
+const codeChallengeMethod = decodeURIComponent("{code_challenge_method_encoded}");
 
 async function sendCode() {{
   const email = document.getElementById('email').value.trim();
@@ -6759,7 +6800,7 @@ async function verifyCode() {{
   const res = await fetch('/oauth/verify', {{
     method: 'POST',
     headers: {{'Content-Type': 'application/json'}},
-    body: JSON.stringify({{email, code, redirect_uri: redirectUri, state}})
+    body: JSON.stringify({{email, code, redirect_uri: redirectUri, state, code_challenge: codeChallenge, code_challenge_method: codeChallengeMethod}})
   }});
   const data = await res.json();
   if (data.redirect) {{
@@ -6826,6 +6867,8 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         code = req.get("code", "").strip()
         redirect_uri = req.get("redirect_uri", "")
         state = req.get("state", "")
+        code_challenge = req.get("code_challenge", "")
+        code_challenge_method = req.get("code_challenge_method", "")
 
         # Brute-force protection: 5 attempts/min per email, 20/min per IP
         if not _check_rate_limit(f"verify:{email}", 5):
@@ -6834,6 +6877,13 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         if not _check_rate_limit(f"verify_ip:{client_ip}", 20):
             return {"error": "Too many attempts. Try again in 60 seconds."}
 
+        # Re-validated here because /oauth/authorize is only the UI and this
+        # endpoint is callable directly. Checked before the email code is
+        # consumed so a rejected target doesn't burn the user's one-shot code.
+        _redirect_error = _redirect_uri_error(redirect_uri)
+        if _redirect_error:
+            return {"error": _redirect_error}
+
         if not store.verify_email_code(email, code):
             return {"error": "Invalid or expired code"}
 
@@ -6841,19 +6891,11 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         if not user_id:
             return {"error": "User not found"}
 
-        # Validate redirect_uri — must be HTTPS or localhost
-        if redirect_uri:
-            from urllib.parse import urlparse
-            parsed = urlparse(redirect_uri)
-            if parsed.scheme not in ("https", "http"):
-                return {"error": "Invalid redirect_uri scheme"}
-            # Allow localhost for dev, require HTTPS for everything else
-            if parsed.scheme == "http" and parsed.hostname not in ("localhost", "127.0.0.1"):
-                return {"error": "redirect_uri must use HTTPS"}
-
-        # Create OAuth authorization code
+        # Create OAuth authorization code (with PKCE challenge when provided)
         oauth_code = secrets.token_urlsafe(32)
-        store.save_oauth_code(oauth_code, user_id, redirect_uri, state)
+        store.save_oauth_code(oauth_code, user_id, redirect_uri, state,
+                              code_challenge=code_challenge or None,
+                              code_challenge_method=code_challenge_method or None)
 
         # Build redirect URL
         separator = "&" if "?" in redirect_uri else "?"
@@ -6868,6 +6910,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         client_id: str = Form(""),
         client_secret: str = Form(""),
         redirect_uri: str = Form(""),
+        code_verifier: str = Form(""),
     ):
         """Exchange OAuth code for access token."""
         if grant_type != "authorization_code":
@@ -6882,15 +6925,102 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         if redirect_uri and stored_redirect and redirect_uri != stored_redirect:
             raise HTTPException(status_code=400, detail="redirect_uri mismatch")
 
+        # PKCE verification (RFC 7636) — required whenever a challenge was stored
+        # at /authorize (Claude and every OAuth 2.1 client sends one; the legacy
+        # ChatGPT flow sends none and skips this branch).
+        challenge = result.get("code_challenge")
+        if challenge:
+            if not code_verifier:
+                raise HTTPException(status_code=400, detail="code_verifier required")
+            method = (result.get("code_challenge_method") or "plain").upper()
+            if method == "S256":
+                import hashlib as _hashlib
+                import base64 as _base64
+                digest = _hashlib.sha256(code_verifier.encode("ascii")).digest()
+                computed = _base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+            elif method == "PLAIN":
+                computed = code_verifier
+            else:
+                raise HTTPException(status_code=400, detail="Unsupported code_challenge_method")
+            if not secrets.compare_digest(computed, challenge):
+                raise HTTPException(status_code=400, detail="Invalid code_verifier")
+
         # Get or create API key for this user
         user_id = result["user_id"]
-        api_key = store.create_api_key(user_id, name="chatgpt-oauth")
+        api_key = store.create_api_key(user_id, name="oauth-connector")
 
         return {
             "access_token": api_key,
             "token_type": "Bearer",
             "scope": "read write",
         }
+
+    @app.get("/icon.svg", include_in_schema=False)
+    async def brand_icon():
+        """Stable URL for the Mengram mark — advertised to MCP clients via
+        serverInfo.icons so the connector tile can show it, and reusable as a
+        hosted favicon/og asset."""
+        svg = (
+            "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>"
+            "<path d='M22 65 V44 C22 36 36 36 40 44 V65 M40 44 C44 36 58 36 58 44 V54 C58 63 70 64 73 54' "
+            "fill='none' stroke='#7c3aed' stroke-width='10' stroke-linecap='round' stroke-linejoin='round'/>"
+            "<circle cx='75' cy='51' r='8' fill='#7c3aed'/>"
+            "<circle cx='75' cy='51' r='3' fill='#fff'/></svg>"
+        )
+        return HTMLResponse(svg, media_type="image/svg+xml",
+                            headers={"Cache-Control": "public, max-age=86400"})
+
+    # ---- OAuth 2.1 discovery + dynamic registration (MCP / Claude Connectors) ----
+    # These make the OAuth flow above discoverable by MCP clients (RFC 9728,
+    # RFC 8414, RFC 7591). Token validation is already handled by verify_api_key
+    # since the access_token issued above IS a Mengram API key.
+
+    _OAUTH_ISSUER = "https://mengram.io"
+
+    @app.get("/.well-known/oauth-authorization-server", include_in_schema=False)
+    async def oauth_authorization_server_metadata():
+        """Authorization Server Metadata (RFC 8414)."""
+        return {
+            "issuer": _OAUTH_ISSUER,
+            "authorization_endpoint": f"{_OAUTH_ISSUER}/oauth/authorize",
+            "token_endpoint": f"{_OAUTH_ISSUER}/oauth/token",
+            "registration_endpoint": f"{_OAUTH_ISSUER}/oauth/register",
+            "response_types_supported": ["code"],
+            "grant_types_supported": ["authorization_code"],
+            "code_challenge_methods_supported": ["S256"],
+            "token_endpoint_auth_methods_supported": ["none", "client_secret_post"],
+            "scopes_supported": ["read", "write"],
+        }
+
+    @app.get("/.well-known/oauth-protected-resource", include_in_schema=False)
+    @app.get("/.well-known/oauth-protected-resource/{resource_path:path}", include_in_schema=False)
+    async def oauth_protected_resource_metadata(resource_path: str = ""):
+        """Protected Resource Metadata (RFC 9728) — points MCP clients at the AS.
+        Served at the root and at any resource path suffix Claude probes."""
+        return {
+            "resource": f"{_OAUTH_ISSUER}/mcp/connector",
+            "authorization_servers": [_OAUTH_ISSUER],
+            "bearer_methods_supported": ["header"],
+            "scopes_supported": ["read", "write"],
+        }
+
+    @app.post("/oauth/register", status_code=201, include_in_schema=False)
+    async def oauth_register(req: dict):
+        """Dynamic Client Registration (RFC 7591). Public client + PKCE, so no
+        client secret is issued; the authorize/token flow above validates via
+        PKCE and redirect_uri, not a client secret."""
+        client_id = "mcp_" + secrets.token_urlsafe(16)
+        resp = {
+            "client_id": client_id,
+            "token_endpoint_auth_method": "none",
+            "grant_types": ["authorization_code"],
+            "response_types": ["code"],
+            "redirect_uris": req.get("redirect_uris") or [],
+        }
+        for k in ("client_name", "client_uri", "scope", "logo_uri"):
+            if req.get(k):
+                resp[k] = req[k]
+        return resp
 
     @app.get("/health", include_in_schema=False)
     @app.get("/v1/health", tags=["System"])
@@ -7094,16 +7224,14 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                         continue
                     created.append(name)
 
-                    chunks = [name] + [f"{name}: {fs}" for fs in fact_strings]
-                    for r in entity_relations:
-                        target = r.get("target", "")
-                        rel_type = r.get("type", "")
-                        if target and rel_type:
-                            chunks.append(f"{name} {rel_type} {target}")
-                    for k in entity_knowledge:
-                        kt = f"{k['title']} {k['content']}"
-                        chunks.append(_summarize_for_embedding(kt) if len(kt) > 2000 else kt)
-                    embedding_queue.append((entity_id, chunks))
+                    # Chunks cover the entity's full current state, not just
+                    # this conversation's facts — the embedding set is replaced
+                    # wholesale, so anything left out stops being searchable.
+                    try:
+                        embedding_queue.append((entity_id, store.build_entity_chunks(
+                            entity_id, name, summarize=_summarize_for_embedding)))
+                    except Exception as e:
+                        logger.warning(f"⚠️ Chunk build failed for '{name}': {e}")
 
                 # -- Refresh context for next window (includes just-saved entities) --
                 if win_start + WINDOW_SIZE < len(conversation):
@@ -7119,11 +7247,24 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             embed_items = []  # [(save_fn, text)]
 
             # Entity embeddings
+            # Only chunks that aren't embedded yet go to the API; chunks that
+            # dropped out of the entity are retired after the batch succeeds.
+            stale_by_entity = {}
             if embedder and embedding_queue:
+                _dims = getattr(embedder, "dimensions", 1536)
                 for entity_id, chunks in embedding_queue:
-                    store.delete_embeddings(entity_id)
+                    try:
+                        existing = store.get_embedded_chunk_texts(entity_id, _dims)
+                    except Exception as e:
+                        logger.warning(f"⚠️ Embedding lookup failed for {entity_id}: {e}")
+                        existing = set()
+                    wanted = set(chunks)
+                    stale = [t for t in existing if t not in wanted]
+                    if stale:
+                        stale_by_entity[entity_id] = stale
                     for chunk in chunks:
-                        embed_items.append(("entity", entity_id, chunk))
+                        if chunk not in existing:
+                            embed_items.append(("entity", entity_id, chunk))
 
             # Raw conversation chunk
             conv_chunk_text = None
@@ -7204,7 +7345,6 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                             (s.get("action", "") if isinstance(s, dict) else str(s)) for s in pr.steps[:10]
                         )
                         pr_text = f"{pr.name}. {pr.trigger or ''}. Steps: {steps_summary}"
-                        store.delete_procedure_embeddings(proc_id)
                         embed_items.append(("procedure", proc_id, pr_text))
                     procedures_created += 1
                 except Exception as e:
@@ -7226,18 +7366,42 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                         f"⚠️ Embedding provider unavailable (quota/auth) for user={user_id[:8]}, "
                         f"saved without embeddings — check EMBEDDING_PROVIDER credentials: {e}"
                     )
-                    all_embeddings = None
+                    all_embeddings = []
+                else:
+                    if len(all_embeddings) != len(embed_items):
+                        # zip() would silently drop the tail and leave entities with
+                        # a partial embedding set; keep the existing one instead.
+                        logger.error(
+                            f"⚠️ Embedder returned {len(all_embeddings)} vectors for "
+                            f"{len(embed_items)} chunks — skipping embedding update")
+                        all_embeddings = []
+
+                # A procedure's text is rewritten wholesale, so its old vector
+                # goes only once the replacement is in hand — deleting up-front
+                # left it unsearchable whenever the embed call failed.
                 if all_embeddings:
-                    for (item_type, item_id, text), emb in zip(embed_items, all_embeddings):
-                        if item_type == "entity":
-                            store.save_embedding(item_id, text, emb)
-                        elif item_type == "chunk":
-                            store.save_chunk_embedding(item_id, text, emb)
-                        elif item_type == "episode":
-                            store.save_episode_embedding(item_id, text, emb)
-                            episode_embeddings[item_id] = emb
-                        elif item_type == "procedure":
-                            store.save_procedure_embedding(item_id, text, emb)
+                    for item_type, item_id, _text in embed_items:
+                        if item_type == "procedure":
+                            store.delete_procedure_embeddings(item_id)
+
+                for (item_type, item_id, text), emb in zip(embed_items, all_embeddings):
+                    if item_type == "entity":
+                        store.save_embedding(item_id, text, emb)
+                    elif item_type == "chunk":
+                        store.save_chunk_embedding(item_id, text, emb)
+                    elif item_type == "episode":
+                        store.save_episode_embedding(item_id, text, emb)
+                        episode_embeddings[item_id] = emb
+                    elif item_type == "procedure":
+                        store.save_procedure_embedding(item_id, text, emb)
+
+            # Retire chunks the entity no longer has (archived facts, dropped
+            # relations). Runs even when nothing new needed embedding.
+            for entity_id, stale in stale_by_entity.items():
+                try:
+                    store.delete_embeddings_for_texts(entity_id, stale)
+                except Exception as e:
+                    logger.warning(f"⚠️ Stale embedding cleanup failed for {entity_id}: {e}")
 
             # ---- Episode auto-linking (uses pre-computed embeddings) ----
             for episode_id, (ep, ep_text) in episode_embed_map.items():
@@ -7435,8 +7599,11 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         user_id = ctx.user_id
         sub_uid = req.user_id or "default"
 
-        # Dry run: extract and return preview without saving
+        # Dry run: extract and return preview without saving. Metered like a
+        # real add — it runs the same LLM extraction, so leaving it free made
+        # /v1/add an unlimited extraction API for anyone passing dry_run.
         if req.dry_run:
+            use_quota(ctx, "add")
             extractor = get_llm()
             existing_context = ""
             try:
@@ -8163,17 +8330,14 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             if not entity_id:
                 continue
 
-            chunks = [name] + entity.get("facts", [])
-            for r in entity.get("relations", []):
-                target = r.get("target", "")
-                rel_type = r.get("type", "")
-                if target and rel_type:
-                    chunks.append(f"{name} {rel_type} {target}")
-            for k in entity.get("knowledge", []):
-                chunks.append(f"{k.get('title', '')} {k.get('content', '')}")
-
-            store.delete_embeddings(entity_id)
+            chunks = store.build_entity_chunks(
+                entity_id, name, summarize=_summarize_for_embedding)
             embeddings = embedder.embed_batch(chunks)
+            if len(embeddings) != len(chunks):
+                logger.error(f"⚠️ Reindex skipped '{name}': embedder returned "
+                             f"{len(embeddings)} vectors for {len(chunks)} chunks")
+                continue
+            store.delete_embeddings(entity_id)
             for chunk, emb in zip(chunks, embeddings):
                 store.save_embedding(entity_id, chunk, emb)
             count += 1
@@ -8829,20 +8993,31 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         user_id = ctx.user_id
         if target_user_id != user_id:
             raise HTTPException(status_code=403, detail="Cannot access another user's profile")
-        use_quota(ctx, "rules")  # profile uses LLM, shares quota with rules
         # force=true bypasses cache → LLM call, restrict to paid plans
         if force and ctx.plan in ("free", "starter"):
             force = False
-        return store.get_profile(target_user_id, force=force, sub_user_id=sub_user_id)
+        # Meter "rules" only for a real LLM (re)generation; cached/empty reads are free.
+        was_cached = (not force) and store.cache.get(f"profile:{target_user_id}:{sub_user_id}") is not None
+        result = store.get_profile(target_user_id, force=force, sub_user_id=sub_user_id)
+        if not was_cached and result.get("status") == "ok":
+            use_quota(ctx, "rules")
+        return result
 
     @app.get("/v1/profile", tags=["Memory"])
     async def get_own_profile(force: bool = False, sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
         """Cognitive Profile for the authenticated user."""
         user_id = ctx.user_id
-        use_quota(ctx, "rules")  # profile uses LLM, shares quota with rules
         if force and ctx.plan in ("free", "starter"):
             force = False
-        return store.get_profile(user_id, force=force, sub_user_id=sub_user_id)
+        # Meter "rules" only for a real LLM (re)generation. A cached profile or an
+        # empty-memory profile is a free read — important because the MCP connector
+        # fetches this per request while building server instructions, which used
+        # to exhaust the small free "rules" quota on the first connect.
+        was_cached = (not force) and store.cache.get(f"profile:{user_id}:{sub_user_id}") is not None
+        result = store.get_profile(user_id, force=force, sub_user_id=sub_user_id)
+        if not was_cached and result.get("status") == "ok":
+            use_quota(ctx, "rules")
+        return result
 
     @app.get("/v1/rules", tags=["Memory"])
     async def generate_rules(
@@ -9594,6 +9769,24 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         except Exception:
             return None
 
+    def _lock_still_held(conn) -> bool:
+        """Whether the lock connection is still usable. The Supabase pooler
+        drops idle connections, which silently releases the advisory lock — a
+        loop that never rechecks keeps running while another instance is free
+        to grab the same lock and double-fire."""
+        if conn is None or conn.closed:
+            return False
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1")
+            return True
+        except Exception:
+            try:
+                conn.close()
+            except Exception:
+                pass
+            return False
+
     # Lock IDs (arbitrary unique ints)
     _LOCK_TRIGGER_CRON = 900001
     _LOCK_DRIP_CRON = 900002
@@ -9602,12 +9795,17 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     def _trigger_cron_loop():
         """Background thread that processes triggers every 5 minutes."""
         _time.sleep(30)  # Initial delay to let server start
-        _lock_conn = _try_advisory_lock(_LOCK_TRIGGER_CRON)
-        if not _lock_conn:
-            logger.info("🧠 Trigger cron: another worker holds the lock, skipping")
-            return
-        logger.info("🧠 Smart trigger cron started (every 5 min)")
+        # The lock is retried every tick rather than once at startup: on a
+        # rolling deploy the incoming instance loses the race to the outgoing
+        # one, and giving up left this cron dead until the next restart.
+        _lock_conn = None
         while True:
+            if not _lock_still_held(_lock_conn):
+                _lock_conn = _try_advisory_lock(_LOCK_TRIGGER_CRON)
+                if not _lock_conn:
+                    _time.sleep(300)
+                    continue
+                logger.info("🧠 Smart trigger cron started (every 5 min)")
             try:
                 result = store.process_all_triggers()
                 if result["fired"] > 0:
@@ -9625,12 +9823,14 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     def _drip_email_cron_loop():
         """Background thread that sends onboarding drip emails every 30 minutes."""
         _time.sleep(60)  # Initial delay
-        _lock_conn = _try_advisory_lock(_LOCK_DRIP_CRON)
-        if not _lock_conn:
-            logger.info("📧 Drip email cron: another worker holds the lock, skipping")
-            return
-        logger.info("📧 Onboarding drip email cron started (every 30 min)")
+        _lock_conn = None  # reacquired every tick — see _trigger_cron_loop
         while True:
+            if not _lock_still_held(_lock_conn):
+                _lock_conn = _try_advisory_lock(_LOCK_DRIP_CRON)
+                if not _lock_conn:
+                    _time.sleep(300)
+                    continue
+                logger.info("📧 Onboarding drip email cron started (every 30 min)")
             try:
                 import secrets as _secrets
 
@@ -9804,12 +10004,14 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         import traceback
         logger.info("🩺 Memory Health cron: thread alive, sleeping 120s before first run")
         _time.sleep(120)  # Initial delay so this doesn't pile on with drip cron
-        _lock_conn = _try_advisory_lock(_LOCK_HEALTH_CRON)
-        if not _lock_conn:
-            logger.info("🩺 Memory Health cron: another worker holds the lock, skipping")
-            return
-        logger.info("🩺 Memory Health aggregation cron started (every 6h, 5min retry on error)")
+        _lock_conn = None  # reacquired every tick — see _trigger_cron_loop
         while True:
+            if not _lock_still_held(_lock_conn):
+                _lock_conn = _try_advisory_lock(_LOCK_HEALTH_CRON)
+                if not _lock_conn:
+                    _time.sleep(300)
+                    continue
+                logger.info("🩺 Memory Health aggregation cron started (every 6h, 5min retry on error)")
             iteration_failed = False
             try:
                 result = store.aggregate_memory_health(window_hours=24)
@@ -9855,14 +10057,16 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         import traceback
         logger.info("🌙 Reflection cron: thread alive, sleeping 180s before first run")
         _time.sleep(180)
-        _lock_conn = _try_advisory_lock(_LOCK_REFLECTION_CRON)
-        if not _lock_conn:
-            logger.info("🌙 Reflection cron: another worker holds the lock, skipping")
-            return
-        logger.info(
-            f"🌙 Reflection cron started (every 24h, batch up to {_REFLECTION_BATCH_SIZE} users)"
-        )
+        _lock_conn = None  # reacquired every tick — see _trigger_cron_loop
         while True:
+            if not _lock_still_held(_lock_conn):
+                _lock_conn = _try_advisory_lock(_LOCK_REFLECTION_CRON)
+                if not _lock_conn:
+                    _time.sleep(300)
+                    continue
+                logger.info(
+                    f"🌙 Reflection cron started (every 24h, batch up to {_REFLECTION_BATCH_SIZE} users)"
+                )
             iteration_failed = False
             try:
                 users_due = store.get_users_due_for_reflection(
@@ -10518,7 +10722,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
     try:
         from mcp.server.sse import SseServerTransport
-        from api.cloud_mcp_server import create_cloud_mcp_server as _create_mcp
+        from api.cloud_mcp_server import create_cloud_mcp_server as _create_mcp, DIRECTORY_CONNECTOR_TOOLS
         from cloud.client import CloudMemory as _CloudMemory
         from starlette.responses import JSONResponse as _JSONResponse
 
@@ -10584,18 +10788,29 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 return value.  transport.handle_request() writes the response
                 directly via the ASGI ``send`` callable and returns None —
                 a function endpoint would cause TypeError after every request.
+
+                ``tool_filter`` (optional) restricts the served tools to a
+                curated subset — used for the slim Connectors Directory surface.
                 """
+
+                def __init__(self, tool_filter=None):
+                    self._tool_filter = tool_filter
 
                 async def __call__(self, scope, receive, send):
                     request = Request(scope, receive, send)
+                    # Point unauthenticated MCP clients (Claude Connectors) at the
+                    # OAuth flow via RFC 9728 resource metadata. API-key clients
+                    # (CLI/Cursor config) simply send the key and never see this.
+                    _www = {"WWW-Authenticate":
+                            'Bearer resource_metadata="https://mengram.io/.well-known/oauth-protected-resource"'}
                     key = _extract_mcp_key(request)
                     if not key:
-                        resp = _JSONResponse({"error": "Missing API key"}, status_code=401)
+                        resp = _JSONResponse({"error": "Missing API key"}, status_code=401, headers=_www)
                         await resp(scope, receive, send)
                         return
                     uid = store.verify_api_key(key)
                     if not uid:
-                        resp = _JSONResponse({"error": "Invalid API key"}, status_code=401)
+                        resp = _JSONResponse({"error": "Invalid API key"}, status_code=401, headers=_www)
                         await resp(scope, receive, send)
                         return
 
@@ -10604,7 +10819,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                     base = os.environ.get("MENGRAM_INTERNAL_URL") \
                         or f"http://127.0.0.1:{os.environ.get('PORT', '8000')}"
                     mem = _CloudMemory(api_key=key, base_url=base)
-                    mcp_server = _create_mcp(mem)
+                    mcp_server = _create_mcp(mem, tool_filter=self._tool_filter)
 
                     transport = StreamableHTTPServerTransport(
                         mcp_session_id=None,
@@ -10624,6 +10839,13 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
             app.add_route("/mcp", _MCPStreamableHandler(), methods=["GET", "POST", "DELETE"])
             logger.info("✅ MCP Streamable HTTP transport enabled at /mcp")
+
+            # Slim, curated surface for the Claude Connectors Directory listing —
+            # same handler, restricted to the DIRECTORY_CONNECTOR_TOOLS subset.
+            app.add_route("/mcp/connector", _MCPStreamableHandler(DIRECTORY_CONNECTOR_TOOLS),
+                          methods=["GET", "POST", "DELETE"])
+            logger.info("✅ MCP Connectors Directory surface at /mcp/connector (%d tools)",
+                        len(DIRECTORY_CONNECTOR_TOOLS))
 
         except ImportError:
             logger.info("ℹ️  MCP Streamable HTTP not available (mcp>=1.26 required)")

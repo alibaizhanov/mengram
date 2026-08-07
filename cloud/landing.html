@@ -35,29 +35,91 @@
     <meta name="twitter:description" content="AI memory that learns your workflows — refined from successes and failures. One memory across Claude Code, Cursor, Codex. Free tier, $5/mo.">
     <meta name="twitter:image" content="https://opengraph.githubassets.com/1/alibaizhanov/mengram">
     <meta name="twitter:image:alt" content="Mengram — AI Memory API with semantic, episodic, and procedural memory">
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Cpath d='M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68' fill='none' stroke='%23a855f7' stroke-width='10' stroke-linecap='round'/%3E%3Ccircle cx='62' cy='68' r='10' fill='%23a855f7'/%3E%3Ccircle cx='62' cy='68' r='4.5' fill='%23fff'/%3E%3C/svg%3E">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%237c3aed'/%3E%3Cg transform='translate(0 -1.6) scale(0.32)'%3E%3Cpath d='M22 65 V44 C22 36 36 36 40 44 V65 M40 44 C44 36 58 36 58 44 V54 C58 63 70 64 73 54' fill='none' stroke='%23ffffff' stroke-width='10' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='75' cy='51' r='8' fill='%23ffffff'/%3E%3Ccircle cx='75' cy='51' r='3' fill='%237c3aed'/%3E%3C/g%3E%3C/svg%3E">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Sora:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg: #05050a;
-            --bg-card: #0a0a14;
-            --bg-elevated: #0f0f1a;
-            --border: #1a1a2e;
-            --border-hover: #2a2a44;
-            --text: #e8e8f0;
-            --text-2: #9898b0;
-            --text-3: #5a5a78;
-            --accent: #a855f7;
-            --accent-dim: rgba(168, 85, 247, 0.12);
-            --accent-glow: rgba(168, 85, 247, 0.25);
-            --green: #34d399;
-            --green-dim: rgba(52, 211, 153, 0.1);
+            /* Light direction — approved 2026-07-29. Code/terminal blocks stay dark by design. */
+            --bg: #F6F5FB;
+            --bg-card: #FFFFFF;
+            --bg-elevated: #F0EDF8;
+            --border: #E7E3F2;
+            --border-hover: #D6CCEC;
+            --text: #171320;
+            --text-2: #6B6580;
+            --text-3: #9A93AC;
+            --accent: #7C3AED;
+            --accent-dim: rgba(124, 58, 237, 0.10);
+            --accent-glow: rgba(124, 58, 237, 0.20);
+            --green: #059669;
+            --green-dim: rgba(5, 150, 105, 0.10);
             --blue: #60a5fa;
             --orange: #fb923c;
             --pink: #f472b6;
+            --violet-soft: #EDE7FB;
+            --violet-deep: #6D28D9;
+            --violet-ink: #4C1D95;
+            --node: #8B5CF6;
+            --node-2: #A78BFA;
+            --node-deep: #6D28D9;
+            --wire: #D8CDEF;
         }
+
+        /* Code & terminal blocks stay dark on the light page — re-scope text tokens
+           to light values inside them (backgrounds are already dark). Border stays
+           light so the card edge reads against the page. */
+        /* Terminal stays dark if ever used; other code blocks are light on the light theme. */
+        .terminal {
+            --text: #ECEAF6; --text-2: #A7A2BC; --text-3: #7B7593; color: #ECEAF6;
+        }
+        .code-box code, .code-box pre { color: var(--text); }
+
+        /* Rowboat-composition hero: your tools → one memory graph → pitch */
+        .hero-rb { padding: 36px 0 24px; }
+        .rb-stage {
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: 26px;
+            box-shadow: 0 40px 90px -50px rgba(76,29,149,.30), 0 2px 8px rgba(23,19,32,.04);
+            display: grid; grid-template-columns: 1.5fr .95fr; overflow: hidden; min-height: 540px;
+        }
+        @media (max-width: 900px){ .rb-stage { grid-template-columns: 1fr; min-height:0; } }
+        .rb-canvas {
+            position: relative; background-color: #FCFBFE;
+            background-image: radial-gradient(#EDEAF6 1px, transparent 1px); background-size: 24px 24px;
+            min-height: 380px;
+        }
+        .rb-canvas svg { width: 100%; height: 100%; display: block; }
+        .rb-srchdr { position:absolute; left:22px; top:20px; font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--text-3); }
+        .rb-glabel { fill:var(--text); font-size:13px; font-weight:600; }
+        .rb-gtype { fill:var(--text-3); font-size:9.5px; font-family:'JetBrains Mono',monospace; }
+        .rb-gedge { stroke:#CFC3EC; stroke-width:1.6; fill:none; }
+        .rb-gedge.hot { stroke:var(--node-2); stroke-width:2.2; }
+        .rb-gel { fill:var(--text-3); font-size:9.5px; font-family:'JetBrains Mono',monospace; }
+        .rb-wire { stroke:var(--wire); stroke-width:1.6; fill:none; stroke-dasharray:3 4; }
+        .rb-src rect { fill:#fff; stroke:var(--border); stroke-width:1.4; }
+        .rb-src text { fill:var(--text); font-size:12px; font-weight:600; }
+        .rb-src .ico { fill:var(--accent); }
+        .rb-legend { position:absolute; left:20px; bottom:16px; display:flex; gap:15px; background:#fff; border:1px solid var(--border); border-radius:10px; padding:8px 13px; font-size:11.5px; color:var(--text-2); box-shadow:0 8px 22px -14px rgba(76,29,149,.28); }
+        .rb-legend i { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; vertical-align:middle; }
+        /* live hero graph: pulses flowing along the wires + breathing halo */
+        .rb-flow { fill:var(--node-2); }
+        .rb-flow.hot { fill:var(--node-deep); }
+        .rb-node { cursor: grab; }
+        .rb-node.dragging { cursor: grabbing; }
+        .rb-node text { user-select:none; -webkit-user-select:none; pointer-events:none; }
+        @media (prefers-reduced-motion: reduce){ .rb-flow{ display:none; } }
+        .rb-pitch { padding:48px 44px; display:flex; flex-direction:column; justify-content:center; border-left:1px solid var(--border); text-align:left; }
+        @media (max-width: 900px){ .rb-pitch { border-left:0; border-top:1px solid var(--border); padding:36px 28px; } }
+        .rb-eyebrow { font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.2em; text-transform:uppercase; color:var(--violet-deep); display:inline-flex; align-items:center; gap:8px; margin:0 0 20px; }
+        .rb-eyebrow .dot { width:6px; height:6px; border-radius:50%; background:var(--accent); box-shadow:0 0 0 4px var(--violet-soft); }
+        .rb-pitch h1 { font-size:clamp(32px,3.2vw,44px); line-height:1.05; letter-spacing:-.035em; font-weight:700; margin:0 0 16px; }
+        .rb-lede { font-size:16px; color:var(--text-2); margin:0 0 24px; max-width:36ch; }
+        .rb-lede b { color:var(--text); font-weight:600; }
+        .rb-cta { display:flex; gap:11px; flex-wrap:wrap; }
+        .rb-proof { margin:22px 0 0; font-size:12px; color:var(--text-3); font-family:'JetBrains Mono',monospace; line-height:1.7; }
+        .rb-proof strong { color:var(--text); }
+        .rb-proof a { color:var(--text-3); }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -435,8 +497,8 @@
             font-size: 18px;
         }
         .how-num.n1 { background: var(--accent-dim); color: var(--accent); }
-        .how-num.n2 { background: var(--green-dim); color: var(--green); }
-        .how-num.n3 { background: rgba(96, 165, 250, 0.1); color: var(--blue); }
+        .how-num.n2 { background: var(--accent-dim); color: var(--accent); }
+        .how-num.n3 { background: var(--accent-dim); color: var(--accent); }
         .how-card h3 {
             font-size: 18px;
             font-weight: 600;
@@ -565,10 +627,10 @@
 
         /* Code blocks inside panels */
         .code-box {
-            background: rgba(0,0,0,0.4);
+            background: #F5F3FC;
             border: 1px solid var(--border);
             border-radius: 10px;
-            padding: 14px 18px;
+            padding: 14px 66px 14px 16px;
             margin-top: 10px;
             font-family: 'JetBrains Mono', monospace;
             font-size: 13px;
@@ -588,10 +650,10 @@
             font-family: 'Sora', sans-serif;
         }
         .code-box .copy-btn:hover { color: var(--text); border-color: var(--border-hover); }
-        .c-kw { color: #c084fc; }
-        .c-str { color: #34d399; }
+        .c-kw { color: #7c3aed; }
+        .c-str { color: #059669; }
         .c-cmt { color: var(--text-3); }
-        .c-fn { color: #60a5fa; }
+        .c-fn { color: #2563eb; }
 
         /* ---- Install in one prompt ---- */
         .install-prompt-section {
@@ -1002,13 +1064,14 @@
             display: flex;
             align-items: center;
             gap: 8px;
-            background: rgba(0,0,0,0.4);
+            background: #F5F3FC;
+            border: 1px solid var(--border);
             border-radius: 8px;
             padding: 10px 14px;
             margin-top: 10px;
             font-family: 'JetBrains Mono', monospace;
             font-size: 13px;
-            color: var(--green);
+            color: #059669;
             word-break: break-all;
         }
         .api-key-display button {
@@ -1070,8 +1133,8 @@
         .step-cmd {
             display: flex;
             align-items: center;
-            background: rgba(0,0,0,0.4);
-            border: 1px solid rgba(255,255,255,0.08);
+            background: #F5F3FC;
+            border: 1px solid var(--border);
             border-radius: 6px;
             padding: 6px 10px;
             gap: 8px;
@@ -1080,13 +1143,13 @@
             flex: 1;
             font-family: 'JetBrains Mono', monospace;
             font-size: 0.8rem;
-            color: var(--green);
+            color: #059669;
             word-break: break-all;
         }
         .step-cmd button {
             background: var(--bg-elevated);
             border: 1px solid var(--border);
-            color: var(--text-2);
+            color: var(--text-3);
             padding: 3px 10px;
             border-radius: 4px;
             cursor: pointer;
@@ -1172,8 +1235,8 @@
         }
         .pg-dot { width:8px;height:8px;border-radius:50%;display:inline-block; }
         .pg-dot-semantic { background:var(--accent); }
-        .pg-dot-episodic { background:var(--blue); }
-        .pg-dot-procedural { background:var(--green); }
+        .pg-dot-episodic { background:#c084fc; }
+        .pg-dot-procedural { background:#7c3aed; }
         .pg-card {
             background:var(--bg);border:1px solid var(--border);border-radius:10px;
             padding:14px 16px;margin-bottom:8px;font-size:13px;line-height:1.6;
@@ -1263,7 +1326,7 @@
         .pg-graph text { font-family:'Sora',sans-serif;font-size:11px;fill:var(--text-2); }
         .pg-graph .pg-node { fill:var(--accent);opacity:0;animation:pgNodeIn .4s ease forwards; }
         .pg-graph .pg-node-label { fill:var(--text);font-weight:500;font-size:12px;opacity:0;animation:pgNodeIn .4s ease forwards; }
-        .pg-graph .pg-edge { stroke:var(--border-hover);stroke-width:1.5;opacity:0;animation:pgEdgeIn .5s ease forwards; }
+        .pg-graph .pg-edge { stroke:#C4B7DF;stroke-width:1.5;opacity:0;animation:pgEdgeIn .5s ease forwards; }
         .pg-graph .pg-edge-label { fill:var(--text-3);font-size:9px;opacity:0;animation:pgNodeIn .6s ease forwards; }
         @keyframes pgNodeIn { to{opacity:1} }
         @keyframes pgEdgeIn { to{opacity:.6} }
@@ -1534,7 +1597,7 @@
             padding: 1px;
             background: conic-gradient(
                 from var(--gradient-angle),
-                var(--accent), #7c3aed, var(--blue), var(--green), var(--accent)
+                var(--accent), #7c3aed, #818cf8, #c084fc, var(--accent)
             );
             -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
             -webkit-mask-composite: xor;
@@ -1834,8 +1897,8 @@
     <!-- Announcement Banner -->
     <div class="announce-bar" id="announce-bar">
         <span class="announce-new">NEW</span>
-        Claude Managed Agents + Mengram: 29 memory tools via MCP &mdash; your agents remember everything
-        <a href="https://docs.mengram.io/managed-agents">See how &rarr;</a>
+        One-click memory for Claude &mdash; add Mengram as a connector on claude.ai &amp; Desktop, no setup
+        <a href="https://docs.mengram.io/claude-connector">Add it &rarr;</a>
         <button class="announce-close" onclick="dismissBanner()" aria-label="Dismiss">&times;</button>
     </div>
 
@@ -1844,11 +1907,7 @@
         <!-- Nav -->
         <nav class="reveal">
             <div class="logo">
-                <svg width="24" height="24" viewBox="0 0 120 120" style="vertical-align:middle;margin-right:2px;">
-                    <defs><linearGradient id="nav-eg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#c084fc"/><stop offset="100%" stop-color="#7c3aed"/></linearGradient></defs>
-                    <path d="M60 16 Q92 16 96 48 Q100 78 72 88 Q50 96 38 76 Q26 58 46 46 Q62 38 70 52 Q76 64 62 68" fill="none" stroke="url(#nav-eg)" stroke-width="8" stroke-linecap="round"/>
-                    <circle cx="62" cy="68" r="8" fill="#a855f7"/><circle cx="62" cy="68" r="3.5" fill="#fff"/>
-                </svg> Mengram
+                <svg width="24" height="24" viewBox="0 0 100 100" style="vertical-align:middle;margin-right:2px;"><defs><linearGradient id="nav-eg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#c084fc"/><stop offset="100%" stop-color="#7c3aed"/></linearGradient></defs><path d="M22 65 V44 C22 36 36 36 40 44 V65 M40 44 C44 36 58 36 58 44 V54 C58 63 70 64 73 54" fill="none" stroke="url(#nav-eg)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/><circle cx="75" cy="51" r="8" fill="#a855f7"/><circle cx="75" cy="51" r="3" fill="#fff"/></svg> Mengram
             </div>
             <button class="hamburger" onclick="document.querySelector('.nav-links').classList.toggle('open')" aria-label="Menu">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
@@ -1867,36 +1926,51 @@
             </div>
         </nav>
 
-        <!-- Hero -->
-        <section class="hero">
-            <div class="hero-badge reveal">
-                <span class="pulse"></span>
-                Open Source · Apache 2.0
-            </div>
-            <h1 class="reveal" style="transition-delay:0.1s">AI memory that learns<br><span class="brand">how you work.</span></h1>
-            <p class="reveal" style="transition-delay:0.2s">Your agent redoes the same work from scratch every session. Mengram remembers your projects <em>and your workflows</em> — how you deploy, debug, and ship — refined every time you succeed or fail. One memory across Claude Code, Cursor, Codex, and ChatGPT.</p>
-            <div class="terminal reveal" style="transition-delay:0.3s">
-                <div class="terminal-header">
-                    <span class="terminal-dot red"></span>
-                    <span class="terminal-dot yellow"></span>
-                    <span class="terminal-dot green"></span>
-                    <span class="terminal-title">mengram-demo</span>
-                    <span style="width:36px"></span>
+        <!-- Hero — Rowboat composition: your tools → one memory graph → pitch -->
+        <section class="hero-rb">
+            <div class="rb-stage reveal">
+                <div class="rb-canvas">
+                    <div class="rb-srchdr">Your tools</div>
+                    <svg viewBox="0 0 760 560" preserveAspectRatio="xMidYMid meet" aria-label="Your AI tools feed one memory graph">
+                        <path id="rbw1" class="rb-wire" d="M150 150 C 230 160, 250 220, 300 250"/>
+                        <path id="rbw2" class="rb-wire" d="M150 250 C 220 250, 250 250, 300 250"/>
+                        <path id="rbw3" class="rb-wire" d="M150 350 C 230 340, 250 280, 300 250"/>
+                        <g class="rb-src"><rect x="40" y="130" width="118" height="40" rx="10"/><circle class="ico" cx="62" cy="150" r="5"/><text x="80" y="154">Claude</text></g>
+                        <g class="rb-src"><rect x="40" y="230" width="118" height="40" rx="10"/><circle class="ico" cx="62" cy="250" r="5"/><text x="80" y="254">Cursor</text></g>
+                        <g class="rb-src"><rect x="40" y="330" width="118" height="40" rx="10"/><circle class="ico" cx="62" cy="350" r="5"/><text x="80" y="354">ChatGPT</text></g>
+                        <path id="rbe1" class="rb-gedge hot" data-from="fastapi" data-to="railway" d="M300 250 C 380 210, 470 190, 512 156"/>
+                        <path id="rbe3" class="rb-gedge" data-from="fastapi" data-to="redis" d="M300 250 C 360 310, 420 340, 470 366"/>
+                        <path id="rbe4" class="rb-gedge" data-from="fastapi" data-to="postgres" d="M300 250 C 250 320, 210 360, 186 392"/>
+                        <path id="rbe2" class="rb-gedge hot" data-from="fastapi" data-to="proc" d="M300 250 C 330 350, 350 420, 372 470"/>
+                        <path id="rbe5" class="rb-gedge" data-from="railway" data-to="redis" d="M512 156 C 580 220, 570 320, 470 366"/>
+                        <path id="rbe6" class="rb-gedge" data-from="redis" data-to="proc" d="M470 366 C 440 430, 410 452, 372 470"/>
+                        <text id="rbl-deploys" class="rb-gel" x="418" y="200">deploys</text>
+                        <text id="rbl-caches" class="rb-gel" x="392" y="326">caches</text>
+                        <text id="rbl-uses" class="rb-gel" x="236" y="330">uses</text>
+                        <text id="rbl-learned" class="rb-gel" x="356" y="376">learned</text>
+                        <g id="rbn-fastapi" class="rb-node" transform="translate(300 250)"><circle class="rb-halo-pulse" r="20" fill="var(--violet-soft)"/><circle r="12" fill="var(--accent)" stroke="#fff" stroke-width="2"/><circle r="4" fill="#fff"/><text class="rb-glabel" x="0" y="-26" text-anchor="middle">FastAPI</text><text class="rb-gtype" x="0" y="36" text-anchor="middle">technology</text></g>
+                        <g id="rbn-railway" class="rb-node" transform="translate(520 154)"><circle r="9" fill="var(--node)" stroke="#fff" stroke-width="2"/><circle r="3.2" fill="#fff"/><text class="rb-glabel" x="0" y="-18" text-anchor="middle">Railway</text></g>
+                        <g id="rbn-redis" class="rb-node" transform="translate(476 368)"><circle r="9" fill="var(--node)" stroke="#fff" stroke-width="2"/><circle r="3.2" fill="#fff"/><text class="rb-glabel" x="16" y="4" text-anchor="start">Redis</text></g>
+                        <g id="rbn-postgres" class="rb-node" transform="translate(180 392)"><circle r="9" fill="var(--node)" stroke="#fff" stroke-width="2"/><circle r="3.2" fill="#fff"/><text class="rb-glabel" x="0" y="26" text-anchor="middle">PostgreSQL</text></g>
+                        <g id="rbn-proc" class="rb-node" transform="translate(372 472)"><circle r="10" fill="var(--node-deep)" stroke="#fff" stroke-width="2"/><circle r="3.4" fill="#fff"/><text class="rb-glabel" x="0" y="28" text-anchor="middle">deploy-to-railway</text><text class="rb-gtype" x="0" y="44" text-anchor="middle">procedure · 11✓/1✗</text></g>
+                    </svg>
+                    <div class="rb-legend"><span><i style="background:var(--node)"></i>facts</span><span><i style="background:var(--node-2)"></i>events</span><span><i style="background:var(--node-deep)"></i>procedures</span></div>
                 </div>
-                <div class="terminal-body" id="terminal-body"></div>
+                <div class="rb-pitch">
+                    <p class="rb-eyebrow"><span class="dot"></span>Memory for your AI</p>
+                    <h1>AI memory that learns <span class="brand">how you work.</span></h1>
+                    <p class="rb-lede">Every tool you use writes to <b>one memory graph</b> — your projects, and the workflows it learns from every success and failure. Then every agent recalls it.</p>
+                    <div class="rb-cta">
+                        <a href="https://docs.mengram.io/claude-connector" class="btn btn-primary">Add to Claude — one click</a>
+                        <a href="#signup" class="btn btn-secondary">Get API Key Free</a>
+                        <a href="https://github.com/alibaizhanov/mengram" class="btn btn-secondary" style="display:inline-flex;align-items:center;gap:6px;">
+                            <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" style="flex-shrink:0;"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+                            GitHub <span id="gh-stars"></span>
+                        </a>
+                    </div>
+                    <p class="rb-proof">Listed in the <a href="https://registry.modelcontextprotocol.io">official MCP Registry</a> · works with <strong>Claude, Cursor, Codex, ChatGPT, LangChain &amp; CrewAI</strong> · <a href="https://github.com/alibaizhanov/mengram">open source</a></p>
+                </div>
             </div>
-            <div class="hero-cta reveal" style="transition-delay:0.4s">
-                <a href="#signup" class="btn btn-primary">Get API Key Free</a>
-                <a href="#one-prompt" class="btn btn-secondary">📋 No terminal? Let your AI install it</a>
-                <a href="https://github.com/alibaizhanov/mengram" class="btn btn-secondary" style="display:inline-flex;align-items:center;gap:6px;">
-                    <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" style="flex-shrink:0;"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-                    GitHub
-                    <svg width="14" height="14" viewBox="0 0 16 16" fill="#fbbf24" style="flex-shrink:0;"><path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.75.75 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25z"/></svg>
-                    <span id="gh-stars"></span>
-                </a>
-            </div>
-            <p class="reveal hero-reassure" style="transition-delay:0.5s">No credit card. No trial. Free forever tier with 40 memories/mo.</p>
-            <p class="hero-proof">Listed in the <a href="https://registry.modelcontextprotocol.io">official MCP Registry</a> · <a href="https://github.com/punkpeye/awesome-mcp-servers">awesome-mcp-servers</a> · <a href="#claude-code-plugin">Claude Code plugin</a> · <a href="https://github.com/alibaizhanov/mengram">Apache 2.0 core</a></p>
         </section>
 
         <!-- Sound familiar? — the pains in the user's own words -->
@@ -1926,9 +2000,9 @@
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;max-width:920px;margin:0 auto;">
                 <div class="install-prompt-card" style="text-align:left;">
                     <span class="install-prompt-eyebrow">For your AI tools</span>
-                    <h2 class="install-prompt-title" style="font-size:22px;">One memory across Claude Code, Cursor, Codex</h2>
-                    <p class="install-prompt-sub">Survives <code>/clear</code>, auto-compaction, and machine switches. Install the plugin, import your history, done.</p>
-                    <p style="margin-top:10px;"><a href="#claude-code-plugin" style="color:var(--accent);text-decoration:none;font-weight:600;">Install in 2 commands ↓</a></p>
+                    <h2 class="install-prompt-title" style="font-size:22px;">One memory across Claude, Cursor, Codex</h2>
+                    <p class="install-prompt-sub">Survives <code>/clear</code>, auto-compaction, and machine switches. Add the one-click Claude connector — or install the CLI for Claude Code, Cursor &amp; Windsurf.</p>
+                    <p style="margin-top:10px;"><a href="#claude-connector" style="color:var(--accent);text-decoration:none;font-weight:600;">Add to Claude in one click ↓</a></p>
                 </div>
                 <div class="install-prompt-card" style="text-align:left;">
                     <span class="install-prompt-eyebrow">For your agent product</span>
@@ -1936,6 +2010,20 @@
                     <p class="install-prompt-sub">Isolated memory per <code>user_id</code> — facts, events, and workflows that evolve from failures. REST + MCP + webhooks, server-side extraction.</p>
                     <p style="margin-top:10px;"><a href="/for-agents" style="color:var(--accent);text-decoration:none;font-weight:600;">API quickstart →</a></p>
                 </div>
+            </div>
+        </section>
+
+        <!-- Add to Claude in one click (remote MCP connector) — the zero-setup door -->
+        <section class="install-prompt-section reveal" id="claude-connector">
+            <div class="install-prompt-card">
+                <span class="install-prompt-eyebrow">New · Zero setup · claude.ai &amp; Desktop</span>
+                <h2 class="install-prompt-title">Add memory to Claude in one click.</h2>
+                <p class="install-prompt-sub">No terminal, no config, no key to paste. In Claude: <strong>Settings → Connectors → Add custom connector</strong>, paste the URL below (leave the OAuth fields empty), and sign in with an email code. Set a preference once and Claude recalls it weeks later — across every chat, on claude.ai, Desktop, and Cowork.</p>
+                <div class="code-box install-prompt-box">
+                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+<pre>https://mengram.io/mcp/connector</pre>
+                </div>
+                <p class="install-prompt-fineprint">Free tier, no card — the email step creates your account. Works on Free, Pro, Max, Team &amp; Enterprise. <a href="https://docs.mengram.io/claude-connector">Full guide &rarr;</a></p>
             </div>
         </section>
 
@@ -3319,9 +3407,10 @@ POST /v1/add → {<span class="c-str">"messages"</span>: [...], <span class="c-s
             });
 
             // Color map for entity types
+            // Analogous violet palette — distinguishable node types, one brand hue family
             var typeColors = {
-                person: '#f472b6', technology: '#a855f7', system: '#60a5fa',
-                infrastructure: '#fb923c', artifact: '#34d399', unknown: '#9898b0'
+                person: '#e879f9', technology: '#a855f7', system: '#818cf8',
+                infrastructure: '#c084fc', artifact: '#a78bfa', unknown: '#9898b0'
             };
 
             var svg = '<svg class="pg-graph" viewBox="0 0 ' + W + ' ' + H + '">';
@@ -3404,6 +3493,32 @@ POST /v1/add → {<span class="c-str">"messages"</span>: [...], <span class="c-s
                     }
                 })
                 .catch(function() {});
+        })();
+
+        // ---- Playground: auto-build the demo graph on scroll-into-view ----
+        // Fires once, only if the user hasn't typed. pgSampleLoad(0) renders a
+        // pre-baked result (no API call), so this is free and the knowledge graph
+        // assembles itself as the visitor arrives — no click required.
+        (function autoPlayground() {
+            var section = document.getElementById('playground');
+            var input = document.getElementById('pg-extract-input');
+            if (!section || !input || typeof pgSampleLoad !== 'function') return;
+            if (!('IntersectionObserver' in window)) return;
+            var fired = false;
+            var obs = new IntersectionObserver(function(entries) {
+                for (var i = 0; i < entries.length; i++) {
+                    if (entries[i].isIntersecting && !fired) {
+                        fired = true;
+                        obs.disconnect();
+                        if (!input.value.trim()) {
+                            pgSampleLoad(0);  // renders the pre-baked demo result (no network)
+                            var r = document.getElementById('pg-extract-results');
+                            if (r) r.classList.add('show');  // reveal it (demo path skips 'show')
+                        }
+                    }
+                }
+            }, { threshold: 0.25 });
+            obs.observe(section);
         })();
 
         // ---- Announcement Banner Dismiss ----
@@ -3571,6 +3686,71 @@ POST /v1/add → {<span class="c-str">"messages"</span>: [...], <span class="c-s
         })();
 
         // ---- Enterprise Modal ----
+    </script>
+    <script>
+    /* Hero memory graph — gentle node drift + drag (rowboatlabs-style). Progressive enhancement. */
+    (function(){
+        const svg = document.querySelector('.rb-canvas svg');
+        if(!svg) return;
+        const REDUCE = matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const NODES = {
+            fastapi:{el:'rbn-fastapi', drift:3}, railway:{el:'rbn-railway', drift:5},
+            redis:{el:'rbn-redis', drift:5}, postgres:{el:'rbn-postgres', drift:5}, proc:{el:'rbn-proc', drift:5}
+        };
+        const SRC = { claude:{x:158,y:150}, cursor:{x:158,y:250}, chatgpt:{x:158,y:350} };
+        const EDGES = [
+            {el:'rbe1', from:'fastapi', to:'railway', k:34, label:'rbl-deploys'},
+            {el:'rbe3', from:'fastapi', to:'redis', k:30, label:'rbl-caches'},
+            {el:'rbe4', from:'fastapi', to:'postgres', k:-30, label:'rbl-uses'},
+            {el:'rbe2', from:'fastapi', to:'proc', k:26, label:'rbl-learned'},
+            {el:'rbe5', from:'railway', to:'redis', k:40},
+            {el:'rbe6', from:'redis', to:'proc', k:24}
+        ];
+        const WIRES = [
+            {el:'rbw1', from:SRC.claude, to:'fastapi', k:14},
+            {el:'rbw2', from:SRC.cursor, to:'fastapi', k:6},
+            {el:'rbw3', from:SRC.chatgpt, to:'fastapi', k:-14}
+        ];
+        const FLOWS = [
+            {p:'rbw1', dur:1.5, ph:0.0}, {p:'rbw2', dur:1.5, ph:0.33}, {p:'rbw3', dur:1.5, ph:0.66},
+            {p:'rbe1', dur:1.8, ph:0.2, hot:true}, {p:'rbe2', dur:1.8, ph:0.6, hot:true}
+        ];
+        let i=0;
+        for(const id in NODES){ const n=NODES[id]; n.g=document.getElementById(n.el);
+            const m=/translate\(\s*([-\d.]+)[\s,]+([-\d.]+)/.exec(n.g.getAttribute('transform'));
+            n.bx=+m[1]; n.by=+m[2]; n.x=n.bx; n.y=n.by; n.phase=i*1.3; n.spd=0.32+(i%3)*0.05; n.fixed=false; i++; }
+        EDGES.forEach(e=>{ e.pathEl=document.getElementById(e.el); if(e.label) e.labelEl=document.getElementById(e.label); });
+        WIRES.forEach(w=>w.pathEl=document.getElementById(w.el));
+        const NS='http://www.w3.org/2000/svg';
+        FLOWS.forEach(f=>{ const c=document.createElementNS(NS,'circle'); c.setAttribute('r', f.hot?2.6:3);
+            c.setAttribute('class','rb-flow'+(f.hot?' hot':'')); c.setAttribute('opacity','0.9'); svg.appendChild(c); f.dot=c; f.path=document.getElementById(f.p); });
+        function pt(ref){ return (typeof ref==='string') ? {x:NODES[ref].x, y:NODES[ref].y} : ref; }
+        function arc(a,b,k){ const mx=(a.x+b.x)/2,my=(a.y+b.y)/2,dx=b.x-a.x,dy=b.y-a.y,L=Math.hypot(dx,dy)||1,nx=-dy/L,ny=dx/L;
+            const cx=mx+nx*k, cy=my+ny*k;
+            return {d:`M${a.x.toFixed(1)} ${a.y.toFixed(1)} Q ${cx.toFixed(1)} ${cy.toFixed(1)} ${b.x.toFixed(1)} ${b.y.toFixed(1)}`, cx:cx, cy:cy}; }
+        let t0=null;
+        function frame(ts){
+            if(t0==null) t0=ts; const t=(ts-t0)/1000;
+            // nodes stay put (Rowboat-style — no ambient drift); they move only when dragged
+            WIRES.forEach(w=>{ w.pathEl.setAttribute('d', arc(pt(w.from),pt(w.to),w.k).d); });
+            EDGES.forEach(e=>{ const r=arc(pt(e.from),pt(e.to),e.k); e.pathEl.setAttribute('d', r.d);
+                if(e.labelEl){ e.labelEl.setAttribute('x', r.cx.toFixed(1)); e.labelEl.setAttribute('y', (r.cy-3).toFixed(1)); } });
+            if(!REDUCE) FLOWS.forEach(f=>{ const len=f.path.getTotalLength(); if(!len) return;
+                const u=((t/f.dur)+f.ph)%1, p=f.path.getPointAtLength(len*u);
+                f.dot.setAttribute('cx',p.x.toFixed(1)); f.dot.setAttribute('cy',p.y.toFixed(1)); });
+            requestAnimationFrame(frame);
+        }
+        requestAnimationFrame(frame);
+        // drag
+        let drag=null;
+        function toSVG(ev){ const p=svg.createSVGPoint(); p.x=ev.clientX; p.y=ev.clientY; const m=svg.getScreenCTM(); return m?p.matrixTransform(m.inverse()):{x:ev.clientX,y:ev.clientY}; }
+        for(const id in NODES){ const n=NODES[id];
+            n.g.addEventListener('pointerdown',ev=>{ ev.preventDefault(); drag=n; n.fixed=true; n.g.classList.add('dragging'); try{n.g.setPointerCapture(ev.pointerId);}catch(_){}} );
+            n.g.addEventListener('pointermove',ev=>{ if(drag!==n) return; const q=toSVG(ev); n.x=q.x; n.y=q.y; n.g.setAttribute('transform',`translate(${n.x.toFixed(1)} ${n.y.toFixed(1)})`); });
+            const end=()=>{ if(drag!==n) return; n.fixed=false; n.bx=n.x; n.by=n.y; n.phase=-((performance.now()-t0)/1000)*n.spd; n.g.classList.remove('dragging'); drag=null; };
+            n.g.addEventListener('pointerup',end); n.g.addEventListener('pointercancel',end); n.g.addEventListener('lostpointercapture',end);
+        }
+    })();
     </script>
 </body>
 </html>
