@@ -36,6 +36,7 @@ from pydantic import BaseModel, Field
 
 from cloud.store import CloudStore, _normalize_fact
 from cloud.oauth_policy import redirect_uri_error as _redirect_uri_error
+from cloud.sub_user import SubUserScoped, resolve_sub_user as _resolve_sub_user
 
 
 # ---- Auth Context ----
@@ -97,9 +98,8 @@ class Message(BaseModel):
     role: str
     content: str
 
-class AddRequest(BaseModel):
+class AddRequest(SubUserScoped):
     messages: list[Message]
-    user_id: str = "default"
     agent_id: str | None = None
     run_id: str | None = None
     app_id: str | None = None
@@ -110,9 +110,8 @@ class AddRequest(BaseModel):
     prompt_version: str | None = None  # Override extraction prompt version (only works with dry_run)
     agent_mode: bool = False           # True = extract from all speakers (agent actions + user), False = user-only (default)
 
-class AddTextRequest(BaseModel):
+class AddTextRequest(SubUserScoped):
     text: str
-    user_id: str = "default"
     agent_id: str | None = None
     run_id: str | None = None
     app_id: str | None = None
@@ -120,9 +119,8 @@ class AddTextRequest(BaseModel):
     metadata: dict | None = None
     expiration_date: str | None = None
 
-class SearchRequest(BaseModel):
+class SearchRequest(SubUserScoped):
     query: str
-    user_id: str = "default"
     agent_id: str | None = None
     run_id: str | None = None
     app_id: str | None = None
@@ -131,11 +129,10 @@ class SearchRequest(BaseModel):
     threshold: float | None = None  # min cosine 0..1; None = server defaults
     filters: dict | None = None  # metadata filters, e.g. {"agent_id": "support-bot"}
 
-class AskRequest(BaseModel):
+class AskRequest(SubUserScoped):
     """RAG-style ask: synthesize an answer from memory with citations.
     Premium feature (Pro+) — uses Cohere Chat API on top of vector search."""
     query: str
-    user_id: str = "default"  # sub_user_id for multi-tenant scoping
     max_facts: int = 15       # how many top facts to feed Cohere as documents
 
 class FeedbackRequest(BaseModel):
@@ -7578,13 +7575,13 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     # ---- Protected endpoints ----
 
     @app.post("/v1/add", tags=["Memory"])
-    async def add(req: AddRequest, ctx: AuthContext = Depends(auth)):
+    async def add(req: AddRequest, sub_user_id: str | None = Query(None), ctx: AuthContext = Depends(auth)):
         """
         Add memories from conversation.
         Returns immediately with job_id, processes in background.
         """
         user_id = ctx.user_id
-        sub_uid = req.user_id or "default"
+        sub_uid = _resolve_sub_user(req.user_id, sub_user_id)
 
         # Dry run: extract and return preview without saving. Metered like a
         # real add — it runs the same LLM extraction, so leaving it free made
@@ -7686,7 +7683,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         })
 
     @app.post("/v1/add_text", tags=["Memory"])
-    async def add_text(req: AddTextRequest, ctx: AuthContext = Depends(auth)):
+    async def add_text(req: AddTextRequest, sub_user_id: str | None = Query(None), ctx: AuthContext = Depends(auth)):
         """Add memories from plain text (wraps into a single user message)."""
         add_req = AddRequest(
             messages=[Message(role="user", content=req.text)],
@@ -7699,7 +7696,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             expiration_date=req.expiration_date,
         )
         # Delegate to add() which handles quota check + increment internally
-        result = await add(add_req, ctx)
+        result = await add(add_req, sub_user_id=sub_user_id, ctx=ctx)
         return result
 
     def _extract_pdf_with_vision(file_bytes: bytes, filename: str) -> list[str]:
@@ -8000,13 +7997,13 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         return job
 
     @app.post("/v1/search", tags=["Search"])
-    async def search(req: SearchRequest, ctx: AuthContext = Depends(auth)):
+    async def search(req: SearchRequest, sub_user_id: str | None = Query(None), ctx: AuthContext = Depends(auth)):
         """Semantic search across memories with LLM re-ranking."""
         user_id = ctx.user_id
         use_quota(ctx, "search")  # atomic check+increment
         import hashlib as _hashlib
 
-        sub_uid = req.user_id or "default"
+        sub_uid = _resolve_sub_user(req.user_id, sub_user_id)
 
         # Build metadata filters from explicit fields + filters dict
         meta_filters = dict(req.filters) if req.filters else {}
@@ -8163,7 +8160,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         return response
 
     @app.post("/v1/ask", tags=["Search"])
-    async def ask(req: AskRequest, ctx: AuthContext = Depends(auth)):
+    async def ask(req: AskRequest, sub_user_id: str | None = Query(None), ctx: AuthContext = Depends(auth)):
         """Ask your memory a question — get a synthesized answer with citations.
 
         RAG flow: embed query → top-N facts via search → Cohere Chat with documents
@@ -8179,7 +8176,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
         user_id = ctx.user_id
         use_quota(ctx, "search")
-        sub_uid = req.user_id or "default"
+        sub_uid = _resolve_sub_user(req.user_id, sub_user_id)
 
         # 1. Embed query (Cohere multilingual / OpenAI fallback)
         embedder = get_embedder()
@@ -9181,14 +9178,14 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     # ---- Unified Search (all 3 memory types) ----
 
     @app.post("/v1/search/all", tags=["Search"])
-    async def search_all(req: SearchRequest, ctx: AuthContext = Depends(auth)):
+    async def search_all(req: SearchRequest, sub_user_id: str | None = Query(None), ctx: AuthContext = Depends(auth)):
         """Search across all memory types: semantic, episodic, and procedural.
         Returns categorized results from each memory system."""
         user_id = ctx.user_id
         use_quota(ctx, "search")  # atomic check+increment
         import hashlib as _hashlib
 
-        sub_uid = req.user_id or "default"
+        sub_uid = _resolve_sub_user(req.user_id, sub_user_id)
 
         # Build metadata filters
         meta_filters = dict(req.filters) if req.filters else {}
