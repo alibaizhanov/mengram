@@ -2707,27 +2707,97 @@ class CloudStore:
         self._schedule_matview_refresh()
         return True
 
-    def delete_all_entities(self, user_id: str, sub_user_id: str = "default") -> int:
-        """Delete ALL entities with their facts, relations, knowledge, embeddings.
-        Children deleted explicitly — no cascade reliance (see delete_entity)."""
+    def _existing_tables(self, cur, names: tuple) -> set:
+        """The subset of `names` that exists in this database.
+
+        Several tables are created lazily on first use, so an install that has
+        never sent a drip email or run an agent genuinely does not have them.
+        Deleting from a missing one raises — and because connections run in
+        autocommit, every delete before that point has already landed, leaving
+        the data half-erased while the caller sees a 500.
+        """
+        cur.execute(
+            "SELECT n FROM unnest(%s::text[]) AS t(n) "
+            "WHERE to_regclass('public.' || t.n) IS NOT NULL",
+            (list(names),)
+        )
+        return {r[0] for r in cur.fetchall()}
+
+    def delete_all_memories(self, user_id: str, sub_user_id: str = "default") -> dict:
+        """Erase everything remembered for one sub_user. Returns per-table counts.
+
+        Everything the user can read back has to go. Deleting only entities
+        left /v1/episodes and /v1/procedures still answering, and the verbatim
+        conversation text still sitting in conversation_chunks, after the
+        account had been told its memories were deleted.
+
+        Children before parents throughout: production tables predate the
+        ON DELETE CASCADE that schema.sql declares, so nothing is cascaded for
+        us. `entities.user_id` is a uuid while the other roots store it as
+        text, hence the two forms of the scope predicate.
+        """
+        counts = {}
+        scope = (user_id, sub_user_id)
+
         with self._cursor() as cur:
-            cur.execute(
-                "SELECT id FROM entities WHERE user_id = %s AND sub_user_id = %s",
-                (user_id, sub_user_id)
-            )
-            entity_ids = [str(r[0]) for r in cur.fetchall()]
-            count = len(entity_ids)
+            present = self._existing_tables(cur, (
+                "facts", "knowledge", "embeddings", "relations", "entities",
+                "episodes", "episode_embeddings",
+                "procedures", "procedure_embeddings", "procedure_evolution",
+                "conversation_chunks", "chunk_embeddings", "memory_triggers",
+            ))
+
+            def roots(table, uuid_owner=False):
+                if table not in present:
+                    return []
+                owner = "user_id" if uuid_owner else "user_id::text"
+                cur.execute(
+                    f"SELECT id FROM {table} WHERE {owner} = %s AND sub_user_id = %s", scope)
+                return [str(r[0]) for r in cur.fetchall()]
+
+            def wipe(table, predicate, params):
+                if table not in present:
+                    return
+                cur.execute(f"DELETE FROM {table} WHERE {predicate}", params)
+                counts[table] = counts.get(table, 0) + cur.rowcount
+
+            entity_ids = roots("entities", uuid_owner=True)
+            episode_ids = roots("episodes")
+            procedure_ids = roots("procedures")
+            chunk_ids = roots("conversation_chunks")
+
+            # Grandchildren: vectors and evolution history keyed off the roots.
+            if episode_ids:
+                wipe("episode_embeddings", "episode_id = ANY(%s::uuid[])", (episode_ids,))
+                wipe("procedure_evolution", "episode_id = ANY(%s::uuid[])", (episode_ids,))
+            if procedure_ids:
+                wipe("procedure_embeddings", "procedure_id = ANY(%s::uuid[])", (procedure_ids,))
+                wipe("procedure_evolution", "procedure_id = ANY(%s::uuid[])", (procedure_ids,))
+            if chunk_ids:
+                wipe("chunk_embeddings", "chunk_id = ANY(%s::uuid[])", (chunk_ids,))
             if entity_ids:
                 for child in ("facts", "knowledge", "embeddings"):
-                    cur.execute(f"DELETE FROM {child} WHERE entity_id = ANY(%s::uuid[])", (entity_ids,))
-                cur.execute(
-                    "DELETE FROM relations WHERE source_id = ANY(%s::uuid[]) OR target_id = ANY(%s::uuid[])",
-                    (entity_ids, entity_ids))
-                cur.execute("DELETE FROM entities WHERE id = ANY(%s::uuid[])", (entity_ids,))
+                    wipe(child, "entity_id = ANY(%s::uuid[])", (entity_ids,))
+                wipe("relations",
+                     "source_id = ANY(%s::uuid[]) OR target_id = ANY(%s::uuid[])",
+                     (entity_ids, entity_ids))
+
+            # Roots.
+            if entity_ids:
+                wipe("entities", "id = ANY(%s::uuid[])", (entity_ids,))
+            if episode_ids:
+                wipe("episodes", "id = ANY(%s::uuid[])", (episode_ids,))
+            if procedure_ids:
+                wipe("procedures", "id = ANY(%s::uuid[])", (procedure_ids,))
+            if chunk_ids:
+                wipe("conversation_chunks", "id = ANY(%s::uuid[])", (chunk_ids,))
+            wipe("memory_triggers", "user_id::text = %s AND sub_user_id = %s", scope)
+
         self.cache.invalidate(f"stats:{user_id}")
         self.cache.invalidate(f"graph:{user_id}:{sub_user_id}:150")
+        self.cache.invalidate(f"profile:{user_id}")
         self._schedule_matview_refresh()
-        return count
+        return counts
 
     def delete_account(self, user_id: str) -> dict:
         """Permanently delete a user account and ALL associated data across
@@ -2782,17 +2852,27 @@ class CloudStore:
                 "team_members", "api_keys", "usage_log", "subscriptions",
                 "usage_counters",
             ]
+            # Four of these are created lazily on first use, so an install
+            # where nobody ever opened a checkout or ran an agent does not have
+            # them. Skipping the absent ones keeps deletion from aborting
+            # part-way and leaving a half-erased account behind.
+            present = self._existing_tables(cur, tuple(user_tables) + ("teams", "email_codes"))
             for table in user_tables:
+                if table not in present:
+                    continue
                 cur.execute(f"DELETE FROM {table} WHERE user_id::text = %s", (user_id,))  # noqa: S608 — fixed list above
                 counts[table] = cur.rowcount
-            cur.execute("DELETE FROM teams WHERE created_by = %s", (user_id,))
-            counts["teams"] = cur.rowcount
+            if "teams" in present:
+                cur.execute("DELETE FROM teams WHERE created_by = %s", (user_id,))
+                counts["teams"] = cur.rowcount
             if email:
-                cur.execute("DELETE FROM email_codes WHERE email = %s", (email,))
-                counts["email_codes"] = cur.rowcount
+                if "email_codes" in present:
+                    cur.execute("DELETE FROM email_codes WHERE email = %s", (email,))
+                    counts["email_codes"] = cur.rowcount
                 # drip_emails rows can predate signup (user_id NULL) — clear by email too
-                cur.execute("DELETE FROM drip_emails WHERE email = %s", (email,))
-                counts["drip_emails"] += cur.rowcount
+                if "drip_emails" in present:
+                    cur.execute("DELETE FROM drip_emails WHERE email = %s", (email,))
+                    counts["drip_emails"] = counts.get("drip_emails", 0) + cur.rowcount
             cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
             counts["users"] = cur.rowcount
         for prefix in ("stats:", "profile:", "rules:", "graph:", "value_mirror:", "sub:"):
