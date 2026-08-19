@@ -8853,11 +8853,17 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
     @app.delete("/v1/memories/all", tags=["Memory"])
     async def delete_all_memories(sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
-        """Delete ALL memories (entities, facts, relations, knowledge). Irreversible."""
+        """Delete ALL memories for this sub-user — entities and their facts,
+        plus episodes, procedures, raw conversation text and triggers.
+        Irreversible."""
         user_id = ctx.user_id
-        count = store.delete_all_entities(user_id, sub_user_id=sub_user_id)
-        logger.warning(f"🗑️ DELETE ALL | user={user_id[:8]} | deleted={count} entities")
-        return {"status": "deleted", "count": count}
+        counts = store.delete_all_memories(user_id, sub_user_id=sub_user_id)
+        total = sum(counts.values())
+        logger.warning(
+            f"🗑️ DELETE ALL | user={user_id[:8]} | sub={sub_user_id} | rows={total} | {counts}")
+        # `count` stays the entity count the dashboard has always shown.
+        return {"status": "deleted", "count": counts.get("entities", 0),
+                "deleted": counts, "rows": total}
 
     @app.get("/v1/capture-policy", tags=["System"])
     async def get_capture_policy(ctx: AuthContext = Depends(auth)):
