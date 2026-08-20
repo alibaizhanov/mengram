@@ -427,6 +427,60 @@ class CloudMemory:
         result = self._request("GET", "/v1/memories", params=params)
         return result.get("memories", [])
 
+    def export(self, format: str = "markdown", user_id: str = "default"):
+        """Take the whole memory out.
+
+        `markdown` returns the bytes of a zip holding an Obsidian-native tree —
+        a file per entity, relations as wikilinks, procedures with their track
+        record. `json` returns the same content structured.
+
+        Read-only, and not charged against the add or search quota.
+        """
+        if format not in ("markdown", "json"):
+            raise ValueError("format must be 'markdown' or 'json'")
+
+        params = {"format": format}
+        if user_id and user_id != "default":
+            params["sub_user_id"] = user_id
+
+        if format == "json":
+            return self._request("GET", "/v1/export", params=params)
+
+        # A zip is not JSON, so this cannot go through _request. Same auth and
+        # the same 429/5xx retry, raising the same way the rest of the client
+        # does: QuotaExceededError on 402, plain Exception otherwise.
+        import time as _time
+
+        query = "&".join(f"{k}={urllib.parse.quote(str(v))}" for k, v in params.items())
+        url = f"{self.base_url}/v1/export?{query}"
+        last_err = None
+        for attempt in range(3):
+            req = urllib.request.Request(url, method="GET", headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "User-Agent": _USER_AGENT,
+            })
+            try:
+                # An export of a large memory takes longer than a normal call,
+                # and a hung socket with no timeout waits forever.
+                with urllib.request.urlopen(req, context=_SSL_CTX, timeout=120) as resp:
+                    return resp.read()
+            except urllib.error.HTTPError as e:
+                if e.code in (429, 502, 503, 504) and attempt < 2:
+                    _time.sleep(1 * (attempt + 1))
+                    last_err = e
+                    continue
+                detail = e.read().decode()[:300]
+                if e.code == 402:
+                    raise QuotaExceededError(detail)
+                raise Exception(f"API error {e.code}: {detail}")
+            except urllib.error.URLError as e:
+                if attempt < 2:
+                    last_err = e
+                    _time.sleep(1 * (attempt + 1))
+                    continue
+                raise Exception(f"Network error: {e}")
+        raise Exception(f"Export failed after 3 attempts: {last_err}")
+
     def get_all_full(self, user_id: str = "default") -> list[dict[str, Any]]:
         """Get all memories with full details in one request."""
         params = {}

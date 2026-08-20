@@ -1668,6 +1668,71 @@ def cmd_try(args):
     print("→ Then feed it in:    mengram import claude-code")
 
 
+def cmd_export(args):
+    """Write the memory out as files the user owns.
+
+    The server does the serialising and hands back a zip, so the CLI, the API
+    and the plugin all produce identical trees — there is no second
+    implementation here to drift out of step.
+    """
+    import io
+    import zipfile
+    from pathlib import Path
+
+    export_type = getattr(args, "export_type", None)
+    if export_type not in ("obsidian", "markdown"):
+        print("Usage: mengram export obsidian <vault-path>")
+        print("       mengram export markdown <dir>")
+        sys.exit(1)
+
+    api_key = _load_cloud_api_key()
+    if not api_key:
+        print("❌ No API key found (checked MENGRAM_API_KEY env and ~/.mengram/config.json)")
+        print("   Run: mengram setup")
+        sys.exit(1)
+
+    destination = Path(args.path).expanduser()
+    if export_type == "obsidian" and not destination.is_dir():
+        print(f"❌ Not a directory: {destination}")
+        print("   Point this at your Obsidian vault — the folder holding .obsidian/")
+        sys.exit(1)
+
+    target = destination / "Mengram"
+    if target.exists() and not args.force:
+        print(f"❌ {target} already exists.")
+        print("   Re-run with --force to replace it. Anything you wrote inside will be lost.")
+        sys.exit(1)
+
+    from cloud.client import CloudMemory
+    mem = CloudMemory(api_key=api_key, base_url=_load_cloud_base_url())
+
+    print(f"📦 Exporting memory to {target} …")
+    try:
+        payload = mem.export(format="markdown", user_id=args.user_id)
+    except Exception as e:
+        print(f"❌ Export failed: {e}")
+        sys.exit(1)
+
+    written = 0
+    with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+        for name in archive.namelist():
+            # Every path comes from our own serialiser, but a zip is still
+            # untrusted input: refuse anything that would escape the target.
+            relative = Path(name)
+            if relative.is_absolute() or ".." in relative.parts:
+                print(f"   ⚠️  skipped suspicious path: {name}")
+                continue
+            out = destination / relative
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_bytes(archive.read(name))
+            written += 1
+
+    print(f"✅ {written} files written to {target}")
+    if export_type == "obsidian":
+        print("   Open the vault — relations are wikilinks, so the graph view just works.")
+    print("   These are yours. Plain Markdown, no account needed to read them.")
+
+
 def cmd_import(args):
     """Import existing data into memory"""
     import_type = args.import_type
@@ -1927,6 +1992,24 @@ def main():
     # try — zero-account local preview
     sub.add_parser("try", help="Preview what Mengram memory would know — local only, no account needed")
 
+    # export
+    p_export = sub.add_parser("export", help="Write your memory out as plain Markdown files")
+    export_sub = p_export.add_subparsers(dest="export_type")
+
+    p_exp_obs = export_sub.add_parser(
+        "obsidian", help="Write a Mengram/ folder into an Obsidian vault")
+    p_exp_obs.add_argument("path", help="Path to the vault directory")
+    p_exp_obs.add_argument("--user-id", default="default", dest="user_id",
+                           help="Export one sub-user's memory")
+    p_exp_obs.add_argument("--force", action="store_true",
+                           help="Overwrite an existing Mengram/ folder")
+
+    p_exp_md = export_sub.add_parser(
+        "markdown", help="Write the same tree into any directory")
+    p_exp_md.add_argument("path", help="Destination directory")
+    p_exp_md.add_argument("--user-id", default="default", dest="user_id")
+    p_exp_md.add_argument("--force", action="store_true")
+
     # import
     p_import = sub.add_parser("import", help="Import existing data into memory")
     import_sub = p_import.add_subparsers(dest="import_type")
@@ -2036,6 +2119,8 @@ def main():
         cmd_api(args)
     elif args.command == "try":
         cmd_try(args)
+    elif args.command == "export":
+        cmd_export(args)
     elif args.command == "import":
         cmd_import(args)
     elif args.command == "hook":
