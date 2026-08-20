@@ -30,7 +30,7 @@ logger = logging.getLogger("mengram")
 
 from fastapi import FastAPI, HTTPException, Depends, Header, Form, Query, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, FileResponse, PlainTextResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, FileResponse, PlainTextResponse, RedirectResponse, Response
 from dataclasses import dataclass
 from pydantic import BaseModel, Field
 
@@ -8295,6 +8295,94 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         entities, total = store.get_all_entities(user_id, sub_user_id=sub_user_id, limit=limit, offset=offset)
         store.log_usage(user_id, "get_all")
         return {"memories": entities, "total": total, "limit": limit, "offset": offset}
+
+    # How much a single export will serialise. Generous enough that almost
+    # nobody meets it, bounded so one request cannot pin a worker.
+    EXPORT_CAP = 5000
+
+    def _collect_export(user_id: str, sub_user_id: str) -> dict:
+        """Everything the export serialises, read once and reused by both formats."""
+        entities = store.get_all_entities_full(user_id, sub_user_id=sub_user_id)[:EXPORT_CAP]
+        episodes = store.get_episodes(user_id, limit=EXPORT_CAP, sub_user_id=sub_user_id)
+        procedures = store.get_procedures(user_id, limit=EXPORT_CAP, sub_user_id=sub_user_id)
+
+        # A procedure's evolution is the record that earned its trust, so it
+        # belongs in the export. One query per procedure, which is why it is
+        # skipped once the list gets long.
+        evolution = {}
+        if len(procedures) <= 200:
+            for proc in procedures:
+                try:
+                    log = store.get_procedure_evolution(user_id, str(proc["id"]),
+                                                        sub_user_id=sub_user_id)
+                    if log:
+                        evolution[str(proc["id"])] = log
+                except Exception as e:
+                    logger.warning(f"⚠️ Export: evolution for {proc.get('name')}: {e}")
+
+        return {"entities": entities, "episodes": episodes,
+                "procedures": procedures, "evolution": evolution}
+
+    @app.get("/v1/export", tags=["Memory"])
+    async def export_memory(format: str = Query("markdown", pattern="^(markdown|json)$"),
+                            sub_user_id: str = Query("default"),
+                            ctx: AuthContext = Depends(auth)):
+        """Export this memory as plain files you own.
+
+        `format=markdown` returns a zip of an Obsidian-native tree — one file per
+        entity, relations as `[[wikilinks]]`, procedures with their track record
+        and the failures that changed them. `format=json` returns the same
+        content structured, for the CLI and the plugin.
+
+        Read-only, and deliberately not charged against the add or search quota:
+        getting your data out should never cost you the ability to use the
+        product. The per-minute rate limit still applies.
+        """
+        from cloud import markdown_export
+
+        user_id = ctx.user_id
+        data = _collect_export(user_id, sub_user_id)
+        store.log_usage(user_id, "export")
+
+        if format == "json":
+            return {
+                "entities": data["entities"],
+                "episodes": data["episodes"],
+                "procedures": data["procedures"],
+                "evolution": data["evolution"],
+                "counts": {k: len(data[k]) for k in ("entities", "episodes", "procedures")},
+            }
+
+        profile = None
+        try:
+            # Cached; never generated on the export path, so an export cannot
+            # trigger a model call the caller did not ask for.
+            cached = store.cache.get(f"profile:{user_id}")
+            if isinstance(cached, dict):
+                profile = cached.get("profile")
+        except Exception:
+            pass
+
+        tree = markdown_export.build_tree(
+            entities=data["entities"], episodes=data["episodes"],
+            procedures=data["procedures"], profile=profile,
+            evolution_by_procedure=data["evolution"],
+        )
+
+        import io as _io
+        import zipfile as _zipfile
+        buffer = _io.BytesIO()
+        with _zipfile.ZipFile(buffer, "w", _zipfile.ZIP_DEFLATED) as archive:
+            for path, text in sorted(tree.items()):
+                archive.writestr(path, text)
+        buffer.seek(0)
+
+        stamp = datetime.date.today().isoformat()
+        return Response(
+            content=buffer.getvalue(),
+            media_type="application/zip",
+            headers={"Content-Disposition": f'attachment; filename="mengram-{stamp}.zip"'},
+        )
 
     @app.post("/v1/reindex", tags=["Memory"])
     async def reindex(sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
