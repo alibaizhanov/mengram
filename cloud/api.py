@@ -8324,15 +8324,17 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 "procedures": procedures, "evolution": evolution}
 
     @app.get("/v1/export", tags=["Memory"])
-    async def export_memory(format: str = Query("markdown", pattern="^(markdown|json)$"),
+    async def export_memory(format: str = Query("markdown", pattern="^(markdown|json|files)$"),
                             sub_user_id: str = Query("default"),
                             ctx: AuthContext = Depends(auth)):
         """Export this memory as plain files you own.
 
         `format=markdown` returns a zip of an Obsidian-native tree — one file per
         entity, relations as `[[wikilinks]]`, procedures with their track record
-        and the failures that changed them. `format=json` returns the same
-        content structured, for the CLI and the plugin.
+        and the failures that changed them. `format=files` returns that same
+        tree as `{path: text}` for clients that write files themselves rather
+        than unpack an archive — the Obsidian plugin's pull. `format=json`
+        returns the underlying records, for callers doing their own thing.
 
         Read-only, and deliberately not charged against the add or search quota:
         getting your data out should never cost you the ability to use the
@@ -8353,6 +8355,9 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 "counts": {k: len(data[k]) for k in ("entities", "episodes", "procedures")},
             }
 
+        # Everything below builds the Markdown tree; markdown zips it, files
+        # hands it over as-is. One serialiser, so the zip a person downloads
+        # and the files a plugin writes can never say different things.
         profile = None
         try:
             # Cached; never generated on the export path, so an export cannot
@@ -8368,6 +8373,10 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             procedures=data["procedures"], profile=profile,
             evolution_by_procedure=data["evolution"],
         )
+
+        if format == "files":
+            return {"files": tree, "counts": {
+                k: len(data[k]) for k in ("entities", "episodes", "procedures")}}
 
         import io as _io
         import zipfile as _zipfile
