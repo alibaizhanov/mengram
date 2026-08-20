@@ -2580,6 +2580,10 @@ class CloudStore:
                         "artifact": row["artifact"],
                     })
 
+            # The id rides along so callers can round-trip or re-query without
+            # a second lookup by name — the export needs it in frontmatter.
+            for eid, ent in entity_map.items():
+                ent["id"] = eid
             return [entity_map[str(e["id"])] for e in entities]
 
     def get_existing_context(self, user_id: str, max_entities: int = 40, max_facts_per: int = 10, sub_user_id: str = "default") -> str:
