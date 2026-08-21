@@ -18,7 +18,14 @@ from __future__ import annotations
 import re
 from datetime import date, datetime
 
-ROOT = "Mengram"
+#: The format is published as a spec and a library of its own:
+#: https://github.com/alibaizhanov/memfmt. These three constants are the whole
+#: of what makes a tree readable by it, so they live together and are named
+#: after the spec rather than after us — a standard with our product's name in
+#: its field keys is not a standard anyone else adopts.
+TYPE_KEY = "memfmt_type"
+ROOT = "memory"
+INDEX = "MEMORY.md"
 
 # Characters a filename cannot carry on the platforms Obsidian runs on. Kept
 # deliberately small: entity names are the note titles users will see and link
@@ -123,7 +130,7 @@ def entity_file(entity: dict, targets: dict) -> str:
     name = entity.get("entity") or "unnamed"
     body = [
         frontmatter({
-            "mengram_type": "entity",
+            TYPE_KEY: "entity",
             "entity_type": entity.get("type"),
             "id": entity.get("id"),
         }),
@@ -162,7 +169,7 @@ def episode_file(episode: dict) -> str:
     when = _day(episode.get("happened_at") or episode.get("created_at"))
     body = [
         frontmatter({
-            "mengram_type": "episode",
+            TYPE_KEY: "episode",
             "id": episode.get("id"),
             "happened": when,
             "outcome": episode.get("outcome"),
@@ -197,7 +204,7 @@ def procedure_file(procedure: dict, evolution: list = None) -> str:
 
     body = [
         frontmatter({
-            "mengram_type": "procedure",
+            TYPE_KEY: "procedure",
             "id": procedure.get("id"),
             "version": version,
             "success_count": success,
@@ -242,9 +249,9 @@ def procedure_file(procedure: dict, evolution: list = None) -> str:
 
 def index_file(counts: dict, entity_stems: list) -> str:
     body = [
-        frontmatter({"mengram_type": "index", "generated": date.today().isoformat()}),
+        frontmatter({TYPE_KEY: "index", "generated": date.today().isoformat()}),
         "",
-        "# Mengram",
+        "# Memory",
         "",
     ]
     if not any(counts.values()):
@@ -309,12 +316,12 @@ def build_tree(entities: list = None, episodes: list = None, procedures: list = 
 
     if profile:
         tree[f"{ROOT}/profile.md"] = "\n".join([
-            frontmatter({"mengram_type": "profile",
+            frontmatter({TYPE_KEY: "profile",
                          "generated": date.today().isoformat()}),
             "", "# Profile", "", profile.strip(),
         ]) + "\n"
 
-    tree[f"{ROOT}/_index.md"] = index_file(
+    tree[f"{ROOT}/{INDEX}"] = index_file(
         {"entities": len(entities), "episodes": len(episodes), "procedures": len(procedures)},
         list(targets.values()),
     )

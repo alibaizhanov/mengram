@@ -1697,7 +1697,11 @@ def cmd_export(args):
         print("   Point this at your Obsidian vault — the folder holding .obsidian/")
         sys.exit(1)
 
-    target = destination / "Mengram"
+    # The folder name comes from the format, not from a literal here: the
+    # guard below must protect the same directory the archive actually writes
+    # into, and those two silently disagreeing is how you overwrite a vault.
+    from cloud.markdown_export import ROOT as EXPORT_ROOT
+    target = destination / EXPORT_ROOT
     if target.exists() and not args.force:
         print(f"❌ {target} already exists.")
         print("   Re-run with --force to replace it. Anything you wrote inside will be lost.")
@@ -1997,12 +2001,12 @@ def main():
     export_sub = p_export.add_subparsers(dest="export_type")
 
     p_exp_obs = export_sub.add_parser(
-        "obsidian", help="Write a Mengram/ folder into an Obsidian vault")
+        "obsidian", help="Write a memory/ folder into an Obsidian vault")
     p_exp_obs.add_argument("path", help="Path to the vault directory")
     p_exp_obs.add_argument("--user-id", default="default", dest="user_id",
                            help="Export one sub-user's memory")
     p_exp_obs.add_argument("--force", action="store_true",
-                           help="Overwrite an existing Mengram/ folder")
+                           help="Overwrite an existing memory/ folder")
 
     p_exp_md = export_sub.add_parser(
         "markdown", help="Write the same tree into any directory")
