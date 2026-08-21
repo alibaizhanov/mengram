@@ -45,7 +45,7 @@ class TestFilenames:
 
     def test_colliding_names_do_not_overwrite_each_other(self):
         tree = build_tree([entity("a/b"), entity("a:b")])
-        files = [p for p in tree if p.startswith("Mengram/entities/")]
+        files = [p for p in tree if p.startswith("memory/entities/")]
         assert len(files) == 2, "one entity silently replaced the other"
 
 
@@ -55,7 +55,7 @@ class TestLinksResolve:
             entity("PostgreSQL", relations=[{"type": "caches", "target": "Redis"}]),
             entity("Redis"),
         ])
-        assert "[[Redis]]" in tree["Mengram/entities/PostgreSQL.md"]
+        assert "[[Redis]]" in tree["memory/entities/PostgreSQL.md"]
 
     def test_a_renamed_target_keeps_its_real_name_via_an_alias(self):
         """The file had to be renamed to be safe; the link must still read right."""
@@ -66,7 +66,7 @@ class TestLinksResolve:
         """A relation can point at something not in this slice. An unresolved
         node is honest; dropping the link would hide that it exists."""
         tree = build_tree([entity("PostgreSQL", relations=[{"type": "caches", "target": "Redis"}])])
-        assert "[[Redis]]" in tree["Mengram/entities/PostgreSQL.md"]
+        assert "[[Redis]]" in tree["memory/entities/PostgreSQL.md"]
 
     def test_incoming_relations_point_the_other_way(self):
         out = entity_file(entity("A", relations=[
@@ -81,9 +81,9 @@ class TestRoundTripIds:
             [{"id": "e1", "summary": "s", "created_at": "2026-04-29T00:00:00"}],
             [{"id": "p1", "name": "P"}],
         )
-        assert "id: id-a" in tree["Mengram/entities/A.md"]
-        assert "id: e1" in tree["Mengram/episodes/2026-04-29-s.md"]
-        assert "id: p1" in tree["Mengram/procedures/P.md"]
+        assert "id: id-a" in tree["memory/entities/A.md"]
+        assert "id: e1" in tree["memory/episodes/2026-04-29-s.md"]
+        assert "id: p1" in tree["memory/procedures/P.md"]
 
 
 class TestFrontmatter:
@@ -132,7 +132,7 @@ class TestEpisodes:
     def test_filename_leads_with_the_date(self):
         tree = build_tree([], [{"id": "e", "summary": "prod crash",
                                 "created_at": "2026-04-29T02:00:00"}])
-        assert "Mengram/episodes/2026-04-29-prod crash.md" in tree
+        assert "memory/episodes/2026-04-29-prod crash.md" in tree
 
     def test_happened_at_wins_over_row_creation_time(self):
         """When the event happened is what a timeline should order by."""
@@ -149,18 +149,18 @@ class TestWholeTree:
         tree = build_tree([entity("A")], [{"id": "e", "summary": "s", "created_at": "2026-01-02"}],
                           [{"id": "p", "name": "P"}], profile="A developer.")
         assert set(tree) == {
-            "Mengram/entities/A.md", "Mengram/episodes/2026-01-02-s.md",
-            "Mengram/procedures/P.md", "Mengram/profile.md", "Mengram/_index.md",
+            "memory/entities/A.md", "memory/episodes/2026-01-02-s.md",
+            "memory/procedures/P.md", "memory/profile.md", "memory/MEMORY.md",
         }
 
     def test_index_counts_and_links_what_was_exported(self):
         tree = build_tree([entity("A"), entity("B")])
-        index = tree["Mengram/_index.md"]
+        index = tree["memory/MEMORY.md"]
         assert "- 2 entities" in index and "[[A]]" in index and "[[B]]" in index
 
     def test_an_empty_memory_explains_itself(self):
         """An empty folder looks like a broken export."""
-        index = build_tree()["Mengram/_index.md"]
+        index = build_tree()["memory/MEMORY.md"]
         assert "empty" in index.lower()
 
     def test_every_file_ends_with_exactly_one_newline(self):
