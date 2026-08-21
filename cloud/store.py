@@ -2088,6 +2088,7 @@ class CloudStore:
             cur.execute("DELETE FROM knowledge WHERE entity_id = %s", (source_id,))
             cur.execute("DELETE FROM entities WHERE id = %s", (source_id,))
 
+        self._invalidate_content_by_entity(target_id)
         logger.info(f"🔀 Merged entity {source_id} into {target_id} ({target_name})")
 
     def _auto_merge_duplicate_entities(self, user_id: str, sub_user_id: str = "default") -> int:
@@ -2426,7 +2427,29 @@ class CloudStore:
             )
 
         # Invalidate caches after write
+        self._invalidate_content(user_id)
+
+    def _invalidate_content(self, user_id: str) -> None:
+        """Drop every cache derived from a user's facts/entities.
+
+        stats and feed are cached under separate keys with different TTLs
+        (30s / 15s). Invalidating only one lets the header counters and the
+        feed disagree until the other key expires — visible as an off-by-N
+        FACTS count for up to 15s after a write or an archive.
+        """
         self.cache.invalidate(f"stats:{user_id}")
+        self.cache.invalidate(f"feed:{user_id}")
+
+    def _invalidate_content_by_entity(self, entity_id: str) -> None:
+        """_invalidate_content for the archive paths, which only carry entity_id."""
+        try:
+            with self._cursor() as cur:
+                cur.execute("SELECT user_id FROM entities WHERE id = %s", (entity_id,))
+                row = cur.fetchone()
+            if row:
+                self._invalidate_content(str(row[0]))
+        except Exception as e:
+            logger.warning(f"⚠️ Cache invalidation skipped for entity {entity_id}: {e}")
 
     def get_entity_id(self, user_id: str, name: str, sub_user_id: str = "default") -> Optional[str]:
         """Get entity ID by name."""
@@ -2707,7 +2730,7 @@ class CloudStore:
                 cur.execute(f"DELETE FROM {child} WHERE entity_id = %s", (eid,))
             cur.execute("DELETE FROM relations WHERE source_id = %s OR target_id = %s", (eid, eid))
             cur.execute("DELETE FROM entities WHERE id = %s", (eid,))
-        self.cache.invalidate(f"stats:{user_id}")
+        self._invalidate_content(user_id)
         self._schedule_matview_refresh()
         return True
 
@@ -2797,7 +2820,7 @@ class CloudStore:
                 wipe("conversation_chunks", "id = ANY(%s::uuid[])", (chunk_ids,))
             wipe("memory_triggers", "user_id::text = %s AND sub_user_id = %s", scope)
 
-        self.cache.invalidate(f"stats:{user_id}")
+        self._invalidate_content(user_id)
         self.cache.invalidate(f"graph:{user_id}:{sub_user_id}:150")
         self.cache.invalidate(f"profile:{user_id}")
         self._schedule_matview_refresh()
@@ -2879,7 +2902,7 @@ class CloudStore:
                     counts["drip_emails"] = counts.get("drip_emails", 0) + cur.rowcount
             cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
             counts["users"] = cur.rowcount
-        for prefix in ("stats:", "profile:", "rules:", "graph:", "value_mirror:", "sub:"):
+        for prefix in ("stats:", "feed:", "profile:", "rules:", "graph:", "value_mirror:", "sub:"):
             self.cache.invalidate(f"{prefix}{user_id}")
         for kh in key_hashes:
             self.cache.invalidate(f"auth:{kh[:16]}")
@@ -3490,6 +3513,8 @@ No markdown, no explanation."""
             archived.append(old_fact)
             logger.info(f"📦 Archived: '{old_fact}' → superseded by '{new_fact}'")
 
+        if archived:
+            self._invalidate_content_by_entity(entity_id)
         return archived
 
     def dedup_entity_facts(self, entity_id: str, entity_name: str, llm_client) -> dict:
@@ -3557,6 +3582,9 @@ Return ONLY this JSON (no markdown):
                     )
                     if cur.rowcount > 0:
                         archived.append(fact)
+
+        if archived:
+            self._invalidate_content_by_entity(entity_id)
 
         kept = result.get("keep", [])
         logger.info(f"🧹 Dedup '{entity_name}': {len(facts)} → {len(facts)-len(archived)} facts ({len(archived)} archived)")
@@ -6166,6 +6194,9 @@ Be specific and personal, not generic. No markdown, just JSON."""
                             )
                             if cur.rowcount > 0:
                                 actions_taken += 1
+
+            if actions_taken:
+                self._invalidate_content(user_id)
 
             # Auto-fix: merge case-insensitive duplicate entities
             try:
