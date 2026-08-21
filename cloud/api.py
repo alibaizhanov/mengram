@@ -1731,7 +1731,11 @@ m.add("I love hiking in the mountains")</code></pre>
 
     # ---- Public endpoints ----
 
-    @app.get("/", response_class=HTMLResponse)
+    # HEAD is declared alongside GET because FastAPI, unlike plain Starlette,
+    # does not derive it — so link checkers answered 405 and reported the site
+    # as unreachable. The Obsidian plugin review flagged authorUrl for exactly
+    # this while the page served 200 to every GET.
+    @app.api_route("/", methods=["GET", "HEAD"], response_class=HTMLResponse)
     async def landing():
         """Landing page."""
         landing_path = Path(__file__).parent / "landing.html"
