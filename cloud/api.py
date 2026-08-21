@@ -1735,6 +1735,11 @@ m.add("I love hiking in the mountains")</code></pre>
     # does not derive it — so link checkers answered 405 and reported the site
     # as unreachable. The Obsidian plugin review flagged authorUrl for exactly
     # this while the page served 200 to every GET.
+    #
+    # Every public page below does the same, for the same reason. Two GET
+    # routes deliberately do not: `/unsubscribe` removes an address and
+    # `/auth/github/callback` spends a one-time code, and a link checker or a
+    # prefetching client hitting those would carry the side effect out.
     @app.api_route("/", methods=["GET", "HEAD"], response_class=HTMLResponse)
     async def landing():
         """Landing page."""
@@ -1743,14 +1748,14 @@ m.add("I love hiking in the mountains")</code></pre>
         html = html.replace("{{VERSION}}", __version__)
         return html
 
-    @app.get("/pricing", response_class=HTMLResponse)
+    @app.api_route("/pricing", methods=["GET", "HEAD"], response_class=HTMLResponse)
     async def pricing():
         """Standalone pricing page (moved off the landing 2026-07)."""
         p = Path(__file__).parent / "pricing.html"
         html = p.read_text(encoding="utf-8")
         return html.replace("{{VERSION}}", __version__)
 
-    @app.get("/robots.txt", response_class=PlainTextResponse)
+    @app.api_route("/robots.txt", methods=["GET", "HEAD"], response_class=PlainTextResponse)
     async def robots():
         return (
             "User-agent: *\n"
@@ -1764,8 +1769,8 @@ m.add("I love hiking in the mountains")</code></pre>
             "Sitemap: https://mengram.io/sitemap.xml"
         )
 
-    @app.get("/agent-install.txt", response_class=PlainTextResponse)
-    @app.get("/agent-install", response_class=PlainTextResponse)
+    @app.api_route("/agent-install.txt", methods=["GET", "HEAD"], response_class=PlainTextResponse)
+    @app.api_route("/agent-install", methods=["GET", "HEAD"], response_class=PlainTextResponse)
     async def agent_install():
         """Agent-native install guide. Plain text, structured for LLM agents
         to fetch and follow. See cloud/agent-install.txt."""
@@ -1934,7 +1939,7 @@ m.add("I love hiking in the mountains")</code></pre>
             logger.warning(f"Enterprise inquiry from {email} (no RESEND_API_KEY)")
         return {"status": "ok"}
 
-    @app.get("/sitemap.xml")
+    @app.api_route("/sitemap.xml", methods=["GET", "HEAD"])
     async def sitemap():
         """XML sitemap for search engines."""
         from starlette.responses import Response
@@ -2017,31 +2022,31 @@ m.add("I love hiking in the mountains")</code></pre>
         )
         return Response(content=xml, media_type="application/xml")
 
-    @app.get("/dashboard", response_class=HTMLResponse)
+    @app.api_route("/dashboard", methods=["GET", "HEAD"], response_class=HTMLResponse)
     async def dashboard():
         """Memory Console."""
         dashboard_path = Path(__file__).parent / "dashboard.html"
         return dashboard_path.read_text(encoding="utf-8")
 
-    @app.get("/terms", response_class=HTMLResponse)
+    @app.api_route("/terms", methods=["GET", "HEAD"], response_class=HTMLResponse)
     async def terms():
         """Terms of Service."""
         p = Path(__file__).parent / "terms.html"
         return p.read_text(encoding="utf-8")
 
-    @app.get("/privacy", response_class=HTMLResponse)
+    @app.api_route("/privacy", methods=["GET", "HEAD"], response_class=HTMLResponse)
     async def privacy():
         """Privacy Policy."""
         p = Path(__file__).parent / "privacy.html"
         return p.read_text(encoding="utf-8")
 
-    @app.get("/for-agents", response_class=HTMLResponse)
+    @app.api_route("/for-agents", methods=["GET", "HEAD"], response_class=HTMLResponse)
     async def for_agents():
         """Memory API for agent builders — segment (b) landing."""
         p = Path(__file__).parent / "for-agents.html"
         return p.read_text(encoding="utf-8")
 
-    @app.get("/refund", response_class=HTMLResponse)
+    @app.api_route("/refund", methods=["GET", "HEAD"], response_class=HTMLResponse)
     async def refund():
         """Refund Policy."""
         p = Path(__file__).parent / "refund.html"
@@ -2336,7 +2341,7 @@ m.add("I love hiking in the mountains")</code></pre>
         },
     }
 
-    @app.get("/vs/{competitor}", response_class=HTMLResponse)
+    @app.api_route("/vs/{competitor}", methods=["GET", "HEAD"], response_class=HTMLResponse)
     async def vs_page(competitor: str):
         """SEO comparison page: Mengram vs competitor."""
         # MemGPT redirects to Letta (rebranded)
@@ -4946,7 +4951,7 @@ response = llm.chat([
         },
     }
 
-    @app.get("/blog", response_class=HTMLResponse)
+    @app.api_route("/blog", methods=["GET", "HEAD"], response_class=HTMLResponse)
     async def blog_index():
         """Blog listing page."""
         template_path = Path(__file__).parent / "blog-index.html"
@@ -4964,7 +4969,7 @@ response = llm.chat([
             </a>'''
         return html.replace("{posts_html}", posts_html)
 
-    @app.get("/blog/{slug}", response_class=HTMLResponse)
+    @app.api_route("/blog/{slug}", methods=["GET", "HEAD"], response_class=HTMLResponse)
     async def blog_post(slug: str):
         """Blog post page."""
         data = BLOG_POSTS.get(slug)
@@ -5218,7 +5223,7 @@ def after_call(prospect_id: str, notes: str):
         },
     }
 
-    @app.get("/usecase/{slug}", response_class=HTMLResponse)
+    @app.api_route("/usecase/{slug}", methods=["GET", "HEAD"], response_class=HTMLResponse)
     async def usecase_page(slug: str):
         """Use case page for specific industry."""
         data = USECASE_PAGES.get(slug)
@@ -6197,12 +6202,12 @@ m.delete_webhook(webhook_id=1)</code></pre>
         },
     }
 
-    @app.get("/docs", response_class=RedirectResponse)
+    @app.api_route("/docs", methods=["GET", "HEAD"], response_class=RedirectResponse)
     async def docs_index():
         """Redirect to Mintlify docs."""
         return RedirectResponse("https://docs.mengram.io", status_code=301)
 
-    @app.get("/docs/{slug}", response_class=RedirectResponse)
+    @app.api_route("/docs/{slug}", methods=["GET", "HEAD"], response_class=RedirectResponse)
     async def docs_page(slug: str):
         """Redirect to Mintlify docs."""
         return RedirectResponse(f"https://docs.mengram.io/{slug}", status_code=301)
@@ -9734,7 +9739,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             "sub_user_id": sub_uid,
         })
 
-    @app.get("/integrations/vapi", response_class=HTMLResponse)
+    @app.api_route("/integrations/vapi", methods=["GET", "HEAD"], response_class=HTMLResponse)
     async def integrations_vapi():
         """Vapi integration landing page."""
         page_path = Path(__file__).parent / "integrations-vapi.html"
