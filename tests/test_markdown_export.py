@@ -104,7 +104,7 @@ class TestProcedures:
     def test_title_carries_version_and_reliability(self):
         out = procedure_file({"name": "Deploy", "version": 3,
                               "success_count": 11, "fail_count": 1})
-        assert "# Deploy (v3 · 92% reliable)" in out
+        assert "# Deploy (v3 · 86% reliable)" in out
 
     def test_an_untested_procedure_does_not_claim_a_rate(self):
         out = procedure_file({"name": "Deploy", "version": 1})
@@ -166,3 +166,32 @@ class TestWholeTree:
     def test_every_file_ends_with_exactly_one_newline(self):
         for text in build_tree([entity("A")], [], [{"id": "p", "name": "P"}]).values():
             assert text.endswith("\n") and not text.endswith("\n\n")
+
+
+class TestSmoothing:
+    """The exported heading is read by memfmt, so the two must agree. A bare
+    ratio also punished revisions: a new version opened at 0/0 and read worse
+    than the one it was written to fix."""
+
+    def test_small_samples_do_not_read_as_certainty(self):
+        out = procedure_file({"name": "P", "version": 1, "success_count": 1, "fail_count": 0})
+        assert "67% reliable" in out
+
+    def test_nothing_to_go_on_stays_untested(self):
+        assert "untested" in procedure_file({"name": "P", "version": 1})
+
+    def test_a_revision_stands_on_its_lineage(self):
+        evolution = [{"version_before": 2, "version_after": 3, "diff": {"reason": "fix"},
+                      "success_count": 11, "fail_count": 1}]
+        out = procedure_file({"name": "P", "version": 3}, evolution)
+        assert "(v3 · 81% expected)" in out
+        # and the record that produced the prior travels with the file
+        assert "- v2 → v3 (11✓/1✗): fix" in out
+
+    def test_lineage_without_a_record_changes_nothing(self):
+        """Old rows have no counts to join; the file must still be valid."""
+        evolution = [{"version_before": 1, "version_after": 2, "change_type": "revised",
+                      "success_count": None, "fail_count": None}]
+        out = procedure_file({"name": "P", "version": 2}, evolution)
+        assert "untested" in out
+        assert "- v1 → v2: revised" in out

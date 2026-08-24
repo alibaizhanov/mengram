@@ -5897,9 +5897,21 @@ REFLECTIONS/PATTERNS:
         with self._cursor(dict_cursor=True) as cur:
             cur.execute(
                 """SELECT pe.id, pe.procedure_id, pe.episode_id, pe.change_type,
-                          pe.diff, pe.version_before, pe.version_after, pe.created_at
+                          pe.diff, pe.version_before, pe.version_after, pe.created_at,
+                          prev.success_count AS prev_success,
+                          prev.fail_count   AS prev_fail
                    FROM procedure_evolution pe
                    JOIN procedures p ON p.id = pe.procedure_id
+                   -- The record the retiring version carried. A successor draws
+                   -- its prior from this, so without it every revision reads as
+                   -- untested next to the version it was written to fix.
+                   -- UNIQUE(user_id, sub_user_id, name, version) keeps the join
+                   -- to at most one row.
+                   LEFT JOIN procedures prev
+                          ON prev.user_id     = p.user_id
+                         AND prev.sub_user_id = p.sub_user_id
+                         AND prev.name        = p.name
+                         AND prev.version     = pe.version_before
                    WHERE p.user_id = %s AND p.sub_user_id = %s AND p.name = %s
                    ORDER BY pe.created_at ASC""",
                 (user_id, sub_user_id, proc["name"])
@@ -5915,6 +5927,8 @@ REFLECTIONS/PATTERNS:
                     "version_before": row["version_before"],
                     "version_after": row["version_after"],
                     "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                    "success_count": row["prev_success"],
+                    "fail_count": row["prev_fail"],
                 })
             return results
 
