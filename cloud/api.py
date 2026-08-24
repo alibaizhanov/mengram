@@ -35,6 +35,7 @@ from dataclasses import dataclass
 from pydantic import BaseModel, Field
 
 from cloud.store import CloudStore, _normalize_fact
+from cloud.attribution import clean_source
 from cloud.oauth_policy import redirect_uri_error as _redirect_uri_error
 from cloud.sub_user import SubUserScoped, resolve_sub_user as _resolve_sub_user
 
@@ -327,6 +328,7 @@ def _require_full_uuid(value: str, field_name: str = "id") -> None:
 class SignupRequest(BaseModel):
     email: str
     website: str = ""  # Honeypot — hidden form field, real users leave empty, bots fill
+    source: str = ""   # Where they came from, if the landing page knew
 
     @property
     def validated_email(self) -> str:
@@ -342,6 +344,7 @@ class SignupResponse(BaseModel):
 class VerifyRequest(BaseModel):
     email: str
     code: str
+    source: str = ""   # Carried through the two-step flow from the first request
 
     @property
     def validated_email(self) -> str:
@@ -6282,7 +6285,7 @@ m.delete_webhook(webhook_id=1)</code></pre>
 
         # Self-hosted: skip email verification, create account immediately
         if DISABLE_EMAIL_VERIFICATION:
-            user_id = store.create_user(email)
+            user_id = store.create_user(email, clean_source(req.source))
             api_key = store.create_api_key(user_id)
             _seed_initial_memory(user_id, email)
             logger.info(f"✅ Account created (email verification disabled) for {email}")
@@ -6319,7 +6322,7 @@ m.delete_webhook(webhook_id=1)</code></pre>
         if existing:
             raise HTTPException(status_code=409, detail="Email already registered")
 
-        user_id = store.create_user(email)
+        user_id = store.create_user(email, clean_source(req.source))
         api_key = store.create_api_key(user_id)
         # Eagerly create free subscription so user isn't stuck in no_sub state
         # (lazy creation in get_subscription only happens on first API call)
@@ -6409,7 +6412,14 @@ m.delete_webhook(webhook_id=1)</code></pre>
             raise HTTPException(status_code=500, detail="GitHub OAuth not configured")
         # Generate state token to prevent CSRF
         state = secrets.token_urlsafe(32)
-        store.cache.set(f"github_state:{state}", "1", ttl=600)
+        # The state entry doubles as the carrier for attribution. It is already
+        # per-attempt, already short-lived and already verified on the way
+        # back, so the tag survives the round trip to GitHub without a cookie
+        # or a second store. "1" stands in for "no tag" so the truthiness check
+        # below keeps working.
+        source = clean_source(request.query_params.get("ref")
+                               or request.query_params.get("utm_source"))
+        store.cache.set(f"github_state:{state}", source or "1", ttl=600)
         github_url = (
             f"https://github.com/login/oauth/authorize"
             f"?client_id={GITHUB_CLIENT_ID}"
@@ -6431,10 +6441,13 @@ m.delete_webhook(webhook_id=1)</code></pre>
             return _github_error_page("GitHub OAuth not configured on server.")
 
         # Verify CSRF state
-        if not store.cache.get(f"github_state:{state}"):
+        state_value = store.cache.get(f"github_state:{state}")
+        if not state_value:
             return _github_error_page("Invalid or expired state. Please try again.")
         # Invalidate state by overwriting with short TTL
         store.cache.set(f"github_state:{state}", "", ttl=1)
+        # Read before invalidating, above: "1" means the visit carried no tag.
+        github_source = None if state_value == "1" else clean_source(state_value)
 
         # Exchange code for access token
         import urllib.request
@@ -6495,7 +6508,7 @@ m.delete_webhook(webhook_id=1)</code></pre>
             return _github_existing_page(email)
 
         # New user — create account + key
-        user_id = store.create_user(email)
+        user_id = store.create_user(email, github_source or "github-oauth")
         api_key = store.create_api_key(user_id, name="github-oauth")
         # Eagerly create free subscription so user isn't stuck in no_sub state
         store.get_subscription(user_id)
@@ -6839,7 +6852,10 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         # Check if user exists, if not create
         user_id = store.get_user_by_email(email)
         if not user_id:
-            user_id = store.create_user(email)
+            # No landing page was involved: this account exists because someone
+            # added the connector inside their MCP client, which is itself the
+            # most precise answer to "where did they come from".
+            user_id = store.create_user(email, "oauth-connector")
             store.create_api_key(user_id)
 
         # Generate and send 6-digit code

@@ -348,6 +348,14 @@ class CloudStore:
                 ALTER TABLE users ADD COLUMN IF NOT EXISTS settings JSONB DEFAULT '{}'
             """)
 
+            # v2.31: where a signup came from. Without it a launch can only be
+            # guessed at — a spike in registrations tells you something worked
+            # but never which thing. NULL for everyone who arrived before this
+            # existed, which is honest: we genuinely do not know.
+            cur.execute("""
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS signup_source TEXT
+            """)
+
             # --- v1.5 Hybrid search: tsvector on embeddings ---
             cur.execute("""
                 ALTER TABLE embeddings ADD COLUMN IF NOT EXISTS tsv tsvector
@@ -1359,12 +1367,18 @@ class CloudStore:
         self.cache.invalidate(f"capture_policy:{user_id}")
         return (row[0] if row else policy) or policy
 
-    def create_user(self, email: str) -> str:
-        """Create user, return user_id."""
+    def create_user(self, email: str, source: str = None) -> str:
+        """Create user, return user_id.
+
+        `source` records where they came from — a campaign tag off the landing
+        URL, or the flow they signed up through. It is written once, at
+        creation, and never updated: attribution that changes later is not
+        attribution.
+        """
         with self._cursor() as cur:
             cur.execute(
-                "INSERT INTO users (email) VALUES (%s) RETURNING id",
-                (email,)
+                "INSERT INTO users (email, signup_source) VALUES (%s, %s) RETURNING id",
+                (email, source or None)
             )
             return str(cur.fetchone()[0])
 
