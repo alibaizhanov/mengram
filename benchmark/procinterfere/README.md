@@ -18,7 +18,7 @@ interference."* Nobody measures it. This does.
 **Silent-regression rate** — the % of memory revisions that break a dependent
 procedure and get promoted anyway, with no flag. Lower is better.
 
-Over 18 paired cases across 12 domains (Postgres, S3, Stripe, GitHub, Terraform,
+Over 20 paired cases across 12 domains (Postgres, S3, Stripe, GitHub, Terraform,
 Redis, Kafka, SQS, Cloudflare, OpenAI, LaunchDarkly, DNS):
 
 ```
@@ -54,6 +54,19 @@ A procedure `A` is revised to add a precondition (e.g. "run migrations before
 push"). A second procedure `B` shares surface with `A` (same database) but never
 runs migrations. The revision to `A` silently invalidates `B`. A good system
 flags it; `latest-wins` ships it.
+
+### Two ways a revision breaks a dependent
+
+Most cases carry the constraint as a **precondition** the revision adds. Two
+carry it purely as **order**: a step placed ahead of one that already existed,
+with no precondition written down anywhere. That class was added after a reader
+pointed out the gate could only see the first kind — on the gate as it stood,
+those cases score 8% silent regression rather than 0%.
+
+Ordering *within* a single step is still out of scope. A dependent whose one
+step reads "register the schema then re-produce" is taken at its word, because
+deciding it got the order wrong inside one sentence is a guess that costs a
+false quarantine.
 
 Cases live in [`cases.jsonl`](cases.jsonl) — `should_flag` marks the breaking
 ones. Contributions of new interference patterns welcome.

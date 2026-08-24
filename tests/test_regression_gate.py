@@ -5,7 +5,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from cloud.regression_gate import (
     shares_surface, newly_added_preconditions, dependent_lacks_precondition,
-    find_regressions,
+    find_regressions, newly_ordered_steps, dependent_violates_order,
 )
 
 
@@ -107,3 +107,65 @@ def test_multiple_dependents():
     b3 = proc("B3", "safe", entities=["Postgres"], steps=[{"step": 1, "action": "run migrations first", "detail": ""}])
     regs = find_regressions(old, new, [b1, b2, b3])
     assert {r["dependent_name"] for r in regs} == {"seed", "backfill"}
+
+
+# --- ordering -----------------------------------------------------------------
+# A revision that only moves steps around adds no precondition, so the
+# precondition path never fires. That was the blind spot: "run migrations
+# before push" is the constraint, whether or not anyone wrote it down.
+
+def test_reorder_alone_is_caught():
+    old = proc("A1", "deploy", entities=["Railway"],
+               steps=[{"step": 1, "action": "push code", "detail": "to Railway"}])
+    new = proc("A2", "deploy", entities=["Railway"],
+               steps=[{"step": 1, "action": "run migrations", "detail": ""},
+                      {"step": 2, "action": "push code", "detail": "to Railway"}])
+    dependent = proc("B", "hotfix", entities=["Railway"],
+                     steps=[{"step": 1, "action": "push code", "detail": "to Railway"}])
+    assert newly_added_preconditions(old, new) == []      # nothing for the old path
+    regressions = find_regressions(old, new, [dependent])
+    assert regressions
+    assert regressions[0]["broken_orderings"] == [["run migrations", "push code to Railway"]]
+
+def test_a_dependent_that_already_orders_it_is_left_alone():
+    old = proc("A1", "deploy", entities=["Railway"],
+               steps=[{"step": 1, "action": "push code", "detail": "to Railway"}])
+    new = proc("A2", "deploy", entities=["Railway"],
+               steps=[{"step": 1, "action": "run migrations", "detail": ""},
+                      {"step": 2, "action": "push code", "detail": "to Railway"}])
+    dependent = proc("B", "release", entities=["Railway"],
+                     steps=[{"step": 1, "action": "run migrations", "detail": ""},
+                            {"step": 2, "action": "push code", "detail": "to Railway"}])
+    assert find_regressions(old, new, [dependent]) == []
+
+def test_doing_it_afterwards_does_not_count():
+    """The prerequisite has to be earlier. Later is the bug, not the fix."""
+    dependent = proc("B", "late", entities=["Railway"],
+                     steps=[{"step": 1, "action": "push code", "detail": "to Railway"},
+                            {"step": 2, "action": "run migrations", "detail": ""}])
+    assert dependent_violates_order(dependent, "run migrations", "push code") is True
+
+def test_one_step_doing_both_is_not_a_violation():
+    """"register the schema then re-produce" does both. Deciding it got the
+    order wrong inside one sentence would be a guess, and a false quarantine."""
+    dependent = proc("B", "replay", entities=["Kafka"],
+                     steps=[{"step": 1, "action": "register schema with registry then re-produce",
+                             "detail": ""}])
+    assert dependent_violates_order(
+        dependent, "register schema with registry before producing", "produce message") is False
+
+def test_a_dependent_that_never_does_the_action_is_untouched():
+    dependent = proc("B", "unrelated", entities=["Railway"],
+                     steps=[{"step": 1, "action": "read the logs", "detail": ""}])
+    assert dependent_violates_order(dependent, "run migrations", "push code") is False
+
+def test_only_newly_inserted_steps_create_a_constraint():
+    """Reshuffling two steps that both already existed is a weaker signal and
+    v1 deliberately stays out of it rather than pay in false quarantines."""
+    old = proc("A1", "deploy",
+               steps=[{"step": 1, "action": "push code", "detail": ""},
+                      {"step": 2, "action": "run migrations", "detail": ""}])
+    new = proc("A2", "deploy",
+               steps=[{"step": 1, "action": "run migrations", "detail": ""},
+                      {"step": 2, "action": "push code", "detail": ""}])
+    assert newly_ordered_steps(old, new) == []
