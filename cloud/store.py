@@ -5801,6 +5801,42 @@ REFLECTIONS/PATTERNS:
             gate_meta["quarantine_reason"] = regressions
             new_metadata = gate_meta
 
+        # A version that has never succeeded is a hypothesis, not evidence.
+        # Superseding one with another mints a version number for something
+        # nobody tried, and the production data shows where that leads: a chain
+        # 32 deep, fourteen versions in two days, and the one ancestor with a
+        # real record (9 successes) buried under revisions that were never run.
+        # So an unproven version is revised in place. Its successor inherits
+        # nothing because there was nothing to inherit, and the last version
+        # that actually worked stays the lineage's most recent evidence.
+        #
+        # A gated revision still takes the versioned path: quarantine needs a
+        # row of its own to hold the flagged copy while the old one serves.
+        if not gated and int(old.get("success_count") or 0) == 0:
+            with self._cursor() as cur:
+                cur.execute(
+                    """UPDATE procedures
+                       SET steps = %s::jsonb, trigger_condition = %s,
+                           metadata = %s::jsonb, evolved_from_episode = %s,
+                           updated_at = NOW()
+                       WHERE id = %s AND user_id = %s AND sub_user_id = %s""",
+                    (json.dumps(new_steps), new_trigger or old["trigger_condition"],
+                     json.dumps(new_metadata), episode_id,
+                     procedure_id, user_id, sub_user_id)
+                )
+            with self._cursor() as cur:
+                cur.execute(
+                    """INSERT INTO procedure_evolution
+                       (procedure_id, episode_id, change_type, diff,
+                        version_before, version_after)
+                       VALUES (%s, %s, %s, %s::jsonb, %s, %s)""",
+                    (procedure_id, episode_id, "revised_in_place",
+                     json.dumps(dict(diff or {})), old_version, old_version)
+                )
+            logger.info(f"✏️ Procedure revised in place: {old['name']} v{old_version} "
+                        f"(never succeeded, so no new version minted)")
+            return procedure_id
+
         # Only retire the old current version if the new one is safe to promote.
         if not gated:
             with self._cursor() as cur:
