@@ -7454,6 +7454,21 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                             context=ep.context or "",
                         )
                         if is_failure and plan not in ("free", "starter"):
+                            # Record the failure on the version that failed
+                            # before revising it. This path revised procedures
+                            # 1,810 times in production and never once wrote
+                            # the failure down, so the ledger we build the
+                            # whole feature on showed six failures in ten
+                            # thousand rows — and a revision inherited a prior
+                            # from a predecessor whose record was empty by
+                            # construction.
+                            try:
+                                store.procedure_feedback(
+                                    user_id, best_proc["id"], success=False,
+                                    sub_user_id=sub_uid)
+                            except Exception as e:
+                                logger.warning(f"⚠️ Failure not recorded for "
+                                               f"{best_proc.get('name')}: {e}")
                             evo = EvolutionEngine(store, embedder, extractor.llm)
                             evo_result = evo.evolve_on_failure(
                                 user_id, best_proc["id"], episode_id,
