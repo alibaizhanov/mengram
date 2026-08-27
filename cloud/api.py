@@ -9252,7 +9252,9 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             if ctx.plan in ("free", "starter"):
                 raise HTTPException(status_code=403, detail="Procedure evolution is a Pro feature. Upgrade at mengram.io/dashboard")
             use_quota(ctx, "add")
-        result = store.procedure_feedback(user_id, procedure_id, success, sub_user_id=sub_user_id)
+        result = store.procedure_feedback(user_id, procedure_id, success,
+                                          sub_user_id=sub_user_id,
+                                          failed_at_step=body.failed_at_step if body else None)
         if "error" in result:
             raise HTTPException(status_code=404, detail=result["error"])
 

@@ -5695,25 +5695,68 @@ REFLECTIONS/PATTERNS:
         self._touch_procedures_last_used([r["id"] for r in results])
         return results
 
-    def procedure_feedback(self, user_id: str, procedure_id: str, success: bool, sub_user_id: str = "default") -> dict:
-        """Record success/failure feedback for a procedure."""
+    @staticmethod
+    def _apply_step_outcome(steps: list, success: bool, failed_at_step: int = None) -> list:
+        """Credit the steps that ran and debit the one that broke.
+
+        A run does not tell you one thing, it tells you as many things as there
+        are steps. When step 3 of 5 fails, steps 1 and 2 *ran and worked* —
+        recording only "the procedure failed" throws that away and makes every
+        step look equally suspect. Steps after the failure never executed, so
+        they learn nothing either way.
+
+        This is also what keeps a record alive across versioning: a revision
+        usually touches one step, and the untouched ones have no reason to
+        forget the runs behind them.
+        """
+        updated = []
+        for i, step in enumerate(steps or [], 1):
+            if not isinstance(step, dict):
+                updated.append(step)
+                continue
+            step = dict(step)
+            if success:
+                ran, worked = True, True
+            elif failed_at_step is None:
+                ran, worked = False, False      # nothing to attribute
+            else:
+                ran, worked = i <= failed_at_step, i < failed_at_step
+            if ran:
+                key = "success_count" if worked else "fail_count"
+                step[key] = int(step.get(key) or 0) + 1
+            updated.append(step)
+        return updated
+
+    def procedure_feedback(self, user_id: str, procedure_id: str, success: bool,
+                           sub_user_id: str = "default", failed_at_step: int = None) -> dict:
+        """Record success/failure feedback for a procedure and for its steps."""
         col = "success_count" if success else "fail_count"
         with self._cursor(dict_cursor=True) as cur:
             cur.execute(
-                f"""UPDATE procedures
-                    SET {col} = {col} + 1, last_used = NOW(), updated_at = NOW()
-                    WHERE id = %s AND user_id = %s AND sub_user_id = %s
-                    RETURNING id, name, success_count, fail_count""",
+                """SELECT steps FROM procedures
+                   WHERE id = %s AND user_id = %s AND sub_user_id = %s""",
                 (procedure_id, user_id, sub_user_id)
             )
-            row = cur.fetchone()
-            if not row:
+            found = cur.fetchone()
+            if not found:
                 return {"error": "procedure not found"}
+            steps = self._apply_step_outcome(found["steps"] or [], success, failed_at_step)
+
+            cur.execute(
+                f"""UPDATE procedures
+                    SET {col} = {col} + 1, steps = %s::jsonb,
+                        last_used = NOW(), updated_at = NOW()
+                    WHERE id = %s AND user_id = %s AND sub_user_id = %s
+                    RETURNING id, name, success_count, fail_count, steps""",
+                (json.dumps(steps), procedure_id, user_id, sub_user_id)
+            )
+            row = cur.fetchone()
             return {
                 "id": str(row["id"]),
                 "name": row["name"],
                 "success_count": row["success_count"],
                 "fail_count": row["fail_count"],
+                "steps": row["steps"],
                 "feedback": "success" if success else "failure",
             }
 

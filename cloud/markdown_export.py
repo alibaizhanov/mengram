@@ -263,6 +263,13 @@ def procedure_file(procedure: dict, evolution: list = None) -> str:
                     text = f"{text} — {step['detail']}" if text else step["detail"]
             else:
                 text = str(step)
+            # Same bracket convention memfmt 0.3 reads back: a step's record
+            # rides at the end of its line, and its absence means untracked
+            # rather than failing.
+            if isinstance(step, dict) and (step.get("success_count") is not None
+                                           or step.get("fail_count") is not None):
+                text = (f"{text} ({int(step.get('success_count') or 0)}✓/"
+                        f"{int(step.get('fail_count') or 0)}✗)")
             body.append(f"{i}. {text}")
 
     for entry in (evolution or []):
