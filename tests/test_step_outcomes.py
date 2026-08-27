@@ -9,6 +9,7 @@ ones have no reason to forget the runs behind them.
 Pure function, no database.
 """
 
+from cloud.reliability import carry_step_history as carry
 from cloud.store import CloudStore
 
 apply = CloudStore._apply_step_outcome
@@ -63,3 +64,75 @@ class TestStepOutcomes:
         original = steps(2)
         apply(original, success=True)
         assert original[0].get("success_count") is None
+
+
+class TestRecordSurvivesRevision:
+    """What a revision is allowed to keep.
+
+    Raised by deelight_0909 on r/hermesagent: if a rewritten step keeps the
+    counters of the text it replaced, a fresh `/health` check inherits eleven
+    successes it never earned — "newest thing wins" wearing better numbers.
+    They were right that it is the danger; the code had the opposite bug, and
+    dropped every record at the revision boundary instead.
+    """
+
+    def test_an_untouched_step_keeps_its_record(self):
+        old = [{"action": "push to main", "success_count": 12},
+               {"action": "verify health", "success_count": 9, "fail_count": 3}]
+        new = [{"action": "push to main"},
+               {"action": "verify health"}]
+        assert counts(carry(old, new)) == [(12, None), (9, 3)]
+
+    def test_an_edited_step_starts_over(self):
+        """The whole point. New text has no record, and saying otherwise is
+        the claim that makes the number worthless."""
+        old = [{"action": "verify health", "success_count": 11}]
+        new = [{"action": "verify health with backoff"}]
+        assert counts(carry(old, new)) == [(None, None)]
+
+    def test_an_inserted_step_does_not_shift_records_onto_neighbours(self):
+        old = [{"action": "push to main", "success_count": 12},
+               {"action": "verify health", "success_count": 9}]
+        new = [{"action": "wait for the pool"},
+               {"action": "push to main"},
+               {"action": "verify health"}]
+        assert counts(carry(old, new)) == [(None, None), (12, None), (9, None)]
+
+    def test_a_duplicated_step_cannot_claim_the_same_runs_twice(self):
+        old = [{"action": "retry upload", "success_count": 4}]
+        new = [{"action": "retry upload"}, {"action": "retry upload"}]
+        assert counts(carry(old, new)) == [(4, None), (None, None)]
+
+    def test_counters_invented_by_the_model_are_discarded(self):
+        """`new_steps` is LLM output. Anything numeric in it is hallucinated."""
+        old = [{"action": "push to main"}]
+        new = [{"action": "push to main", "success_count": 999}]
+        assert counts(carry(old, new)) == [(None, None)]
+
+    def test_detail_is_part_of_what_makes_a_step_the_same_step(self):
+        old = [{"action": "verify health", "detail": "expect 200 within 60s",
+                "success_count": 9}]
+        assert counts(carry(old, [{"action": "verify health",
+                                   "detail": "expect 200 within 5s"}])) == [(None, None)]
+        assert counts(carry(old, [{"action": "verify health",
+                                   "detail": "expect 200 within 60s"}])) == [(9, None)]
+
+    def test_whitespace_and_case_are_not_a_difference(self):
+        old = [{"action": "Push  to main", "success_count": 12}]
+        assert counts(carry(old, [{"action": "push to main"}])) == [(12, None)]
+
+    def test_a_step_nobody_measured_carries_nothing_and_crashes_nothing(self):
+        assert counts(carry([{"action": "a"}], [{"action": "a"}])) == [(None, None)]
+        assert carry([], []) == []
+        assert carry(None, None) == []
+
+    def test_non_dict_steps_survive(self):
+        assert carry([{"action": "a", "success_count": 1}],
+                     ["a", {"action": "a"}]) == ["a", {"action": "a", "success_count": 1}]
+
+    def test_the_originals_are_not_mutated(self):
+        old = [{"action": "a", "success_count": 3}]
+        new = [{"action": "a"}]
+        carry(old, new)
+        assert new[0].get("success_count") is None
+        assert old[0]["success_count"] == 3

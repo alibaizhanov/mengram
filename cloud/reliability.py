@@ -59,6 +59,63 @@ def prior_from_lineage(evolution: list = None) -> tuple:
     return NEUTRAL_PRIOR
 
 
+def _identity(step) -> str:
+    """What makes a step the same step across a revision: what it says.
+
+    Not its position. A revision that inserts a step at the top shifts every
+    index below it, and carrying records by index would hand each step the
+    history of its neighbour.
+    """
+    if not isinstance(step, dict):
+        return " ".join(str(step).lower().split())
+    parts = (step.get("action") or "", step.get("detail") or "")
+    return " ".join(" ".join(str(p) for p in parts).lower().split())
+
+
+def carry_step_history(old_steps: list, new_steps: list) -> list:
+    """Move per-step records onto a revision, but only for steps it left alone.
+
+    A revision rewrites one or two steps and leaves the rest verbatim. Dropping
+    every record at that boundary — which is what wholesale step replacement
+    did — means a workflow can never accumulate evidence about the parts of it
+    that were never in question.
+
+    The opposite mistake is worse, and it is the one worth being careful about:
+    if a rewritten step keeps the counters of the text it replaced, a new
+    `verify /health` inherits eleven successes it never earned, and the number
+    reads as evidence while being the newest-thing-wins bug in better clothes.
+    So a step keeps its record only when its text is unchanged; any edit starts
+    it at zero, which is the honest reading — nobody has run *this* yet.
+
+    Identical steps are matched one-for-one so a duplicated step cannot claim
+    the same runs twice.
+    """
+    available: dict = {}
+    for step in old_steps or []:
+        if not isinstance(step, dict):
+            continue
+        if step.get("success_count") is None and step.get("fail_count") is None:
+            continue
+        available.setdefault(_identity(step), []).append(step)
+
+    out = []
+    for step in new_steps or []:
+        if not isinstance(step, dict):
+            out.append(step)
+            continue
+        step = dict(step)
+        step.pop("success_count", None)      # never trust counters the LLM emitted
+        step.pop("fail_count", None)
+        match = available.get(_identity(step))
+        if match:
+            old = match.pop(0)
+            for key in ("success_count", "fail_count"):
+                if old.get(key) is not None:
+                    step[key] = old[key]
+        out.append(step)
+    return out
+
+
 def annotate_steps(steps: list) -> list:
     """Add `reliability` to each step that carries a record.
 
