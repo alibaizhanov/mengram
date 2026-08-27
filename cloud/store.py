@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from typing import Optional
 from contextlib import contextmanager
 
-from cloud.reliability import annotate_steps, estimate
+from cloud.reliability import annotate_steps, carry_step_history, estimate
 
 try:
     import psycopg2
@@ -5827,6 +5827,14 @@ REFLECTIONS/PATTERNS:
         old_version = old["version"]
         new_version = old_version + 1
         new_metadata = metadata if metadata is not None else (old.get("metadata") or {})
+
+        # The revision arrives as plain text from the LLM, with no counters on
+        # it. Written as-is it wipes the record of every step, including the
+        # ones the revision never touched — so a workflow could never build
+        # evidence about its stable parts. Steps whose text is unchanged keep
+        # their record; anything edited starts at zero, because nobody has run
+        # *that* yet.
+        new_steps = carry_step_history(old.get("steps") or [], new_steps)
 
         # --- Cross-procedure regression gate (v1) ---------------------------
         # Before promoting, check whether this revision silently breaks another
