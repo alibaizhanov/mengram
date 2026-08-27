@@ -135,7 +135,8 @@ class EvolutionEngine:
 
     def evolve_on_failure(self, user_id: str, procedure_id: str,
                           episode_id: str, failure_context: str = "",
-                          sub_user_id: str = "default") -> dict | None:
+                          sub_user_id: str = "default",
+                          failed_at_step: int = None) -> dict | None:
         """Analyze a procedure failure and create an improved version.
 
         Args:
@@ -169,7 +170,7 @@ class EvolutionEngine:
             f"  Step {s.get('step', i+1)}: {s.get('action', '')} — {s.get('detail', '')}"
             for i, s in enumerate(proc["steps"])
         )
-        failed_step = episode.get("failed_at_step")
+        failed_step = episode.get("failed_at_step") or failed_at_step
         if failed_step is None and failure_context:
             failed_step = "unknown"
 
@@ -467,6 +468,65 @@ class EvolutionEngine:
             keyword_score = 0.0
 
         return round(0.5 * vec_score + 0.3 * entity_score + 0.2 * keyword_score, 4)
+
+    #: Words that carry no signal about *which* step broke.
+    _STEP_STOP = frozenset({
+        "the", "a", "an", "to", "of", "in", "on", "for", "and", "or", "is",
+        "was", "were", "it", "this", "that", "with", "at", "after", "before",
+        "when", "then", "failed", "failing", "error", "errors", "broke",
+        "broken", "step", "again", "during", "while", "because",
+        # Generic action verbs. They appear in most steps and in most failure
+        # reports, so letting one decide attribution means "error during the
+        # run" lands on "run migrations" — a step that may have been fine.
+        "run", "ran", "runs", "check", "checked", "checks", "get", "got",
+        "set", "make", "made", "use", "used", "call", "called", "try",
+        "tried", "add", "adds", "send", "sent", "do", "did", "done",
+    })
+
+    @staticmethod
+    def infer_failed_step(steps: list, text: str) -> int | None:
+        """Which step the failure text is describing, 1-based, or None.
+
+        Nobody reports the step. The feedback tool takes `failed_at_step` and
+        agents do not call it — zero calls in a month of production — so the
+        per-step record stays empty unless it can be read out of what was
+        already written. The failure text usually says it plainly: "timed out
+        on the migration", "health check never returned 200".
+
+        Deterministic on purpose: this runs on the add path, and a model call
+        per episode to guess an index is not worth it. Matching is word overlap
+        against each step's own words, ignoring the vocabulary of failure
+        itself — "failed" appears in every report and distinguishes nothing.
+
+        Returns None unless one step is both a real match and a clear winner.
+        A wrong index is worse than no index: it debits a step that did nothing
+        wrong, and that record is what an agent is meant to trust.
+        """
+        words = re.findall(r"[a-z0-9_]+", (text or "").lower())
+        said = {w for w in words if len(w) > 2 and w not in EvolutionEngine._STEP_STOP}
+        if not said:
+            return None
+
+        scored = []
+        for i, step in enumerate(steps or [], 1):
+            if not isinstance(step, dict):
+                continue
+            own = re.findall(r"[a-z0-9_]+",
+                             f"{step.get('action', '')} {step.get('detail', '')}".lower())
+            own = {w for w in own if len(w) > 2 and w not in EvolutionEngine._STEP_STOP}
+            if own:
+                scored.append((len(said & own), i))
+
+        matched = [(n, i) for n, i in scored if n]
+        if not matched:
+            return None
+        matched.sort(reverse=True)
+        best, index = matched[0]
+        if len(matched) > 1 and matched[1][0] == best:
+            return None                      # two steps fit equally; do not guess
+        if best == 1 and len(matched) > 1:
+            return None                      # a lone shared word among rivals is a coincidence
+        return index
 
     @staticmethod
     def is_failure_episode(emotional_valence: str, outcome: str = "",
