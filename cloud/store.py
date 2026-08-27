@@ -23,6 +23,8 @@ from dataclasses import dataclass
 from typing import Optional
 from contextlib import contextmanager
 
+from cloud.reliability import annotate_steps, estimate
+
 try:
     import psycopg2
     import psycopg2.extras
@@ -5490,10 +5492,15 @@ REFLECTIONS/PATTERNS:
                     "id": str(row["id"]),
                     "name": row["name"],
                     "trigger_condition": row["trigger_condition"],
-                    "steps": row["steps"] or [],
+                    # The agent reads this, and a model handed 4 and 1 will
+                    # answer 80% — the small-sample error the estimate exists
+                    # to prevent. Raw counts stay; the reading comes with them.
+                    "steps": annotate_steps(row["steps"] or []),
                     "entity_names": row["entity_names"] or [],
                     "success_count": row["success_count"] or 0,
                     "fail_count": row["fail_count"] or 0,
+                    "reliability": estimate(row["success_count"] or 0,
+                                            row["fail_count"] or 0),
                     "version": row["version"] or 1,
                     "last_used": row["last_used"].isoformat() if row["last_used"] else None,
                     "created_at": row["created_at"].isoformat() if row["created_at"] else None,
@@ -5682,10 +5689,15 @@ REFLECTIONS/PATTERNS:
                     "id": pid,
                     "name": row["name"],
                     "trigger_condition": row["trigger_condition"],
-                    "steps": row["steps"] or [],
+                    # The agent reads this, and a model handed 4 and 1 will
+                    # answer 80% — the small-sample error the estimate exists
+                    # to prevent. Raw counts stay; the reading comes with them.
+                    "steps": annotate_steps(row["steps"] or []),
                     "entity_names": row["entity_names"] or [],
                     "success_count": row["success_count"] or 0,
                     "fail_count": row["fail_count"] or 0,
+                    "reliability": estimate(row["success_count"] or 0,
+                                            row["fail_count"] or 0),
                     "version": row["version"] or 1,
                     "score": round(float(row["score"]), 4),
                     "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
@@ -5953,10 +5965,15 @@ REFLECTIONS/PATTERNS:
                     "id": str(row["id"]),
                     "name": row["name"],
                     "trigger_condition": row["trigger_condition"],
-                    "steps": row["steps"] or [],
+                    # The agent reads this, and a model handed 4 and 1 will
+                    # answer 80% — the small-sample error the estimate exists
+                    # to prevent. Raw counts stay; the reading comes with them.
+                    "steps": annotate_steps(row["steps"] or []),
                     "entity_names": row["entity_names"] or [],
                     "success_count": row["success_count"] or 0,
                     "fail_count": row["fail_count"] or 0,
+                    "reliability": estimate(row["success_count"] or 0,
+                                            row["fail_count"] or 0),
                     "version": row["version"] or 1,
                     "parent_version_id": str(row["parent_version_id"]) if row["parent_version_id"] else None,
                     "evolved_from_episode": str(row["evolved_from_episode"]) if row["evolved_from_episode"] else None,

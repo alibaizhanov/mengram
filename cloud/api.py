@@ -7462,10 +7462,17 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                             # thousand rows — and a revision inherited a prior
                             # from a predecessor whose record was empty by
                             # construction.
+                            # Nobody calls the feedback tool, so the step has
+                            # to be read out of what was already written. The
+                            # failure text usually names it outright.
+                            failed_step = EvolutionEngine.infer_failed_step(
+                                best_proc.get("steps") or [],
+                                f"{ep.summary or ''} {ep.context or ''} {ep.outcome or ''}")
                             try:
                                 store.procedure_feedback(
                                     user_id, best_proc["id"], success=False,
-                                    sub_user_id=sub_uid)
+                                    sub_user_id=sub_uid,
+                                    failed_at_step=failed_step)
                             except Exception as e:
                                 logger.warning(f"⚠️ Failure not recorded for "
                                                f"{best_proc.get('name')}: {e}")
@@ -7473,7 +7480,8 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                             evo_result = evo.evolve_on_failure(
                                 user_id, best_proc["id"], episode_id,
                                 ep.context or ep.summary,
-                                sub_user_id=sub_uid)
+                                sub_user_id=sub_uid,
+                                failed_at_step=failed_step)
                             if evo_result:
                                 logger.info(
                                     f"🔄 Auto-evolved '{best_proc['name']}' "

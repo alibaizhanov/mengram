@@ -187,41 +187,7 @@ def episode_file(episode: dict) -> str:
     return "\n".join(body).rstrip() + "\n"
 
 
-#: Must match memfmt's LINEAGE_WEIGHT. These files are read back by that
-#: library, and two different discounts would render two different numbers for
-#: the same record — the one failure a shared format exists to prevent.
-LINEAGE_WEIGHT = 0.5
-
-
-def _prior(evolution: list = None) -> tuple:
-    """Beta prior for a version, taken from what its predecessor retired with.
-
-    A bare ratio punishes the revision: a new version opens at 0/0 and reads
-    worse than the one it was written to fix, so anything choosing between them
-    keeps the version that already failed. Progressive delivery and CI answered
-    this years ago by smoothing against a prior instead of comparing raw counts.
-    """
-    for entry in reversed(evolution or []):
-        success, fail = entry.get("success_count"), entry.get("fail_count")
-        if success is not None or fail is not None:
-            return (1.0 + LINEAGE_WEIGHT * (success or 0),
-                    1.0 + LINEAGE_WEIGHT * (fail or 0))
-    return (1.0, 1.0)
-
-
-def _reliability(success: int, fail: int, prior: tuple = (1.0, 1.0)) -> str:
-    """How much to trust this version, in words.
-
-    The word matters as much as the number: "never run" and "run and it worked"
-    must not read alike, so a version standing on its lineage says `expected`
-    and one with a record of its own says `reliable`.
-    """
-    alpha, beta = prior
-    observed = success + fail
-    if observed == 0 and (alpha, beta) == (1.0, 1.0):
-        return "untested"
-    estimate = (success + alpha) / (observed + alpha + beta)
-    return f"{round(100 * estimate)}% {'reliable' if observed else 'expected'}"
+from cloud.reliability import estimate as _reliability_estimate, prior_from_lineage as _prior
 
 
 def procedure_file(procedure: dict, evolution: list = None) -> str:
@@ -241,7 +207,7 @@ def procedure_file(procedure: dict, evolution: list = None) -> str:
             "fail_count": fail,
         }),
         "",
-        f"# {name} (v{version} · {_reliability(success, fail, _prior(evolution))})",
+        f"# {name} (v{version} · {_reliability_estimate(success, fail, _prior(evolution))})",
     ]
 
     if procedure.get("trigger_condition"):
