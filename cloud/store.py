@@ -2340,13 +2340,21 @@ class CloudStore:
             for fact in (facts or []):
                 importance = self.estimate_importance(fact)
                 event_date = (fact_dates or {}).get(fact)
+                # A re-asserted fact is live again: the UNIQUE(entity_id, content)
+                # index also covers archived rows, so without the reset a fact
+                # that was superseded and later becomes true again stays
+                # archived while RETURNING reports success. Safe against the
+                # same add's contradiction pass — that runs before this upsert
+                # and never archives a fact identical to an incoming one.
                 if expires_at:
                     cur.execute(
                         """INSERT INTO facts (entity_id, content, importance, expires_at, event_date, metadata)
                            VALUES (%s, %s, %s, %s, %s, %s::jsonb)
                            ON CONFLICT (entity_id, content) DO UPDATE SET
                                event_date = COALESCE(EXCLUDED.event_date, facts.event_date),
-                               metadata = facts.metadata || EXCLUDED.metadata
+                               metadata = facts.metadata || EXCLUDED.metadata,
+                               archived = FALSE,
+                               superseded_by = NULL
                            RETURNING content""",
                         (entity_id, fact, importance, expires_at, event_date, meta_json)
                     )
@@ -2356,7 +2364,9 @@ class CloudStore:
                            VALUES (%s, %s, %s, %s, %s::jsonb)
                            ON CONFLICT (entity_id, content) DO UPDATE SET
                                event_date = COALESCE(EXCLUDED.event_date, facts.event_date),
-                               metadata = facts.metadata || EXCLUDED.metadata
+                               metadata = facts.metadata || EXCLUDED.metadata,
+                               archived = FALSE,
+                               superseded_by = NULL
                            RETURNING content""",
                         (entity_id, fact, importance, event_date, meta_json)
                     )
@@ -5418,6 +5428,13 @@ REFLECTIONS/PATTERNS:
             if existing:
                 name = existing["name"]  # Use canonical casing
 
+        # Conflicts on version 1 come from re-extraction (add/reflection) and
+        # must not resurrect a retired v1 next to a newer current version, so
+        # its lifecycle fields stay untouched. Conflicts on version > 1 only
+        # come from evolve_procedure landing on a stale quarantined copy of the
+        # same version number — there the incoming row is authoritative: without
+        # taking its is_current/metadata the old version is already retired and
+        # the procedure is left with no current version at all.
         try:
             with self._cursor() as cur:
                 cur.execute(
@@ -5432,6 +5449,18 @@ REFLECTIONS/PATTERNS:
                            trigger_condition = COALESCE(EXCLUDED.trigger_condition, procedures.trigger_condition),
                            steps = EXCLUDED.steps,
                            entity_names = EXCLUDED.entity_names,
+                           is_current = CASE WHEN procedures.version > 1
+                                             THEN EXCLUDED.is_current
+                                             ELSE procedures.is_current END,
+                           metadata = CASE WHEN procedures.version > 1
+                                           THEN EXCLUDED.metadata
+                                           ELSE procedures.metadata END,
+                           parent_version_id = CASE WHEN procedures.version > 1
+                                                    THEN EXCLUDED.parent_version_id
+                                                    ELSE procedures.parent_version_id END,
+                           evolved_from_episode = CASE WHEN procedures.version > 1
+                                                       THEN EXCLUDED.evolved_from_episode
+                                                       ELSE procedures.evolved_from_episode END,
                            updated_at = NOW()
                        RETURNING id""",
                     (user_id, sub_user_id, name, trigger_condition, steps_json, entities,
