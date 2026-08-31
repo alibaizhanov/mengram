@@ -10974,13 +10974,18 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                             tg.start_soon(_run)
                             await transport.handle_request(scope, receive, send)
 
-            app.add_route("/mcp", _MCPStreamableHandler(), methods=["GET", "POST", "DELETE"])
+            # No GET: the transport is stateless (mcp_session_id=None), so the
+            # server never emits server-initiated messages and a GET SSE stream
+            # would hang until the edge kills it at 900s, pinning one of the two
+            # gunicorn workers until the --timeout 300 watchdog SIGABRTs it.
+            # The spec allows 405 here when a server offers no standalone stream.
+            app.add_route("/mcp", _MCPStreamableHandler(), methods=["POST", "DELETE"])
             logger.info("✅ MCP Streamable HTTP transport enabled at /mcp")
 
             # Slim, curated surface for the Claude Connectors Directory listing —
             # same handler, restricted to the DIRECTORY_CONNECTOR_TOOLS subset.
             app.add_route("/mcp/connector", _MCPStreamableHandler(DIRECTORY_CONNECTOR_TOOLS),
-                          methods=["GET", "POST", "DELETE"])
+                          methods=["POST", "DELETE"])
             logger.info("✅ MCP Connectors Directory surface at /mcp/connector (%d tools)",
                         len(DIRECTORY_CONNECTOR_TOOLS))
 
