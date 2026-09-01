@@ -1772,6 +1772,29 @@ m.add("I love hiking in the mountains")</code></pre>
             "Sitemap: https://mengram.io/sitemap.xml"
         )
 
+    @app.api_route("/llms.txt", methods=["GET", "HEAD"], response_class=PlainTextResponse)
+    async def llms_txt():
+        """llms.txt (llmstxt.org): a compact index for LLMs and agents.
+        GSC 2026-09 shows agents already querying Google for our docs, and the
+        prod logs show direct /llms.txt fetches that 404ed until now."""
+        return (
+            "# Mengram\n\n"
+            "> Persistent memory for AI agents and coding tools: semantic facts, episodic events, "
+            "and procedural workflows with a success/failure track record. One memory across "
+            "Claude Code, Cursor, Codex, ChatGPT, and any MCP client. REST API + MCP server. "
+            "Free tier; open export format (memfmt).\n\n"
+            "## Docs\n\n"
+            "- [Quickstart](https://docs.mengram.io/quickstart): API key, first add/search in 5 minutes\n"
+            "- [MCP server](https://docs.mengram.io/mcp): remote MCP at https://mengram.io/mcp (streamable HTTP)\n"
+            "- [API reference](https://docs.mengram.io/api-reference): REST endpoints, auth, quotas\n"
+            "- [Agent install guide](https://mengram.io/agent-install.txt): plain-text setup instructions for agents\n\n"
+            "## Key pages\n\n"
+            "- [Does Claude Code remember between sessions?](https://mengram.io/blog/does-claude-code-remember-between-sessions)\n"
+            "- [Long-term memory for Claude/ChatGPT via MCP](https://mengram.io/blog/give-claude-chatgpt-long-term-memory-mcp)\n"
+            "- [Procedural memory in AI](https://mengram.io/blog/procedural-memory-ai-agents)\n"
+            "- [Pricing](https://mengram.io/pricing): free tier, paid from $5/mo\n"
+        )
+
     @app.api_route("/agent-install.txt", methods=["GET", "HEAD"], response_class=PlainTextResponse)
     @app.api_route("/agent-install", methods=["GET", "HEAD"], response_class=PlainTextResponse)
     async def agent_install():
@@ -2370,8 +2393,8 @@ m.add("I love hiking in the mountains")</code></pre>
             "read_time": "5",
             "tags": ["Guide", "MCP"],
             "excerpt": "The Model Context Protocol (MCP) lets you attach a persistent memory backend to Claude, ChatGPT, Cursor, and other MCP clients — so they remember across sessions. Here is exactly how the memory-over-MCP setup works and how to wire it up.",
-            "seo_title": "How to Give Claude or ChatGPT Long-Term Memory Using MCP (2026)",
-            "seo_description": "Give Claude, ChatGPT, or Cursor long-term memory using MCP. How a memory MCP server works, how to add it to your client config, and the one instruction that makes the agent actually use it.",
+            "seo_title": "Give Claude or ChatGPT Long-Term Memory via MCP (Copy-Paste Config)",
+            "seo_description": "The exact MCP server config for Claude, ChatGPT, and Cursor, plus the one system-prompt line that makes the agent actually use its memory. 5-minute setup.",
             "seo_keywords": "give claude long-term memory mcp, chatgpt long term memory mcp, how to give claude memory, mcp memory server, long term memory claude chatgpt, claude memory mcp, add memory to claude",
             "content_html": """
 <h2>The idea: memory as an MCP server</h2>
@@ -2584,8 +2607,8 @@ m.search("how should I contact this customer?", user_id="customer-4812")
             "read_time": "6",
             "tags": ['Guide', 'Agents'],
             "excerpt": "Most agent memory stores facts. Procedural memory stores how-to — the workflows an agent repeats — and crucially, revises them when they fail. Here's what procedural memory is, why it's the underserved layer, and how to use it.",
-            "seo_title": "Procedural Memory for AI Agents — Workflows That Evolve From Failure (2026)",
-            "seo_description": "Procedural memory lets AI agents remember how to do things, not just what happened — and revise workflows when they fail. What procedural memory is, why fact-only memory tools skip it, and how to store versioned, failure-aware workflows.",
+            "seo_title": "Procedural Memory in AI: How Agents Learn Workflows From Failure",
+            "seo_description": "What procedural memory is in AI, why fact-only memory tools skip it, and how agents store versioned workflows that revise themselves when a run fails.",
             "seo_keywords": "procedural memory ai agents, procedural memory llm, agent workflow memory, agent learns from failure, memp procedural memory, ai agent skill memory",
             "content_html": """
 <h2>Three kinds of memory, and the one everyone skips</h2>
@@ -2618,8 +2641,8 @@ m.search("how should I contact this customer?", user_id="customer-4812")
             "read_time": "5",
             "tags": ['Claude Code', 'Guide'],
             "excerpt": "Persisting context in Claude Code means keeping the things that matter outside the context window and reloading them automatically. Here's the mechanism — the SessionStart and Stop hooks — and how to wire it up, with or without a memory service.",
-            "seo_title": "How to Persist Context in Claude Code — Hooks, CLAUDE.md, and Memory (2026)",
-            "seo_description": "Persist context in Claude Code so a new session doesn't start from zero. The SessionStart/Stop hook mechanism explained, how to capture and reload context automatically, and where CLAUDE.md falls short.",
+            "seo_title": "Persist Context in Claude Code: Copy-Paste Hooks Setup (2026)",
+            "seo_description": "Stop starting from zero: capture context with a Stop hook and reload it on SessionStart — copy-paste setup included, plus where CLAUDE.md falls short.",
             "seo_keywords": "persist context claude code, claude code persist context, keep context claude code, claude code context persistence, claude code save context, claude code load context",
             "content_html": """
 <h2>What "persist context" actually requires</h2>
@@ -2716,8 +2739,8 @@ claude plugin install mengram@mengram</code></pre>
             "read_time": "6",
             "tags": ['Claude Code', 'Guide'],
             "excerpt": "Short answer: partially. Claude Code can resume a session and read CLAUDE.md, but it does not carry your decisions, context, or working state across new sessions by default. Here's exactly what persists, what doesn't, and how to get true cross-session memory.",
-            "seo_title": "Does Claude Code Remember Between Sessions? What Persists and What Doesn't (2026)",
-            "seo_description": "Does Claude Code remember between sessions? Partially — resume and CLAUDE.md help, but decisions, context, and working state are lost on a new session or after compaction. What persists, what doesn't, and how to add true persistent memory.",
+            "seo_title": "Does Claude Code Remember Between Sessions? The Fix (2026)",
+            "seo_description": "Partially. Decisions, context, and working state vanish on new sessions and compaction. See exactly what persists — and add true cross-session memory in 2 commands.",
             "seo_keywords": "does claude code remember between sessions, claude code memory between sessions, claude code remember context, claude code persistent memory, claude code session memory, claude code forgets",
             "content_html": """
 <h2>The short answer</h2>
@@ -2751,7 +2774,7 @@ claude plugin install mengram@mengram</code></pre>
 
 <h2>Honest limits</h2>
 <p>No external memory restores the full pre-compaction transcript — that's gone. What changes is <em>which</em> things survive: structured facts, decisions, and workflows extracted while they were fresh, instead of whatever a token-pressured summary happened to keep. For most "why does Claude keep forgetting my project" frustration, that's the difference that matters.</p>
-<p>Related reading: <a href="/blog/claude-code-compaction-context-loss">why compaction erases context and how to survive it</a>.</p>
+<p>Related reading: <a href="/blog/claude-code-compaction-context-loss">why compaction erases context and how to survive it</a> · <a href="/blog/persist-context-claude-code">persist context with hooks (copy-paste setup)</a> · <a href="/blog/claude-code-remember-project-context">4 ways to make Claude Code remember your project</a>. Or <a href="/#signup">get an API key</a> and set it up in two commands.</p>
 """,
         },
         "claude-code-remember-project-context": {
@@ -2762,8 +2785,8 @@ claude plugin install mengram@mengram</code></pre>
             "read_time": "6",
             "tags": ['Claude Code', 'Guide'],
             "excerpt": "Re-explaining your stack, conventions, and decisions at the start of every Claude Code session is the #1 friction developers report. Here are the four ways to make project context stick — from CLAUDE.md to hooks-based persistent memory — with the trade-offs of each.",
-            "seo_title": "How to Make Claude Code Remember Your Project Context (4 Methods, 2026)",
-            "seo_description": "Stop re-explaining your project to Claude Code every session. Four methods to make project context, conventions, and decisions persist — CLAUDE.md, rules files, resume, and hooks-based persistent memory — with honest trade-offs.",
+            "seo_title": "How to Make Claude Code Remember Your Project (4 Methods)",
+            "seo_description": "Four ways to stop re-explaining your project every session — CLAUDE.md, rules files, resume, and hook-based memory — with honest trade-offs and setup for each.",
             "seo_keywords": "claude code remember project, claude code project context, claude code forgets project, make claude code remember, claude code context between sessions, claude code memory project",
             "content_html": """
 <h2>The friction</h2>
@@ -3626,8 +3649,8 @@ reviewer = Agent(role="Reviewer", memory=True)
             "read_time": "5",
             "tags": ["Tutorial", "Claude Code"],
             "excerpt": "Give Claude Code persistent memory with one command. Auto-save conversations, auto-recall context on every prompt, and load your cognitive profile on session start.",
-            "seo_title": "How to Add Persistent Memory to Claude Code — Auto-Save & Auto-Recall Hooks | Mengram",
-            "seo_description": "Step-by-step guide to adding persistent memory to Claude Code. Install auto-save, auto-recall, and cognitive profile hooks with one command. Open-source, plans from $5/mo.",
+            "seo_title": "Persistent Memory for Claude Code in One Command (Hooks Guide)",
+            "seo_description": "Install auto-save and auto-recall hooks for Claude Code in one command: every session captured, your profile reloaded on start, secrets redacted locally. Free tier.",
             "seo_keywords": "Claude Code memory, Claude Code persistent memory, Claude Code hooks, Claude Code auto-save, Claude Code auto-recall, Claude Code cognitive profile, claude-mem alternative, Claude Code plugins, Claude Code remember, add memory to Claude Code",
             "content_html": """
 <p>Claude Code is powerful, but it forgets everything when you start a new session. Your tech stack, your project structure, yesterday's debugging session — all gone. Let's fix that.</p>
@@ -3852,8 +3875,8 @@ while True:
             "read_time": "6",
             "tags": ["Tutorial", "Cursor", "MCP"],
             "excerpt": "Give Cursor AI persistent memory across sessions. Step-by-step MCP setup so your AI assistant remembers your codebase, preferences, and decisions.",
-            "seo_title": "How to Add Persistent Memory to Cursor AI — MCP Setup Guide (2026) | Mengram",
-            "seo_description": "Give Cursor AI persistent memory that survives between sessions. Step-by-step MCP server setup guide. Your AI remembers your codebase, coding style, and past decisions.",
+            "seo_title": "Add Persistent Memory to Cursor: mcp.json Setup in 5 Minutes",
+            "seo_description": "Give Cursor memory that survives sessions: the exact ~/.cursor/mcp.json block, the rules paragraph that triggers recall, and how to verify it works.",
             "seo_keywords": "cursor ai memory, cursor persistent memory, cursor mcp server, cursor mcp memory, add memory to cursor, cursor ai remember, cursor context between sessions, cursor long term memory, mcp server cursor setup",
             "content_html": """
 <h2>The problem: Cursor forgets everything</h2>
