@@ -7457,15 +7457,28 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             # ---- Single batch embed call for ALL items ----
             episode_embeddings = {}  # episode_id -> embedding vector
             if embedder and embed_items:
+                from cloud.embedder import EmbeddingQuotaExceeded
                 all_texts = [item[2] for item in embed_items]
-                all_embeddings = embedder.embed_batch(all_texts)
-                if len(all_embeddings) != len(embed_items):
-                    # zip() would silently drop the tail and leave entities with
-                    # a partial embedding set; keep the existing one instead.
+                try:
+                    all_embeddings = embedder.embed_batch(all_texts)
+                except EmbeddingQuotaExceeded as e:
+                    # Entities/episodes/procedures above are already persisted —
+                    # only search embeddings are missing. Degrade gracefully
+                    # instead of failing the whole add: log clearly so the
+                    # operator knows to check their embedding provider key/quota.
                     logger.error(
-                        f"⚠️ Embedder returned {len(all_embeddings)} vectors for "
-                        f"{len(embed_items)} chunks — skipping embedding update")
+                        f"⚠️ Embedding provider unavailable (quota/auth) for user={user_id[:8]}, "
+                        f"saved without embeddings — check EMBEDDING_PROVIDER credentials: {e}"
+                    )
                     all_embeddings = []
+                else:
+                    if len(all_embeddings) != len(embed_items):
+                        # zip() would silently drop the tail and leave entities with
+                        # a partial embedding set; keep the existing one instead.
+                        logger.error(
+                            f"⚠️ Embedder returned {len(all_embeddings)} vectors for "
+                            f"{len(embed_items)} chunks — skipping embedding update")
+                        all_embeddings = []
 
                 # A procedure's text is rewritten wholesale, so its old vector
                 # goes only once the replacement is in hand — deleting up-front
