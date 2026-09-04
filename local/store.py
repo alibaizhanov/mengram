@@ -149,20 +149,28 @@ class LocalStore:
         for pr in extraction.procedures or []:
             if not pr.name or not pr.steps:
                 continue
-            action = self.save_extracted_procedure(pr.name, pr.trigger, pr.steps)
+            action = self.save_extracted_procedure(pr.name, pr.trigger, pr.steps,
+                                                   entities=getattr(pr, "entities", None))
             stats["procedures"][action] += 1
 
         return stats
 
-    def save_extracted_procedure(self, name: str, trigger: str | None, steps: list) -> str:
-        """created | refreshed | kept — the cloud's write-time dedup, on files."""
+    def save_extracted_procedure(self, name: str, trigger: str | None, steps: list,
+                                 entities: list | None = None) -> str:
+        """created | refreshed | kept — the cloud's write-time dedup, on files.
+
+        `entities` (what the workflow touches) ride in the file's frontmatter
+        as `entities:`; the regression gate uses them to tell which
+        procedures share a surface."""
         new_steps = _to_steps(steps)
+        ents = [str(e).strip() for e in (entities or []) if str(e).strip()]
         exact = self._procedure(name)
         if exact is not None:
             # The unique-name case: refresh the description, never the record.
             if exact.success_count + exact.fail_count == 0:
                 exact.steps = new_steps
                 exact.trigger = trigger or exact.trigger
+                _merge_entities(exact, ents)
                 return "refreshed"
             return "kept"
 
@@ -172,12 +180,15 @@ class LocalStore:
             if is_near_duplicate_procedure(name_sim, step_sim) and name_sim + step_sim > best_score:
                 best, best_score = p, name_sim + step_sim
         if best is None:
-            self.memory.procedures.append(Procedure(name=name.strip(), trigger=trigger or None, steps=new_steps))
+            proc = Procedure(name=name.strip(), trigger=trigger or None, steps=new_steps)
+            _merge_entities(proc, ents)
+            self.memory.procedures.append(proc)
             return "created"
         if best.success_count + best.fail_count > 0:
             return "kept"
         best.steps = new_steps
         best.trigger = trigger or best.trigger
+        _merge_entities(best, ents)
         return "refreshed"
 
     def existing_context(self, max_entities: int = 40) -> str:
@@ -276,6 +287,7 @@ class LocalStore:
             steps.append(d)
         return {
             "id": p.id, "name": p.name, "version": p.version,
+            "entity_names": list(p.extra.get("entities") or []),
             "success_count": p.success_count, "fail_count": p.fail_count,
             "reliability": p.reliability, "trigger_condition": p.trigger,
             "preconditions": list(p.preconditions), "steps": steps,
@@ -345,6 +357,19 @@ class LocalStore:
             "procedures": len(m.procedures),
             "procedures_with_record": sum(1 for p in m.procedures if p.success_count + p.fail_count),
         }
+
+
+def _merge_entities(proc: Procedure, entities: list) -> None:
+    """Union into the `entities:` frontmatter list, order kept, case-insensitive."""
+    if not entities:
+        return
+    current = list(proc.extra.get("entities") or [])
+    seen = {e.lower() for e in current}
+    for e in entities:
+        if e.lower() not in seen:
+            current.append(e)
+            seen.add(e.lower())
+    proc.extra["entities"] = current
 
 
 # ---- step conversion ---------------------------------------------------------
