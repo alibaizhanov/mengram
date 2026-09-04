@@ -655,6 +655,69 @@ def cmd_auto_save(args):
         _emit_hook_exit(EVENT, args, HOOK, "error")
 
 
+def cmd_auto_policy(args):
+    """Hook handler — Claude Code PreToolUse on Bash.
+
+    If the command matches a learned workflow whose record is weak, answer
+    "ask" so the human confirms, and hand Claude the plan on record. Every
+    other path prints nothing and exits 0: a hook that fails must never
+    stop a command that would otherwise have run.
+    """
+    HOOK = "auto-policy"
+    from cloud import policy
+
+    def _exit(status, verdict=None):
+        marker = _hook_marker(HOOK, status) if getattr(args, "verbose", False) else None
+        out = policy.hook_output(verdict, marker)
+        if out is not None:
+            print(json.dumps(out))
+        sys.exit(0)
+
+    try:
+        try:
+            input_data = json.loads(sys.stdin.read())
+        except Exception:
+            _exit("no input")
+        if input_data.get("tool_name") != "Bash":
+            _exit("skipped (not Bash)")
+        command = (input_data.get("tool_input") or {}).get("command") or ""
+        if not policy.looks_like_workflow(command, os.environ.get("MENGRAM_POLICY_PATTERN")):
+            _exit("skipped (not a workflow command)")
+
+        min_reliable = getattr(args, "min_reliable", None)
+        if min_reliable is None:
+            try:
+                min_reliable = int(os.environ.get("MENGRAM_POLICY_MIN_RELIABLE", policy.DEFAULT_MIN_RELIABLE))
+            except ValueError:
+                min_reliable = policy.DEFAULT_MIN_RELIABLE
+
+        # Local memfmt folder first: no account, no network, no quota.
+        local_root = os.environ.get("MENGRAM_MEMORY_DIR", "").strip()
+        if local_root:
+            procs = policy.memfmt_procedures(local_root)
+        else:
+            api_key = _load_cloud_api_key()
+            if not api_key:
+                _exit("no API key")
+            from cloud.client import CloudMemory
+            user_id = getattr(args, "user_id", None) or os.environ.get("MENGRAM_USER_ID", "default")
+            mem = CloudMemory(api_key=api_key, base_url=_load_cloud_base_url())
+            procs = mem.procedures(query=command[:300], limit=3, user_id=user_id)
+
+        proc = policy.best_match(procs, command)
+        if not proc:
+            _exit("no matching workflow")
+        verdict = policy.decide(proc, command, min_reliable=min_reliable)
+        if verdict is None:
+            _exit(f"'{proc.get('name')}' {policy.reliability_of(proc)} — allowed")
+        _exit(f"'{verdict['name']}' {verdict['reliability']} — ask", verdict)
+
+    except SystemExit:
+        raise
+    except Exception:
+        _exit("error")
+
+
 def cmd_hook(args):
     """Manage Claude Code auto-save hook"""
     action = getattr(args, "hook_action", None)
@@ -673,8 +736,11 @@ def cmd_hook(args):
         sys.exit(1)
 
 
-def _upsert_hook(settings, event_name, command_marker, hook_def):
-    """Insert or update a hook in settings[hooks][event_name] matching command_marker."""
+def _upsert_hook(settings, event_name, command_marker, hook_def, matcher=None):
+    """Insert or update a hook in settings[hooks][event_name] matching command_marker.
+
+    `matcher` (a tool-name regex such as "Bash") is set only when the group is
+    created; an existing group keeps whatever matcher the user gave it."""
     if "hooks" not in settings:
         settings["hooks"] = {}
     if event_name not in settings["hooks"]:
@@ -692,7 +758,10 @@ def _upsert_hook(settings, event_name, command_marker, hook_def):
             break
 
     if not found:
-        settings["hooks"][event_name].append({"hooks": [hook_def]})
+        group = {"hooks": [hook_def]}
+        if matcher:
+            group = {"matcher": matcher, "hooks": [hook_def]}
+        settings["hooks"][event_name].append(group)
 
     return found
 
@@ -1445,10 +1514,12 @@ def cmd_hook_install(args):
     save_cmd = f"mengram auto-save --every {every}"
     recall_cmd = "mengram auto-recall"
     context_cmd = "mengram auto-context"
+    policy_cmd = "mengram auto-policy"
     if user_id:
         save_cmd += f" --user-id {user_id}"
         recall_cmd += f" --user-id {user_id}"
         context_cmd += f" --user-id {user_id}"
+        policy_cmd += f" --user-id {user_id}"
 
     # Read existing settings
     settings_path = get_claude_code_settings_path()
@@ -1482,6 +1553,16 @@ def cmd_hook_install(args):
         "timeout": 15,
     })
 
+    # 4. PreToolUse hook — a Bash command that matches a learned workflow with
+    #    a weak record (never run, inherited only, or below the bar) is turned
+    #    into a confirmation prompt instead of running on the agent's say-so.
+    if not getattr(args, "no_policy", False):
+        _upsert_hook(settings, "PreToolUse", "mengram auto-policy", {
+            "type": "command",
+            "command": policy_cmd,
+            "timeout": 10,
+        }, matcher="Bash")
+
     # Write settings
     settings_path.parent.mkdir(parents=True, exist_ok=True)
     with open(settings_path, "w") as f:
@@ -1491,6 +1572,8 @@ def cmd_hook_install(args):
     print(f"  Auto-save:    every {every} response(s) (background)")
     print(f"  Auto-recall:  search memory on each prompt")
     print(f"  Session context: load profile on session start")
+    if not getattr(args, "no_policy", False):
+        print(f"  Policy gate:  confirm before running a workflow with a weak record")
     print(f"  Settings: {settings_path}")
     print(f"\nRestart Claude Code for hooks to take effect.")
 
@@ -1515,6 +1598,7 @@ def cmd_hook_uninstall(args):
     removed |= _remove_hook(settings, "Stop", "mengram auto-save")
     removed |= _remove_hook(settings, "UserPromptSubmit", "mengram auto-recall")
     removed |= _remove_hook(settings, "SessionStart", "mengram auto-context")
+    removed |= _remove_hook(settings, "PreToolUse", "mengram auto-policy")
 
     if not removed:
         print("No Mengram hooks found. Nothing to uninstall.")
@@ -1559,6 +1643,7 @@ def cmd_hook_status(args):
     save_cmd = _find_hook("Stop", "mengram auto-save")
     recall_cmd = _find_hook("UserPromptSubmit", "mengram auto-recall")
     context_cmd = _find_hook("SessionStart", "mengram auto-context")
+    policy_cmd = _find_hook("PreToolUse", "mengram auto-policy")
 
     if save_cmd:
         every_n = 3
@@ -1573,6 +1658,7 @@ def cmd_hook_status(args):
 
     print(f"  Auto-recall:    {'installed' if recall_cmd else 'not installed'}")
     print(f"  Session context: {'installed' if context_cmd else 'not installed'}")
+    print(f"  Policy gate:    {'installed' if policy_cmd else 'not installed'}")
 
     # Check API key
     api_key = os.environ.get("MENGRAM_API_KEY", "")
@@ -2048,6 +2134,8 @@ def main():
                                  help="Save every Nth response (default: 3)")
     p_hook_install.add_argument("--user-id", default=None,
                                  help="Mengram user_id (default: 'default')")
+    p_hook_install.add_argument("--no-policy", action="store_true", dest="no_policy",
+                                 help="Skip the PreToolUse policy gate")
     hook_sub.add_parser("uninstall", help="Remove auto-save hook")
     hook_sub.add_parser("status", help="Check hook status")
 
@@ -2071,6 +2159,14 @@ def main():
                                 help="Emit a status marker for each hook invocation")
     p_autocontext.add_argument("--no-weekly", action="store_true",
                                 help="Suppress the once-a-week memory report")
+
+    # auto-policy (internal, called by Claude Code PreToolUse hook on Bash)
+    p_autopolicy = sub.add_parser("auto-policy", help=argparse.SUPPRESS)
+    p_autopolicy.add_argument("--user-id", default=None)
+    p_autopolicy.add_argument("--verbose", action="store_true",
+                               help="Emit a status marker for each hook invocation")
+    p_autopolicy.add_argument("--min-reliable", type=int, default=None, dest="min_reliable",
+                               help="Percent below which a workflow with a record is confirmed (default 70)")
 
     # web
     p_web = sub.add_parser("web", help="Start Web UI (chat + knowledge graph)")
@@ -2135,6 +2231,8 @@ def main():
         cmd_auto_recall(args)
     elif args.command == "auto-context":
         cmd_auto_context(args)
+    elif args.command == "auto-policy":
+        cmd_auto_policy(args)
     elif args.command == "web":
         cmd_web(args)
     elif args.command == "weekly":

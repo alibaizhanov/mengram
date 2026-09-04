@@ -5670,7 +5670,9 @@ REFLECTIONS/PATTERNS:
                     "entity_names": row.get("entity_names") or [],
                     "success_count": s_count,
                     "fail_count": f_count,
+                    "reliability": estimate(s_count, f_count),
                     "version": row.get("version") or 1,
+                    "last_used": last_used.isoformat() if last_used else None,
                     "score": final_score,
                     "updated_at": row["updated_at"].isoformat() if row.get("updated_at") else None,
                     "metadata": row.get("metadata") or {},
@@ -5694,7 +5696,7 @@ REFLECTIONS/PATTERNS:
             query = query.replace("\x00", "")
         sql = """
             SELECT p.id, p.name, p.trigger_condition, p.steps, p.entity_names,
-                   p.success_count, p.fail_count, p.version, p.updated_at, p.metadata,
+                   p.success_count, p.fail_count, p.last_used, p.version, p.updated_at, p.metadata,
                    ts_rank_cd(pe.tsv, plainto_tsquery('english', %s), 32) AS score
             FROM procedure_embeddings pe
             JOIN procedures p ON p.id = pe.procedure_id
@@ -5728,6 +5730,7 @@ REFLECTIONS/PATTERNS:
                     "reliability": estimate(row["success_count"] or 0,
                                             row["fail_count"] or 0),
                     "version": row["version"] or 1,
+                    "last_used": row["last_used"].isoformat() if row.get("last_used") else None,
                     "score": round(float(row["score"]), 4),
                     "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
                     "metadata": row.get("metadata") or {},
