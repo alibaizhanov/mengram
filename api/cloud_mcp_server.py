@@ -49,6 +49,22 @@ DIRECTORY_CONNECTOR_TOOLS = {
 }
 
 
+def _format_activity_feed(feed: list[dict]) -> str:
+    """Format feed items using the fields returned by the feed API."""
+    lines = [f"📰 **Activity Feed** ({len(feed)} items)\n"]
+    for item in feed:
+        fact = item.get("fact", item.get("detail", "?"))
+        entity = item.get("entity", "?")
+        ts = item.get("created_at", "")[:16] if item.get("created_at") else ""
+
+        entry = f"- **{entity}** — {fact}"
+        if ts:
+            entry += f" ({ts})"
+        lines.append(entry)
+
+    return "\n".join(lines)
+
+
 def create_cloud_mcp_server(
     mem: CloudMemory,
     user_id: str = "default",
@@ -1237,21 +1253,7 @@ def create_cloud_mcp_server(
                 if not feed:
                     return [TextContent(type="text", text="No activity yet.")]
 
-                lines = [f"📰 **Activity Feed** ({len(feed)} items)\n"]
-                for item in feed:
-                    action = item.get("action", "?")
-                    entity = item.get("entity", "?")
-                    ts = item.get("created_at", "")[:16] if item.get("created_at") else ""
-                    detail = item.get("detail", "")
-
-                    entry = f"- **{action}** {entity}"
-                    if ts:
-                        entry += f" ({ts})"
-                    lines.append(entry)
-                    if detail:
-                        lines.append(f"  {detail}")
-
-                return [TextContent(type="text", text="\n".join(lines))]
+                return [TextContent(type="text", text=_format_activity_feed(feed))]
 
             elif name == "archive_fact":
                 uid = arguments.get("user_id", user_id)
