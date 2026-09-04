@@ -84,6 +84,17 @@ No manual saves. No tool calls. Claude just knows what you worked on yesterday â
 
 Prefer CLI-managed hooks instead of the plugin? `pip install mengram-ai && mengram setup` does the same via `mengram hook install`.
 
+### No account? Keep the memory in a folder
+
+```bash
+pip install mengram-ai
+mengram local init ./memory --provider anthropic --api-key sk-ant-...   # or openai / ollama
+mengram hook install --memory ./memory                                   # the same four hooks, all local
+mengram server --memory ./memory                                         # MCP for Claude Desktop, Cursor, any client
+```
+
+The folder is the memory: a [memfmt](https://github.com/alibaizhanov/memfmt) tree of Markdown you own â€” git diffs it, Obsidian draws it, `memfmt validate` checks it. Same procedures-with-outcomes as the cloud: versions, success/fail counts per step, the policy gate, and the regression gate that quarantines a fix that would break another workflow. Only extraction and a failure revision need a model, and that one you bring. Nothing expires and nothing asks for a key. [Docs](https://docs.mengram.io/local-mode).
+
 ---
 
 ## Why Mengram?

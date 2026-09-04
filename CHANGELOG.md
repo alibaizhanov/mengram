@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **Local mode — memory in a folder, no account.** `mengram local init|add|
+  search|procedures|feedback|stat|quarantine` on a memfmt tree you own; the
+  four Claude Code hooks and the policy gate run against it with
+  `--memory DIR` (or `MENGRAM_MEMORY_DIR`); `mengram server --memory DIR`
+  serves the connector's four tools plus `procedure_feedback` over stdio.
+  Same procedures-with-outcomes as the cloud: versions, per-step counts,
+  `last_failure`, write-time dedup of near-duplicate names, failure →
+  revision with the violated assumption, and the cross-procedure regression
+  gate (a fix that would break another workflow is quarantined to
+  `.mengram/quarantine.json`). Extraction and revision use the model you
+  configure (Anthropic, OpenAI, Ollama); everything else needs none.
+- `cloud/procedure_match.py`: the pure procedure helpers, shared by the cloud
+  store and the folder store.
+
+### Changed
+- `memfmt>=0.5,<0.6` is now a dependency.
+
 ## 2.32.0 — 2026-09-04
 
 ### Added
