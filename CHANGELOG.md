@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 2.33.0 — 2026-09-04
 
 ### Added
 - **Local mode — memory in a folder, no account.** `mengram local init|add|
