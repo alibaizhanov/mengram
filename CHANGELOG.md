@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- `mengram auto-policy` — a Claude Code PreToolUse hook (installed by
+  `mengram hook install`, matcher `Bash`). A command that matches a learned
+  workflow with a weak record (`untested`, inherited `N% expected`, or below
+  `MENGRAM_POLICY_MIN_RELIABLE`, default 70) is answered with `ask`: the user
+  sees why, Claude gets the steps on record. Proven workflows stay silent; the
+  hook never denies. Offline mode via `MENGRAM_MEMORY_DIR` (memfmt folder).
+- `/v1/procedures/search` results now carry `reliability` and `last_used`
+  for both vector and text search (previously only text search had
+  `reliability`; neither had `last_used`).
+
 ## 2.31.0 — 2026-09-04
 
 ### Fixed

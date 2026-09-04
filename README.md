@@ -77,6 +77,7 @@ What happens:
 Session Start  →  Loads your cognitive profile (fires after /clear, compaction, and restarts)
 Every Prompt   →  Searches past sessions for relevant context (auto-recall)
 After Response →  Saves new knowledge in background (auto-save)
+Before a Bash  →  If the command matches a learned workflow with a weak record, asks you first (policy gate, CLI hooks)
 ```
 
 No manual saves. No tool calls. Claude just knows what you worked on yesterday — even after compaction ate the transcript.
@@ -317,7 +318,9 @@ mengram import files notes/*.md --cloud                          # Any text/mark
 mengram hook install
 ```
 
-3 hooks: profile on start, recall on every prompt, save after responses. Zero manual effort.
+4 hooks: profile on start, recall on every prompt, save after responses, and a policy gate before workflow-shaped Bash commands.
+
+**Policy gate.** Outcome history changes what the agent may do, not only how results rank. When a `git push`, `deploy`, `migrate`, `kubectl`, `rm -rf` … matches a learned workflow that is `untested`, inherits its record from an earlier version (`61% expected`), or sits below the bar (`58% reliable`, default 70), the hook answers `ask`: you see why, Claude gets the steps on record, nothing runs on the agent's say-so. A proven workflow stays silent. Works against the cloud, or fully offline against a [memfmt](https://github.com/alibaizhanov/memfmt) folder with `MENGRAM_MEMORY_DIR=./memory`. Only workflow-shaped commands trigger a lookup (one search each); `ls` and `cat` never do. Tune with `MENGRAM_POLICY_MIN_RELIABLE=80`, `MENGRAM_POLICY_PATTERN='\bmake\b'`; skip with `mengram hook install --no-policy`. The memory can ask; it never denies.
 
 [Docs](https://mengram.io/docs/claude-code)
 
