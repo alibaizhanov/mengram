@@ -1792,6 +1792,7 @@ m.add("I love hiking in the mountains")</code></pre>
             "- [Does Claude Code remember between sessions?](https://mengram.io/blog/does-claude-code-remember-between-sessions)\n"
             "- [Long-term memory for Claude/ChatGPT via MCP](https://mengram.io/blog/give-claude-chatgpt-long-term-memory-mcp)\n"
             "- [Procedural memory in AI](https://mengram.io/blog/procedural-memory-ai-agents)\n"
+            "- [Agent memory with regression tests: execution policy from outcome history](https://mengram.io/blog/agent-memory-regression-tests)\n"
             "- [Pricing](https://mengram.io/pricing): free tier, paid from $5/mo\n"
         )
 
@@ -1988,6 +1989,7 @@ m.add("I love hiking in the mountains")</code></pre>
             # Blog — high SEO value
             ("https://mengram.io/blog", "0.8", "weekly"),
             ("https://mengram.io/blog/claude-code-compaction-context-loss", "0.9", "weekly"),
+            ("https://mengram.io/blog/agent-memory-regression-tests", "0.9", "weekly"),
             ("https://mengram.io/blog/schema-lied-production-cascade", "0.8", "monthly"),
             ("https://mengram.io/blog/rrf-scores-not-similarities", "0.8", "monthly"),
             ("https://mengram.io/blog/does-claude-code-remember-between-sessions", "0.9", "weekly"),
@@ -2631,6 +2633,59 @@ m.search("how should I contact this customer?", user_id="customer-4812")
 <pre><code>m.procedures(query="deploy backend", user_id="user-123")
 # -> deploy-to-railway (v3, 11 successes) — verify first: alembic current == head</code></pre>
 <p>Related: <a href="/blog/semantic-episodic-procedural-memory">the three memory types explained</a> · <a href="/for-agents">memory API for agent builders</a></p>
+""",
+        },
+        "agent-memory-regression-tests": {
+            "slug": "agent-memory-regression-tests",
+            "title": "Agent Memory With Regression Tests: An Execution Policy From Outcome History",
+            "date": "September 4, 2026",
+            "date_iso": "2026-09-04",
+            "read_time": "7",
+            "tags": ['Guide', 'Agents'],
+            "excerpt": "Every agent-memory tool stores the steps of a workflow. Almost none store whether the steps worked — and none let that record change what the agent is allowed to run. Here is what it takes: a trust label per version, a policy gate that asks before a weak workflow runs, and a regression gate that catches one revision silently breaking another.",
+            "seo_title": "Agent Memory With Regression Tests — Execution Policy From Outcome History",
+            "seo_description": "How to turn an agent's workflow memory into an execution policy: success/failure counts per version, a Claude Code hook that asks before running an untested workflow, and a regression gate with a public benchmark (0% silent regressions vs 100% for latest-wins).",
+            "seo_keywords": "agent memory regression tests, execution policy ai agent, procedural memory outcome tracking, agent workflow reliability, claude code pretooluse hook, memfmt, cross-procedure interference",
+            "content_html": """
+<h2>The steps are stored. Whether they worked is not.</h2>
+<p>Look inside any agent-memory tool and you will find the workflow the agent learned: push to main, watch the boot log, verify <code>/health</code>. What you will almost never find is whether that workflow has ever succeeded, how many times, and what broke the last time it did not. The steps are a description. Without an outcome next to them they are a guess somebody wrote down, and an agent reading a guess with confidence is worse than an agent with no memory at all.</p>
+<p>This post is about the three pieces that turn a stored workflow into evidence an agent can act on: a <strong>trust label</strong> per version, a <strong>policy gate</strong> that changes what the agent may run, and a <strong>regression gate</strong> that catches one revision silently breaking another. All three ship in <a href="https://mengram.io">Mengram</a> today; the file format underneath is <a href="https://github.com/alibaizhanov/memfmt">open</a>.</p>
+
+<h2>1. A trust label, not a ratio</h2>
+<p>Every version of a procedure carries <code>success_count</code> and <code>fail_count</code>. The obvious thing to show an agent is the ratio, and the obvious thing is wrong twice. One success reads as 100%. And a fresh revision, written precisely because the previous version failed, opens at 0/0 and reads <em>worse</em> than the version it replaced — so an agent comparing the two keeps choosing the one that already broke.</p>
+<p>Progressive delivery and CI hit this years ago and answered it the same way: smooth against a prior instead of comparing raw counts. So the label an agent reads is one of three words:</p>
+<ul>
+<li><code>untested</code> — no runs, no lineage. Nothing to go on, and inventing a number would be worse than saying so.</li>
+<li><code>61% expected</code> — no runs of its own; this is what the previous version's record suggests, discounted by half.</li>
+<li><code>86% reliable</code> — its own record, smoothed so <code>11✓/1✗</code> does not read as 92%.</li>
+</ul>
+<p>The raw counts stay in the record unsmoothed. The word is derived, the record is data. Since memfmt 0.5 the record also carries <code>last_failure</code>: one line of <em>why</em> it last went wrong. The counts say how often; that line says what to look at first.</p>
+
+<h2>2. Outcome history should change what the agent may do</h2>
+<p>Ranking a weak workflow lower in retrieval is not the same as stopping the agent from running it. A comment in a thread on this put it exactly: a workflow with weak or stale evidence should drop from auto-run to "show me the plan first", not merely rank lower.</p>
+<p>So the label is wired into a <a href="https://docs.mengram.io/claude-code">Claude Code <code>PreToolUse</code> hook</a>. When Claude is about to run a workflow-shaped command — <code>git push</code>, <code>deploy</code>, <code>migrate</code>, <code>kubectl</code>, <code>rm -rf</code> — the hook finds the learned procedure it matches and reads the record:</p>
+<pre><code>88% reliable   → silent; the command runs as it would have
+untested       → ask: you see why, Claude gets the steps on record
+61% expected   → ask: this version has never run on its own
+58% reliable   → ask: below the bar (default 70%)</code></pre>
+<p>Two design rules. The gate <strong>never denies</strong>: memory can ask, it does not get to forbid, because the same 61% should mean "plan first" in a deploy harness and "just run it" in a scratch notebook, and only the runtime knows which one it is in. And a matched procedure must share at least one real word with the command before it can interrupt anyone — semantic search returns <em>something</em> for almost any query, and a vector near-miss must not cost a human a click.</p>
+<pre><code>pip install -U mengram-ai &amp;&amp; mengram hook install     # the gate is hook #4
+MENGRAM_POLICY_MIN_RELIABLE=80                        # raise the bar
+MENGRAM_MEMORY_DIR=./memory                           # offline, against a memfmt folder</code></pre>
+
+<h2>3. Regression tests for memory</h2>
+<p>Revising a workflow is where memory systems quietly corrupt themselves. Revising procedure A to add "run migrations before push" is correct for A — and silently invalidates procedure B, which shares the database and never runs migrations. Every procedural-memory paper of 2025–26 evaluates learned skills in isolation; the AFTER authors list cross-skill interference as an open problem. Nobody was measuring it, so we wrote the benchmark.</p>
+<p><a href="https://github.com/alibaizhanov/mengram/tree/main/benchmark/procinterfere">ProcInterfere</a>: 20 paired cases across 12 domains (Postgres, S3, Stripe, GitHub, Terraform, Redis, Kafka, SQS, Cloudflare, OpenAI, LaunchDarkly, Railway). The metric is the silent-regression rate — the share of revisions that break a dependent procedure and get promoted anyway.</p>
+<pre><code>system          silent-regression   false-quarantine
+latest-wins                 100%                0%
+append-only                 100%                0%
+mengram-gate                  0%                0%</code></pre>
+<p>The gate is deterministic code, no model call on the hot path: before a revision becomes current it checks whether the revision adds a constraint a dependent procedure does not satisfy, and quarantines it as <code>needs_review</code> instead of shipping it to the agent. <code>python run.py</code>, no account, no key.</p>
+
+<h2>What this does not do yet</h2>
+<p>Staleness. A workflow that worked reliably three months ago can start failing once the API under it changes, and "unverified in 90 days" should be its own signal. The honest blocker: the timestamp most memory systems keep is touched by retrieval, not only by runs, so deriving "last verified" from it would be a lie. It needs its own field, written only when an outcome is recorded — <code>last_failed</code> exists as of memfmt 0.5; <code>last_succeeded</code> is next.</p>
+<p>And prior art is real. Failure-driven revision of stored procedures is in Memp, MACLA and PRAXIS; the smoothed trust label is a canary confidence record with a different name. What was missing was the last mile: the label changing what the agent is allowed to do, and a test that catches a revision breaking its neighbours.</p>
+<p>Related: <a href="/blog/procedural-memory-ai-agents">procedural memory for AI agents</a> · <a href="https://docs.mengram.io/claude-code">Claude Code integration</a> · <a href="https://github.com/alibaizhanov/memfmt">memfmt, the open format</a></p>
 """,
         },
         "persist-context-claude-code": {
