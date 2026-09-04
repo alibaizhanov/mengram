@@ -196,6 +196,16 @@ cd "{home_dir}"
 
 def cmd_server(args):
     """Start MCP server"""
+    local_dir = _local_dir(args)
+    if local_dir:
+        # Local mode — the folder is the memory; no key, no network.
+        if not local_dir.is_dir():
+            print(f"❌ No memory folder at {local_dir} — run: mengram local init {local_dir}", file=sys.stderr)
+            sys.exit(1)
+        import asyncio
+        from api.local_mcp_server import main as local_mcp_main
+        asyncio.run(local_mcp_main(local_dir))
+        return
     if getattr(args, 'cloud', False):
         # Cloud mode — connect to cloud API. Credentials resolve env-first,
         # then ~/.mengram/config.json — same order as hooks (issue #41 class:
@@ -376,13 +386,49 @@ def _is_quota_error(e: Exception) -> bool:
     return type(e).__name__ == "QuotaExceededError"
 
 
+def _local_dir(args):
+    """The memory folder when local mode is on (--memory or MENGRAM_MEMORY_DIR)."""
+    from local.config import memory_dir
+    return memory_dir(getattr(args, "memory", None))
+
+
+def _local_store(local_dir):
+    from local.store import LocalStore
+    return LocalStore(local_dir)
+
+
+def _local_auto_recall(args, EVENT, HOOK, local_dir, prompt):
+    context = _local_store(local_dir).recall(prompt, limit=3)
+    if not context:
+        _emit_hook_exit(EVENT, args, HOOK, "no memories found (local)")
+    _emit_hook_exit(EVENT, args, HOOK, "found memories (local)", context=context)
+
+
+def _local_auto_context(args, EVENT, HOOK, local_dir):
+    profile = _local_store(local_dir).profile()
+    if not profile:
+        _emit_hook_exit(EVENT, args, HOOK, "empty folder (local)")
+    context = f"[Mengram Memory — context loaded from {local_dir}]\n{profile}"
+    _emit_hook_exit(EVENT, args, HOOK, f"context loaded ({len(profile)} chars, local)", context=context)
+
+
+def _local_auto_save(args, EVENT, HOOK, local_dir, messages):
+    from local.config import llm_client
+    client = llm_client(local_dir)
+    if client is None:
+        _emit_hook_exit(EVENT, args, HOOK, "no model configured (local) — nothing saved")
+    _local_store(local_dir).add(messages, client)
+    _emit_hook_exit(EVENT, args, HOOK, "saved (local)")
+
+
 def cmd_auto_recall(args):
     """Hook handler — called by Claude Code on UserPromptSubmit. Searches Mengram for relevant context."""
     HOOK = "auto-recall"
     EVENT = "UserPromptSubmit"
     try:
-        api_key = _load_cloud_api_key()
-        if not api_key:
+        local_dir = _local_dir(args)
+        api_key = None if local_dir else _load_cloud_api_key()
+        if not local_dir and not api_key:
             _emit_hook_exit(EVENT, args, HOOK, "no API key")
 
         # Read hook input from stdin
@@ -400,6 +446,9 @@ def cmd_auto_recall(args):
         prompt_lower = prompt.strip().lower()
         if any(prompt_lower == p or prompt_lower.startswith(p + " ") for p in skip_prefixes):
             _emit_hook_exit(EVENT, args, HOOK, "skipped (short/command prompt)")
+
+        if local_dir:
+            _local_auto_recall(args, EVENT, HOOK, local_dir, prompt)
 
         from cloud.client import CloudMemory
         base_url = _load_cloud_base_url()
@@ -501,6 +550,9 @@ def cmd_auto_context(args):
     HOOK = "auto-context"
     EVENT = "SessionStart"
     try:
+        local_dir = _local_dir(args)
+        if local_dir:
+            _local_auto_context(args, EVENT, HOOK, local_dir)
         api_key = _load_cloud_api_key()
         if not api_key:
             _emit_hook_exit(EVENT, args, HOOK, "no API key")
@@ -541,8 +593,9 @@ def cmd_auto_save(args):
     HOOK = "auto-save"
     EVENT = "Stop"
     try:
-        api_key = _load_cloud_api_key()
-        if not api_key:
+        local_dir = _local_dir(args)
+        api_key = None if local_dir else _load_cloud_api_key()
+        if not local_dir and not api_key:
             _emit_hook_exit(EVENT, args, HOOK, "no API key")
 
         # Read hook input from stdin
@@ -623,6 +676,9 @@ def cmd_auto_save(args):
             messages.append({"role": "user", "content": user_message})
         messages.append({"role": "assistant", "content": last_msg})
 
+        if local_dir:
+            _local_auto_save(args, EVENT, HOOK, local_dir, messages)
+
         # Send to Mengram API
         from cloud.client import CloudMemory
         base_url = _load_cloud_base_url()
@@ -692,9 +748,9 @@ def cmd_auto_policy(args):
                 min_reliable = policy.DEFAULT_MIN_RELIABLE
 
         # Local memfmt folder first: no account, no network, no quota.
-        local_root = os.environ.get("MENGRAM_MEMORY_DIR", "").strip()
+        local_root = _local_dir(args)
         if local_root:
-            procs = policy.memfmt_procedures(local_root)
+            procs = policy.memfmt_procedures(str(local_root))
         else:
             api_key = _load_cloud_api_key()
             if not api_key:
@@ -1499,12 +1555,17 @@ def cmd_setup(args):
 
 
 def cmd_hook_install(args):
-    """Install Claude Code memory hooks (auto-save + auto-recall + session context)"""
+    """Install Claude Code memory hooks (auto-save + auto-recall + session context + policy gate)"""
+    local_dir = _local_dir(args)
     api_key = os.environ.get("MENGRAM_API_KEY", "")
-    if not api_key:
+    if not local_dir and not api_key:
         print("Set MENGRAM_API_KEY environment variable first", file=sys.stderr)
         print("Run 'mengram setup' to create an account and configure automatically", file=sys.stderr)
         print("Or get a key at: https://mengram.io/#signup", file=sys.stderr)
+        print("No account? Use a folder instead: mengram hook install --memory ./memory", file=sys.stderr)
+        sys.exit(1)
+    if local_dir and not local_dir.is_dir():
+        print(f"no memory folder at {local_dir} — run: mengram local init {local_dir}", file=sys.stderr)
         sys.exit(1)
 
     every = getattr(args, "every", 3) or 3
@@ -1520,6 +1581,14 @@ def cmd_hook_install(args):
         recall_cmd += f" --user-id {user_id}"
         context_cmd += f" --user-id {user_id}"
         policy_cmd += f" --user-id {user_id}"
+    if local_dir:
+        # Hooks run without the user's shell profile, so the folder travels
+        # in the command rather than in an env var that may not be there.
+        mem_arg = f' --memory "{local_dir.resolve()}"'
+        save_cmd += mem_arg
+        recall_cmd += mem_arg
+        context_cmd += mem_arg
+        policy_cmd += mem_arg
 
     # Read existing settings
     settings_path = get_claude_code_settings_path()
@@ -1568,7 +1637,7 @@ def cmd_hook_install(args):
     with open(settings_path, "w") as f:
         json.dump(settings, f, indent=2)
 
-    print("Mengram hooks installed:")
+    print("Mengram hooks installed" + (f" (local mode: {local_dir.resolve()})" if local_dir else "") + ":")
     print(f"  Auto-save:    every {every} response(s) (background)")
     print(f"  Auto-recall:  search memory on each prompt")
     print(f"  Session context: load profile on session start")
@@ -2059,6 +2128,7 @@ def main():
     p_server = sub.add_parser("server", help="Start MCP server")
     p_server.add_argument("--config", help="Config path (default: ~/.mengram/config.yaml)")
     p_server.add_argument("--cloud", action="store_true", help="Use cloud API instead of local vault")
+    p_server.add_argument("--memory", default=None, help="Local mode: serve a memory folder (no account)")
 
     # status
     sub.add_parser("status", help="Check setup status")
@@ -2136,6 +2206,8 @@ def main():
                                  help="Mengram user_id (default: 'default')")
     p_hook_install.add_argument("--no-policy", action="store_true", dest="no_policy",
                                  help="Skip the PreToolUse policy gate")
+    p_hook_install.add_argument("--memory", default=None,
+                                 help="Local mode: memory folder (no account needed)")
     hook_sub.add_parser("uninstall", help="Remove auto-save hook")
     hook_sub.add_parser("status", help="Check hook status")
 
@@ -2143,18 +2215,21 @@ def main():
     p_autosave = sub.add_parser("auto-save", help=argparse.SUPPRESS)
     p_autosave.add_argument("--every", type=int, default=3)
     p_autosave.add_argument("--user-id", default=None)
+    p_autosave.add_argument("--memory", default=None)
     p_autosave.add_argument("--verbose", action="store_true",
                              help="Emit a status marker for each hook invocation")
 
     # auto-recall (internal, called by Claude Code UserPromptSubmit hook)
     p_autorecall = sub.add_parser("auto-recall", help=argparse.SUPPRESS)
     p_autorecall.add_argument("--user-id", default=None)
+    p_autorecall.add_argument("--memory", default=None)
     p_autorecall.add_argument("--verbose", action="store_true",
                                help="Emit a status marker for each hook invocation")
 
     # auto-context (internal, called by Claude Code SessionStart hook)
     p_autocontext = sub.add_parser("auto-context", help=argparse.SUPPRESS)
     p_autocontext.add_argument("--user-id", default=None)
+    p_autocontext.add_argument("--memory", default=None)
     p_autocontext.add_argument("--verbose", action="store_true",
                                 help="Emit a status marker for each hook invocation")
     p_autocontext.add_argument("--no-weekly", action="store_true",
@@ -2163,10 +2238,15 @@ def main():
     # auto-policy (internal, called by Claude Code PreToolUse hook on Bash)
     p_autopolicy = sub.add_parser("auto-policy", help=argparse.SUPPRESS)
     p_autopolicy.add_argument("--user-id", default=None)
+    p_autopolicy.add_argument("--memory", default=None)
     p_autopolicy.add_argument("--verbose", action="store_true",
                                help="Emit a status marker for each hook invocation")
     p_autopolicy.add_argument("--min-reliable", type=int, default=None, dest="min_reliable",
                                help="Percent below which a workflow with a record is confirmed (default 70)")
+
+    # local — memory in a folder, no account
+    from local.cli import add_parser as _add_local_parser
+    _add_local_parser(sub)
 
     # web
     p_web = sub.add_parser("web", help="Start Web UI (chat + knowledge graph)")
@@ -2233,6 +2313,9 @@ def main():
         cmd_auto_context(args)
     elif args.command == "auto-policy":
         cmd_auto_policy(args)
+    elif args.command == "local":
+        from local.cli import run as _run_local
+        sys.exit(_run_local(args))
     elif args.command == "web":
         cmd_web(args)
     elif args.command == "weekly":
