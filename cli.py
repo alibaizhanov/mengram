@@ -196,6 +196,16 @@ cd "{home_dir}"
 
 def cmd_server(args):
     """Start MCP server"""
+    local_dir = _local_dir(args)
+    if local_dir:
+        # Local mode — the folder is the memory; no key, no network.
+        if not local_dir.is_dir():
+            print(f"❌ No memory folder at {local_dir} — run: mengram local init {local_dir}", file=sys.stderr)
+            sys.exit(1)
+        import asyncio
+        from api.local_mcp_server import main as local_mcp_main
+        asyncio.run(local_mcp_main(local_dir))
+        return
     if getattr(args, 'cloud', False):
         # Cloud mode — connect to cloud API. Credentials resolve env-first,
         # then ~/.mengram/config.json — same order as hooks (issue #41 class:
@@ -2118,6 +2128,7 @@ def main():
     p_server = sub.add_parser("server", help="Start MCP server")
     p_server.add_argument("--config", help="Config path (default: ~/.mengram/config.yaml)")
     p_server.add_argument("--cloud", action="store_true", help="Use cloud API instead of local vault")
+    p_server.add_argument("--memory", default=None, help="Local mode: serve a memory folder (no account)")
 
     # status
     sub.add_parser("status", help="Check setup status")
