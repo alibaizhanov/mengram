@@ -9,6 +9,12 @@
   `MENGRAM_POLICY_MIN_RELIABLE`, default 70) is answered with `ask`: the user
   sees why, Claude gets the steps on record. Proven workflows stay silent; the
   hook never denies. Offline mode via `MENGRAM_MEMORY_DIR` (memfmt folder).
+- Extraction no longer mints a near-duplicate procedure. A freshly extracted
+  workflow is compared (normalised name tokens + step tokens) against the
+  user's current procedures: if it is the same workflow under a slightly
+  different name and the existing one has never been run, the existing one
+  is refreshed in place; if the existing one has a record, it is kept
+  untouched. One user had reached 450 current procedures this way.
 - `/v1/procedures/search` results now carry `reliability` and `last_used`
   for both vector and text search (previously only text search had
   `reliability`; neither had `last_used`).

@@ -7375,7 +7375,9 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                         _policy_dropped += 1
                         continue
                 try:
-                    proc_id = store.save_procedure(
+                    # A near-duplicate of a proven procedure is kept as it is:
+                    # its vector stays too, so nothing below re-embeds it.
+                    proc_id, proc_action = store.save_extracted_procedure(
                         user_id=user_id,
                         name=pr.name,
                         trigger_condition=pr.trigger,
@@ -7385,6 +7387,8 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                         expires_at=expiration_date,
                         sub_user_id=sub_uid,
                     )
+                    if proc_action == "kept":
+                        continue
                     if embedder:
                         steps_summary = "; ".join(
                             (s.get("action", "") if isinstance(s, dict) else str(s)) for s in pr.steps[:10]
