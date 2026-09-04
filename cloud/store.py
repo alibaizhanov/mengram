@@ -15,6 +15,7 @@ import hashlib
 import json
 import logging
 import math
+import re
 import secrets
 import sys
 import threading
@@ -66,6 +67,58 @@ def _normalize_step(s) -> str:
     if isinstance(s, dict):
         return s.get("action", "") or s.get("step", "") or s.get("description", "") or str(s)
     return str(s)
+
+_PROC_NAME_STOPWORDS = {
+    "the", "a", "an", "to", "for", "of", "in", "on", "at", "by", "with", "and",
+    "or", "via", "using", "use", "how", "into", "from", "up", "your", "my",
+    "our", "new", "process", "procedure", "workflow", "steps", "step", "routine",
+}
+
+
+def _proc_stem(word: str) -> str:
+    """Crude suffix stripping so 'deploying', 'deployed' and 'deploys' agree.
+
+    Not a stemmer. It only has to make the same workflow, named three ways by
+    three extraction runs, land on the same tokens; it does not have to be
+    right about English."""
+    for suffix in ("ing", "ed", "es", "s"):
+        if word.endswith(suffix) and len(word) - len(suffix) >= 3 and not word.endswith("ss"):
+            return word[: -len(suffix)]
+    return word
+
+
+def _proc_name_tokens(text: str) -> set:
+    words = re.findall(r"[a-z0-9]+", (text or "").lower())
+    return {_proc_stem(w) for w in words if w not in _PROC_NAME_STOPWORDS and len(w) > 1}
+
+
+def _proc_step_tokens(steps: list) -> set:
+    out = set()
+    for s in steps or []:
+        out |= _proc_name_tokens(_normalize_step(s))
+    return out
+
+
+def _jaccard(a: set, b: set) -> float:
+    if not a or not b:
+        return 0.0
+    return len(a & b) / len(a | b)
+
+
+def procedure_similarity(name_a: str, steps_a: list, name_b: str, steps_b: list) -> tuple:
+    """(name overlap, step overlap), each 0..1. Pure; used by the write-time dedup."""
+    return (_jaccard(_proc_name_tokens(name_a), _proc_name_tokens(name_b)),
+            _jaccard(_proc_step_tokens(steps_a), _proc_step_tokens(steps_b)))
+
+
+def is_near_duplicate_procedure(name_sim: float, step_sim: float) -> bool:
+    """Same workflow under a slightly different name.
+
+    A near-identical name is enough on its own ("Deploy to Railway" vs
+    "Deploying to Railway"). A merely similar name needs the steps to agree
+    too, so "Deploy backend" and "Deploy docs" stay apart."""
+    return name_sim >= 0.8 or (name_sim >= 0.5 and step_sim >= 0.5)
+
 
 
 def _safe_parse_json(raw: str, fallback=None):
@@ -5483,6 +5536,91 @@ REFLECTIONS/PATTERNS:
                     raise
         logger.info(f"⚙️ Procedure saved: {name} v{version}")
         return proc_id
+
+    def find_near_duplicate_procedure(self, user_id: str, name: str, steps: list,
+                                      sub_user_id: str = "default") -> dict | None:
+        """The current procedure this extraction is really about, if one exists.
+
+        Extraction names the same workflow a little differently every run, and
+        the unique constraint only catches an exact (case-insensitive) match,
+        so one user ends up with "Deploy to Railway", "Deploying to Railway"
+        and "Railway deploy" as three procedures competing in every search.
+        This compares normalised name tokens and step tokens against the
+        user's current procedures and returns the best near-duplicate."""
+        with self._cursor(dict_cursor=True) as cur:
+            cur.execute(
+                """SELECT id, name, steps, success_count, fail_count
+                   FROM procedures
+                   WHERE user_id = %s AND sub_user_id = %s AND is_current = TRUE
+                     AND (expires_at IS NULL OR expires_at > NOW())
+                   ORDER BY updated_at DESC
+                   LIMIT 2000""",
+                (user_id, sub_user_id)
+            )
+            rows = cur.fetchall()
+        best, best_score = None, 0.0
+        for row in rows:
+            if (row["name"] or "").strip().lower() == (name or "").strip().lower():
+                continue    # exact match is the unique constraint's job, not ours
+            name_sim, step_sim = procedure_similarity(name, steps, row["name"], row["steps"] or [])
+            if is_near_duplicate_procedure(name_sim, step_sim) and name_sim + step_sim > best_score:
+                best, best_score = row, name_sim + step_sim
+        if best is None:
+            return None
+        return {
+            "id": str(best["id"]),
+            "name": best["name"],
+            "steps": best["steps"] or [],
+            "success_count": best["success_count"] or 0,
+            "fail_count": best["fail_count"] or 0,
+        }
+
+    def save_extracted_procedure(self, user_id: str, name: str, trigger_condition: str = None,
+                                 steps: list = None, entity_names: list = None,
+                                 metadata: dict = None, expires_at: str = None,
+                                 sub_user_id: str = "default") -> tuple:
+        """Save a freshly extracted v1 procedure without minting a near-duplicate.
+
+        Returns (procedure_id, action) where action is one of:
+          "created"   — no near-duplicate; saved as usual (exact-name conflicts
+                        still take the ON CONFLICT path inside save_procedure).
+          "refreshed" — a near-duplicate exists but has never been run; its
+                        steps, trigger and entities are updated in place under
+                        its existing name. Nothing was ever learned about it,
+                        so the newer extraction is the better description.
+          "kept"      — a near-duplicate exists and has a record. It is left
+                        exactly as it is: an extraction is a description, not
+                        a run, and must not overwrite evidence.
+        """
+        dup = self.find_near_duplicate_procedure(user_id, name, steps or [], sub_user_id=sub_user_id)
+        if dup is None:
+            proc_id = self.save_procedure(
+                user_id=user_id, name=name, trigger_condition=trigger_condition,
+                steps=steps, entity_names=entity_names, metadata=metadata,
+                expires_at=expires_at, sub_user_id=sub_user_id,
+            )
+            return proc_id, "created"
+
+        if dup["success_count"] + dup["fail_count"] > 0:
+            logger.info(f"⚙️ Procedure kept: '{name}' is '{dup['name']}' "
+                        f"({dup['success_count']}✓/{dup['fail_count']}✗) — not overwritten")
+            return dup["id"], "kept"
+
+        with self._cursor() as cur:
+            cur.execute(
+                """UPDATE procedures
+                   SET steps = %s::jsonb,
+                       trigger_condition = COALESCE(%s, trigger_condition),
+                       entity_names = CASE WHEN %s::text[] IS NULL OR cardinality(%s::text[]) = 0
+                                           THEN entity_names ELSE %s::text[] END,
+                       updated_at = NOW()
+                   WHERE id = %s AND user_id = %s AND sub_user_id = %s""",
+                (json.dumps(steps or []), trigger_condition,
+                 entity_names, entity_names, entity_names,
+                 dup["id"], user_id, sub_user_id)
+            )
+        logger.info(f"⚙️ Procedure refreshed: '{name}' → '{dup['name']}' (untested, updated in place)")
+        return dup["id"], "refreshed"
 
     def save_procedure_embedding(self, procedure_id: str, chunk_text: str, embedding: list[float]):
         """Save embedding for a procedure. Routes by vector size."""
