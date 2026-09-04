@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 2.32.0 — 2026-09-04
 
 ### Added
 - `mengram auto-policy` — a Claude Code PreToolUse hook (installed by
