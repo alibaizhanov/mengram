@@ -164,6 +164,9 @@ def _plan(proc: dict, label: str) -> str:
     pre = (proc.get("metadata") or {}).get("preconditions") or proc.get("preconditions")
     if pre:
         lines.append("Preconditions: " + "; ".join(str(p) for p in (pre if isinstance(pre, list) else [pre])))
+    if proc.get("last_failure"):
+        when = f"{proc['last_failed']}: " if proc.get("last_failed") else ""
+        lines.append(f"Last failure: {when}{proc['last_failure']}")
     lines.append("The evidence for this workflow is weak, so the user was asked to confirm. "
                  "If they decline, show them the plan and what you would verify first.")
     return "\n".join(lines)
@@ -206,9 +209,11 @@ def memfmt_procedures(root: str) -> list[dict]:
     """
     try:
         import memfmt  # type: ignore
-    except ImportError:
+        memory = memfmt.load(root)
+    except Exception:
+        # Not installed, a namespace package shadowing it, or a folder that
+        # is not a memory: local mode is off, and the hook stays silent.
         return []
-    memory = memfmt.load(root)
     out = []
     for p in memory.procedures:
         out.append({
@@ -218,6 +223,9 @@ def memfmt_procedures(root: str) -> list[dict]:
             "fail_count": p.fail_count,
             "trigger_condition": p.trigger,
             "preconditions": list(p.preconditions or []),
+            # memfmt 0.5 fields; absent on an older library, and then absent here.
+            "last_failure": getattr(p, "last_failure", None),
+            "last_failed": getattr(p, "last_failed", None),
             "steps": [
                 {"action": s.action, "detail": s.detail,
                  "success_count": s.success_count, "fail_count": s.fail_count}

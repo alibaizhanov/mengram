@@ -190,6 +190,21 @@ def episode_file(episode: dict) -> str:
 from cloud.reliability import estimate as _reliability_estimate, prior_from_lineage as _prior
 
 
+def _last_failure(evolution: list = None) -> tuple:
+    """(why, when) of the most recent failure that changed this procedure.
+
+    A failure revision records the assumption that turned out false; that is
+    the one line an agent should read before running the workflow again. The
+    counts say how often it fails, this says what to look at first. Nothing is
+    invented: a revision without a recorded assumption contributes nothing.
+    """
+    for entry in reversed(evolution or []):
+        why = " ".join(str((entry.get("diff") or {}).get("violated_assumption") or "").split())
+        if why:
+            return why, _day(entry.get("created_at")) or None
+    return None, None
+
+
 def procedure_file(procedure: dict, evolution: list = None) -> str:
     """The differentiator, and the reason the export is worth having: a workflow
     with its track record and the failures that changed it."""
@@ -197,6 +212,7 @@ def procedure_file(procedure: dict, evolution: list = None) -> str:
     success = int(procedure.get("success_count") or 0)
     fail = int(procedure.get("fail_count") or 0)
     version = procedure.get("version") or 1
+    last_failure, last_failed = _last_failure(evolution)
 
     body = [
         frontmatter({
@@ -205,6 +221,8 @@ def procedure_file(procedure: dict, evolution: list = None) -> str:
             "version": version,
             "success_count": success,
             "fail_count": fail,
+            "last_failure": last_failure,
+            "last_failed": last_failed,
         }),
         "",
         f"# {name} (v{version} · {_reliability_estimate(success, fail, _prior(evolution))})",
@@ -216,6 +234,12 @@ def procedure_file(procedure: dict, evolution: list = None) -> str:
     preconditions = [p for p in ((procedure.get("metadata") or {}).get("preconditions") or []) if p]
     if preconditions:
         body += ["", "**Preconditions**", ""] + [f"- {p}" for p in preconditions]
+
+    # Rendered from the frontmatter for the reader, as memfmt 0.5 does; the
+    # parser on the other side never reads this line.
+    if last_failure:
+        when = f"{last_failed}: " if last_failed else ""
+        body += ["", f"**Last failure** — {when}{last_failure}"]
 
     steps = procedure.get("steps") or []
     if steps:

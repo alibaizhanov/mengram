@@ -127,6 +127,26 @@ class TestProcedures:
         out = procedure_file({"name": "P", "metadata": {"preconditions": ["run migrations"]}})
         assert "**Preconditions**" in out and "- run migrations" in out
 
+    def test_last_failure_comes_from_the_latest_failure_revision(self):
+        """The counts say how often; the violated assumption says what to look
+        at first. It goes in the frontmatter (memfmt 0.5) and is rendered once."""
+        out = procedure_file({"name": "P", "version": 3, "fail_count": 2}, evolution=[
+            {"version_before": 1, "version_after": 2, "created_at": "2026-06-02T10:00:00",
+             "diff": {"reason": "old", "violated_assumption": "the token was still valid"}},
+            {"version_before": 2, "version_after": 3, "created_at": "2026-08-27T09:30:00",
+             "diff": {"reason": "new", "violated_assumption": "the migration had been applied"}},
+        ])
+        assert "last_failure: the migration had been applied" in out
+        assert "last_failed: 2026-08-27" in out
+        assert "**Last failure** — 2026-08-27: the migration had been applied" in out
+        assert "the token was still valid" not in out.split("---")[1]
+
+    def test_a_revision_without_an_assumption_contributes_no_failure(self):
+        out = procedure_file({"name": "P", "version": 2, "fail_count": 1}, evolution=[
+            {"version_before": 1, "version_after": 2, "created_at": "2026-06-02",
+             "diff": {"reason": "tightened a check"}}])
+        assert "last_failure" not in out and "Last failure" not in out
+
 
 class TestEpisodes:
     def test_filename_leads_with_the_date(self):

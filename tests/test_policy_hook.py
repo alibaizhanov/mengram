@@ -107,6 +107,12 @@ def test_reliability_is_taken_from_the_record_when_present():
     assert policy.reliability_of({"success_count": 0, "fail_count": 0}) == "untested"
 
 
+def test_plan_carries_the_last_failure_when_known():
+    proc = _with((2, 3), last_failure="the pool was cold", last_failed="2026-07-30")
+    v = policy.decide(proc, "git push origin main")
+    assert "Last failure: 2026-07-30: the pool was cold" in v["plan"]
+
+
 def test_plan_carries_steps_and_preconditions():
     proc = _with((0, 0), metadata={"preconditions": ["migrations applied"]})
     v = policy.decide(proc, "git push origin main")
@@ -202,6 +208,8 @@ def test_cli_verbose_marker(monkeypatch, capsys):
 
 def test_cli_local_memfmt_folder(monkeypatch, capsys, tmp_path):
     memfmt = pytest.importorskip("memfmt")
+    if not hasattr(memfmt, "load"):
+        pytest.skip("memfmt is a namespace package here, not the library")
     (tmp_path / "procedures").mkdir()
     (tmp_path / "procedures" / "deploy.md").write_text(
         "---\nmemfmt_type: procedure\nversion: 2\nsuccess_count: 0\nfail_count: 0\n---\n\n"
