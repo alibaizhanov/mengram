@@ -15,6 +15,10 @@
   different name and the existing one has never been run, the existing one
   is refreshed in place; if the existing one has a record, it is kept
   untouched. One user had reached 450 current procedures this way.
+- Markdown export writes `last_failure` / `last_failed` on a procedure (memfmt
+  0.5): the violated assumption recorded by the most recent failure revision,
+  and its date. The counts say how often a workflow fails; this says what to
+  look at first. The policy gate shows it in the plan it hands Claude.
 - `/v1/procedures/search` results now carry `reliability` and `last_used`
   for both vector and text search (previously only text search had
   `reliability`; neither had `last_used`).
