@@ -1,5 +1,44 @@
 # Changelog
 
+## 2.31.0 — 2026-09-04
+
+### Fixed
+- `get_feed` MCP tool rendered every entry as `- **?** entity`: the formatter
+  read `action`/`detail` while `/v1/feed` returns `entity`/`fact`/`created_at`.
+  Now renders `entity — fact (timestamp)`. Fixes #70. Thanks @Moviw (#99) and
+  @smoochy for the report.
+- Facts that are re-asserted after being archived or superseded revive instead
+  of staying hidden; a procedure can no longer be left with no current version
+  after a revision (#95).
+- The MCP streamable-HTTP endpoints no longer answer GET (long-poll hangs were
+  starving the workers) (#94).
+- `HEAD` is answered on all public pages.
+- Privacy delete removes everything the user asked to delete; writes are scoped
+  by `sub_user_id` instead of merging into `default`.
+- OAuth redirect targets are validated before a code is issued; cron reacquires
+  its advisory lock each tick; dry-run extractions are metered.
+
+### Added
+- `mengram export markdown|obsidian` and `GET /v1/export`: the whole memory as a
+  plain-Markdown tree in the published memfmt format (frontmatter is the source
+  of truth; `[[wikilinks]]` for Obsidian).
+- Per-step track record on procedures: step counters survive a revision only
+  for steps whose text is unchanged; the failing step is read out of the failure
+  text and handed to the agent (#92).
+- Reliability is reported in words (`untested`, `N% expected`, `N% reliable`)
+  with the same smoothing as memfmt, so one record means one thing everywhere.
+- Slim `/mcp/connector` surface with OAuth 2.1 + PKCE for the Claude connector.
+
+### Changed
+- `mcp` pinned to `1.28.1` (unpinned builds drifted to an incompatible API).
+- Dashboard and site moved to the light theme; new "m" monogram mark.
+
+## 2.28.0 – 2.30.0 — 2026-07-27/28
+
+- `mengram setup`: one-command onboarding (signup → Claude Code hooks → MCP
+  configs for detected editors → history import → doctor).
+- Weekly memory report, auto-shown once a week at session start.
+
 ## 2.27.1 — 2026-07-22
 
 ### Fixed
