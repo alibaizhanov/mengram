@@ -355,6 +355,29 @@ CONVERSATION:
 Extract knowledge (return ONLY JSON):"""
 
 
+EXTRACTION_PROMPT_SLIM = """Extract durable memories supported by the conversation, from the User's perspective.
+Return only one complete JSON object, no markdown fences or commentary, with all five arrays: entities, relations, knowledge, episodes, procedures. Use empty arrays when unsupported. Never copy instruction examples or invent missing details.
+
+Attribute personal statements to their speaker, not mentioned third parties. Use the User's stated name, otherwise User. Never infer identity from URLs, repositories or usernames. Keep each person's facts separate and project facts on projects. Extract stated work activities and tools even without an explicit "I" pronoun. Ignore assistant explanations, searches and tool outputs unless the User confirms personal relevance. Ignore greetings, filler, requests without personal information, and transient moods.
+
+Preserve every supported claim, including established facts, tools used at work, reasons, specific names, quantities and dates. Split independent clauses into separate entity facts, including incidental tool use; do not store facts only in episodes. A topic change does not cancel earlier facts. Reuse existing entity names and casing; skip facts already stored. Record explicit changes: mark replaced tools as "no longer used" wherever mentioned, including episode summaries, and keep the new state current. Choosing one tool over another does not imply prior use. Resolve relative dates only with sufficient date context; otherwise use null. Treat shared image descriptions as evidence with the surrounding conversation.
+{existing_context}
+Use these exact field names and types (this is a type contract, not memories):
+entities: [{{name: string, type: string, facts: [{{fact: string, when: string|null}}]}}]
+relations: [{{from: string, to: string, type: string, description: string}}]
+knowledge: [{{entity: string, type: string, title: string, content: string, artifact: string|null}}]
+episodes: [{{summary: string, context: string, outcome: string, participants: [string], emotional_valence: string, importance: number, happened_at: string|null}}]
+procedures: [{{name: string, trigger: string, steps: [{{step: integer, action: string, detail: string}}], entities: [string]}}]
+Knowledge captures useful confirmed solutions and exact code/commands; type is solution, formula, command, insight, decision, recipe or reference.
+Episodes capture real events, never introductions or information sharing in this chat. Emotional_valence is positive, negative, neutral or mixed; importance is 0 to 1.
+Procedures require at least two explicitly described concrete actions in a repeatable sequence. Read the entire conversation and combine steps across messages into one ordered workflow. Keep every step, including implicit sequences. Do not invent steps from occupations, hobbies or equipment. Do not omit workflows to shorten output.
+Keep output concise without dropping supported memory types; finish every JSON array and object.
+
+CONVERSATION:
+{conversation}
+"""
+
+
 EXISTING_CONTEXT_BLOCK = """
 EXISTING ENTITIES FOR THIS USER (use same names, avoid duplicate facts):
 {context}
@@ -693,7 +716,8 @@ class ConversationExtractor:
             context_block = ""
 
         version = prompt_version or EXTRACTION_PROMPT_VERSION
-        prompt_template = EXTRACTION_PROMPT_V2 if version == "v2" else EXTRACTION_PROMPT
+        prompt_template = {"v1": EXTRACTION_PROMPT, "v2": EXTRACTION_PROMPT_V2,
+                           "slim": EXTRACTION_PROMPT_SLIM}.get(version, EXTRACTION_PROMPT)
         prompt = prompt_template.format(
             conversation=conv_text,
             existing_context=context_block

@@ -1,7 +1,9 @@
 # Golden extraction cases — every real bug or user complaint becomes a case here, forever.
 #
 # Contract per case:
-#   conversation:      [{role, content}] fed to ConversationExtractor.extract (prompt v2)
+#   conversation:      [{role, content}] fed to ConversationExtractor.extract (selected prompt)
+#   require_complete_json: raw response must validate against EXTRACTION_SCHEMA (no parser recovery)
+#   expect_nonempty_types: output collections that must contain memories
 #   must_extract:      keywords that MUST appear in extracted facts (case-insensitive, all required)
 #   must_not_extract:  keywords that must NOT appear in any fact/episode/procedure
 #   expect_procedure:  name-keyword + min_steps when a workflow must be captured
@@ -10,6 +12,45 @@
 # Sources: #54 reflection pollution, supersession bug (Apr 2026), capture-boundary
 # churn case (mark@mb3, Jul 2026), v2 prompt spec (assistant-noise filtering),
 # ExtractedProcedure.steps list[dict] regression.
+
+- id: small-model-example-bleed-through
+  note: "#7: ten-message conversation must not inherit deployment-example memories from the prompt"
+  conversation:
+    - {role: user, content: "My name is Nora Bell. I am a ceramicist."}
+    - {role: assistant, content: "What are you working on?"}
+    - {role: user, content: "A series of cobalt blue bowls."}
+    - {role: assistant, content: "Where do you make them?"}
+    - {role: user, content: "At Cedar Studio in Bristol."}
+    - {role: assistant, content: "Do you teach there?"}
+    - {role: user, content: "Yes, I teach pottery every Saturday."}
+    - {role: assistant, content: "What equipment do you use?"}
+    - {role: user, content: "An electric kiln. My next exhibition opens on 2026-10-12."}
+    - {role: assistant, content: "Good luck with the exhibition."}
+  must_extract: ["cobalt", "cedar", "bristol", "saturday"]
+  must_not_extract: ["railway", "supabase", "postgresql", "deployed mengram"]
+  expect_attribution:
+    - entity_keyword: "Nora"
+      must_have: ["cobalt", "saturday"]
+  require_complete_json: true
+
+- id: small-model-complete-json-with-workflow
+  note: "#7: require complete raw JSON and all five types; silently returning an empty parse must fail. Run on a small model to measure truncation, not just on a large model."
+  conversation:
+    - {role: user, content: "I am Nora Bell, release engineer for the Cedar project."}
+    - {role: assistant, content: "What happened during the release?"}
+    - {role: user, content: "On 2026-09-01 the Cedar deploy failed because its migrations were missing."}
+    - {role: assistant, content: "How did you resolve it?"}
+    - {role: user, content: "I restored service by running the migration command cedar migrate before retrying. That is our confirmed solution for this failure."}
+    - {role: assistant, content: "What is your release workflow now?"}
+    - {role: user, content: "For every Cedar release, first run cedar migrate --check, then back up the database, then run cedar migrate."}
+    - {role: assistant, content: "What follows the migration?"}
+    - {role: user, content: "Then deploy to staging, run smoke tests, and promote to production only if they pass. I own this release workflow."}
+    - {role: assistant, content: "Understood."}
+  must_extract: ["cedar", "migrat", "smoke"]
+  expect_episode_keyword: "cedar"
+  expect_procedure: {name_keyword: "release", min_steps: 6}
+  expect_nonempty_types: [entities, relations, knowledge, episodes, procedures]
+  require_complete_json: true
 
 - id: assistant-noise-filtered
   note: "v2 prompt spec: assistant chatter must not become user facts"
