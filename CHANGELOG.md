@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.35.0 — 2026-09-07
+
+### Added
+- **`mengram local map`** — one self-contained HTML page of what a memory
+  folder holds (`memory-map.html` in the folder, or `--out`; `--open` for the
+  browser). Three views: who you are (entities by type, facts, relations),
+  what happened (episodes with outcomes), what your agent learned (each
+  workflow as a step chain with the per-step record, its revisions with the
+  belief that broke, and the quarantine). Rendered from the Markdown files;
+  nothing is fetched or sent. `mengram import claude-code --memory` now ends
+  by writing it, so an import answers "what do you know about me?" with a
+  page instead of a count.
+
 ## 2.34.0 — 2026-09-07
 
 ### Added

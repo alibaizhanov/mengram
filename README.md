@@ -90,6 +90,7 @@ Prefer CLI-managed hooks instead of the plugin? `pip install mengram-ai && mengr
 pip install mengram-ai
 mengram local init ./memory --provider anthropic --api-key sk-ant-...   # or openai / ollama
 mengram import claude-code --memory ./memory                             # seed it from your Claude Code sessions
+mengram local map --memory ./memory --open                               # one page: who you are, what happened, what it learned
 mengram hook install --memory ./memory                                   # the same four hooks, all local
 mengram server --memory ./memory                                         # MCP for Claude Desktop, Cursor, any client
 ```
