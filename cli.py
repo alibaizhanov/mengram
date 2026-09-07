@@ -421,6 +421,96 @@ def _local_auto_save(args, EVENT, HOOK, local_dir, messages):
     _emit_hook_exit(EVENT, args, HOOK, "saved (local)")
 
 
+def _local_import_claude_code(args, local_dir) -> int:
+    """`mengram import claude-code --memory DIR`: the cold start for a folder.
+    Each session is one extraction with the folder's own model; the folder
+    keeps its own imported-sessions list, separate from the cloud account's."""
+    from importer import import_claude_code, discover_claude_code_sessions
+    from local.config import describe_model, llm_client
+
+    if not local_dir.is_dir():
+        print(f"❌ No memory folder at {local_dir} — run: mengram local init {local_dir}")
+        return 1
+    client = llm_client(local_dir)
+    if client is None:
+        print("❌ No model configured — extraction needs one.\n"
+              f"   mengram local init {local_dir} --provider anthropic --api-key sk-ant-...   (or openai / ollama)\n"
+              "   or export ANTHROPIC_API_KEY / OPENAI_API_KEY")
+        return 2
+
+    available = discover_claude_code_sessions(getattr(args, "project", "") or "")
+    if not available:
+        print("❌ No Claude Code sessions found in ~/.claude/projects/")
+        return 1
+    n = min(getattr(args, "last", 20), len(available))
+    print(f"🧠 Found {len(available)} Claude Code sessions; importing up to {n} most recent into {local_dir}.")
+    print(f"   Each session = 1 extraction with {describe_model(local_dir)}. Nothing leaves your machine")
+    print("   except the calls to that model.")
+    if not getattr(args, "yes", False):
+        answer = input("   Continue? [y/N] ").strip().lower()
+        if answer not in ("y", "yes"):
+            print("Aborted.")
+            return 0
+
+    store = _local_store(local_dir)
+    totals = {"entities_created": 0, "entities_updated": 0, "facts_added": 0, "episodes_saved": 0,
+              "procedures_created": 0, "procedures_refreshed": 0}
+
+    def add_fn(text, session_id):
+        stats = store.add(text, client)
+        for key in ("entities_created", "entities_updated", "facts_added", "episodes_saved"):
+            totals[key] += int(stats.get(key) or 0)
+        procs = stats.get("procedures") or {}
+        totals["procedures_created"] += int(procs.get("created") or 0)
+        totals["procedures_refreshed"] += int(procs.get("refreshed") or 0)
+        return {}
+
+    def progress(current, total, title):
+        pct = int(current / total * 100) if total else 0
+        bar = "█" * (pct // 5) + "░" * (20 - pct // 5)
+        print(f"\r  {bar} {pct}% ({current}/{total}) {title}", end="", flush=True)
+
+    print()
+    result = import_claude_code(
+        add_fn,
+        last=getattr(args, "last", 20),
+        project_filter=getattr(args, "project", "") or "",
+        reimport=getattr(args, "reimport", False),
+        on_progress=progress,
+        state_file=local_dir / ".mengram" / "claude-code-imported.json",
+    )
+
+    print(f"\n\n{'='*50}")
+    print("✅ Import complete!\n")
+    print(f"   Sessions considered: {result.conversations_found}")
+    print(f"   Imported:            {result.chunks_sent}")
+    print(f"   Time:                {result.duration_seconds:.1f}s")
+    if result.errors:
+        print(f"\n   ⚠️  {len(result.errors)} errors:")
+        for err in result.errors[:5]:
+            print(f"      - {err}")
+
+    if result.chunks_sent > 0:
+        s = store.stats()
+        print(f"\n   🧠 Folder now holds: {s['entities']} entities, {s['facts']} facts, "
+              f"{s['episodes']} episodes, {s['procedures']} workflows")
+        print(f"   This run: entities +{totals['entities_created']} (updated {totals['entities_updated']}), "
+              f"facts +{totals['facts_added']}, episodes +{totals['episodes_saved']}, "
+              f"workflows +{totals['procedures_created']} (refreshed {totals['procedures_refreshed']})")
+        procs = store.procedures(limit=3)
+        if procs:
+            print("\n   Learned workflows (these evolve as you succeed or fail):")
+            for p in procs:
+                print(f"      ⚙ {p.get('name', '?')} — {len(p.get('steps') or [])} steps, {p.get('reliability') or 'untested'}")
+    elif result.conversations_found == 0:
+        print("\n   Nothing new — every session is already in the folder (use --reimport to force).")
+
+    print(f"\n   Try: mengram local search \"deploy\" --memory {local_dir}")
+    print(f"   Hooks: mengram hook install --memory {local_dir}")
+    print("   Already-imported sessions are skipped on re-runs (use --reimport to force).")
+    return 0
+
+
 def cmd_auto_recall(args):
     """Hook handler — called by Claude Code on UserPromptSubmit. Searches Mengram for relevant context."""
     HOOK = "auto-recall"
@@ -1898,6 +1988,7 @@ def cmd_import(args):
     if not import_type:
         print("Usage: mengram import {claude-code,chatgpt,obsidian,files} <path>")
         print("  mengram import claude-code            # your local Claude Code sessions")
+        print("  mengram import claude-code --memory ./memory   # ...into a local memory folder, no account")
         print("  mengram import chatgpt ~/Downloads/chatgpt-export.zip")
         print("  mengram import obsidian ~/Documents/MyVault")
         print("  mengram import files notes/*.md")
@@ -1906,6 +1997,10 @@ def cmd_import(args):
     # --- Claude Code local transcripts: cloud-first, self-contained flow ---
     if import_type == "claude-code":
         from importer import import_claude_code, discover_claude_code_sessions, RateLimiter
+
+        local_dir = _local_dir(args)
+        if local_dir:
+            sys.exit(_local_import_claude_code(args, local_dir))
 
         api_key = _load_cloud_api_key()
         if not api_key:
@@ -2180,6 +2275,8 @@ def main():
     p_cc.add_argument("--reimport", action="store_true", help="Re-import sessions that were already imported")
     p_cc.add_argument("--yes", action="store_true", help="Skip the confirmation prompt")
     p_cc.add_argument("--user-id", default=None, dest="user_id")
+    p_cc.add_argument("--memory", default=None, metavar="DIR",
+                      help="Import into a local memory folder instead of the cloud (or set MENGRAM_MEMORY_DIR)")
 
     p_chatgpt = import_sub.add_parser("chatgpt", help="Import ChatGPT export ZIP")
     p_chatgpt.add_argument("path", help="Path to ChatGPT export ZIP file")

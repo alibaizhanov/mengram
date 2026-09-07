@@ -1,5 +1,23 @@
 # Changelog
 
+## 2.34.0 — 2026-09-07
+
+### Added
+- **`mengram import claude-code --memory DIR`** — the cold start for a memory
+  folder. Your local Claude Code sessions (`~/.claude/projects`) are parsed,
+  redacted for secrets, and extracted with the folder's own model; the run ends
+  with what the folder now holds and the workflows it learned, with their
+  record. The folder keeps its own imported-sessions list
+  (`.mengram/claude-code-imported.json`), separate from the cloud account's, so
+  the two never skip each other's sessions. `MENGRAM_MEMORY_DIR` works too.
+
+### Changed
+- `cloud/api.py` and `cloud/store.py` were split by domain (#107): the public
+  site and its content live in `cloud/site.py` + `cloud/content/`, billing in
+  `cloud/billing.py`, and `CloudStore` is assembled from mixins in
+  `cloud/store/`. No behaviour change; every route, page and method verified
+  identical.
+
 ## 2.33.0 — 2026-09-04
 
 ### Added
