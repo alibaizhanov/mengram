@@ -201,6 +201,21 @@ def cmd_quarantine(args) -> int:
     return 0
 
 
+def cmd_map(args) -> int:
+    from .evolve import read_quarantine
+    from .map import write_map
+    store = _open(args)
+    out = Path(args.out).expanduser() if args.out else None
+    path = write_map(store, read_quarantine(store), out=out, model=describe_model(store.root))
+    s = store.stats()
+    print(f"map written: {path}\n  {s['entities']} entities, {s['facts']} facts, {s['episodes']} episodes, "
+          f"{s['procedures']} procedures")
+    if args.open:
+        import webbrowser
+        webbrowser.open(path.resolve().as_uri())
+    return 0
+
+
 def add_parser(sub) -> None:
     p = sub.add_parser("local", help="Memory in a folder you own — no account, no server")
     lsub = p.add_subparsers(dest="local_action", required=True)
@@ -245,6 +260,11 @@ def add_parser(sub) -> None:
 
     sp = lsub.add_parser("quarantine", help="revisions the regression gate refused")
     common(sp); sp.set_defaults(local_func=cmd_quarantine)
+
+    sp = lsub.add_parser("map", help="one HTML page of what the folder holds: who you are, what happened, what was learned")
+    sp.add_argument("--out", default=None, help="where to write (default: DIR/memory-map.html)")
+    sp.add_argument("--open", action="store_true", help="open it in your browser")
+    common(sp); sp.set_defaults(local_func=cmd_map)
 
 
 def run(args) -> int:

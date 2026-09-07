@@ -502,6 +502,14 @@ def _local_import_claude_code(args, local_dir) -> int:
             print("\n   Learned workflows (these evolve as you succeed or fail):")
             for p in procs:
                 print(f"      ⚙ {p.get('name', '?')} — {len(p.get('steps') or [])} steps, {p.get('reliability') or 'untested'}")
+        # The answer to "what do you know about me?" — one page, nothing uploaded.
+        try:
+            from local.evolve import read_quarantine
+            from local.map import write_map
+            map_file = write_map(store, read_quarantine(store), model=describe_model(local_dir))
+            print(f"\n   🗺  Map of the folder: {map_file}   (open it in a browser; mengram local map --open)")
+        except Exception as e:  # the import succeeded; the map is a bonus
+            print(f"\n   (map not written: {e})")
     elif result.conversations_found == 0:
         print("\n   Nothing new — every session is already in the folder (use --reimport to force).")
 
