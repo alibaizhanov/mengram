@@ -243,3 +243,22 @@ def test_upsert_keeps_existing_matcher_on_update():
                              matcher="Bash")
     assert found
     assert settings["hooks"]["PreToolUse"][0]["matcher"] == "Bash|Edit"
+
+
+def test_plan_mentions_the_last_success_when_the_folder_has_it(tmp_path):
+    """The gate's plan tells the agent when the workflow last worked, so a stale
+    workflow reads differently from a fresh one with the same counts."""
+    memfmt = pytest.importorskip("memfmt")
+    if not hasattr(memfmt, "load"):
+        pytest.skip("memfmt namespace shadow")
+    from cloud.policy import memfmt_procedures, decide
+    from memfmt import Memory, Procedure, Step, serialise, write_dir
+    root = tmp_path / "mem"
+    mem = Memory(procedures=[Procedure("Deploy to Railway", trigger="a change lands on main",
+                                       success_count=2, fail_count=1, last_succeeded="2026-06-01",
+                                       steps=[Step("git push origin main"), Step("verify /health")])])
+    write_dir(serialise(mem, root=""), root)
+    procs = memfmt_procedures(root)
+    assert procs and procs[0]["last_succeeded"] == "2026-06-01"
+    out = decide(procs[0], "git push origin main", min_reliable=70)
+    assert out and "Last success: 2026-06-01" in out["plan"]

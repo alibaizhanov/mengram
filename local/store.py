@@ -43,6 +43,16 @@ def _today() -> str:
     return _dt.date.today().isoformat()
 
 
+def _days_since(iso_date: str | None) -> int | None:
+    """Whole days since an ISO date, or None when there is none (or it is malformed)."""
+    if not iso_date:
+        return None
+    try:
+        return (_dt.date.today() - _dt.date.fromisoformat(str(iso_date)[:10])).days
+    except ValueError:
+        return None
+
+
 class LocalStore:
     """A memfmt folder with the cloud's rules for changing it."""
 
@@ -292,6 +302,7 @@ class LocalStore:
             "reliability": p.reliability, "trigger_condition": p.trigger,
             "preconditions": list(p.preconditions), "steps": steps,
             "last_failure": p.last_failure, "last_failed": p.last_failed,
+            "last_succeeded": p.last_succeeded, "days_since_success": _days_since(p.last_succeeded),
             "evolution": [{"version_before": r.version_before, "version_after": r.version_after,
                            "reason": r.reason, "date": r.date,
                            "success_count": r.success_count, "fail_count": r.fail_count}
@@ -314,6 +325,7 @@ class LocalStore:
             return {"error": "procedure not found", "name": name}
         if success:
             p.success_count += 1
+            p.last_succeeded = _today()
         else:
             p.fail_count += 1
             if reason:
