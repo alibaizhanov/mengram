@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.37.1 — 2026-09-07
+
+### Fixed
+- Anthropic extraction failed on `anthropic>=1.0` with
+  `Messages.create() got an unexpected keyword argument 'temperature'` — the
+  SDK dropped the parameter. Not sent any more. Found on the first real
+  `mengram import claude-code --memory` run.
+- A folder configured for a provider whose SDK is not installed now says
+  `pip install 'mengram-ai[anthropic]'` (or `[openai]`) instead of a
+  traceback, from `local add`, `local feedback` and `import claude-code`.
+
 ## 2.37.0 — 2026-09-07
 
 ### Added

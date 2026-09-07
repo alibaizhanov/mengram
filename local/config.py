@@ -71,7 +71,12 @@ def llm_client(root: Path):
         from engine.extractor.conversation_extractor import MockLLMClient
         return MockLLMClient()
     from engine.extractor.llm_client import create_llm_client
-    return create_llm_client(cfg)
+    try:
+        return create_llm_client(cfg)
+    except ImportError as e:
+        provider = cfg.get("provider", "anthropic")
+        raise ImportError(
+            f"the '{provider}' provider needs its SDK — pip install 'mengram-ai[{provider}]'  ({e})") from e
 
 
 def describe_model(root: Path) -> str:

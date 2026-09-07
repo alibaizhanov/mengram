@@ -42,10 +42,11 @@ class AnthropicClient(LLMClient):
         self.model = model
 
     def complete(self, prompt: str, system: str = "", response_format=None) -> str:
+        # No `temperature`: the anthropic SDK dropped it in 1.x (Messages.create()
+        # rejects the keyword), and Claude 5 models ignore it anyway.
         response = self.client.messages.create(
             model=self.model,
             max_tokens=4096,
-            temperature=0.2,
             system=system or "You are a knowledge extraction assistant.",
             messages=[{"role": "user", "content": prompt}],
         )
