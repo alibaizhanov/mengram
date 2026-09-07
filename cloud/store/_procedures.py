@@ -13,6 +13,11 @@ from ._common import (  # noqa: F401
 )
 
 
+def _iso(value):
+    """ISO string for a timestamp column, None for NULL. Dict-cursor rows may lack the key on old fixtures."""
+    return value.isoformat() if hasattr(value, "isoformat") else (value or None)
+
+
 class ProcedureMixin:
     """Procedural memory: versions, feedback, evolution, regression gate."""
 
@@ -209,7 +214,7 @@ class ProcedureMixin:
         with self._cursor(dict_cursor=True) as cur:
             cur.execute(
                 """SELECT id, name, trigger_condition, steps, entity_names,
-                          success_count, fail_count, last_used, version,
+                          success_count, fail_count, last_used, last_succeeded, version,
                           created_at, updated_at, metadata
                    FROM procedures
                    WHERE user_id = %s AND sub_user_id = %s
@@ -236,6 +241,7 @@ class ProcedureMixin:
                                             row["fail_count"] or 0),
                     "version": row["version"] or 1,
                     "last_used": row["last_used"].isoformat() if row["last_used"] else None,
+                    "last_succeeded": _iso(row.get("last_succeeded")),
                     "created_at": row["created_at"].isoformat() if row["created_at"] else None,
                     "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
                     "metadata": row.get("metadata") or {},
@@ -268,7 +274,7 @@ class ProcedureMixin:
             query_text = query_text.replace("\x00", "")
         query = f"""
             SELECT p.id, p.name, p.trigger_condition, p.steps, p.entity_names,
-                   p.success_count, p.fail_count, p.last_used, p.version, p.updated_at, p.metadata,
+                   p.success_count, p.fail_count, p.last_used, p.last_succeeded, p.version, p.updated_at, p.metadata,
                    1 - (pe.{emb_col} <=> %s::vector) AS score
             FROM procedure_embeddings pe
             JOIN procedures p ON p.id = pe.procedure_id
@@ -316,7 +322,7 @@ class ProcedureMixin:
                     if pid not in vec_rows:
                         cur.execute("""
                             SELECT p.id, p.name, p.trigger_condition, p.steps, p.entity_names,
-                                   p.success_count, p.fail_count, p.last_used, p.version, p.updated_at, p.metadata
+                                   p.success_count, p.fail_count, p.last_used, p.last_succeeded, p.version, p.updated_at, p.metadata
                             FROM procedures p WHERE p.id = %s
                         """, (pid,))
                         r = cur.fetchone()
@@ -377,6 +383,7 @@ class ProcedureMixin:
                     "reliability": estimate(s_count, f_count),
                     "version": row.get("version") or 1,
                     "last_used": last_used.isoformat() if last_used else None,
+                    "last_succeeded": _iso(row.get("last_succeeded")),
                     "score": final_score,
                     "updated_at": row["updated_at"].isoformat() if row.get("updated_at") else None,
                     "metadata": row.get("metadata") or {},
@@ -400,7 +407,7 @@ class ProcedureMixin:
             query = query.replace("\x00", "")
         sql = """
             SELECT p.id, p.name, p.trigger_condition, p.steps, p.entity_names,
-                   p.success_count, p.fail_count, p.last_used, p.version, p.updated_at, p.metadata,
+                   p.success_count, p.fail_count, p.last_used, p.last_succeeded, p.version, p.updated_at, p.metadata,
                    ts_rank_cd(pe.tsv, plainto_tsquery('english', %s), 32) AS score
             FROM procedure_embeddings pe
             JOIN procedures p ON p.id = pe.procedure_id
@@ -435,6 +442,7 @@ class ProcedureMixin:
                                             row["fail_count"] or 0),
                     "version": row["version"] or 1,
                     "last_used": row["last_used"].isoformat() if row.get("last_used") else None,
+                    "last_succeeded": _iso(row.get("last_succeeded")),
                     "score": round(float(row["score"]), 4),
                     "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
                     "metadata": row.get("metadata") or {},
@@ -453,6 +461,8 @@ class ProcedureMixin:
                            sub_user_id: str = "default", failed_at_step: int = None) -> dict:
         """Record success/failure feedback for a procedure and for its steps."""
         col = "success_count" if success else "fail_count"
+        # A success is the only thing that moves last_succeeded — never a read.
+        mark = ", last_succeeded = NOW()" if success else ""
         with self._cursor(dict_cursor=True) as cur:
             cur.execute(
                 """SELECT steps FROM procedures
@@ -467,9 +477,9 @@ class ProcedureMixin:
             cur.execute(
                 f"""UPDATE procedures
                     SET {col} = {col} + 1, steps = %s::jsonb,
-                        last_used = NOW(), updated_at = NOW()
+                        last_used = NOW(), updated_at = NOW(){mark}
                     WHERE id = %s AND user_id = %s AND sub_user_id = %s
-                    RETURNING id, name, success_count, fail_count, steps""",
+                    RETURNING id, name, success_count, fail_count, steps, last_succeeded""",
                 (json.dumps(steps), procedure_id, user_id, sub_user_id)
             )
             row = cur.fetchone()
@@ -479,6 +489,7 @@ class ProcedureMixin:
                 "success_count": row["success_count"],
                 "fail_count": row["fail_count"],
                 "steps": row["steps"],
+                "last_succeeded": _iso(row.get("last_succeeded")),
                 "feedback": "success" if success else "failure",
             }
 
@@ -492,7 +503,7 @@ class ProcedureMixin:
             cur.execute(
                 """SELECT id, name, trigger_condition, steps, entity_names,
                           success_count, fail_count, version, parent_version_id,
-                          evolved_from_episode, is_current, last_used,
+                          evolved_from_episode, is_current, last_used, last_succeeded,
                           created_at, updated_at, metadata
                    FROM procedures
                    WHERE id = %s AND user_id = %s AND sub_user_id = %s""",
@@ -514,6 +525,7 @@ class ProcedureMixin:
                 "evolved_from_episode": str(row["evolved_from_episode"]) if row["evolved_from_episode"] else None,
                 "is_current": row["is_current"],
                 "last_used": row["last_used"].isoformat() if row["last_used"] else None,
+                "last_succeeded": _iso(row.get("last_succeeded")),
                 "created_at": row["created_at"].isoformat() if row["created_at"] else None,
                 "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
                 "metadata": row.get("metadata") or {},

@@ -970,6 +970,19 @@ class CoreMixin:
             """)
         logger.info("✅ Migration complete (v2.22: memory health tracking)")
 
+        # ---- v2.23: last_succeeded — when a workflow last worked ----
+        # Written only by a successful procedure_feedback, never by retrieval
+        # (last_used is touched by search, so "unverified for N days" cannot
+        # be derived from it). No backfill: NULL means no success was recorded
+        # since the column existed, not that the workflow never worked. Same
+        # field as memfmt 0.5.2 and the local folder (2.36.0).
+        with self._cursor() as cur:
+            cur.execute("""
+                ALTER TABLE procedures
+                ADD COLUMN IF NOT EXISTS last_succeeded TIMESTAMPTZ
+            """)
+        logger.info("✅ Migration complete (v2.23: procedures.last_succeeded)")
+
         with self._cursor() as cur:
             cur.execute("SELECT pg_advisory_unlock(42)")
 

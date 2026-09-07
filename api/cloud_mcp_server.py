@@ -137,6 +137,8 @@ def create_cloud_mcp_server(
                 lines.append(f"ID: `{p['id']}`")
                 if p.get("trigger_condition"):
                     lines.append(f"**When:** {p['trigger_condition']}")
+                if p.get("last_succeeded"):
+                    lines.append(f"**Last success:** {str(p['last_succeeded'])[:10]}")
                 if total > 0:
                     lines.append(f"**Stats:** {sc} successes, {fc} failures")
                 for s in p.get("steps", []):
@@ -979,6 +981,8 @@ def create_cloud_mcp_server(
                     lines.append(f"ID: `{p['id']}`")
                     if p.get("trigger_condition"):
                         lines.append(f"When: {p['trigger_condition']}")
+                    if p.get("last_succeeded"):
+                        lines.append(f"Last success: {str(p['last_succeeded'])[:10]}")
                     if total > 0:
                         lines.append(f"Stats: {sc} successes, {fc} failures")
                     for s in p.get("steps", []):

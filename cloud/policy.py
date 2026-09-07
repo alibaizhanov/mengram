@@ -168,7 +168,7 @@ def _plan(proc: dict, label: str) -> str:
         when = f"{proc['last_failed']}: " if proc.get("last_failed") else ""
         lines.append(f"Last failure: {when}{proc['last_failure']}")
     if proc.get("last_succeeded"):
-        lines.append(f"Last success: {proc['last_succeeded']}")
+        lines.append(f"Last success: {str(proc['last_succeeded'])[:10]}")
     lines.append("The evidence for this workflow is weak, so the user was asked to confirm. "
                  "If they decline, show them the plan and what you would verify first.")
     return "\n".join(lines)
