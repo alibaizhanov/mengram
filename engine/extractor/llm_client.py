@@ -30,6 +30,14 @@ class LLMClient(ABC):
         return self.complete(last_user, system=system)
 
 
+def _anthropic_text(response) -> str:
+    """The text of a Messages response. Claude 5 models put a ThinkingBlock
+    first, so `content[0].text` raises; join the text blocks instead."""
+    parts = [getattr(b, "text", "") for b in (getattr(response, "content", None) or [])
+             if getattr(b, "type", "") == "text" or (hasattr(b, "text") and not hasattr(b, "thinking"))]
+    return "\n".join(p for p in parts if p)
+
+
 class AnthropicClient(LLMClient):
     """Claude via Anthropic API"""
 
@@ -50,7 +58,7 @@ class AnthropicClient(LLMClient):
             system=system or "You are a knowledge extraction assistant.",
             messages=[{"role": "user", "content": prompt}],
         )
-        return response.content[0].text
+        return _anthropic_text(response)
 
     def chat(self, messages: list[dict], system: str = "") -> str:
         response = self.client.messages.create(
@@ -59,7 +67,7 @@ class AnthropicClient(LLMClient):
             system=system or "You are a helpful assistant.",
             messages=messages,
         )
-        return response.content[0].text
+        return _anthropic_text(response)
 
 
 class OpenAIClient(LLMClient):

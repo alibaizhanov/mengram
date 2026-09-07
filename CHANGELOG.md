@@ -7,6 +7,9 @@
   `Messages.create() got an unexpected keyword argument 'temperature'` — the
   SDK dropped the parameter. Not sent any more. Found on the first real
   `mengram import claude-code --memory` run.
+- Claude 5 models return a thinking block first; `content[0].text` raised
+  `AttributeError: 'ThinkingBlock' object has no attribute 'text'` and every
+  extraction fell back and failed. The text blocks are read now.
 - A folder configured for a provider whose SDK is not installed now says
   `pip install 'mengram-ai[anthropic]'` (or `[openai]`) instead of a
   traceback, from `local add`, `local feedback` and `import claude-code`.
