@@ -79,7 +79,11 @@ def cmd_add(args) -> int:
     if not text.strip():
         print("nothing to add (pass text, or --stdin)", file=sys.stderr)
         return 1
-    client = llm_client(store.root)
+    try:
+        client = llm_client(store.root)
+    except ImportError as e:
+        print(str(e), file=sys.stderr)
+        return 2
     if client is None:
         print("no model configured — extraction needs one.\n"
               "  mengram local init --provider anthropic --api-key sk-ant-...   (or openai / ollama)\n"
@@ -151,7 +155,11 @@ def cmd_feedback(args) -> int:
           f"{result['reliability']}")
     if success or not args.context:
         return 0
-    client = llm_client(store.root)
+    try:
+        client = llm_client(store.root)
+    except ImportError as e:
+        print(str(e), file=sys.stderr)
+        return 2
     if client is None:
         print("failure recorded; no model configured, so the workflow was not revised "
               "(set one to let a failure produce a new version)", file=sys.stderr)

@@ -248,3 +248,17 @@ def test_import_claude_code_needs_an_initialised_folder(tmp_path, monkeypatch, c
     _fake_sessions(tmp_path, monkeypatch)
     code, out, _ = _run(monkeypatch, capsys, ["import", "claude-code", "--memory", str(tmp_path / "nope"), "--yes"])
     assert code == 1 and "mengram local init" in out
+
+
+def test_missing_provider_sdk_is_a_one_line_hint_not_a_traceback(tmp_path, monkeypatch, capsys):
+    """`local init --provider anthropic` on a bare install: the SDK is an extra."""
+    import engine.extractor.llm_client as llm
+    root = tmp_path / "m"
+    root.mkdir()
+    write_config(root, {"llm": {"provider": "anthropic", "anthropic": {"api_key": "sk-ant-x"}}})
+    monkeypatch.setattr(llm, "create_llm_client", lambda cfg: (_ for _ in ()).throw(ImportError("pip install anthropic")))
+    code, out, err = _run(monkeypatch, capsys, ["local", "add", "hello", "--memory", str(root)])
+    assert code == 2 and "mengram-ai[anthropic]" in err
+    _fake_sessions(tmp_path, monkeypatch)
+    code, out, err = _run(monkeypatch, capsys, ["import", "claude-code", "--memory", str(root), "--yes"])
+    assert code == 2 and "mengram-ai[anthropic]" in out

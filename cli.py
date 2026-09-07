@@ -431,7 +431,11 @@ def _local_import_claude_code(args, local_dir) -> int:
     if not local_dir.is_dir():
         print(f"❌ No memory folder at {local_dir} — run: mengram local init {local_dir}")
         return 1
-    client = llm_client(local_dir)
+    try:
+        client = llm_client(local_dir)
+    except ImportError as e:
+        print(f"❌ {e}")
+        return 2
     if client is None:
         print("❌ No model configured — extraction needs one.\n"
               f"   mengram local init {local_dir} --provider anthropic --api-key sk-ant-...   (or openai / ollama)\n"

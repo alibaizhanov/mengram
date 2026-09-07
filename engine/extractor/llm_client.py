@@ -30,6 +30,14 @@ class LLMClient(ABC):
         return self.complete(last_user, system=system)
 
 
+def _anthropic_text(response) -> str:
+    """The text of a Messages response. Claude 5 models put a ThinkingBlock
+    first, so `content[0].text` raises; join the text blocks instead."""
+    parts = [getattr(b, "text", "") for b in (getattr(response, "content", None) or [])
+             if getattr(b, "type", "") == "text" or (hasattr(b, "text") and not hasattr(b, "thinking"))]
+    return "\n".join(p for p in parts if p)
+
+
 class AnthropicClient(LLMClient):
     """Claude via Anthropic API"""
 
@@ -42,23 +50,26 @@ class AnthropicClient(LLMClient):
         self.model = model
 
     def complete(self, prompt: str, system: str = "", response_format=None) -> str:
+        # No `temperature`: the anthropic SDK dropped it in 1.x (Messages.create()
+        # rejects the keyword), and Claude 5 models ignore it anyway.
         response = self.client.messages.create(
             model=self.model,
-            max_tokens=4096,
-            temperature=0.2,
+            # Claude 5 thinks first and the thinking counts against max_tokens:
+            # at 4096 the visible JSON was cut mid-object. Give it room.
+            max_tokens=16384,
             system=system or "You are a knowledge extraction assistant.",
             messages=[{"role": "user", "content": prompt}],
         )
-        return response.content[0].text
+        return _anthropic_text(response)
 
     def chat(self, messages: list[dict], system: str = "") -> str:
         response = self.client.messages.create(
             model=self.model,
-            max_tokens=4096,
+            max_tokens=16384,
             system=system or "You are a helpful assistant.",
             messages=messages,
         )
-        return response.content[0].text
+        return _anthropic_text(response)
 
 
 class OpenAIClient(LLMClient):

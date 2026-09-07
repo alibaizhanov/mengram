@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.37.1 — 2026-09-07
+
+### Fixed
+- Anthropic extraction failed on `anthropic>=1.0` with
+  `Messages.create() got an unexpected keyword argument 'temperature'` — the
+  SDK dropped the parameter. Not sent any more. Found on the first real
+  `mengram import claude-code --memory` run.
+- Claude 5 models return a thinking block first; `content[0].text` raised
+  `AttributeError: 'ThinkingBlock' object has no attribute 'text'` and every
+  extraction fell back and failed. The text blocks are read now.
+- Thinking counts against `max_tokens`; at 4096 the visible JSON was cut
+  mid-object ("Failed to parse JSON from LLM"). The Anthropic client now
+  asks for 16384.
+- A folder configured for a provider whose SDK is not installed now says
+  `pip install 'mengram-ai[anthropic]'` (or `[openai]`) instead of a
+  traceback, from `local add`, `local feedback` and `import claude-code`.
+
 ## 2.37.0 — 2026-09-07
 
 ### Added
