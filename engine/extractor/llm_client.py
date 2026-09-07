@@ -54,7 +54,9 @@ class AnthropicClient(LLMClient):
         # rejects the keyword), and Claude 5 models ignore it anyway.
         response = self.client.messages.create(
             model=self.model,
-            max_tokens=4096,
+            # Claude 5 thinks first and the thinking counts against max_tokens:
+            # at 4096 the visible JSON was cut mid-object. Give it room.
+            max_tokens=16384,
             system=system or "You are a knowledge extraction assistant.",
             messages=[{"role": "user", "content": prompt}],
         )
@@ -63,7 +65,7 @@ class AnthropicClient(LLMClient):
     def chat(self, messages: list[dict], system: str = "") -> str:
         response = self.client.messages.create(
             model=self.model,
-            max_tokens=4096,
+            max_tokens=16384,
             system=system or "You are a helpful assistant.",
             messages=messages,
         )
