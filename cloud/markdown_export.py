@@ -223,6 +223,7 @@ def procedure_file(procedure: dict, evolution: list = None) -> str:
             "fail_count": fail,
             "last_failure": last_failure,
             "last_failed": last_failed,
+            "last_succeeded": _day(procedure.get("last_succeeded")) or None,
         }),
         "",
         f"# {name} (v{version} · {_reliability_estimate(success, fail, _prior(evolution))})",
@@ -240,6 +241,8 @@ def procedure_file(procedure: dict, evolution: list = None) -> str:
     if last_failure:
         when = f"{last_failed}: " if last_failed else ""
         body += ["", f"**Last failure** — {when}{last_failure}"]
+    if _day(procedure.get("last_succeeded")):
+        body += ["", f"**Last success** — {_day(procedure.get('last_succeeded'))}"]
 
     steps = procedure.get("steps") or []
     if steps:

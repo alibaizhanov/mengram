@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.37.0 — 2026-09-07
+
+### Added
+- **Cloud: `procedures.last_succeeded`** (migration v2.23, no backfill). Set
+  only by a successful `PATCH /v1/procedures/{id}/feedback`, never by
+  retrieval. Returned by `/v1/procedures`, procedure search, the connector's
+  `list_procedures`, and written into `mengram export markdown` as
+  `last_succeeded` + `**Last success**`, so the cloud and the folder now carry
+  the same staleness signal.
+
 ## 2.36.0 — 2026-09-07
 
 ### Added
