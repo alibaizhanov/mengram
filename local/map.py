@@ -43,6 +43,15 @@ def write_map(store: LocalStore, quarantine: list | None = None, out: Path | Non
 # ---- data ---------------------------------------------------------------------
 
 
+def _days_since(iso_date: str | None) -> int | None:
+    if not iso_date:
+        return None
+    try:
+        return (_dt.date.today() - _dt.date.fromisoformat(str(iso_date)[:10])).days
+    except ValueError:
+        return None
+
+
 def _reliability_word(p) -> str:
     return getattr(p, "reliability", None) or "untested"
 
@@ -148,9 +157,13 @@ def _procedure_card(p) -> str:
     trigger = f'<div class="trigger">When: {_e(p.trigger)}</div>' if p.trigger else ""
     pre = "".join(f'<span class="chip">{_e(x)}</span>' for x in p.preconditions[:6])
     fail = ""
+    if getattr(p, "last_succeeded", None):
+        days = _days_since(p.last_succeeded)
+        stale = f' <span class="stale">unverified for {days} days</span>' if isinstance(days, int) and days >= 30 else ""
+        fail += f'<div class="fail"><b>Last success:</b> {_e(p.last_succeeded)}{stale}</div>'
     if p.last_failure:
         when = f" · {_e(p.last_failed[:10])}" if p.last_failed else ""
-        fail = f'<div class="fail"><b>Last failure{when}:</b> {_e(p.last_failure)}</div>'
+        fail += f'<div class="fail"><b>Last failure{when}:</b> {_e(p.last_failure)}</div>'
     evo = ""
     if p.evolution:
         items = "".join(
@@ -227,7 +240,7 @@ nav.views input{flex:1 1 200px;min-width:160px;padding:8px 12px;border:1px solid
 .step+.step:before{content:"→";position:absolute;left:-14px;top:2px;color:var(--t3)}
 .step .n{flex:0 0 22px;height:22px;border-radius:50%;background:var(--acd);color:var(--ac);font-size:12px;display:grid;place-items:center;font-weight:600}
 .step .act{font-size:13px}.step .detail{font-size:12px;color:var(--t2)}.tag{display:inline-block;margin-top:4px;font-size:11px;padding:1px 8px;border-radius:999px;background:var(--el);border:1px solid var(--bd);color:var(--green)}.tag.dim{color:var(--t3)}
-.fail{margin-top:8px;font-size:13px;color:var(--t2)}.fail b{color:var(--tx)}
+.fail{margin-top:8px;font-size:13px;color:var(--t2)}.fail b{color:var(--tx)}.stale{color:var(--amber);margin-left:6px}
 details{margin-top:8px;font-size:13px;color:var(--t2)}summary{cursor:pointer}.evo{margin:6px 0 0;padding-left:18px}
 .qh{margin:22px 0 10px;font-size:14px}.qh small{color:var(--t2);font-weight:400;margin-left:8px}.quarantine{border-color:rgba(220,38,38,.35)}
 .empty{color:var(--t2);background:var(--card);border:1px dashed var(--bd);border-radius:12px;padding:18px}

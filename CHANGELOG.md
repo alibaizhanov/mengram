@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.36.0 — 2026-09-07
+
+### Added
+- **`last_succeeded`** — when a workflow last worked. Set only when a
+  successful run is recorded (`mengram local feedback --success`), never by
+  a read, so "unverified for N days" is a fact about runs. Shown by
+  `mengram local procedures` (with days ago), on the memory map (flagged
+  after 30 days), and in the policy gate's plan. Needs memfmt 0.5.2, which
+  adds the field to the format.
+
 ## 2.35.0 — 2026-09-07
 
 ### Added

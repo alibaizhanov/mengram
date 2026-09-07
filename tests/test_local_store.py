@@ -217,3 +217,26 @@ def test_add_extracts_with_the_users_model_and_writes(tmp_path):
     assert stats["entities_created"] >= 1
     assert (tmp_path / "memory" / "MEMORY.md").exists()
     assert store.existing_context().startswith("Known entities")
+
+
+def test_success_writes_last_succeeded_and_failure_does_not(tmp_path):
+    """`last_succeeded` is a fact about runs: set by a recorded success, never by a read."""
+    import datetime as dt
+    from engine.extractor.conversation_extractor import ExtractedProcedure, ExtractionResult
+    from local.store import LocalStore
+    root = tmp_path / "m"
+    root.mkdir()
+    store = LocalStore(root)
+    store.add_extraction(ExtractionResult(procedures=[ExtractedProcedure(
+        "Deploy", "a change lands", [{"action": "push"}, {"action": "verify"}])]))
+    store.save()
+    assert store.procedures()[0]["last_succeeded"] is None
+    store.procedure_feedback("Deploy", False, failed_at_step=2, reason="cold pool")
+    assert LocalStore(root).procedures()[0]["last_succeeded"] is None
+    d = store.procedure_feedback("Deploy", True)
+    assert d["last_succeeded"] == dt.date.today().isoformat() and d["days_since_success"] == 0
+    text = (root / "procedures" / "Deploy.md").read_text() if (root / "procedures" / "Deploy.md").exists() else \
+        "".join(p.read_text() for p in (root / "procedures").glob("*.md"))
+    assert f"last_succeeded: {dt.date.today().isoformat()}" in text
+    # reading the folder again does not move it
+    assert LocalStore(root).procedures()[0]["last_succeeded"] == dt.date.today().isoformat()

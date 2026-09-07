@@ -167,6 +167,8 @@ def _plan(proc: dict, label: str) -> str:
     if proc.get("last_failure"):
         when = f"{proc['last_failed']}: " if proc.get("last_failed") else ""
         lines.append(f"Last failure: {when}{proc['last_failure']}")
+    if proc.get("last_succeeded"):
+        lines.append(f"Last success: {proc['last_succeeded']}")
     lines.append("The evidence for this workflow is weak, so the user was asked to confirm. "
                  "If they decline, show them the plan and what you would verify first.")
     return "\n".join(lines)
@@ -226,6 +228,7 @@ def memfmt_procedures(root: str) -> list[dict]:
             # memfmt 0.5 fields; absent on an older library, and then absent here.
             "last_failure": getattr(p, "last_failure", None),
             "last_failed": getattr(p, "last_failed", None),
+            "last_succeeded": getattr(p, "last_succeeded", None),
             "steps": [
                 {"action": s.action, "detail": s.detail,
                  "success_count": s.success_count, "fail_count": s.fail_count}

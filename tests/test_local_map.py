@@ -120,3 +120,19 @@ def test_import_ends_with_the_map(tmp_path, monkeypatch, capsys):
     monkeypatch.delenv("MENGRAM_MEMORY_DIR", raising=False)
     code, out, _ = _run(monkeypatch, capsys, ["import", "claude-code", "--memory", str(root), "--yes"])
     assert code == 0 and "Map of the folder" in out and (root / MAP_FILE).exists()
+
+
+def test_map_shows_last_success_and_flags_staleness(tmp_path):
+    from local.store import LocalStore
+    store = _seeded(tmp_path / "m")
+    p = store.memory.procedures[0]
+    p.last_succeeded = "2026-01-01"          # months ago
+    store.save()
+    html = render_map(LocalStore(tmp_path / "m"), [])
+    assert "Last success:</b> 2026-01-01" in html and "unverified for" in html
+    p = store.memory.procedures[0]
+    import datetime as dt
+    p.last_succeeded = dt.date.today().isoformat()
+    store.save()
+    html = render_map(LocalStore(tmp_path / "m"), [])
+    assert "unverified for" not in html

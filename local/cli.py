@@ -132,6 +132,10 @@ def cmd_procedures(args) -> int:
         if p.get("last_failure"):
             when = f"{p['last_failed']}: " if p.get("last_failed") else ""
             print(f"  last failure: {when}{p['last_failure']}")
+        if p.get("last_succeeded"):
+            days = p.get("days_since_success")
+            ago = f" ({days} days ago)" if isinstance(days, int) and days > 0 else ""
+            print(f"  last success: {p['last_succeeded']}{ago}")
     return 0
 
 
