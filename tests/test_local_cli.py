@@ -262,3 +262,21 @@ def test_missing_provider_sdk_is_a_one_line_hint_not_a_traceback(tmp_path, monke
     _fake_sessions(tmp_path, monkeypatch)
     code, out, err = _run(monkeypatch, capsys, ["import", "claude-code", "--memory", str(root), "--yes"])
     assert code == 2 and "mengram-ai[anthropic]" in out
+
+
+def test_import_state_is_saved_after_every_session(folder, tmp_path, monkeypatch, capsys):
+    """A killed import must resume, not re-extract: the state file grows per session."""
+    import importer
+    _fake_sessions(tmp_path, monkeypatch, n=3)
+    seen = []
+    from local.store import LocalStore
+    real_add = LocalStore.add
+
+    def add_and_check(self, text, client):
+        out = real_add(self, text, client)
+        state = folder / ".mengram" / "claude-code-imported.json"
+        seen.append(len(json.loads(state.read_text())) if state.exists() else 0)
+        return out
+    monkeypatch.setattr(LocalStore, "add", add_and_check)
+    code, out, _ = _run(monkeypatch, capsys, ["import", "claude-code", "--memory", str(folder), "--yes"])
+    assert code == 0 and seen == [0, 1, 2]   # before the 1st save: 0; then 1, then 2 already on disk

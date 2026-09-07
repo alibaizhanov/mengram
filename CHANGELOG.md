@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.37.2 — 2026-09-07
+
+### Fixed
+- `import claude-code` saves the imported-sessions list after every session,
+  not at the end: a killed or timed-out import resumes instead of extracting
+  everything twice (episodes are appended, so a re-run duplicated them).
+- The Anthropic client has a 5-minute request timeout and one retry (the SDK
+  default was 10 minutes × 3); one session that never answered no longer
+  stalls the whole import. Seen on a real import with claude-sonnet-5.
+
 ## 2.37.1 — 2026-09-07
 
 ### Fixed

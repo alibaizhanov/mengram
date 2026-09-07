@@ -46,7 +46,9 @@ class AnthropicClient(LLMClient):
             import anthropic
         except ImportError:
             raise ImportError("pip install anthropic")
-        self.client = anthropic.Anthropic(api_key=api_key)
+        # A stalled request must fail, not hang an import: the SDK default is
+        # 10 min × 3 attempts. One extraction of a 16k-char session takes ~80s.
+        self.client = anthropic.Anthropic(api_key=api_key, timeout=300.0, max_retries=1)
         self.model = model
 
     def complete(self, prompt: str, system: str = "", response_format=None) -> str:
