@@ -481,17 +481,18 @@ _CC_MIN_SESSION_CHARS = 200
 _CC_MIN_USER_TURNS = 2
 
 
-def _cc_load_state() -> set:
+def _cc_load_state(state_file: Optional[Path] = None) -> set:
     try:
-        return set(json.loads(_CC_STATE_FILE.read_text()))
+        return set(json.loads((state_file or _CC_STATE_FILE).read_text()))
     except Exception:
         return set()
 
 
-def _cc_save_state(imported: set) -> None:
+def _cc_save_state(imported: set, state_file: Optional[Path] = None) -> None:
+    path = state_file or _CC_STATE_FILE
     try:
-        _CC_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-        _CC_STATE_FILE.write_text(json.dumps(sorted(imported)))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(sorted(imported)))
     except Exception:
         pass  # state is an optimization, never a blocker
 
@@ -590,6 +591,7 @@ def import_claude_code(
     project_filter: str = "",
     reimport: bool = False,
     on_progress: Optional[Callable] = None,
+    state_file: Optional[Path] = None,
 ) -> ImportResult:
     """
     Import local Claude Code transcripts into memory.
@@ -600,12 +602,15 @@ def import_claude_code(
         project_filter: Only sessions whose project path contains this substring
         reimport: Ignore the already-imported state file
         on_progress: Optional callback(current, total, title)
+        state_file: Where the already-imported session ids live. Defaults to
+            ~/.mengram/claude-code-imported.json (the cloud account); a memory
+            folder keeps its own so the two never skip each other's sessions.
     """
     start = time.time()
     result = ImportResult()
 
     session_files = discover_claude_code_sessions(project_filter)
-    imported_before = set() if reimport else _cc_load_state()
+    imported_before = set() if reimport else _cc_load_state(state_file)
     candidates = [f for f in session_files if Path(f).stem not in imported_before][:last]
     result.conversations_found = len(candidates)
 
@@ -631,7 +636,7 @@ def import_claude_code(
         except Exception as e:
             result.errors.append(f"{Path(path).name}: {e}")
 
-    _cc_save_state(imported_now)
+    _cc_save_state(imported_now, state_file)
     result.entities_created = list(set(result.entities_created))
     result.duration_seconds = time.time() - start
     return result

@@ -186,3 +186,65 @@ def test_hook_install_without_key_or_folder_points_at_local_mode(monkeypatch, ca
     monkeypatch.delenv("MENGRAM_MEMORY_DIR", raising=False)
     code, out, err = _run(monkeypatch, capsys, ["hook", "install"])
     assert code == 1 and "--memory" in err
+
+
+# --- mengram import claude-code --memory DIR (the folder's cold start) --------------
+
+def _fake_sessions(tmp_path, monkeypatch, n=2):
+    """A fake ~/.claude/projects with `n` sessions that pass the importer's thresholds."""
+    import importer
+    projects = tmp_path / "claude-projects"
+    proj = projects / "-Users-me-Projects-shop"
+    proj.mkdir(parents=True)
+    for i in range(n):
+        rows = []
+        for turn in range(3):
+            rows.append({"type": "user", "timestamp": f"2026-09-0{i + 1}T10:0{turn}:00Z",
+                         "message": {"role": "user", "content": f"Session {i}: I deploy the shop backend to Railway "
+                                                                 f"and verify /health after every push, turn {turn}."}})
+            rows.append({"type": "assistant", "timestamp": f"2026-09-0{i + 1}T10:0{turn}:30Z",
+                         "message": {"role": "assistant", "content": [{"type": "text",
+                                     "text": "Pushed to main; Railway built it; /health returned 200 after the pool warmed up."}]}})
+        (proj / f"session-{i}.jsonl").write_text("\n".join(json.dumps(r) for r in rows) + "\n")
+    monkeypatch.setattr(importer, "CLAUDE_PROJECTS_DIR", projects)
+    return projects
+
+
+def test_import_claude_code_into_the_folder(folder, tmp_path, monkeypatch, capsys):
+    _fake_sessions(tmp_path, monkeypatch, n=2)
+    code, out, err = _run(monkeypatch, capsys, ["import", "claude-code", "--memory", str(folder), "--yes"])
+    assert code == 0, err
+    assert "Imported:            2" in out and "Folder now holds" in out
+    from local.store import LocalStore
+    assert LocalStore(folder).stats()["entities"] >= 1
+    # the folder keeps its own imported-list, not the cloud account's ~/.mengram file
+    state = folder / ".mengram" / "claude-code-imported.json"
+    assert state.exists() and set(json.loads(state.read_text())) == {"session-0", "session-1"}
+    # a second run finds nothing new; --reimport forces it
+    code, out, _ = _run(monkeypatch, capsys, ["import", "claude-code", "--memory", str(folder), "--yes"])
+    assert code == 0 and "Nothing new" in out
+    code, out, _ = _run(monkeypatch, capsys, ["import", "claude-code", "--memory", str(folder), "--yes", "--reimport"])
+    assert code == 0 and "Imported:            2" in out
+
+
+def test_import_claude_code_respects_last_and_env_folder(folder, tmp_path, monkeypatch, capsys):
+    _fake_sessions(tmp_path, monkeypatch, n=3)
+    monkeypatch.setenv("MENGRAM_MEMORY_DIR", str(folder))
+    code, out, _ = _run(monkeypatch, capsys, ["import", "claude-code", "--yes", "--last", "1"])
+    assert code == 0 and "Imported:            1" in out
+
+
+def test_import_claude_code_without_a_model_says_so(tmp_path, monkeypatch, capsys):
+    _fake_sessions(tmp_path, monkeypatch)
+    root = tmp_path / "m"
+    root.mkdir()
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    code, out, _ = _run(monkeypatch, capsys, ["import", "claude-code", "--memory", str(root), "--yes"])
+    assert code == 2 and "No model configured" in out
+
+
+def test_import_claude_code_needs_an_initialised_folder(tmp_path, monkeypatch, capsys):
+    _fake_sessions(tmp_path, monkeypatch)
+    code, out, _ = _run(monkeypatch, capsys, ["import", "claude-code", "--memory", str(tmp_path / "nope"), "--yes"])
+    assert code == 1 and "mengram local init" in out
