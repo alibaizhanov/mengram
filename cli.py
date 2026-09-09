@@ -984,6 +984,75 @@ def cmd_auto_outcome(args):
         _exit("error")
 
 
+def _resolve_mengram_bin() -> str:
+    """The program to write into a hook command.
+
+    A bare `mengram` is found only when the install put it on PATH, and a
+    user-site install on macOS does not. The hook then runs in a shell that
+    never loads a profile, so it fails — and every hook is built to fail
+    silently, which is how an install can report success and do nothing for
+    months. The most reliable answer is the script that is running right now:
+    it demonstrably launched, so writing its path down cannot be wrong.
+    """
+    candidate = sys.argv[0] or ""
+    try:
+        path = Path(candidate).resolve()
+    except (OSError, ValueError):
+        path = None
+    if (path and path.is_file() and os.access(path, os.X_OK)
+            and path.name.startswith("mengram")):
+        return str(path)
+    return shutil.which("mengram") or "mengram"
+
+
+def _shell_quote(path: str) -> str:
+    return f'"{path}"' if " " in path else path
+
+
+def _broken_hook_commands() -> list[tuple[str, str]]:
+    """Installed Mengram hooks that a shell cannot run: `[(command, why)]`.
+
+    Empty when nothing is installed. Not installed is a choice; installed and
+    unable to launch is the failure worth shouting about.
+    """
+    try:
+        settings_path = get_claude_code_settings_path()
+        settings = json.loads(settings_path.read_text()) if settings_path.exists() else {}
+    except Exception:
+        return []
+    out = []
+    for groups in (settings.get("hooks") or {}).values():
+        for group in groups or []:
+            for hook in group.get("hooks", []) or []:
+                cmd = hook.get("command", "")
+                if "mengram" not in cmd or "auto-" not in cmd:
+                    continue
+                ok, detail = _hook_command_runs(cmd)
+                if not ok:
+                    out.append((cmd, detail))
+    return out
+
+
+def _hook_command_runs(command: str) -> tuple[bool, str]:
+    """Can a shell actually run this hook command? `(ok, detail)`.
+
+    Asked the way Claude Code asks it — through a non-interactive shell, which
+    does not read the profile that makes `mengram` resolvable in a terminal.
+    That gap is the whole bug: a check that only reads settings.json reports a
+    healthy install that has never run once.
+    """
+    import subprocess
+    try:
+        r = subprocess.run(f"{command} --help", shell=True, capture_output=True,
+                           text=True, timeout=20)
+    except Exception as e:
+        return False, type(e).__name__
+    if r.returncode == 0:
+        return True, ""
+    lines = (r.stderr or r.stdout or "").strip().splitlines()
+    return False, (lines[-1][:120] if lines else f"exit {r.returncode}")
+
+
 def cmd_hook(args):
     """Manage Claude Code auto-save hook"""
     action = getattr(args, "hook_action", None)
@@ -1331,6 +1400,17 @@ def cmd_doctor(args):
     import urllib.request
     import urllib.error
     import time
+
+    # Hooks first. A cloud round-trip says nothing about whether the hooks that
+    # actually do the work can launch, and reporting OK while they cannot is
+    # how an install stayed dead for months without anyone noticing.
+    broken = _broken_hook_commands()
+    if broken:
+        print("FAIL: Claude Code hooks are installed but cannot run.", file=sys.stderr)
+        for cmd, detail in broken:
+            print(f"  {cmd}\n    -> {detail}", file=sys.stderr)
+        print("  Run `mengram hook install` again to write the full path.", file=sys.stderr)
+        sys.exit(1)
 
     api_key = _load_cloud_api_key()
     if not api_key:
@@ -1782,11 +1862,14 @@ def cmd_hook_install(args):
     user_id = getattr(args, "user_id", None)
 
     # Build hook commands
-    save_cmd = f"mengram auto-save --every {every}"
-    recall_cmd = "mengram auto-recall"
-    context_cmd = "mengram auto-context"
-    policy_cmd = "mengram auto-policy"
-    outcome_cmd = "mengram auto-outcome"
+    # Absolute path, not a bare name: see _resolve_mengram_bin.
+    mengram_bin = _resolve_mengram_bin()
+    prog = _shell_quote(mengram_bin)
+    save_cmd = f"{prog} auto-save --every {every}"
+    recall_cmd = f"{prog} auto-recall"
+    context_cmd = f"{prog} auto-context"
+    policy_cmd = f"{prog} auto-policy"
+    outcome_cmd = f"{prog} auto-outcome"
     if user_id:
         save_cmd += f" --user-id {user_id}"
         recall_cmd += f" --user-id {user_id}"
@@ -1866,6 +1949,21 @@ def cmd_hook_install(args):
         print(f"  Policy gate:  confirm before running a workflow with a weak record")
     print(f"  Run outcomes: record whether a workflow's step worked")
     print(f"  Settings: {settings_path}")
+
+    # Verify rather than assume. An install that cannot run is the failure
+    # this whole path is here to stop being invisible.
+    ok, detail = _hook_command_runs(save_cmd)
+    if ok:
+        print(f"  Verified: {mengram_bin} runs from a plain shell")
+    else:
+        print(f"\n  WARNING: the hook command does not run: {detail}")
+        print(f"  Claude Code would launch: {save_cmd}")
+        if mengram_bin == "mengram":
+            print("  `mengram` is not on PATH here, so the hooks would do nothing,")
+            print("  silently. Reinstall with the full path, or add the directory")
+            print("  holding the `mengram` script to PATH and run this again.")
+        print("  Nothing else in Claude Code is affected.")
+
     print(f"\nRestart Claude Code for hooks to take effect.")
 
 
@@ -1953,6 +2051,27 @@ def cmd_hook_status(args):
     print(f"  Session context: {'installed' if context_cmd else 'not installed'}")
     print(f"  Policy gate:    {'installed' if policy_cmd else 'not installed'}")
     print(f"  Run outcomes:   {'installed' if outcome_cmd else 'not installed'}")
+
+    # Installed is not the same as working: run what Claude Code would run.
+    broken = []
+    for label, cmd in (("Auto-save", save_cmd), ("Auto-recall", recall_cmd),
+                       ("Session context", context_cmd), ("Policy gate", policy_cmd),
+                       ("Run outcomes", outcome_cmd)):
+        if not cmd:
+            continue
+        ok, detail = _hook_command_runs(cmd)
+        if not ok:
+            broken.append((label, cmd, detail))
+    if broken:
+        print("\n  THESE HOOKS ARE INSTALLED BUT CANNOT RUN:")
+        for label, cmd, detail in broken:
+            print(f"    {label}: {detail}")
+            print(f"      command: {cmd}")
+        print("  Claude Code runs hooks in a plain shell that does not read your")
+        print("  profile, so a command that works in your terminal can still fail")
+        print("  here. Run `mengram hook install` again to write the full path.")
+    elif save_cmd or recall_cmd or context_cmd or policy_cmd or outcome_cmd:
+        print("  Hook commands:  verified, they run from a plain shell")
 
     # Check API key
     api_key = os.environ.get("MENGRAM_API_KEY", "")
