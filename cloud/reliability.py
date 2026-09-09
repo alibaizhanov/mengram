@@ -44,6 +44,34 @@ def estimate(success: int, fail: int, prior: tuple = NEUTRAL_PRIOR) -> str:
     return f"{round(100 * value)}% {'reliable' if observed else 'expected'}"
 
 
+def from_steps(steps: list) -> tuple[int, int]:
+    """The whole-run record implied by the steps, for a workflow that has none.
+
+    Nothing increments a workflow's own counters unless someone reports a whole
+    run, and almost nobody ever does. Meanwhile its steps are watched one shell
+    command at a time. A workflow whose every step has been seen working is not
+    "never run" in any sense a human would accept, so the steps stand in.
+
+    The weakest step decides, not the average: a chain is exactly as
+    trustworthy as the link most likely to break, and averaging hides it.
+    Steps nobody measured are ignored rather than counted as zero, because
+    absence of measurement is not evidence of failure.
+    """
+    tracked = [s for s in (steps or [])
+               if isinstance(s, dict)
+               and (s.get("success_count") is not None or s.get("fail_count") is not None)]
+    if not tracked:
+        return (0, 0)
+
+    def _rate(step):
+        ok = int(step.get("success_count") or 0)
+        bad = int(step.get("fail_count") or 0)
+        return (ok + 1) / (ok + bad + 2)
+
+    weakest = min(tracked, key=_rate)
+    return (int(weakest.get("success_count") or 0), int(weakest.get("fail_count") or 0))
+
+
 def prior_from_lineage(evolution: list = None) -> tuple:
     """Beta prior taken from what the previous version retired with.
 
