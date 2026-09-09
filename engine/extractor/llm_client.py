@@ -46,7 +46,9 @@ class AnthropicClient(LLMClient):
             import anthropic
         except ImportError:
             raise ImportError("pip install anthropic")
-        self.client = anthropic.Anthropic(api_key=api_key)
+        # A stalled request must fail, not hang an import: the SDK default is
+        # 10 min × 3 attempts. One extraction of a 16k-char session takes ~80s.
+        self.client = anthropic.Anthropic(api_key=api_key, timeout=300.0, max_retries=1)
         self.model = model
 
     def complete(self, prompt: str, system: str = "", response_format=None) -> str:
@@ -118,20 +120,33 @@ class OpenAIClient(LLMClient):
 class OllamaClient(LLMClient):
     """Ollama — fully local LLM (free)"""
 
-    def __init__(self, base_url: str = "http://localhost:11434", model: str = "llama3.2"):
+    # Ollama's default context window is small (4k on most models); the
+    # extraction prompt alone is ~3.6k tokens plus the transcript, so the
+    # default would silently truncate the input. 16k fits an 8B model on
+    # a 16 GB machine; override with `num_ctx` in the folder config.
+    DEFAULT_NUM_CTX = 16384
+
+    def __init__(self, base_url: str = "http://localhost:11434", model: str = "llama3.2",
+                 num_ctx: int = None, timeout: float = 600.0):
         self.base_url = base_url.rstrip("/")
         self.model = model
+        self.num_ctx = int(num_ctx or self.DEFAULT_NUM_CTX)
+        self.timeout = timeout
+
+    def _payload(self, **fields) -> dict:
+        """Common request fields: context size, and no "thinking" — qwen3-style
+        models otherwise spend the budget reasoning and return truncated JSON."""
+        return {"model": self.model, "stream": False, "think": False,
+                "options": {"num_ctx": self.num_ctx, "temperature": 0.2}, **fields}
 
     def complete(self, prompt: str, system: str = "", response_format=None) -> str:
         import urllib.request
         import json
 
-        req_data = {
-            "model": self.model,
-            "prompt": prompt,
-            "system": system or "You are a knowledge extraction assistant.",
-            "stream": False,
-        }
+        req_data = self._payload(
+            prompt=prompt,
+            system=system or "You are a knowledge extraction assistant.",
+        )
         if response_format:
             req_data["format"] = "json"
         data = json.dumps(req_data).encode()
@@ -141,7 +156,7 @@ class OllamaClient(LLMClient):
             data=data,
             headers={"Content-Type": "application/json"},
         )
-        with urllib.request.urlopen(req) as resp:
+        with urllib.request.urlopen(req, timeout=self.timeout) as resp:
             result = json.loads(resp.read())
             return result["response"]
 
@@ -151,18 +166,14 @@ class OllamaClient(LLMClient):
 
         msgs = [{"role": "system", "content": system or "You are a helpful assistant."}]
         msgs.extend(messages)
-        data = json.dumps({
-            "model": self.model,
-            "messages": msgs,
-            "stream": False,
-        }).encode()
+        data = json.dumps(self._payload(messages=msgs)).encode()
 
         req = urllib.request.Request(
             f"{self.base_url}/api/chat",
             data=data,
             headers={"Content-Type": "application/json"},
         )
-        with urllib.request.urlopen(req) as resp:
+        with urllib.request.urlopen(req, timeout=self.timeout) as resp:
             result = json.loads(resp.read())
             return result["message"]["content"]
 
@@ -188,6 +199,7 @@ def create_llm_client(config: dict) -> LLMClient:
         return OllamaClient(
             base_url=settings.get("base_url", "http://localhost:11434"),
             model=settings.get("model", "llama3.2"),
+            num_ctx=settings.get("num_ctx"),
         )
     else:
         raise ValueError(f"Unknown LLM provider: {provider}")

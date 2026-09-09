@@ -628,6 +628,10 @@ def import_claude_code(
             resp = add_fn(session["text"], session["session_id"])
             result.chunks_sent += 1
             imported_now.add(session["session_id"])
+            # Save after every session, not at the end: a killed or timed-out
+            # import must resume from where it stopped, not extract everything
+            # twice (episodes are appended, so a re-run duplicates them).
+            _cc_save_state(imported_now, state_file)
             for key in ("entities_created", "entities_updated"):
                 if isinstance(resp, dict) and key in resp:
                     result.entities_created.extend(resp[key])
