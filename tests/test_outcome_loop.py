@@ -112,17 +112,39 @@ def test_a_step_naming_no_tool_needs_to_be_nearly_all_there():
     ({"exitCode": 2}, False),
     ({"is_error": True}, False),
     ({"isError": False}, True),
-    ({"stdout": "fine"}, None),          # no verdict in the transcript
     ({"exit_code": 0, "interrupted": True}, None),
     ({"exit_code": True}, None),         # a bool is not an exit code
     ("not a dict", None),
 ])
-def test_bash_outcome(response, expected):
+def test_bash_outcome_when_a_host_reports_one(response, expected):
     assert cli._bash_outcome(response) is expected
 
 
-def test_stderr_alone_is_not_a_failure():
-    # Plenty of healthy tools write to stderr.
+def test_the_real_claude_code_payload_means_success():
+    """The event carries no exit code, and only arrives when the command worked.
+
+    This is the actual shape, captured from a running Claude Code, not the
+    shape the docs describe. Getting it wrong is not a small error: reading it
+    as "no verdict" makes the whole loop record nothing at all, which is what
+    2.38.0 shipped.
+    """
+    real = {"stdout": "ok", "stderr": "", "interrupted": False,
+            "isImage": False, "noOutputExpected": False}
+    assert cli._bash_outcome(real) is True
+
+
+def test_an_interrupted_command_is_still_no_evidence():
+    real = {"stdout": "", "stderr": "", "interrupted": True,
+            "isImage": False, "noOutputExpected": False}
+    assert cli._bash_outcome(real) is None
+
+
+def test_stderr_without_an_exit_code_is_not_a_failure():
+    real = {"stdout": "", "stderr": "warning: deprecated", "interrupted": False}
+    assert cli._bash_outcome(real) is True
+
+
+def test_stderr_alongside_a_zero_exit_is_not_a_failure():
     assert cli._bash_outcome({"exit_code": 0, "stderr": "warning: deprecated"}) is True
 
 
@@ -240,11 +262,21 @@ def test_hook_records_a_failure_with_its_reason(monkeypatch, capsys, tmp_path):
     assert proc["last_failure"] == "2 failed"
 
 
-def test_hook_writes_nothing_when_the_outcome_is_unclear(monkeypatch, capsys, tmp_path):
+def test_hook_writes_nothing_when_the_command_was_interrupted(monkeypatch, capsys, tmp_path):
     _folder(tmp_path)
-    msg = _run(monkeypatch, capsys, _bash("twine upload dist/*", {"stdout": "?"}), tmp_path)
-    assert "outcome unclear" in msg
+    payload = _bash("twine upload dist/*", {"stdout": "", "interrupted": True})
+    assert "outcome unclear" in _run(monkeypatch, capsys, payload, tmp_path)
     assert _read(tmp_path)[0]["steps"][2].get("success_count") in (None, 0)
+
+
+def test_hook_records_from_the_real_payload_shape(monkeypatch, capsys, tmp_path):
+    """End to end on what Claude Code actually sends."""
+    _folder(tmp_path)
+    real = {"stdout": "uploaded", "stderr": "", "interrupted": False,
+            "isImage": False, "noOutputExpected": False}
+    msg = _run(monkeypatch, capsys, _bash("twine upload dist/*", real), tmp_path)
+    assert "step 3 recorded as success" in msg
+    assert _read(tmp_path)[0]["steps"][2]["success_count"] == 1
 
 
 def test_hook_ignores_unrelated_commands_and_other_tools(monkeypatch, capsys, tmp_path):
