@@ -1,5 +1,25 @@
 # Changelog
 
+## 2.38.1 — 2026-09-09
+
+### Fixed
+- **`hook install` writes a command Claude Code can actually run.** It wrote a
+  bare `mengram`, which resolves only when the install happened to land on
+  PATH. A `pip install --user` on macOS does not, and Claude Code runs hooks in
+  a shell that never reads your profile, so the command was not found. Every
+  hook is built to fail silently, so nothing was ever printed: auto-save,
+  auto-recall and the session profile simply never ran. Found on a machine
+  where they had been dead since May. The install now writes the full path of
+  the program that is running, and verifies it can be launched before it
+  finishes.
+- **`hook status` runs the hooks instead of trusting the settings file.** It
+  used to look for the command text in `settings.json` and print "installed".
+  It now executes each one the way Claude Code would, through a plain shell,
+  and names any that cannot run along with the shell's own error.
+- **`doctor` checks the hooks before the cloud.** A round-trip against the API
+  said "OK" while every hook was dead. Hooks that are installed and cannot run
+  now fail `doctor` with the offending command.
+
 ## 2.38.0 — 2026-09-09
 
 ### Added
