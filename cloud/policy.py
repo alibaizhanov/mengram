@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import re
 
-from cloud.reliability import estimate
+from cloud.reliability import estimate, from_steps
 
 #: Commands that look like a workflow rather than a lookup. Anything else is
 #: waved through without a search, which keeps the hook cheap: a `ls` should
@@ -87,12 +87,139 @@ def procedure_matches(proc: dict, command: str) -> bool:
     return bool(tokens(_procedure_text(proc)) & tokens(command))
 
 
+#: Tools a step has to name before a shell command can be called that step.
+#: Prose plans ("draft the launch post", "decide the price") never match, which
+#: is the point: they are not things a Bash call can be an instance of.
+SHELL_VERBS = re.compile(
+    r"(?:^|[\s;|&(`$])("
+    r"git|gh|npm|npx|pnpm|yarn|bun|deno|pip|pip3|pipx|python|python3|uv|poetry|"
+    r"docker|docker-compose|kubectl|helm|terraform|pulumi|ansible|vagrant|"
+    r"railway|vercel|netlify|fly|flyctl|heroku|gcloud|aws|az|supabase|"
+    r"psql|mysql|sqlite3|redis-cli|mongosh|pg_dump|alembic|"
+    r"curl|wget|ssh|scp|rsync|systemctl|launchctl|"
+    r"twine|cargo|make|mvn|gradle|pytest|tox|ruff|mypy|eslint"
+    r")\b",
+    re.IGNORECASE,
+)
+
+#: Words a command and a step must share beyond the tool's own name.
+MIN_STEP_OVERLAP = 2
+
+#: And how much of the step those shared words have to account for. Raw
+#: overlap rewards verbose steps: a paragraph-long step collides with almost
+#: any command by chance, which is how `rm -rf dist build` came to look like
+#: "Full Mengram codebase audit". Requiring the command to cover half the
+#: step's words asks the opposite question — is this step *about* this
+#: command — and a step written as a command answers yes easily.
+MIN_STEP_COVERAGE = 0.5
+
+#: A step that names no tool at all ("push to main") is still a real step, and
+#: the command that is it should say so. Without a tool to anchor on, the only
+#: honest evidence is that the command contains nearly the whole step, so the
+#: bar goes up instead of the rule going away.
+MIN_UNANCHORED_COVERAGE = 0.7
+
+
+def shell_verbs(text: str) -> set[str]:
+    """The command-line tools a piece of text names."""
+    return {m.group(1).lower() for m in SHELL_VERBS.finditer(text or "")}
+
+
+def _match_words(text: str) -> set[str]:
+    """Tokens, plus the segments of any path-like one.
+
+    `tests/test_policy_hook.py` and `tests/` share nothing as whole tokens and
+    everything that matters as segments, so a step that says where to look
+    still matches the command that looks there.
+    """
+    words = set()
+    for w in tokens(text):
+        words.add(w)
+        if "/" in w:
+            words.update(part for part in w.split("/") if len(part) > 2)
+    return words
+
+
+def _command_text(command: str) -> str:
+    """The command itself, without the data it carries.
+
+    A heredoc body is an argument, not an instruction: a `cat >> notes.md`
+    that happens to contain the words "pip install" is not a step about
+    installing anything. Everything from the first `<<` is dropped, and the
+    rest is capped, because a 4 kB inline script matches everything.
+    """
+    return (command or "").split("<<", 1)[0][:500]
+
+
+def _step_text(step) -> str:
+    if isinstance(step, dict):
+        return " ".join(p for p in (step.get("action"), step.get("detail")) if p)
+    return str(step or "")
+
+
+def match_step(proc: dict, command: str) -> tuple[int, int] | None:
+    """Which step of this procedure is this command? `(step number, score)`.
+
+    The bar here is deliberately higher than `procedure_matches`. That one
+    guards a question, where a false positive costs the human one keystroke.
+    This one guards a *write*: a wrong match credits or blames a workflow that
+    had nothing to do with the command, and a track record assembled out of
+    those is worse than no record at all, because the gate then trusts it.
+
+    So the step has to name the same tool the command runs, and share a word
+    beyond that tool's name. Steps are numbered from 1, the way a failure is
+    reported.
+    """
+    command = _command_text(command)
+    verbs = shell_verbs(command)
+    if not verbs:
+        return None
+    cmd_words = _match_words(command)
+    best: tuple[int, int] | None = None
+    for i, step in enumerate(proc.get("steps") or [], 1):
+        text = _step_text(step)
+        step_words = _match_words(text)
+        if not step_words:
+            continue
+        score = len(step_words & cmd_words)
+        if score < MIN_STEP_OVERLAP:
+            continue
+        coverage = score / len(step_words)
+        anchored = bool(shell_verbs(text) & verbs)
+        floor = MIN_STEP_COVERAGE if anchored else MIN_UNANCHORED_COVERAGE
+        if coverage < floor:
+            continue
+        if best is None or score > best[1]:
+            best = (i, score)
+    return best
+
+
+def best_step_match(procs: list[dict], command: str) -> tuple[dict, int, int] | None:
+    """The procedure and step this command most plausibly is an instance of.
+
+    Returns `(procedure, step number, score)`, or None when nothing clears the
+    bar — which is the common case, and the right one.
+    """
+    best: tuple[dict, int, int] | None = None
+    for proc in procs or []:
+        m = match_step(proc, command)
+        if m is not None and (best is None or m[1] > best[2]):
+            best = (proc, m[0], m[1])
+    return best
+
+
 def reliability_of(proc: dict) -> str:
     """The record in words, computed here when the source did not include it."""
     label = proc.get("reliability")
     if isinstance(label, str) and label:
         return label
-    return estimate(int(proc.get("success_count") or 0), int(proc.get("fail_count") or 0))
+    success = int(proc.get("success_count") or 0)
+    fail = int(proc.get("fail_count") or 0)
+    if success == 0 and fail == 0:
+        # No whole-run report, which is the normal case. The steps have been
+        # watched one command at a time, and that is the evidence there is.
+        success, fail = from_steps(proc.get("steps") or [])
+    return estimate(success, fail)
 
 
 def parse_reliability(label: str) -> tuple[str, int | None]:

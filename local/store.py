@@ -336,6 +336,36 @@ class LocalStore:
         self.save()
         return self._procedure_dict(p)
 
+    def step_outcome(self, name: str, step: int, success: bool,
+                     reason: str | None = None) -> dict:
+        """Record one step of a procedure, not a whole run of it.
+
+        The hook that calls this watches single shell commands. A command is
+        evidence about the step it *is* and about nothing else: crediting the
+        whole workflow for one command would inflate a record the gate then
+        trusts. So this moves that step's counters and leaves the procedure's
+        own totals alone. A failure still writes `last_failure`, because the
+        workflow really did break somewhere, and that is the first thing the
+        next reader needs to see. Writes.
+        """
+        p = self._procedure(name)
+        if p is None:
+            return {"error": "procedure not found", "name": name}
+        steps = _steps_as_dicts(p.steps, with_counts=True)
+        if not 1 <= step <= len(steps):
+            return {"error": "no such step", "name": name, "step": step}
+        target = dict(steps[step - 1])
+        for key in ("success_count", "fail_count"):
+            target[key] = int(target.get(key) or 0)
+        target["success_count" if success else "fail_count"] += 1
+        steps[step - 1] = target
+        p.steps = _to_steps(steps, keep_counts=True, template=p.steps)
+        if not success and reason:
+            p.last_failure = " ".join(reason.split())
+            p.last_failed = _today()
+        self.save()
+        return self._procedure_dict(p)
+
     # ---- overview ---------------------------------------------------------
 
     def profile(self, max_entities: int = 15) -> str:

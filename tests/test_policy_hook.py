@@ -15,7 +15,7 @@ DEPLOY = {
     "id": "p1", "name": "deploy to Railway", "version": 3,
     "trigger_condition": "a change lands on main",
     "steps": [
-        {"action": "push to main", "detail": "the webhook does the rest"},
+        {"action": "push to main", "detail": "git push origin main"},
         {"action": "watch the boot log"},
         {"action": "verify /health", "detail": "expect 200 within 60s"},
     ],
@@ -116,7 +116,7 @@ def test_plan_carries_the_last_failure_when_known():
 def test_plan_carries_steps_and_preconditions():
     proc = _with((0, 0), metadata={"preconditions": ["migrations applied"]})
     v = policy.decide(proc, "git push origin main")
-    assert "1. push to main — the webhook does the rest" in v["plan"]
+    assert "1. push to main — git push origin main" in v["plan"]
     assert "Preconditions: migrations applied" in v["plan"]
 
 

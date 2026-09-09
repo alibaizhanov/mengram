@@ -862,13 +862,121 @@ def cmd_auto_policy(args):
             mem = CloudMemory(api_key=api_key, base_url=_load_cloud_base_url())
             procs = mem.procedures(query=command[:300], limit=3, user_id=user_id)
 
-        proc = policy.best_match(procs, command)
-        if not proc:
-            _exit("no matching workflow")
+        # The same bar the recorder uses: the command has to *be* a step of
+        # this workflow, not merely share a word with it. Sharing one word was
+        # enough to turn one command in six into a confirmation prompt, which
+        # is the version of this gate nobody would keep installed.
+        hit = policy.best_step_match(procs, command)
+        if hit is None:
+            _exit("no matching workflow step")
+        proc = hit[0]
         verdict = policy.decide(proc, command, min_reliable=min_reliable)
         if verdict is None:
             _exit(f"'{proc.get('name')}' {policy.reliability_of(proc)} — allowed")
         _exit(f"'{verdict['name']}' {verdict['reliability']} — ask", verdict)
+
+    except SystemExit:
+        raise
+    except Exception:
+        _exit("error")
+
+
+def _bash_outcome(tool_response) -> bool | None:
+    """Did this command work? None when the transcript does not actually say.
+
+    Silence is the right answer for anything ambiguous. A guessed success is
+    what makes a track record lie, and the gate downstream believes it.
+    A non-empty stderr is deliberately *not* a failure: plenty of healthy
+    tools write there.
+    """
+    if not isinstance(tool_response, dict):
+        return None
+    if tool_response.get("interrupted"):
+        return None
+    code = tool_response.get("exit_code", tool_response.get("exitCode"))
+    if isinstance(code, bool):          # True is not an exit code
+        return None
+    if isinstance(code, int):
+        return code == 0
+    flag = tool_response.get("is_error", tool_response.get("isError"))
+    if isinstance(flag, bool):
+        return not flag
+    return None
+
+
+def _failure_reason(tool_response) -> str | None:
+    """The shortest honest description of what went wrong."""
+    if not isinstance(tool_response, dict):
+        return None
+    text = (tool_response.get("stderr") or "").strip()
+    if not text:
+        text = (tool_response.get("stdout") or "").strip()
+    if not text:
+        return None
+    line = text.splitlines()[-1].strip()
+    return line[:200] or None
+
+
+def cmd_auto_outcome(args):
+    """Hook handler — Claude Code PostToolUse on Bash.
+
+    The other half of the policy gate. `auto-policy` asks about a workflow
+    whose record is weak; this is what gives a workflow a record at all. When
+    a command is recognisably one step of a learned procedure, its exit code
+    is written back to that step. Without this every procedure stays
+    `untested` forever, and the gate is an opinion with no evidence under it.
+
+    Deliberately quiet and deliberately reluctant: it writes only when the
+    step names the same tool the command ran and shares a word beyond it, and
+    it records nothing at all when the outcome is unclear. It prints nothing
+    and exits 0 whatever happens, because a bookkeeping hook must never
+    disturb the session it is observing.
+    """
+    HOOK = "auto-outcome"
+    EVENT = "PostToolUse"
+    from cloud import policy
+
+    def _exit(status):
+        _emit_hook_exit(EVENT, args, HOOK, status)
+
+    try:
+        try:
+            input_data = json.loads(sys.stdin.read())
+        except Exception:
+            _exit("no input")
+        if input_data.get("tool_name") != "Bash":
+            _exit("skipped (not Bash)")
+        command = (input_data.get("tool_input") or {}).get("command") or ""
+        if not command:
+            _exit("no command")
+        # Cheap check before anything is loaded, and a wider net than the gate
+        # upstream: the gate stays narrow because a false question interrupts a
+        # human, while a recording costs nothing and evidence is what is scarce.
+        # A command naming no known tool cannot match any step, so stop here.
+        if not policy.shell_verbs(command):
+            _exit("skipped (no known tool in the command)")
+        worked = _bash_outcome(input_data.get("tool_response"))
+        if worked is None:
+            _exit("outcome unclear — nothing recorded")
+
+        local_root = _local_dir(args)
+        if not local_root:
+            # The cloud endpoint records whole runs: it always moves the
+            # procedure's own counters. One shell command is not a run, and
+            # writing it there would inflate the very record the gate reads.
+            # Until the API takes a step-scoped write, the folder is where
+            # this loop closes.
+            _exit("cloud mode: step-scoped feedback not available yet")
+
+        procs = policy.memfmt_procedures(str(local_root))
+        hit = policy.best_step_match(procs, command)
+        if hit is None:
+            _exit("no step matched")
+        proc, step_no, _score = hit
+        name = proc.get("name") or "unnamed workflow"
+        reason = None if worked else _failure_reason(input_data.get("tool_response"))
+        _local_store(local_root).step_outcome(name, step_no, success=worked, reason=reason)
+        _exit(f"'{name}' step {step_no} recorded as {'success' if worked else 'failure'}")
 
     except SystemExit:
         raise
@@ -1657,7 +1765,7 @@ def cmd_setup(args):
 
 
 def cmd_hook_install(args):
-    """Install Claude Code memory hooks (auto-save + auto-recall + session context + policy gate)"""
+    """Install Claude Code memory hooks (auto-save + auto-recall + session context + policy gate + run outcomes)"""
     local_dir = _local_dir(args)
     api_key = os.environ.get("MENGRAM_API_KEY", "")
     if not local_dir and not api_key:
@@ -1678,11 +1786,13 @@ def cmd_hook_install(args):
     recall_cmd = "mengram auto-recall"
     context_cmd = "mengram auto-context"
     policy_cmd = "mengram auto-policy"
+    outcome_cmd = "mengram auto-outcome"
     if user_id:
         save_cmd += f" --user-id {user_id}"
         recall_cmd += f" --user-id {user_id}"
         context_cmd += f" --user-id {user_id}"
         policy_cmd += f" --user-id {user_id}"
+        outcome_cmd += f" --user-id {user_id}"
     if local_dir:
         # Hooks run without the user's shell profile, so the folder travels
         # in the command rather than in an env var that may not be there.
@@ -1691,6 +1801,7 @@ def cmd_hook_install(args):
         recall_cmd += mem_arg
         context_cmd += mem_arg
         policy_cmd += mem_arg
+        outcome_cmd += mem_arg
 
     # Read existing settings
     settings_path = get_claude_code_settings_path()
@@ -1734,6 +1845,14 @@ def cmd_hook_install(args):
             "timeout": 10,
         }, matcher="Bash")
 
+    # 5. PostToolUse hook — write back what actually happened, so the gate above
+    #    has a record to judge by instead of an empty one. Observation only.
+    _upsert_hook(settings, "PostToolUse", "mengram auto-outcome", {
+        "type": "command",
+        "command": outcome_cmd,
+        "timeout": 10,
+    }, matcher="Bash")
+
     # Write settings
     settings_path.parent.mkdir(parents=True, exist_ok=True)
     with open(settings_path, "w") as f:
@@ -1745,6 +1864,7 @@ def cmd_hook_install(args):
     print(f"  Session context: load profile on session start")
     if not getattr(args, "no_policy", False):
         print(f"  Policy gate:  confirm before running a workflow with a weak record")
+    print(f"  Run outcomes: record whether a workflow's step worked")
     print(f"  Settings: {settings_path}")
     print(f"\nRestart Claude Code for hooks to take effect.")
 
@@ -1764,12 +1884,13 @@ def cmd_hook_uninstall(args):
         print("Could not read settings file.")
         return
 
-    # Remove all 3 mengram hooks
+    # Remove every mengram hook
     removed = False
     removed |= _remove_hook(settings, "Stop", "mengram auto-save")
     removed |= _remove_hook(settings, "UserPromptSubmit", "mengram auto-recall")
     removed |= _remove_hook(settings, "SessionStart", "mengram auto-context")
     removed |= _remove_hook(settings, "PreToolUse", "mengram auto-policy")
+    removed |= _remove_hook(settings, "PostToolUse", "mengram auto-outcome")
 
     if not removed:
         print("No Mengram hooks found. Nothing to uninstall.")
@@ -1810,11 +1931,12 @@ def cmd_hook_status(args):
                     return hook.get("command", "")
         return None
 
-    # Check all 3 hooks
+    # Check every hook
     save_cmd = _find_hook("Stop", "mengram auto-save")
     recall_cmd = _find_hook("UserPromptSubmit", "mengram auto-recall")
     context_cmd = _find_hook("SessionStart", "mengram auto-context")
     policy_cmd = _find_hook("PreToolUse", "mengram auto-policy")
+    outcome_cmd = _find_hook("PostToolUse", "mengram auto-outcome")
 
     if save_cmd:
         every_n = 3
@@ -1830,6 +1952,7 @@ def cmd_hook_status(args):
     print(f"  Auto-recall:    {'installed' if recall_cmd else 'not installed'}")
     print(f"  Session context: {'installed' if context_cmd else 'not installed'}")
     print(f"  Policy gate:    {'installed' if policy_cmd else 'not installed'}")
+    print(f"  Run outcomes:   {'installed' if outcome_cmd else 'not installed'}")
 
     # Check API key
     api_key = os.environ.get("MENGRAM_API_KEY", "")
@@ -2353,6 +2476,13 @@ def main():
     p_autopolicy.add_argument("--min-reliable", type=int, default=None, dest="min_reliable",
                                help="Percent below which a workflow with a record is confirmed (default 70)")
 
+    # auto-outcome (internal, called by Claude Code PostToolUse hook on Bash)
+    p_autooutcome = sub.add_parser("auto-outcome", help=argparse.SUPPRESS)
+    p_autooutcome.add_argument("--user-id", default=None)
+    p_autooutcome.add_argument("--memory", default=None)
+    p_autooutcome.add_argument("--verbose", action="store_true",
+                                help="Emit a status marker for each hook invocation")
+
     # local — memory in a folder, no account
     from local.cli import add_parser as _add_local_parser
     _add_local_parser(sub)
@@ -2422,6 +2552,8 @@ def main():
         cmd_auto_context(args)
     elif args.command == "auto-policy":
         cmd_auto_policy(args)
+    elif args.command == "auto-outcome":
+        cmd_auto_outcome(args)
     elif args.command == "local":
         from local.cli import run as _run_local
         sys.exit(_run_local(args))
