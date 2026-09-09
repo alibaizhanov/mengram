@@ -562,6 +562,19 @@ def cmd_auto_recall(args):
         if not results:
             _emit_hook_exit(EVENT, args, HOOK, "no memories found")
 
+        # Vector search has no way to say "nothing here is close enough", so it
+        # answers every prompt with its three nearest entities however far away
+        # they are. Folder mode is silent when no word matches; this gives the
+        # cloud path the same right to say nothing. Set
+        # MENGRAM_RECALL_LEXICAL_GUARD=0 to keep the raw results.
+        if os.environ.get("MENGRAM_RECALL_LEXICAL_GUARD", "1") != "0":
+            from cloud.relevance import filter_results
+            kept = filter_results(prompt, results)
+            if not kept:
+                _emit_hook_exit(EVENT, args, HOOK,
+                                f"{len(results)} found, none related to the prompt")
+            results = kept
+
         # Format context
         lines = ["[Mengram Memory — relevant context from past sessions]"]
         for r in results:
