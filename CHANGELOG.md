@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.38.2 — 2026-09-09
+
+### Fixed
+- **The run-outcome hook recorded nothing.** It looked for an `exit_code` in
+  the PostToolUse payload, following the documented schema. A real Claude Code
+  sends no exit code for Bash: the payload carries `stdout`, `stderr`,
+  `interrupted`, `isImage` and `noOutputExpected`, and — measured with a
+  logging hook — the event fires *only after a command that succeeded*. A
+  failing command produces no PostToolUse at all. So the arrival of the event
+  is the signal, and 2.38.0 treated it as "no verdict" and wrote nothing.
+
+### Known limit
+- Failures cannot be seen from this hook, because it does not fire for them.
+  The loop records successes and never guesses a failure; a failure still has
+  to come from `mengram local feedback`, or from a host that does send an exit
+  code. Reading them out of the session transcript is the obvious next step.
+
 ## 2.38.1 — 2026-09-09
 
 ### Fixed

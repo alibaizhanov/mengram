@@ -882,12 +882,20 @@ def cmd_auto_policy(args):
 
 
 def _bash_outcome(tool_response) -> bool | None:
-    """Did this command work? None when the transcript does not actually say.
+    """Did this command work? None when the event does not say.
 
-    Silence is the right answer for anything ambiguous. A guessed success is
-    what makes a track record lie, and the gate downstream believes it.
-    A non-empty stderr is deliberately *not* a failure: plenty of healthy
-    tools write there.
+    Measured against a real payload rather than the documentation, which
+    describes an `exit_code` this host does not send. What actually arrives for
+    Bash is `stdout`, `stderr`, `interrupted`, `isImage`, `noOutputExpected` —
+    and, decisively, the event arrives *only when the command succeeded*. A
+    command that exits non-zero fires no PostToolUse at all (verified: a
+    logging hook recorded the successful marker command and never the failing
+    one). So the arrival of the event is itself the signal.
+
+    That makes failures unobservable from here. They are not guessed at: this
+    returns True or None, never False, unless a host does send an exit code.
+    A non-empty stderr is deliberately not a failure — plenty of healthy tools
+    write there — and an interrupted command is not evidence of anything.
     """
     if not isinstance(tool_response, dict):
         return None
@@ -901,7 +909,8 @@ def _bash_outcome(tool_response) -> bool | None:
     flag = tool_response.get("is_error", tool_response.get("isError"))
     if isinstance(flag, bool):
         return not flag
-    return None
+    # No verdict in the payload, and this event only fires after a success.
+    return True
 
 
 def _failure_reason(tool_response) -> str | None:
