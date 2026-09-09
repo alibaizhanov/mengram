@@ -1,5 +1,24 @@
 # Changelog
 
+## 2.39.0 — 2026-09-09
+
+### Changed
+- **Recall can say nothing.** Vector search returns its nearest neighbours for
+  any prompt, because "nearest" is defined for every query, so a three-word
+  question pulled three entities out of the store just as confidently as a
+  detailed one. Measured on a real session, five of seven prompts received
+  memories with no connection to what was asked: facts about a Java backend
+  arrived alongside a question about hook payloads. Before injecting anything,
+  `auto-recall` now requires the memory to share a real word with the prompt —
+  the same guard the execution gate already applies before it interrupts a
+  human. Set `MENGRAM_RECALL_LEXICAL_GUARD=0` to keep the raw results.
+- Prompts with no content words of their own recall nothing at all, rather
+  than everything. The shortest prompts are where the search has least to go
+  on, and passing them through unfiltered left the noisiest cases untouched.
+- Tokenising is Unicode-aware. The gate's ASCII-only pattern sees no words in
+  a Russian prompt, and a guard that sees no words would have silenced recall
+  entirely instead of filtering it.
+
 ## 2.38.2 — 2026-09-09
 
 ### Fixed
