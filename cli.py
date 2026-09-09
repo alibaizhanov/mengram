@@ -939,6 +939,34 @@ def _failure_reason(tool_response) -> str | None:
     return line[:200] or None
 
 
+def _record_transcript_failures(transcript_path, local_root, procs, store) -> str:
+    """Charge the steps whose commands failed, from the session transcript.
+
+    Returns a fragment for the verbose marker, empty when nothing was found —
+    which is the usual case, and the quiet one.
+    """
+    if not transcript_path:
+        return ""
+    from cloud import policy
+    from local import transcript as tr
+    try:
+        cursor = tr.read_cursor(local_root)
+        failures, cursor = tr.new_failures(transcript_path, cursor)
+        recorded = 0
+        for command, reason in failures:
+            hit = policy.best_step_match(procs, command)
+            if hit is None:
+                continue
+            proc, step_no, _score = hit
+            store.step_outcome(proc.get("name") or "unnamed workflow", step_no,
+                               success=False, reason=reason)
+            recorded += 1
+        tr.write_cursor(local_root, cursor)
+    except Exception:
+        return ""        # bookkeeping must never disturb the session
+    return f"; {recorded} failure(s) from the transcript" if recorded else ""
+
+
 def cmd_auto_outcome(args):
     """Hook handler — Claude Code PostToolUse on Bash.
 
@@ -971,16 +999,6 @@ def cmd_auto_outcome(args):
         command = (input_data.get("tool_input") or {}).get("command") or ""
         if not command:
             _exit("no command")
-        # Cheap check before anything is loaded, and a wider net than the gate
-        # upstream: the gate stays narrow because a false question interrupts a
-        # human, while a recording costs nothing and evidence is what is scarce.
-        # A command naming no known tool cannot match any step, so stop here.
-        if not policy.shell_verbs(command):
-            _exit("skipped (no known tool in the command)")
-        worked = _bash_outcome(input_data.get("tool_response"))
-        if worked is None:
-            _exit("outcome unclear — nothing recorded")
-
         local_root = _local_dir(args)
         if not local_root:
             # The cloud endpoint records whole runs: it always moves the
@@ -991,14 +1009,37 @@ def cmd_auto_outcome(args):
             _exit("cloud mode: step-scoped feedback not available yet")
 
         procs = policy.memfmt_procedures(str(local_root))
+        store = _local_store(local_root)
+
+        # Failures never arrive as an event — this hook does not fire for them —
+        # so they are read out of the session transcript instead. Done before
+        # anything about *this* command is decided, because a failure is not
+        # about this command: skipping it whenever the current call happens to
+        # be an `ls` would leave failures unrecorded for as long as the session
+        # stayed quiet. Reading the folder costs ~20 ms, and only the new tail
+        # of the transcript is parsed.
+        failed = _record_transcript_failures(
+            input_data.get("transcript_path"), local_root, procs, store)
+
+        # Now this command. A wider net than the gate upstream: the gate stays
+        # narrow because a false question interrupts a human, while a recording
+        # costs nothing and evidence is what is scarce. A command naming no
+        # known tool cannot match any step.
+        if not policy.shell_verbs(command):
+            _exit(f"skipped (no known tool in the command){failed}")
+        worked = _bash_outcome(input_data.get("tool_response"))
+        if worked is None:
+            _exit(f"outcome unclear — nothing recorded{failed}")
+
         hit = policy.best_step_match(procs, command)
         if hit is None:
-            _exit("no step matched")
+            _exit(f"no step matched{failed}")
         proc, step_no, _score = hit
         name = proc.get("name") or "unnamed workflow"
         reason = None if worked else _failure_reason(input_data.get("tool_response"))
-        _local_store(local_root).step_outcome(name, step_no, success=worked, reason=reason)
-        _exit(f"'{name}' step {step_no} recorded as {'success' if worked else 'failure'}")
+        store.step_outcome(name, step_no, success=worked, reason=reason)
+        _exit(f"'{name}' step {step_no} recorded as "
+              f"{'success' if worked else 'failure'}{failed}")
 
     except SystemExit:
         raise

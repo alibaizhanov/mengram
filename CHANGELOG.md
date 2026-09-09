@@ -1,5 +1,24 @@
 # Changelog
 
+## 2.40.0 — 2026-09-09
+
+### Added
+- **Failures are recorded.** The PostToolUse hook never fires for a command
+  that failed, so until now a workflow's record could only climb: every step
+  you actually ran collected successes, crossed the reliability bar, and the
+  gate went quiet — for a workflow that might have been breaking all week.
+  Half the evidence is worse than none, because it is confidently wrong.
+  `auto-outcome` now reads failures out of the session transcript, where a
+  failed Bash call is written down with its error, matches each to a step with
+  the same bar it uses for successes, and records it with the last line of the
+  error as the reason.
+- The first run on a folder records no history: it marks the current end of the
+  transcript and moves on. Charging steps for failures from days ago would be a
+  surprise, and a loud one.
+- Each failure is charged once. Ids already counted are remembered, so a
+  re-read, a replaced transcript, or the lookback that resolves a command
+  split across the cursor cannot double-charge a step.
+
 ## 2.39.0 — 2026-09-09
 
 ### Changed
