@@ -1,5 +1,34 @@
 # Changelog
 
+## 2.38.0 — 2026-09-09
+
+### Added
+- **Run outcomes are recorded.** A new `PostToolUse` hook, `mengram auto-outcome`,
+  recognises a Bash command as one step of a learned workflow and writes that
+  command's exit code against that step. Until now nothing produced a track
+  record at all: `procedure_feedback` existed only as a command a human had to
+  type, so procedures stayed `untested` forever and the policy gate had no
+  evidence to judge by. `mengram hook install` installs it; folder mode only
+  for now (the cloud endpoint records whole runs, and a single command written
+  there would inflate the record).
+- `mengram local` gained `step_outcome` underneath: one command credits one
+  step, never the whole workflow.
+- A workflow whose steps have been watched working no longer reads `untested`.
+  The weakest watched step sets the number; steps nobody measured are ignored
+  rather than counted as failures.
+
+### Changed
+- **The policy gate asks far less, and about the right things.** It used to
+  fire when a command shared a single word with a procedure. Replaying 3456
+  real Bash commands against a real 37-procedure folder, that was 795
+  confirmation prompts — one command in six — on matches like `rm -rf dist
+  build` against "Full Mengram codebase audit". A command must now *be* a
+  step: the same tool named and half the step's words covered, or nearly all
+  of them when the step names no tool. The same replay now fires 8 times.
+  Heredoc bodies and huge inline scripts are stripped before matching, so a
+  `cat >> notes.md` whose text mentions `pip install` no longer matches an
+  install step.
+
 ## 2.37.2 — 2026-09-07
 
 ### Fixed
