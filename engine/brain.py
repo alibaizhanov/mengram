@@ -19,8 +19,8 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-from engine.extractor.llm_client import LLMClient, create_llm_client
-from engine.extractor.conversation_extractor import ConversationExtractor, MockLLMClient
+from engine.extractor.llm_client import LLMClient, create_llm_client, AllModelsFailedError
+from engine.extractor.conversation_extractor import ConversationExtractor, ExtractionResult, MockLLMClient
 from engine.vault_manager.vault_manager import VaultManager
 from engine.graph.knowledge_graph import build_graph_from_vault, KnowledgeGraph
 from engine.parser.markdown_parser import parse_vault
@@ -120,7 +120,11 @@ class MengramBrain:
         print("🧠 Extracting knowledge from conversation...", file=sys.stderr)
 
         # 1. Extract via LLM
-        extraction = self.extractor.extract(conversation)
+        try:
+            extraction = self.extractor.extract(conversation)
+        except AllModelsFailedError as e:
+            print(f"⚠️  Extraction skipped — all fallback models failed: {e}", file=sys.stderr)
+            extraction = ExtractionResult()
         print(f"   📊 Found: {len(extraction.entities)} entities, {len(extraction.relations)} relations, "
               f"{len(extraction.knowledge)} knowledge, {len(extraction.episodes)} episodes, "
               f"{len(extraction.procedures)} procedures", file=sys.stderr)
