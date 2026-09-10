@@ -1,0 +1,68 @@
+[
+ {
+  "model": "llama3.1:8b",
+  "mode": "format: json",
+  "s": 50.7,
+  "valid": true,
+  "entities": 2,
+  "facts": 6,
+  "episodes": 2,
+  "procedures": 1,
+  "err": ""
+ },
+ {
+  "model": "llama3.1:8b",
+  "mode": "strict schema",
+  "s": 28.2,
+  "valid": true,
+  "entities": 2,
+  "facts": 5,
+  "episodes": 2,
+  "procedures": 1,
+  "err": ""
+ },
+ {
+  "model": "qwen2.5:7b",
+  "mode": "format: json",
+  "s": 73.4,
+  "valid": true,
+  "entities": 6,
+  "facts": 11,
+  "episodes": 2,
+  "procedures": 1,
+  "err": ""
+ },
+ {
+  "model": "qwen2.5:7b",
+  "mode": "strict schema",
+  "s": 70.4,
+  "valid": true,
+  "entities": 8,
+  "facts": 16,
+  "episodes": 2,
+  "procedures": 1,
+  "err": ""
+ },
+ {
+  "model": "qwen3:4b",
+  "mode": "format: json",
+  "s": 45.5,
+  "valid": true,
+  "entities": 4,
+  "facts": 9,
+  "episodes": 1,
+  "procedures": 1,
+  "err": ""
+ },
+ {
+  "model": "qwen3:4b",
+  "mode": "strict schema",
+  "s": 45.3,
+  "valid": true,
+  "entities": 5,
+  "facts": 17,
+  "episodes": 1,
+  "procedures": 1,
+  "err": ""
+ }
+]

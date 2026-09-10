@@ -158,16 +158,10 @@ class CoreMixin:
                 ON embeddings USING gin(tsv)
             """)
 
-            # --- v1.5 HNSW index for vector search ---
-            # Drop old index if wrong dimensions, recreate
-            try:
-                cur.execute("""
-                    CREATE INDEX IF NOT EXISTS idx_embeddings_hnsw 
-                    ON embeddings USING hnsw (embedding vector_cosine_ops)
-                    WITH (m = 16, ef_construction = 64)
-                """)
-            except Exception:
-                pass  # Index may already exist or dimensions mismatch
+            # --- v1.5 HNSW index for vector search: deliberately NOT created ---
+            # See v2.24 below. `hybrid_search` filters by distance rather than
+            # ordering by it, so an HNSW index on this table cannot be used and
+            # never was: 0 scans in 275 days of production statistics.
 
         logger.info("✅ Migration complete (v1.5: HNSW + tsvector)")
 
@@ -289,6 +283,14 @@ class CoreMixin:
                 CREATE INDEX IF NOT EXISTS idx_ep_emb_episode
                 ON episode_embeddings (episode_id)
             """)
+            # A parallel HNSW build allocates a shared memory segment, and a
+            # container with a small /dev/shm (62 MB on Railway) fails it with
+            # "could not resize shared memory segment". pg_restore and the
+            # try/except below both swallow that, so the index silently never
+            # exists and the search quietly degrades to a sequential scan.
+            # Building serially avoids the segment entirely; measured at 4 to
+            # 9 seconds per index on this data.
+            cur.execute("SET max_parallel_maintenance_workers = 0")
             cur.execute("""
                 CREATE INDEX IF NOT EXISTS idx_ep_emb_hnsw
                 ON episode_embeddings USING hnsw (embedding vector_cosine_ops)
@@ -636,10 +638,6 @@ class CoreMixin:
                 )
             """)
             cur.execute("""
-                CREATE INDEX IF NOT EXISTS idx_chunk_emb_hnsw ON chunk_embeddings
-                    USING hnsw (embedding vector_cosine_ops) WITH (m=16, ef_construction=64)
-            """)
-            cur.execute("""
                 CREATE INDEX IF NOT EXISTS idx_chunk_emb_tsv ON chunk_embeddings USING gin(tsv)
             """)
 
@@ -901,24 +899,17 @@ class CoreMixin:
             cur.execute("ALTER TABLE procedure_embeddings ADD COLUMN IF NOT EXISTS embedding_v2 vector(1024)")
         logger.info("✅ Migration complete (v2.20: embedding_v2 column for Cohere multilingual)")
 
-        # --- v2.21: HNSW indexes on embedding_v2 (idempotent CREATE INDEX IF NOT EXISTS) ---
+        # --- v2.21: HNSW indexes on embedding_v2 for the tables that use them ---
+        # Only episodes and procedures: those queries end in ORDER BY distance
+        # LIMIT n, which is the only shape an HNSW index can serve. See v2.24.
         # Postgres skips index creation when the column has only NULLs — but the
         # statement is safe to run repeatedly. After backfill these become active.
         with self._cursor() as cur:
             try:
-                cur.execute("""
-                    CREATE INDEX IF NOT EXISTS idx_embeddings_v2_hnsw
-                    ON embeddings USING hnsw (embedding_v2 vector_cosine_ops)
-                    WITH (m = 16, ef_construction = 64)
-                """)
+                cur.execute("SET max_parallel_maintenance_workers = 0")   # see v1.5
                 cur.execute("""
                     CREATE INDEX IF NOT EXISTS idx_ep_emb_v2_hnsw
                     ON episode_embeddings USING hnsw (embedding_v2 vector_cosine_ops)
-                    WITH (m = 16, ef_construction = 64)
-                """)
-                cur.execute("""
-                    CREATE INDEX IF NOT EXISTS idx_chunk_emb_v2_hnsw
-                    ON chunk_embeddings USING hnsw (embedding_v2 vector_cosine_ops)
                     WITH (m = 16, ef_construction = 64)
                 """)
                 cur.execute("""
@@ -982,6 +973,34 @@ class CoreMixin:
                 ADD COLUMN IF NOT EXISTS last_succeeded TIMESTAMPTZ
             """)
         logger.info("✅ Migration complete (v2.23: procedures.last_succeeded)")
+
+        # ---- v2.24: drop the HNSW indexes nothing could ever use ----
+        # An HNSW index answers `ORDER BY column <=> query LIMIT n` and nothing
+        # else. The searches over `embeddings` and `chunk_embeddings` are
+        # written as a filter — `WHERE 1 - (col <=> q) > threshold` ordered by
+        # id — so Postgres has to compute the distance for every row and the
+        # index sits unread. Production statistics over 275 days: 0 scans on
+        # all four, against thousands on the episode and procedure indexes,
+        # whose queries do order by distance. Together they held 929 MB of a
+        # 3.4 GB database, and `idx_embeddings_vector` was an exact duplicate
+        # of `idx_embeddings_hnsw` on top of that.
+        #
+        # Dropped here rather than by hand because the CREATE statements above
+        # used to rebuild them on the next boot: a one-off DROP in production
+        # was undone within the hour, which is how this was found.
+        #
+        # If a query on these tables is ever rewritten to order by distance,
+        # delete this block and restore the CREATE statements — the index will
+        # then be earning its size. Recreate CONCURRENTLY on a live database.
+        with self._cursor() as cur:
+            for index in ("idx_embeddings_hnsw", "idx_embeddings_v2_hnsw",
+                          "idx_embeddings_vector",
+                          "idx_chunk_emb_hnsw", "idx_chunk_emb_v2_hnsw"):
+                try:
+                    cur.execute(f"DROP INDEX IF EXISTS {index}")
+                except Exception as e:
+                    logger.warning(f"v2.24: could not drop {index}: {e}")
+        logger.info("✅ Migration complete (v2.24: dropped 4 unused HNSW indexes)")
 
         with self._cursor() as cur:
             cur.execute("SELECT pg_advisory_unlock(42)")
