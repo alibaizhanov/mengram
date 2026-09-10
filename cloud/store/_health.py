@@ -147,10 +147,25 @@ class HealthMixin:
 
     # ---- Memory Health Aggregation (Day 2 of Memory Health Monitor) ----
 
-    # Status thresholds — mean score over recent searches
-    _HEALTH_THRESHOLD_HEALTHY = 0.6   # mean ≥ 0.6 = healthy
-    _HEALTH_THRESHOLD_DEGRADED = 0.4  # mean ≥ 0.4 = degraded; below = critical
-    _LOW_QUALITY_SCORE = 0.4          # individual searches below this = low-quality
+    # `usage_log.query_score` holds two different scales in one column: a
+    # rerank/cosine similarity in 0..1, and a raw RRF score, which tops out
+    # around 0.05 by construction. Averaging them and comparing the result to a
+    # cosine-shaped threshold marks healthy retrieval as broken: production
+    # showed 286 of 304 scored searches "below 0.4" with a mean of 0.075, which
+    # classified 23 of 26 accounts as critical and would have mailed every one
+    # of them that their memory needed attention.
+    #
+    # `_quality_label` in cloud/api.py already solved this for the per-search
+    # label; these are the same cut points, applied per search rather than to
+    # an average, because a mean over two scales is not a quantity.
+    _STRONG_SCORE = 0.30   # at or above: a real match on either scale
+    _WEAK_SCORE = 0.02     # at or above: a match worth showing; below: nothing found
+
+    # Status is now the share of searches that found nothing.
+    _CRITICAL_NO_MATCH_SHARE = 0.60   # most searches return nothing
+    _DEGRADED_NO_MATCH_SHARE = 0.30   # a large minority do
+
+    _LOW_QUALITY_SCORE = _WEAK_SCORE  # individual searches below this found nothing
 
     def aggregate_memory_health(self, window_hours: int = 24) -> dict:
         """Compute per-user retrieval health over the last `window_hours` of
@@ -187,13 +202,16 @@ class HealthMixin:
             for row in per_user:
                 uid = str(row["user_id"])
                 mean = float(row["mean"] or 0)
+                searches = int(row["n"] or 0)
+                no_match = int(row["low_count"] or 0)
+                no_match_share = (no_match / searches) if searches else 0.0
 
-                if mean >= self._HEALTH_THRESHOLD_HEALTHY:
-                    status = "healthy"
-                elif mean >= self._HEALTH_THRESHOLD_DEGRADED:
+                if no_match_share >= self._CRITICAL_NO_MATCH_SHARE:
+                    status = "critical"
+                elif no_match_share >= self._DEGRADED_NO_MATCH_SHARE:
                     status = "degraded"
                 else:
-                    status = "critical"
+                    status = "healthy"
 
                 # Per-language breakdown
                 cur.execute(
@@ -215,16 +233,17 @@ class HealthMixin:
 
                 # Recommendations
                 recs = []
+                pct = round(100 * no_match_share)
                 if status == "critical":
-                    recs.append("Retrieval relevance is below 0.4 — likely silent quality drop. Review recent additions for noise.")
-                if status == "degraded":
-                    recs.append("Mean relevance 0.4–0.6 — some queries returning weak matches. Consider running `dedup` to clean similar entities.")
-                if row["low_count"] >= 5:
-                    recs.append(f"{row['low_count']} searches under 0.4 in window — flag for content audit.")
+                    recs.append(f"{pct}% of searches ({no_match} of {searches}) found nothing at all. "
+                                "Either the memory is missing this material, or recent additions are noise.")
+                elif status == "degraded":
+                    recs.append(f"{pct}% of searches ({no_match} of {searches}) found nothing. "
+                                "Consider running `dedup` to clean up near-identical entities.")
                 if row["lang_count"] and row["lang_count"] >= 2:
                     weakest = min(lang_breakdown, key=lambda x: x["mean_score"])
-                    if weakest["mean_score"] < self._HEALTH_THRESHOLD_DEGRADED:
-                        recs.append(f"Lowest-quality language: {weakest['lang']} ({weakest['mean_score']:.2f} mean). "
+                    if weakest["mean_score"] < self._WEAK_SCORE:
+                        recs.append(f"Lowest-quality language: {weakest['lang']} ({weakest['mean_score']:.3f} mean). "
                                      "May need more content in that language.")
 
                 details = {

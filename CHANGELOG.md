@@ -1,5 +1,26 @@
 # Changelog
 
+## 2.41.1 — 2026-09-10
+
+### Fixed
+- **Retrieval health read two score scales as one, and was about to email
+  everyone about it.** `usage_log.query_score` holds a rerank/cosine similarity
+  in 0..1 for some searches and a raw RRF score for others, and RRF tops out
+  near 0.05 by construction. The aggregation averaged the two and compared the
+  result to a cosine-shaped threshold of 0.4. In production that meant 286 of
+  304 scored searches counted as failures, mean 0.075, and 23 of 26 accounts
+  were marked `critical` — which is what the Monday digest mails about.
+  `_quality_label` in `cloud/api.py` had already been made scale-aware for the
+  per-search label; the aggregation had not, and the two have now been pinned
+  to each other by a test.
+- Status is now the share of searches that found **nothing** (below 0.02, the
+  point where neither scale has a match): 60% or more is critical, 30% or more
+  is degraded. On the same production window this reads 1 critical and 1
+  healthy instead of 2 critical.
+- The recommendation text says what actually happened — "62% of searches (13 of
+  21) found nothing at all" — instead of quoting a threshold on a number that
+  was never a single quantity.
+
 ## 2.41.0 — 2026-09-10
 
 ### Changed
