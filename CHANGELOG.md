@@ -1,5 +1,31 @@
 # Changelog
 
+## 2.41.0 — 2026-09-10
+
+### Changed
+- **Stopped building four HNSW indexes that no query could use, and dropped
+  them (migration v2.24).** An HNSW index answers `ORDER BY column <=> query
+  LIMIT n` and nothing else. The searches over `embeddings` and
+  `chunk_embeddings` are written as a filter — `WHERE 1 - (col <=> q) >
+  threshold`, ordered by id — so Postgres computes the distance for every row
+  and the index is never read. Production statistics over 275 days: 0 scans on
+  all four, against thousands on the episode and procedure indexes, whose
+  queries do order by distance. On the production database they held 929 MB of
+  3.4 GB, plus a 313 MB exact duplicate (`idx_embeddings_vector`) that had been
+  created by hand at some point.
+- Dropping them by hand was not enough: the migration rebuilt them on the next
+  boot and the database was back to its old size within the hour. Hence the
+  drop lives in the migration itself.
+
+### Fixed
+- **HNSW indexes now build in small containers.** A parallel build allocates a
+  shared memory segment; where `/dev/shm` is small (62 MB on Railway) it fails
+  with "could not resize shared memory segment", and both `pg_restore` and our
+  own `try/except` swallow it — so the index silently never exists and search
+  degrades to a sequential scan with nothing in the logs to say why. The
+  migration now sets `max_parallel_maintenance_workers = 0` first. Measured at
+  4 to 9 seconds per index, serially, on 23k and 12k vectors.
+
 ## 2.40.0 — 2026-09-09
 
 ### Added
