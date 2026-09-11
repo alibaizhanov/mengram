@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.41.4 — 2026-09-11
+
+### Changed
+- **`mengram try` is now the first thing a newcomer is shown.** It reads the
+  Claude Code history already on disk, needs no account and no key, uploads
+  nothing, and prints the projects, the stack and the repeated workflows with
+  counts — in about three seconds. It was the strongest thing in the product
+  and it appeared in exactly one place, the CLI reference, which only people
+  who had already installed and signed up would ever read. The landing page now
+  opens with it, ahead of every install door; the quickstart leads with it as
+  step 0; and `agent-install.txt` instructs the agent to run it and show the
+  output to the user *before* asking for an email.
+
 ## 2.41.3 — 2026-09-11
 
 ### Fixed

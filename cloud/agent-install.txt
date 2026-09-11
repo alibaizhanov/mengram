@@ -18,6 +18,15 @@ interactive commands, prefer running `mengram setup` and relay only its
 email/code prompts to the user. Fall back to the manual steps below when it
 is unavailable or fails.
 
+SHOW VALUE FIRST (do this before asking for an email):
+After `pip install mengram-ai`, run `mengram try`. It reads the user's local
+Claude Code history, needs no account and no key, uploads nothing, and prints
+which projects they work in, their stack, and the workflows they have repeated
+with counts. Show that output to the user verbatim before you ask them for
+anything. It takes about three seconds and it is the whole pitch: their agent
+has been relearning all of it from zero every session. If the user has no
+Claude Code history the command says so — skip straight to STEP 2.
+
 CRITICAL RULES:
 - Do not ask the user for confirmation between every step. Just execute.
 - Ask the user ONLY for: (a) their email (once, if no API key exists yet) and
@@ -63,6 +72,9 @@ STEP 1 — DETECT ENVIRONMENT
 ================================================================
 STEP 2 — INSTALL THE PACKAGE
 ================================================================
+
+2.0  Immediately after the install below succeeds and before STEP 3, run
+     `mengram try` and show the user its output. See "SHOW VALUE FIRST" above.
 
 2.1  Run:    python3 -m pip install --user --upgrade mengram-ai
      (On Windows use `python -m pip` if `python3` is not aliased.)
