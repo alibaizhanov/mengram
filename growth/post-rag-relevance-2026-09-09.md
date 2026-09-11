@@ -45,3 +45,24 @@ After the change: silent on 5 of 7, and the 2 that kept anything kept only the e
 I did not touch the 0.2 floor. Picking a real number needs the actual score distribution from production, which is a separate measurement I have not earned yet.
 
 So: does anyone here run an explicit "return nothing" path in production RAG? And what do you gate it on — an absolute score floor, the margin between top-1 and top-2, a lexical check like this one, or a reranker with a reject option?
+
+## Ответы в ветке (2026-09-10)
+
+Отвечено всем: EvilElf01 (t1_p8wk9t9, потом t1_p8xv5s0), debauch3ry (t1_p8wka6c), Future_AGI (t1_p8wkakd,
+потом t1_p8xv68s), Sweet-Transition-787 в r/ollama (t1_p8wkxpf).
+
+**Что дали люди:**
+- **EvilElf01** — самый ценный. Пороги подобраны под корпус, размеченного набора нет. Главное по его опыту:
+  проверка ТОЧНОГО ИДЕНТИФИКАТОРА (номер тикета, версия, имя файла) важнее любого порога близости.
+  Плюс обёртка: при упоре в порог — до 2 повторов с декомпозицией запроса и параллельной перефразировкой
+  дешёвой моделью, альтернативы выбрасываются, если исходный вариант прошёл. Счёт источников берётся
+  по пережившим отбор, а не по кандидатам.
+- **debauch3ry** — вместо «ничего» отдавать список индексных записей, чтобы модель сама дёрнула нужное.
+  Предупредил про prompt cache при инъекции на каждом ходу. **Затем написал «не разговаривайте со мной
+  через ИИ» с попыткой промпт-инъекции.** Вывод: ответы стали слишком длинными и структурированными.
+  С 2026-09-10 пишем короче и проще.
+- **Future_AGI** — оказалось, у них пост-генерационная оценка (DSPy CoT судит, пригодился ли контекст),
+  а не гейт на входе. Мою задачу не решает.
+
+**Идеи в очередь:** проверка точного идентификатора поверх словесного фильтра; отдавать индексные записи
+вместо молчания; измерять, используется ли подставленный контекст вообще.
