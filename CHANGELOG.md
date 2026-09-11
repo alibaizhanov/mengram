@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.41.5 — 2026-09-11
+
+### Fixed
+- **A command that ran out of time was recorded as a success.** 2.38.2 read the
+  arrival of the post-tool event as the verdict, because a failing command
+  fires no event at all. A timed-out command turns out to fire one: measured
+  with a logging hook, it arrives with `interrupted: false`, no exit code, and
+  two extra fields — `timedOutAfterMs` and `backgroundTaskId`. The host moves
+  the command to the background rather than killing it, so it may still be
+  running, may still succeed, and is certainly not evidence of anything yet.
+  Both markers now produce "unknown" and nothing is written. The same
+  survivorship bias as the missing failure event, wearing a different hat.
+
 ## 2.41.4 — 2026-09-11
 
 ### Changed
