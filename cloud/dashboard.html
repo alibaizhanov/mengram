@@ -537,6 +537,63 @@
         .stagger > *:nth-child(8) { animation-delay: 0.16s; }
         @keyframes staggerIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
+        /* Rows added by the background feed refresh slide down from the divider
+           instead of the whole list blanking to a skeleton. The row grows its
+           own height from 0 rather than appearing at full height, so the rows
+           below glide down instead of being shoved — that jump is what read as
+           a black flicker when several rows arrived at once. */
+        /* The row itself only fades and slides — opacity and transform are
+           composited, so its background is never repainted mid-flight. That
+           repaint was the flicker: animating max-height/padding on .feed-item
+           made its shade shift frame by frame, and its `transition: all` was
+           tweening the same properties in parallel.
+
+           The push-down is handled by a wrapper instead, which has no
+           background of its own, so growing its height moves the rows below
+           smoothly with nothing to repaint. */
+        /* The row opens its height; its *contents* fade. Fading the row itself
+           made it translucent, so the darker page behind showed through and
+           every row in a staggered batch sat at a different opacity — read as
+           rows having different brightness. The card must stay opaque. */
+        @keyframes feedItemIn {
+            from {
+                max-height: 0;
+                padding-top: 0;
+                padding-bottom: 0;
+                border-top-width: 0;
+                border-bottom-width: 0;
+            }
+            to {
+                max-height: 240px;
+                padding-top: 14px;
+                padding-bottom: 14px;
+                border-top-width: 1px;
+                border-bottom-width: 1px;
+            }
+        }
+        @keyframes feedItemContentIn {
+            from { opacity: 0; transform: translateY(-4px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        /* Delay is set per row in JS (--feed-stagger): nth-child would count the
+           date dividers between rows, not just the newly inserted ones. */
+        .feed-item-new {
+            animation: feedItemIn 0.7s cubic-bezier(0.22, 0.7, 0.3, 1) backwards;
+            animation-delay: var(--feed-stagger, 0s);
+            overflow: hidden;
+            /* No opacity here — the card stays fully opaque so its shade never
+               differs from a settled row. `transition: all` on .feed-item would
+               tween these same properties in parallel, so it is off. */
+            transition: none;
+        }
+        .feed-item-new > * {
+            animation: feedItemContentIn 0.5s ease-out backwards;
+            animation-delay: calc(var(--feed-stagger, 0s) + 0.12s);
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .feed-item-new, .feed-item-new > * { animation: none; }
+        }
+
         @media (max-width: 768px) {
             .graph-search input { width: 140px; }
             .graph-search input:focus { width: 180px; }
@@ -1256,6 +1313,14 @@
                     <button onclick="createWebhook()" style="padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;">+ Add</button>
                 </div>
             </div>
+            <div class="set-section" id="feed-autorefresh-section" style="display:none;">
+                <h3>Feed Auto-Refresh</h3>
+                <p>Reload the Feed every 30 seconds while it is open, so new memories appear without a page reload.</p>
+                <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;cursor:pointer;">
+                    <input type="checkbox" id="feed-autorefresh" onchange="setFeedAutoRefresh(this.checked)" style="cursor:pointer;">
+                    Enable auto-refresh
+                </label>
+            </div>
             <div class="set-section">
                 <h3>Teams — Shared Memory</h3>
                 <p>Share memories with your team. Everyone's AI sees the shared context.</p>
@@ -1830,6 +1895,72 @@ function _updateNavHighlighting(t) {
     document.querySelectorAll('.nav-sub').forEach(s => s.classList.toggle('active', s.dataset.tab === t));
 }
 
+// ---- Feed auto-refresh (opt-in, Settings) ----
+// Polling costs the server a request per open tab per interval, so the toggle
+// is exposed on self-hosted only. Flip to true to offer it on hosted plans too.
+const FEED_REFRESH_ALL_PLANS = false;
+const FEED_REFRESH_MS = 30000;
+let _feedTimer = null;
+let _feedLastRefresh = 0;
+let _plan = '';
+
+function _feedAutoRefreshAvailable() { return FEED_REFRESH_ALL_PLANS || _plan === 'selfhosted'; }
+function _feedAutoRefreshOn() { return _feedAutoRefreshAvailable() && localStorage.getItem('mengram_feed_autorefresh') === '1'; }
+
+// Timer runs only while the Feed tab is the visible one; re-evaluated on tab
+// switch, on toggle, and when the browser tab regains visibility.
+function _syncFeedAutoRefresh() {
+    const active = _feedAutoRefreshOn()
+        && document.getElementById('tab-feed')?.classList.contains('active')
+        && !document.hidden;
+    if (active && !_feedTimer) {
+        // Catch up immediately: the timer is stopped while the tab is hidden,
+        // so coming back would otherwise mean waiting a full interval before
+        // seeing anything that arrived in the meantime.
+        loadFeed(true);
+        _feedLastRefresh = Date.now();
+        _feedTimer = setInterval(() => {
+            _feedLastRefresh = Date.now();
+            loadFeed(true);
+        }, FEED_REFRESH_MS);
+    } else if (!active && _feedTimer) { clearInterval(_feedTimer); _feedTimer = null; }
+}
+
+function setFeedAutoRefresh(on) {
+    localStorage.setItem('mengram_feed_autorefresh', on ? '1' : '0');
+    _syncFeedAutoRefresh();
+}
+
+document.addEventListener('visibilitychange', _syncFeedAutoRefresh);
+// A window on a second monitor stays visible but unfocused, and browsers may
+// still throttle its timers. Refocusing it catches up rather than waiting out
+// whatever remains of the interval.
+// Re-evaluate rather than assuming a timer is already running: a window on a
+// second monitor stays visible but unfocused, and a browser that throttled or
+// dropped its timers there would otherwise never restart them. _sync starts the
+// timer and refreshes immediately when it does; refresh here too for the case
+// where it was already running but throttled.
+window.addEventListener('focus', () => {
+    const had = _feedTimer;
+    _syncFeedAutoRefresh();
+    if (had && _feedTimer) loadFeed(true);
+});
+
+// setInterval is not a dependable clock: an unfocused window (second monitor)
+// can have its timers throttled or coalesced, and the feed then sits still for
+// minutes. This watchdog compares against the wall clock instead of trusting
+// the interval, and fires the refresh the interval owed us.
+setInterval(() => {
+    // Also re-arms a timer that never started: the plan gate is only known
+    // once /v1/me answers, so a slow or failed response can leave the feature
+    // available but idle. _sync is a no-op when it is already running.
+    _syncFeedAutoRefresh();
+    if (!_feedTimer) return;
+    if (Date.now() - _feedLastRefresh < FEED_REFRESH_MS * 1.5) return;
+    _feedLastRefresh = Date.now();
+    loadFeed(true);
+}, 5000);
+
 function switchTabDirect(t) {
     _updateNavHighlighting(t);
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
@@ -1846,14 +1977,24 @@ function switchTabDirect(t) {
     const url = new URL(window.location);
     url.searchParams.set('tab', t);
     history.replaceState(null, '', url);
+    // The stats strip is only rendered on Memory tabs, and nothing refreshes it
+    // after login — memories added from outside the dashboard (MCP, API) left
+    // the counters stale until a page reload.
+    if (isMemory) loadStats();
     if (t === 'graph' && !_isCached('graph')) loadGraph();
     if (t === 'entities' && !_isCached('entities')) loadEntities();
+    if (t === 'feed') loadFeed();
     if (t === 'overview') loadIntelligence();
     if (t === 'insights') loadInsights();
     if (t === 'agents') loadAgentHistory();
     if (t === 'procedures') loadProcedures();
     if (t === 'billing') loadBilling();
-    if (t === 'settings') { loadWebhooks(); loadTeams(); loadKeys(); loadCapturePolicy(); }
+    if (t === 'settings') {
+        loadWebhooks(); loadTeams(); loadKeys(); loadCapturePolicy();
+        const cb = document.getElementById('feed-autorefresh');
+        if (cb) cb.checked = _feedAutoRefreshOn();
+    }
+    _syncFeedAutoRefresh();
 }
 
 function switchGroup(e, group) {
@@ -1907,6 +2048,7 @@ function logout() {
     document.getElementById('login-screen').style.display = '';
     document.getElementById('key-input').value = '';
     document.getElementById('login-error').style.display = 'none';
+    if (_feedTimer) { clearInterval(_feedTimer); _feedTimer = null; }
     showKeyLogin();
 }
 function showResetFlow() {
@@ -2007,32 +2149,9 @@ async function tryLogin(k) {
 }
 
 function switchTab(e, t) {
-    _updateNavHighlighting(t);
-    document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
-    document.getElementById('tab-'+t).classList.add('active');
-    // Show/hide Quick Add + Stats (search tab has its own UI)
-    const isMemory = TAB_GROUPS.memory.tabs.includes(t) && t !== 'search';
-    const qa = document.getElementById('quick-add');
-    const ss = document.querySelector('.stats-strip');
-    if (qa) qa.style.display = isMemory ? '' : 'none';
-    if (ss) ss.style.display = isMemory ? '' : 'none';
-    const ob = document.getElementById('onboarding-checklist');
-    if (ob && localStorage.getItem('mengram_ob_active') === '1') ob.style.display = isMemory ? '' : 'none';
-    // Update URL
-    const url = new URL(window.location);
-    url.searchParams.set('tab', t);
-    history.replaceState(null, '', url);
-    // Close mobile menu on tab switch
     const sidebar = document.querySelector('.sidebar');
-    if (sidebar.classList.contains('open')) toggleMobileMenu();
-    if(t==='graph' && !_isCached('graph')) loadGraph();
-    if(t==='entities' && !_isCached('entities')) loadEntities();
-    if(t==='overview') loadIntelligence();
-    if(t==='insights') loadInsights();
-    if(t==='agents') loadAgentHistory();
-    if(t==='procedures') loadProcedures();
-    if(t==='billing') loadBilling();
-    if(t==='settings') { loadWebhooks(); loadTeams(); loadKeys(); loadCapturePolicy(); }
+    if (sidebar && sidebar.classList.contains('open')) toggleMobileMenu();
+    switchTabDirect(t);
 }
 
 async function loadAll() { _updateNavHighlighting('graph'); loadStats(); loadGraph(); loadFeed(); loadAccount(); }
@@ -2271,6 +2390,14 @@ async function loadAccount() {
         const r = await fetch(`${API}/v1/me`, { headers: {'Authorization':`Bearer ${KEY}`} });
         if (r.ok) {
             const d = await r.json();
+            _plan = d.plan || '';
+            const arSection = document.getElementById('feed-autorefresh-section');
+            if (arSection) arSection.style.display = _feedAutoRefreshAvailable() ? '' : 'none';
+            // The plan gates auto-refresh, and it only arrives here — after the
+            // initial switchTabDirect() has already run and found the feature
+            // unavailable. Without this the timer never starts on a fresh load,
+            // and only a later tab switch brings it to life.
+            _syncFeedAutoRefresh();
             document.getElementById('account-email').textContent = d.email;
             document.getElementById('account-email').title = d.email;
             const planEl = document.getElementById('account-plan');
@@ -2785,12 +2912,27 @@ async function triggerReflection() {
     }
 }
 
+// Counters animate, so a second call can arrive while the first is still
+// running — the feed refresh triggers one on every change. Two live loops on
+// one element interleave writes and the value settles wherever the last frame
+// happened to land, which is how a counter ends up showing a number the server
+// never reported. Each run therefore claims the element and stops as soon as a
+// newer run takes over: the most recent target always wins.
+let _countUpRun = 0;
 function countUp(el, target, duration=600) {
-    const start = parseInt(el.textContent) || 0;
-    if (start === target) return;
+    if (!el) return;
+    const run = ++_countUpRun;
+    el.dataset.countRun = String(run);
+    // Read the pending target, not the rendered text: mid-animation the text is
+    // a rounded in-between frame, and starting from it drops the remainder.
+    const start = Number(el.dataset.countTarget ?? el.textContent) || 0;
+    el.dataset.countTarget = String(target);
+    if (start === target) { el.textContent = target; return; }
     const step = (target - start) / (duration / 16);
     let current = start;
     const tick = () => {
+        // A newer countUp owns the element now; this loop must not write again.
+        if (el.dataset.countRun !== String(run)) return;
         current += step;
         if ((step > 0 && current >= target) || (step < 0 && current <= target)) {
             el.textContent = target;
@@ -2935,7 +3077,96 @@ document.getElementById('quick-add-input')?.addEventListener('keydown', e => {
 
 // ---- Feed ----
 let _feedOffset = 0;
+let _feedTotal = null;
 const FEED_PAGE = 30;
+
+// Background refresh: diff against what's on screen by fact id and slide in
+// only the new rows. Silent on network errors — the visible list stays put
+// rather than collapsing into an error state under the user's cursor.
+async function _refreshFeedQuietly(box) {
+    const list = document.getElementById('feed-list');
+    if (!list) return;
+
+    // Cheap probe first: /v1/feed?limit=1 answers with the same `total` as a
+    // full page, so an unchanged feed costs one tiny request and touches
+    // nothing — no re-render, no DOM work, no scroll disturbance.
+    // A failed probe (server restarting, HTML error page instead of JSON) must
+    // not be treated as "nothing changed" — fall through to the full fetch so a
+    // blip cannot freeze the feed until a manual reload.
+    let head = null;
+    try {
+        head = await (await fetch(`${API}/v1/feed?limit=1&offset=0`, {headers:H()})).json();
+    } catch (e) { /* fall through */ }
+    if (head && typeof head.total === 'number' && head.total === _feedTotal) return;
+
+    // Fetch enough to cover what actually arrived. A single page is 30 rows,
+    // but extraction lands in bursts — two waves between probes can exceed
+    // that, and the overflow would be silently skipped: the rows never appear,
+    // and tabs that polled at different moments end up holding different
+    // subsets of the same feed.
+    const missing = (typeof head?.total === 'number' && typeof _feedTotal === 'number')
+        ? head.total - _feedTotal : 0;
+    const want = Math.min(Math.max(FEED_PAGE, missing + 5), 200);
+    let d;
+    try {
+        d = await (await fetch(`${API}/v1/feed?limit=${want}&offset=0`, {headers:H()})).json();
+    } catch (e) { return; }
+    if (!d.feed || !d.feed.length) return;
+    _feedOffset = Math.max(_feedOffset, d.feed.length);
+
+    const onScreen = new Set([...list.querySelectorAll('.feed-item')].map(el => el.dataset.factId));
+    const fresh = d.feed.filter(it => !onScreen.has(String(it.id)));
+    // Only remember this total once the rows are actually on screen. Recording
+    // it earlier means any later bail-out leaves the probe thinking it is up to
+    // date, and the feed then stays frozen until a manual reload.
+    if (!fresh.length) { _feedTotal = d.total; _refreshStatsAfterFeed(); return; }
+
+    // Rows belong under the first date divider, not above it: the divider
+    // labels the group ("Today"), so inserting before it strands new rows
+    // outside any group.
+    const anchor = list.querySelector('.feed-date-divider');
+    const after = anchor ? anchor.nextSibling : list.firstChild;
+    // The response is newest-first and must stay that way on screen. Walk it in
+    // order and advance the insertion point past each row: inserting every row
+    // before one fixed anchor would reverse the batch, since each new row lands
+    // between the anchor and the row inserted before it.
+    // Every row staggers, uncapped: a cap made the first few cascade and then
+    // dumped the remainder as one block, which hides how much arrived and how
+    // far there is to scroll. Steps shorten as the batch grows so a large burst
+    // still finishes in roughly the same time as a small one.
+    const step = fresh.length > 20 ? 0.05 : fresh.length > 10 ? 0.09 : 0.18;
+    fresh.forEach((it, i) => {
+        const tmp = document.createElement('div');
+        tmp.innerHTML = _renderFeedItem(it);
+        const el = tmp.firstElementChild;
+        el.classList.add('feed-item-new');
+        el.style.setProperty('--feed-stagger', `${(i * step).toFixed(2)}s`);
+        list.insertBefore(el, after);
+    });
+    _feedTotal = d.total;
+    _refreshStatsAfterFeed();
+    // Drop the marker once the last row has finished, so re-renders don't replay it.
+    setTimeout(() => list.querySelectorAll('.feed-item-new')
+        .forEach(el => { el.classList.remove('feed-item-new'); el.style.removeProperty('--feed-stagger'); }),
+        1000 + Math.min(fresh.length, 6) * 180);
+}
+
+// The counters sit above the feed and have to move with it. Reading /v1/stats
+// only after the feed response is in keeps the two in order: anything that
+// landed in between shows up as a counter ahead of the rows, never behind them.
+// Firing both at once instead let the two responses cross, and the counter
+// settled on a value that matched neither the rows on screen nor the database.
+//
+// This bounds the gap to one request; it cannot close it. /v1/stats and
+// /v1/feed are separate queries, so with extraction running there is always
+// real movement between them. An exact counter needs both served from one
+// snapshot — the feed response carrying the counts — which is an API change.
+let _statsAfterFeed = null;
+function _refreshStatsAfterFeed() {
+    // Collapse bursts: several refreshes in flight should cost one stats read.
+    if (_statsAfterFeed) clearTimeout(_statsAfterFeed);
+    _statsAfterFeed = setTimeout(() => { _statsAfterFeed = null; loadStats(); }, 120);
+}
 
 function _renderFeedItem(it) {
     const _bt = it.entity_type||'concept';
@@ -2945,24 +3176,29 @@ function _renderFeedItem(it) {
     const impPct = Math.round(imp * 100);
     const impColor = imp >= 0.8 ? 'var(--accent)' : imp >= 0.6 ? 'var(--blue)' : imp >= 0.4 ? 'var(--text-3)' : 'var(--border)';
     const accInfo = it.access_count > 0 ? ` · recalled ${it.access_count}×` : '';
-    return `<div class="feed-item">
+    return `<div class="feed-item" data-fact-id="${escA(String(it.id))}">
         <span class="feed-badge ${bc}" style="${_badgeStyle(_bt)}">${esc(it.entity)}</span>
         <div class="feed-content"><div class="feed-fact">${esc(it.fact)}</div><div class="feed-meta">${tm}<span class="feed-imp" title="Importance: ${impPct}%"><span class="feed-imp-bar"><span class="feed-imp-fill" style="width:${impPct}%;background:${impColor}"></span></span><span class="feed-imp-label">${impPct}%</span></span>${accInfo}</div></div>
         <button class="feed-del" onclick="archFact('${escA(it.id)}','${escA(it.entity)}','${escA(it.fact)}',this)" title="Delete">✕</button>
     </div>`;
 }
 
-async function loadFeed() {
+// `quiet` = background auto-refresh: keep the current list on screen and
+// slide in only what's new, instead of blanking the feed to a skeleton.
+async function loadFeed(quiet = false) {
     _feedOffset = 0;
     const box = document.getElementById('feed-box');
+    if (quiet && document.getElementById('feed-list')) return _refreshFeedQuietly(box);
     box.innerHTML = renderSkeleton('feed');
     try {
         const d = await (await fetch(`${API}/v1/feed?limit=${FEED_PAGE}&offset=0`,{headers:H()})).json();
         if(!d.feed||!d.feed.length) {
+            _feedTotal = 0;
             box.innerHTML = `<div class="empty"><div class="eicon">${I.list}</div><h3>Your memory is empty</h3><p>Use <a href="/">Claude Desktop MCP</a> or the <a href="https://pypi.org/project/mengram-ai/">Python API</a> to start building your AI memory.</p></div>`;
             return;
         }
         _feedOffset = d.feed.length;
+        _feedTotal = d.total;
         let h='<div class="feed-list" id="feed-list">',last='';
         for(const it of d.feed) {
             const dt = _relativeDate(it.created_at);
