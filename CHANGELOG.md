@@ -1,5 +1,29 @@
 # Changelog
 
+## 2.42.0 — 2026-09-11
+
+### Fixed
+- **A command that never ran was being counted as a failed step.** The
+  transcript sweep charged a step for every error result attached to a Bash
+  call — including a permission the classifier refused, a push a branch rule
+  blocked, and the user declining at the prompt. On one real project that was
+  26 non-runs against 7 genuine failures. Only a result that begins
+  `Exit code N` now counts; everything else is a command that did not run and
+  says nothing about the step.
+
+### Added
+- **The gate writes its judgement down before the command runs.** At
+  PreToolUse, a command that is a step of a workflow on record is noted in
+  `.mengram/intents.json` under the host's call id. PostToolUse closes that
+  record by id and credits the step it names — no second text match. A
+  command that failed never sends a PostToolUse; its intent is resolved from
+  the transcript by the same id on the next event, in this session or a later
+  one, and charged only for a genuine non-zero exit. Successes found this way
+  are closed without being counted, so a call whose own event is still on the
+  way is never credited twice.
+- 27 regression checks: what an error result means, lookup by call id, the
+  intent file's bounds, and the two hooks end to end.
+
 ## 2.41.6 — 2026-09-11
 
 ### Fixed

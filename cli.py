@@ -852,6 +852,17 @@ def cmd_auto_policy(args):
         if input_data.get("tool_name") != "Bash":
             _exit("skipped (not Bash)")
         command = (input_data.get("tool_input") or {}).get("command") or ""
+
+        # Local memfmt folder first: no account, no network, no quota. Loaded
+        # before the workflow filter because the intent is noted for every
+        # command that is a step, gate or no gate: the outcome half needs the
+        # judgement written down for exactly the commands it will later record.
+        local_root = _local_dir(args)
+        procs = None
+        if local_root:
+            procs = policy.memfmt_procedures(str(local_root))
+            _note_intent(input_data, local_root, procs, command)
+
         if not policy.looks_like_workflow(command, os.environ.get("MENGRAM_POLICY_PATTERN")):
             _exit("skipped (not a workflow command)")
 
@@ -862,11 +873,7 @@ def cmd_auto_policy(args):
             except ValueError:
                 min_reliable = policy.DEFAULT_MIN_RELIABLE
 
-        # Local memfmt folder first: no account, no network, no quota.
-        local_root = _local_dir(args)
-        if local_root:
-            procs = policy.memfmt_procedures(str(local_root))
-        else:
+        if not local_root:
             api_key = _load_cloud_api_key()
             if not api_key:
                 _exit("no API key")
@@ -892,6 +899,84 @@ def cmd_auto_policy(args):
         raise
     except Exception:
         _exit("error")
+
+
+def _note_intent(input_data, local_root, procs, command) -> None:
+    """PreToolUse: write down which step this command is, before it runs.
+
+    Keyed by the id the host gives the call, so the outcome half can close
+    exactly this record instead of matching the command text a second time.
+    Same net as the recorder: the command has to name a known tool and be a
+    step of a workflow on record. Never raises — it is bookkeeping inside a
+    hook that must not stop a command.
+    """
+    try:
+        from cloud import policy
+        from local import intents
+        tool_use_id = input_data.get("tool_use_id")
+        if not tool_use_id or not command or not policy.shell_verbs(command):
+            return
+        hit = policy.best_step_match(procs, command)
+        if hit is None:
+            return
+        proc, step_no, _score = hit
+        transcript_path = input_data.get("transcript_path")
+        try:
+            offset = os.path.getsize(transcript_path) if transcript_path else 0
+        except OSError:
+            offset = 0
+        intents.open_intent(local_root, tool_use_id=tool_use_id,
+                            procedure=proc.get("name") or "unnamed workflow",
+                            step=step_no, command=command,
+                            session_id=input_data.get("session_id"),
+                            transcript_path=transcript_path, offset=offset)
+    except Exception:
+        return
+
+
+#: An intent with no result in its transcript after this long is a command
+#: that never finished where anyone could see it; it is dropped, not charged.
+_INTENT_UNRESOLVED_SECONDS = 24 * 3600
+
+
+def _settle_open_intents(local_root, store, current_tool_use_id, seen: list) -> str:
+    """Resolve earlier intents against their transcripts, by id.
+
+    A command that exited non-zero never sends a PostToolUse, so its intent is
+    still open when the next event comes round; the transcript holds its
+    `Exit code N` and that is charged to the step it was noted as. A declined
+    or refused command is closed and charged nothing: it never ran. A result
+    that reads as a success is closed without recording — its own PostToolUse
+    may still be on its way, and one success must not be counted twice.
+
+    Adds every charged id to `seen`, so the transcript sweep that follows does
+    not charge it again. Returns a fragment for the verbose marker.
+    """
+    from local import intents
+    from local import transcript as tr
+    import time
+    charged = 0
+    for intent in intents.open_intents(local_root):
+        tid = intent.get("tool_use_id")
+        if not tid or tid == current_tool_use_id:
+            continue
+        transcript_path = intent.get("transcript_path")
+        result = (tr.result_for(transcript_path, tid, intent.get("offset") or 0)
+                  if transcript_path else None)
+        if result is None:
+            age = time.time() - float(intent.get("opened_at") or 0)
+            if age > _INTENT_UNRESOLVED_SECONDS:
+                intents.close_intent(local_root, tid)
+            continue
+        kind, body = result
+        intents.close_intent(local_root, tid)
+        if kind == "failed":
+            store.step_outcome(intent.get("procedure") or "unnamed workflow",
+                               int(intent.get("step") or 0),
+                               success=False, reason=tr._reason(body))
+            seen.append(tid)
+            charged += 1
+    return f"; {charged} failure(s) from open intents" if charged else ""
 
 
 def _bash_outcome(tool_response) -> bool | None:
@@ -1020,32 +1105,47 @@ def cmd_auto_outcome(args):
 
         procs = policy.memfmt_procedures(str(local_root))
         store = _local_store(local_root)
+        tool_use_id = input_data.get("tool_use_id")
 
-        # Failures never arrive as an event — this hook does not fire for them —
-        # so they are read out of the session transcript instead. Done before
-        # anything about *this* command is decided, because a failure is not
-        # about this command: skipping it whenever the current call happens to
-        # be an `ls` would leave failures unrecorded for as long as the session
-        # stayed quiet. Reading the folder costs ~20 ms, and only the new tail
-        # of the transcript is parsed.
+        # Failures never arrive as an event — this hook does not fire for them.
+        # Two readers find them, in order. First the intents the gate noted at
+        # PreToolUse, resolved by id against their transcripts: exact, and it
+        # works across sessions. Then the transcript sweep, for commands that
+        # ran without an intent on record. Both before anything about *this*
+        # command is decided, because a failure is not about this command:
+        # skipping it whenever the current call happens to be an `ls` would
+        # leave failures unrecorded for as long as the session stayed quiet.
+        from local import intents
+        from local import transcript as tr
+        cursor = tr.read_cursor(local_root)
+        seen = list(cursor.get("seen") or [])
+        settled = _settle_open_intents(local_root, store, tool_use_id, seen)
+        if settled:
+            cursor["seen"] = seen
+            tr.write_cursor(local_root, cursor)
         failed = _record_transcript_failures(
-            input_data.get("transcript_path"), local_root, procs, store)
+            input_data.get("transcript_path"), local_root, procs, store) + settled
 
-        # Now this command. A wider net than the gate upstream: the gate stays
-        # narrow because a false question interrupts a human, while a recording
-        # costs nothing and evidence is what is scarce. A command naming no
-        # known tool cannot match any step.
-        if not policy.shell_verbs(command):
+        # Now this command. Its intent, if the gate noted one, names the step;
+        # no second match. Otherwise a wider net than the gate upstream: the
+        # gate stays narrow because a false question interrupts a human, while
+        # a recording costs nothing and evidence is what is scarce. A command
+        # naming no known tool cannot match any step.
+        intent = intents.close_intent(local_root, tool_use_id) if tool_use_id else None
+        if intent is None and not policy.shell_verbs(command):
             _exit(f"skipped (no known tool in the command){failed}")
         worked = _bash_outcome(input_data.get("tool_response"))
         if worked is None:
             _exit(f"outcome unclear — nothing recorded{failed}")
 
-        hit = policy.best_step_match(procs, command)
-        if hit is None:
-            _exit(f"no step matched{failed}")
-        proc, step_no, _score = hit
-        name = proc.get("name") or "unnamed workflow"
+        if intent is not None:
+            name, step_no = intent.get("procedure") or "unnamed workflow", int(intent.get("step") or 0)
+        else:
+            hit = policy.best_step_match(procs, command)
+            if hit is None:
+                _exit(f"no step matched{failed}")
+            proc, step_no, _score = hit
+            name = proc.get("name") or "unnamed workflow"
         reason = None if worked else _failure_reason(input_data.get("tool_response"))
         store.step_outcome(name, step_no, success=worked, reason=reason)
         _exit(f"'{name}' step {step_no} recorded as "
