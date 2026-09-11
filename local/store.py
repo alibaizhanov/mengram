@@ -12,8 +12,12 @@ few hundred entries you want embeddings, and that is what the cloud is for.
 from __future__ import annotations
 
 import datetime as _dt
+from contextlib import contextmanager
+from copy import deepcopy
 import re
 from pathlib import Path
+import threading
+import unicodedata
 
 import memfmt
 from memfmt import Entity, Episode, Knowledge, Memory, Procedure, Relation, Step
@@ -21,7 +25,9 @@ from memfmt import Entity, Episode, Knowledge, Memory, Procedure, Relation, Step
 from cloud.procedure_match import (
     apply_step_outcome, is_near_duplicate_procedure, normalize_step, procedure_similarity,
 )
-_WORD = re.compile(r"[a-z0-9][a-z0-9_./-]{1,}")
+from .persistence import ConcurrentWriteError, atomic_write, folder_lock, merge_memory
+
+_WORD = re.compile(r"[^\W_][\w./-]*", re.UNICODE)
 _STOP = frozenset({
     "the", "and", "for", "with", "from", "into", "then", "that", "this", "what",
     "when", "where", "which", "who", "how", "why", "does", "did", "was", "were",
@@ -31,7 +37,8 @@ _STOP = frozenset({
 
 
 def _tokens(text: str) -> set:
-    return {w.strip("./-") for w in _WORD.findall((text or "").lower())
+    text = unicodedata.normalize("NFC", text or "").casefold()
+    return {w.strip("./-") for w in _WORD.findall(text)
             if w not in _STOP and len(w) > 2} - {""}
 
 
@@ -58,15 +65,58 @@ class LocalStore:
 
     def __init__(self, root: str | Path):
         self.root = Path(root)
-        self.memory: Memory = memfmt.load(self.root) if self.root.is_dir() else Memory()
+        self._mutex = threading.RLock()
+        self._transaction_depth = 0
+        if self.root.is_dir():
+            with folder_lock(self.root):
+                self.memory = memfmt.load(self.root)
+        else:
+            self.memory = Memory()
+        self._base = deepcopy(self.memory)
 
     # ---- persistence ------------------------------------------------------
 
+    @contextmanager
+    def transaction(self):
+        """Refresh and edit under the folder lock; save() commits explicitly.
+
+        Pending independent additions are rebased onto the latest files. An
+        incompatible edit raises instead of overwriting another session.
+        Model calls belong outside this context.
+        """
+        with self._mutex:
+            if self._transaction_depth:
+                yield
+                return
+            with folder_lock(self.root):
+                current = memfmt.load(self.root)
+                if memfmt.canonical(current) != memfmt.canonical(self._base):
+                    self.memory = merge_memory(self._base, self.memory, current)
+                self._base = deepcopy(current)
+                before = deepcopy(self.memory)
+                self._transaction_depth = 1
+                try:
+                    yield
+                except Exception:
+                    self.memory = before
+                    raise
+                finally:
+                    self._transaction_depth = 0
+
     def save(self) -> list:
-        """Write the whole tree back. Returns the paths written."""
-        tree = memfmt.serialise(memfmt.canonical(self.memory), root="")
-        self.root.mkdir(parents=True, exist_ok=True)
-        return memfmt.write_dir(tree, self.root)
+        """Merge concurrent additions and atomically replace each changed file."""
+        with self.transaction():
+            tree = memfmt.serialise(memfmt.canonical(self.memory), root="")
+            paths = []
+            for rel, text in sorted(tree.items()):
+                target = self.root / rel
+                if not target.resolve().is_relative_to(self.root.resolve()):
+                    raise memfmt.MemfmtError(f"path escapes the root: {rel}")
+                if not target.exists() or target.read_text(encoding="utf-8") != text:
+                    atomic_write(target, text)
+                paths.append(str(target))
+            self._base = deepcopy(self.memory)
+            return paths
 
     # ---- lookups ----------------------------------------------------------
 
@@ -220,8 +270,9 @@ class LocalStore:
             conversation = [{"role": "user", "content": conversation}]
         extraction = ConversationExtractor(llm_client).extract(
             conversation, existing_context=self.existing_context())
-        stats = self.add_extraction(extraction)
-        self.save()
+        with self.transaction():
+            stats = self.add_extraction(extraction)
+            self.save()
         return stats
 
     # ---- retrieval --------------------------------------------------------
@@ -320,6 +371,19 @@ class LocalStore:
         the next reader knows what to look at first. Revising the steps in
         response is `local.evolve`'s job, not this one's. Writes.
         """
+        previous = deepcopy(self._procedure(name))
+        with self.transaction():
+            self._check_outcome_version(previous, name)
+            return self._procedure_feedback(name, success, failed_at_step, reason)
+
+    def _check_outcome_version(self, previous, name):
+        current = self._procedure(name)
+        if previous and current and (previous.version != current.version or
+                _steps_as_dicts(previous.steps) != _steps_as_dicts(current.steps)):
+            raise ConcurrentWriteError(
+                "Procedure changed in another session; reload before recording an outcome.")
+
+    def _procedure_feedback(self, name, success, failed_at_step, reason):
         p = self._procedure(name)
         if p is None:
             return {"error": "procedure not found", "name": name}
@@ -348,6 +412,12 @@ class LocalStore:
         workflow really did break somewhere, and that is the first thing the
         next reader needs to see. Writes.
         """
+        previous = deepcopy(self._procedure(name))
+        with self.transaction():
+            self._check_outcome_version(previous, name)
+            return self._step_outcome(name, step, success, reason)
+
+    def _step_outcome(self, name, step, success, reason):
         p = self._procedure(name)
         if p is None:
             return {"error": "procedure not found", "name": name}

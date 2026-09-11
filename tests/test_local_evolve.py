@@ -147,3 +147,79 @@ def test_model_exception_is_reported_not_raised(tmp_path):
             raise RuntimeError("no key")
     r = evolve_on_failure(_store(tmp_path), "Deploy to Railway", "x", Boom())
     assert r["status"] == "error" and "no key" in r["error"]
+
+
+def test_revision_keeps_outcomes_recorded_while_the_model_was_running(tmp_path):
+    store = _store(tmp_path)
+
+    class ConcurrentModel(_Model):
+        def complete(self, *args, **kwargs):
+            LocalStore(store.root).procedure_feedback("Deploy to Railway", success=True)
+            return super().complete(*args, **kwargs)
+
+    result = evolve_on_failure(store, "Deploy to Railway", "cold pool", ConcurrentModel(FIX))
+    assert result["status"] == "promoted"
+    current = LocalStore(store.root).memory.procedures[0]
+    assert current.version == 2
+    assert current.evolution[0].success_count == 1
+    assert current.steps[0].success_count == 1
+
+
+def test_stale_model_revision_does_not_overwrite_new_steps(tmp_path):
+    store = _store(tmp_path)
+
+    class ConcurrentModel(_Model):
+        def complete(self, *args, **kwargs):
+            other = LocalStore(store.root)
+            other.memory.procedures[0].steps[0].action = "manually revised first step"
+            other.save()
+            return super().complete(*args, **kwargs)
+
+    result = evolve_on_failure(store, "Deploy to Railway", "cold pool", ConcurrentModel(FIX))
+    assert result["status"] == "error"
+    assert "procedure changed" in result["error"]
+    assert LocalStore(store.root).memory.procedures[0].steps[0].action == "manually revised first step"
+
+
+def test_revision_checks_neighbours_added_while_the_model_was_running(tmp_path):
+    store = _store(tmp_path)
+
+    class ConcurrentModel(_Model):
+        def complete(self, *args, **kwargs):
+            other = LocalStore(store.root)
+            other.add_extraction(ExtractionResult(procedures=[ExtractedProcedure(
+                "Hotfix the API", "a bug in prod", [{"action": "push the fix to main"}], ["Postgres"])]))
+            other.save()
+            return super().complete(*args, **kwargs)
+
+    fix = dict(FIX, precondition_check="database migrations applied before push")
+    result = evolve_on_failure(store, "Deploy to Railway", "migration missing", ConcurrentModel(fix))
+    assert result["status"] == "quarantined"
+    assert result["regressions"][0]["dependent_name"] == "Hotfix the API"
+    assert len(read_quarantine(store)) == 1
+
+
+def test_concurrent_quarantines_both_survive(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    import threading
+
+    dependent = ExtractedProcedure("Hotfix the API", "a bug in prod",
+                                  [{"action": "push the fix to main"}], ["Postgres"])
+    store = _store(tmp_path, extra=[dependent])
+    barrier = threading.Barrier(2)
+
+    class ConcurrentModel(_Model):
+        def complete(self, *args, **kwargs):
+            barrier.wait(timeout=10)  # no folder lock may be held during a model call
+            return super().complete(*args, **kwargs)
+
+    def revise(number):
+        fix = dict(FIX, precondition_check="database migrations applied before push",
+                   change_description=f"revision {number}")
+        return evolve_on_failure(LocalStore(store.root), "Deploy to Railway", "migration missing",
+                                 ConcurrentModel(fix))
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(revise, range(2)))
+    assert all(result["status"] == "quarantined" for result in results)
+    assert {entry["reason"] for entry in read_quarantine(store)} == {"revision 0", "revision 1"}

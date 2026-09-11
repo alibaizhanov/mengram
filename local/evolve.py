@@ -17,6 +17,7 @@ never to the agent.
 from __future__ import annotations
 
 import datetime as _dt
+from copy import deepcopy
 import json
 import logging
 from pathlib import Path
@@ -28,6 +29,7 @@ from cloud.regression_gate import find_regressions
 from cloud.reliability import carry_step_history
 
 from .store import LocalStore, _steps_as_dicts, _to_steps
+from .persistence import atomic_write
 
 logger = logging.getLogger("mengram.local")
 
@@ -84,7 +86,8 @@ def evolve_on_failure(store: LocalStore, name: str, context: str, llm_client,
     Returns {"status": "promoted" | "revised_in_place" | "quarantined" |
     "no_change" | "error", ...}. Writes the tree (or the quarantine file).
     """
-    p = store._procedure(name)
+    with store.transaction():
+        p = deepcopy(store._procedure(name))
     if p is None:
         return {"status": "error", "error": "procedure not found", "name": name}
 
@@ -104,6 +107,16 @@ def evolve_on_failure(store: LocalStore, name: str, context: str, llm_client,
     if not result or not result.get("new_steps"):
         return {"status": "no_change", "name": p.name, "reason": "model returned no steps"}
 
+    with store.transaction():
+        current = store._procedure(name)
+        if current is None or current.version != p.version or _gate_shape(current) != _gate_shape(p):
+            return {"status": "error", "name": name,
+                    "error": "procedure changed while the model was revising it; retry with the current version"}
+        return _apply_revision(store, current, result)
+
+
+def _apply_revision(store: LocalStore, p, result: dict) -> dict:
+    """Apply against current counters and neighbours while holding the lock."""
     new_steps = [s for s in result["new_steps"] if isinstance(s, dict)]
     new_trigger = result.get("new_trigger") or None
     if isinstance(new_trigger, str) and new_trigger.strip().lower() in ("", "null", "none"):
@@ -133,7 +146,7 @@ def evolve_on_failure(store: LocalStore, name: str, context: str, llm_client,
         path.parent.mkdir(parents=True, exist_ok=True)
         existing = read_quarantine(store)
         existing.append(entry)
-        path.write_text(json.dumps(existing, indent=2, ensure_ascii=False), encoding="utf-8")
+        atomic_write(path, json.dumps(existing, indent=2, ensure_ascii=False))
         logger.info("quarantined revision of %r: breaks %s", p.name,
                     ", ".join(r["dependent_name"] for r in regressions))
         return {"status": "quarantined", "name": p.name, "regressions": regressions,
