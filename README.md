@@ -97,6 +97,8 @@ mengram server --memory ./memory                                         # MCP f
 
 The folder is the memory: a [memfmt](https://github.com/alibaizhanov/memfmt) tree of Markdown you own — git diffs it, Obsidian draws it, `memfmt validate` checks it. Same procedures-with-outcomes as the cloud: versions, success/fail counts per step, the policy gate, and the regression gate that quarantines a fix that would break another workflow. Only extraction and a failure revision need a model, and that one you bring. Nothing expires and nothing asks for a key. [Docs](https://docs.mengram.io/local-mode).
 
+Local search matches words in Unicode text, including Russian; it does not use embeddings or translate queries. Multiple Mengram sessions coordinate writes with a folder lock and merge independent additions. Conflicting edits require a reload instead of overwriting another session. Each changed file is replaced atomically, but the whole folder is not a single crash-atomic transaction, and external editors do not participate in the lock.
+
 ---
 
 ## Why Mengram?

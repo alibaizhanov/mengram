@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.41.6 — 2026-09-11
+
+### Fixed
+- **Concurrent local sessions no longer overwrite each other's facts or outcomes.**
+  Folder locks serialize updates, independent additions merge against the latest
+  snapshot, and incompatible edits fail explicitly. Each changed Markdown file
+  is flushed and atomically replaced; the complete folder is not a crash-atomic
+  transaction, and external editors do not participate in the lock.
+- **Procedure revisions recheck the current workflow and its neighbours after
+  the model returns.** Results recorded during the model call are retained,
+  stale revisions are rejected, and concurrent quarantine entries are preserved.
+- **Local search recognizes Unicode words**, including Russian and accented
+  text, with case folding and Unicode normalization.
+- Added 18 regression checks covering concurrent processes, stale edits, atomic
+  file replacement, procedure evolution races, and Unicode search.
+
 ## 2.41.5 — 2026-09-11
 
 ### Fixed
