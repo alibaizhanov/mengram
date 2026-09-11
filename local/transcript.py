@@ -64,8 +64,39 @@ def _reason(body: str) -> str | None:
     return text.splitlines()[-1].strip()[:200] or None
 
 
+def _body(content) -> str:
+    """A tool result's text, whether the host wrote a string or a list of blocks."""
+    if isinstance(content, list):
+        return " ".join(str(b.get("text") or "") for b in content if isinstance(b, dict))
+    return str(content or "")
+
+
+def ran_and_failed(body: str) -> bool:
+    """Did this error result come from a command that ran and exited non-zero?
+
+    Only a body that begins `Exit code N` did. A host writes `is_error` on a
+    great deal else: a permission the classifier refused, a push a branch rule
+    blocked, the user declining at the prompt, a call that timed out. Measured
+    on one real project: 14 refusals and 12 blocked pushes against 7 genuine
+    exits. None of those commands ran, so none of them is evidence about the
+    step — and each one, counted, would have cost a workflow its trust.
+    """
+    return bool(_EXIT_CODE.match((body or "").lstrip()))
+
+
+def classify(is_error, body: str) -> str:
+    """`"ok"`, `"failed"` (ran, non-zero exit) or `"not_run"` (refused, declined, timed out)."""
+    if not is_error:
+        return "ok"
+    return "failed" if ran_and_failed(body) else "not_run"
+
+
 def _scan(transcript_path, start: int):
-    """`({tool_use_id: command}, [(tool_use_id, body)])` for failures from `start`."""
+    """`({tool_use_id: command}, [(tool_use_id, body)])` for failures from `start`.
+
+    Only commands that ran and exited non-zero are failures here; see
+    `ran_and_failed` for what an error result can otherwise be.
+    """
     commands: dict[str, str] = {}
     errors: list[tuple[str, str]] = []
     try:
@@ -89,11 +120,48 @@ def _scan(transcript_path, start: int):
                         if cmd:
                             commands[block.get("id")] = cmd
                     elif block.get("type") == "tool_result" and block.get("is_error"):
-                        errors.append((block.get("tool_use_id"),
-                                       str(block.get("content") or "")))
+                        body = _body(block.get("content"))
+                        if ran_and_failed(body):
+                            errors.append((block.get("tool_use_id"), body))
     except OSError:
         return {}, []
     return commands, errors
+
+
+def result_for(transcript_path, tool_use_id: str, start: int = 0) -> tuple[str, str] | None:
+    """The result the transcript holds for one tool call: `(kind, body)`.
+
+    `kind` is what `classify` returns. None when there is no result yet — the
+    command may still be running, or the session ended before it finished.
+    Reads from a little before `start`, the transcript's size when the call
+    was noted, so a long session is not re-read for every lookup.
+    """
+    if not tool_use_id:
+        return None
+    try:
+        with open(transcript_path, "r", errors="ignore") as fh:
+            begin = max(0, int(start or 0) - LOOKBACK_BYTES)
+            fh.seek(begin)
+            if begin:
+                fh.readline()
+            for line in fh:
+                if tool_use_id not in line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                except Exception:
+                    continue
+                content = (entry.get("message") or {}).get("content")
+                if not isinstance(content, list):
+                    continue
+                for block in content:
+                    if (isinstance(block, dict) and block.get("type") == "tool_result"
+                            and block.get("tool_use_id") == tool_use_id):
+                        body = _body(block.get("content"))
+                        return classify(block.get("is_error"), body), body
+    except OSError:
+        return None
+    return None
 
 
 def new_failures(transcript_path, cursor: dict) -> tuple[list[tuple[str, str | None]], dict]:
