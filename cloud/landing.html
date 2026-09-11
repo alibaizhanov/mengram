@@ -2013,6 +2013,36 @@
             </div>
         </section>
 
+        <!-- See it before installing anything: the only door that needs no account -->
+        <section class="install-prompt-section reveal" id="try-first">
+            <div class="install-prompt-card">
+                <span class="install-prompt-eyebrow">Start here · No account · Nothing leaves your machine</span>
+                <h2 class="install-prompt-title">See what your agent already knows about you.</h2>
+                <p class="install-prompt-sub">One command reads the Claude Code history already on your disk and tells you which projects you work in, what your stack is, and which workflows you have repeated &mdash; with counts. No key, no signup, no upload.</p>
+                <div class="code-box install-prompt-box">
+                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+<pre>pip install mengram-ai
+mengram try</pre>
+                </div>
+                <div class="code-box" style="margin-top:12px;">
+<pre>Scanned 23 sessions across 4 projects (2026-07-31 &rarr; 2026-09-11).
+
+If this were memory, your AI would already know:
+
+  Projects:   mengram (17), po-pilot (4), infra (1)
+  Your stack: railway, python, postgres, stripe, bun
+  Workflow patterns detected:
+    &#9881; debug from logs            (seen in 16 sessions)
+    &#9881; migrate &rarr; verify schema    (seen in 12 sessions)
+    &#9881; branch &rarr; PR &rarr; merge         (seen in 6 sessions)
+    &#9881; test &rarr; fix &rarr; re-test        (seen in 4 sessions)
+
+Right now, every new session starts from zero and relearns all of this.</pre>
+                </div>
+                <p class="install-prompt-fineprint">That output is real, from the author&rsquo;s own history. If the command is not found afterwards, your user-site bin is not on PATH: <code>export PATH="$(python3 -m site --user-base)/bin:$PATH"</code>. Like what you see? Keep it with one of the doors below.</p>
+            </div>
+        </section>
+
         <!-- Add to Claude in one click (remote MCP connector) — the zero-setup door -->
         <section class="install-prompt-section reveal" id="claude-connector">
             <div class="install-prompt-card">
