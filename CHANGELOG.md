@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.41.3 — 2026-09-11
+
+### Fixed
+- **A missing memory folder no longer sends you off to create a second one.**
+  `local init /somewhere` prints an `export MENGRAM_MEMORY_DIR=...` line that
+  every later command depends on. Forget it and the message used to read "no
+  memory folder at memory — run: mengram local init memory", which creates an
+  empty store in the current directory and strands the real one. The next
+  `search` then returns nothing and the product looks like it lost your data.
+  When the path came from the default rather than from `--memory` or the
+  environment, the error now offers the env var first and creating a new folder
+  second. Found by installing the package from PyPI in a clean container and
+  following the documented steps.
+
 ## 2.41.2 — 2026-09-11
 
 ### Fixed

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -25,10 +26,24 @@ def _root(args) -> Path:
 
 def _open(args) -> LocalStore:
     root = _root(args)
-    if not root.is_dir():
-        print(f"no memory folder at {root} — run: mengram local init {root}", file=sys.stderr)
-        sys.exit(1)
-    return LocalStore(root)
+    if root.is_dir():
+        return LocalStore(root)
+
+    # Where the folder came from decides what to say. Told explicitly and it is
+    # missing, the answer is to create it. Falling back to the default `memory`
+    # is the interesting case: a folder almost certainly exists somewhere else
+    # and the user forgot the env var `init` printed, so "run init" would
+    # create a *second* store and quietly strand the first one.
+    explicit = bool(getattr(args, "memory", None) or os.environ.get("MENGRAM_MEMORY_DIR", "").strip())
+    print(f"no memory folder at {root}", file=sys.stderr)
+    if explicit:
+        print(f"  create it:  mengram local init {root}", file=sys.stderr)
+    else:
+        print("  if you already have one elsewhere, point at it:", file=sys.stderr)
+        print("    export MENGRAM_MEMORY_DIR=/path/to/memory", file=sys.stderr)
+        print("    (or pass --memory /path/to/memory)", file=sys.stderr)
+        print(f"  to start a new one here:  mengram local init {root}", file=sys.stderr)
+    sys.exit(1)
 
 
 def cmd_init(args) -> int:
