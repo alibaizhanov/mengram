@@ -133,6 +133,25 @@ def test_the_real_claude_code_payload_means_success():
     assert cli._bash_outcome(real) is True
 
 
+def test_a_timed_out_command_is_not_a_success():
+    """Measured, not assumed: a timed-out call DOES fire this event.
+
+    The host moves the command to the background instead of killing it, so the
+    payload arrives with `interrupted: false` and no exit code — which the
+    arrival-means-success rule would read as a win. It carries `timedOutAfterMs`
+    and a `backgroundTaskId` instead, and the command may still be running.
+    """
+    real = {"stdout": "", "stderr": "", "interrupted": False, "isImage": False,
+            "noOutputExpected": False, "backgroundTaskId": "boiq5n3pk",
+            "timedOutAfterMs": 12000}
+    assert cli._bash_outcome(real) is None
+
+
+def test_either_timeout_marker_alone_is_enough():
+    assert cli._bash_outcome({"stdout": "", "timedOutAfterMs": 1}) is None
+    assert cli._bash_outcome({"stdout": "", "backgroundTaskId": "x"}) is None
+
+
 def test_an_interrupted_command_is_still_no_evidence():
     real = {"stdout": "", "stderr": "", "interrupted": True,
             "isImage": False, "noOutputExpected": False}

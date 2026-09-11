@@ -914,6 +914,16 @@ def _bash_outcome(tool_response) -> bool | None:
         return None
     if tool_response.get("interrupted"):
         return None
+    # A command that ran out of time did not finish, and this host moves it to
+    # the background rather than killing it, so it may yet succeed. Measured
+    # with a logging hook: a timed-out call *does* fire this event, carrying
+    # `timedOutAfterMs` and `backgroundTaskId` and `interrupted: false`. Without
+    # this check the rule below reads that as a success, which is the same
+    # survivorship bias as the missing-failure event, wearing a different hat.
+    if tool_response.get("timedOutAfterMs") is not None:
+        return None
+    if tool_response.get("backgroundTaskId"):
+        return None
     code = tool_response.get("exit_code", tool_response.get("exitCode"))
     if isinstance(code, bool):          # True is not an exit code
         return None
