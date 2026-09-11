@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.41.2 — 2026-09-11
+
+### Fixed
+- **A slow OpenAI call could take the API down.** The client was constructed
+  with no timeout, so it inherited the SDK's defaults: 600 seconds and two
+  retries, up to half an hour of a worker doing nothing. Production serves with
+  gunicorn `--timeout 300` and two workers. At 00:09 UTC both workers were
+  killed four seconds apart while a user polled `/v1/profile`, and with two
+  workers gone there was nothing left to serve anyone. The client now uses a
+  90 second timeout and a single retry — worst case roughly 185 seconds
+  including backoff, inside the worker's budget. `create_llm_client` passes
+  `timeout` and `max_retries` through when the config sets them, and a test
+  asserts the worst case still fits the value in `start.sh`.
+  Same fix the Anthropic client got in 2.37.2; the provider production
+  actually runs had never had it.
+
 ## 2.41.1 — 2026-09-10
 
 ### Fixed

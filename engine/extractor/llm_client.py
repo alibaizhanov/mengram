@@ -77,12 +77,25 @@ class AnthropicClient(LLMClient):
 class OpenAIClient(LLMClient):
     """GPT via OpenAI API"""
 
-    def __init__(self, api_key: str, model: str = "gpt-4o-mini"):
+    #: A request that hangs must not outlive the web worker waiting on it.
+    #: Production runs gunicorn with `--timeout 300` and two workers; the
+    #: OpenAI SDK defaults to a 600 s timeout and two retries, so one slow
+    #: call can hold a worker for half an hour. On 2026-09-11 two of them
+    #: did exactly that four seconds apart and took the API down: a user
+    #: polling `/v1/profile` hit a completion that never returned, and with
+    #: two workers there was nothing left to serve anyone.
+    #: 90 s with a single retry is worst-case ~185 s including backoff,
+    #: which lands inside the worker's budget with room to spare.
+    DEFAULT_TIMEOUT = 90.0
+    DEFAULT_MAX_RETRIES = 1
+
+    def __init__(self, api_key: str, model: str = "gpt-4o-mini",
+                 timeout: float = DEFAULT_TIMEOUT, max_retries: int = DEFAULT_MAX_RETRIES):
         try:
             from openai import OpenAI
         except ImportError:
             raise ImportError("pip install openai")
-        self.client = OpenAI(api_key=api_key)
+        self.client = OpenAI(api_key=api_key, timeout=timeout, max_retries=max_retries)
         self.model = model
 
     def _is_reasoning_model(self) -> bool:
@@ -190,9 +203,15 @@ def create_llm_client(config: dict) -> LLMClient:
         )
     elif provider == "openai":
         settings = config.get("openai", {})
+        kwargs = {}
+        if settings.get("timeout") is not None:
+            kwargs["timeout"] = float(settings["timeout"])
+        if settings.get("max_retries") is not None:
+            kwargs["max_retries"] = int(settings["max_retries"])
         return OpenAIClient(
             api_key=settings["api_key"],
             model=settings.get("model", "gpt-4o-mini"),
+            **kwargs,
         )
     elif provider == "ollama":
         settings = config.get("ollama", {})
