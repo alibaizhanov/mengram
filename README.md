@@ -333,7 +333,9 @@ mengram import files notes/*.md --cloud                          # Any text/mark
 mengram hook install
 ```
 
-4 hooks: profile on start, recall on every prompt, save after responses, and a policy gate before workflow-shaped Bash commands.
+5 hooks: profile on start, recall on every prompt, save after responses, a policy gate before workflow-shaped Bash commands, and the outcome of each step written back after it runs.
+
+**The receipt.** Memory that works is invisible, so each hook leaves a line behind and the next session opens with the sum: *"Mengram, last session: recalled memories on 4 prompts · asked before 1 workflow with a weak record · recorded 3 step outcomes (2 ok, 1 failed)"*. Silent when nothing happened. `mengram receipt` shows the last session and the past 7 days.
 
 **Policy gate.** Outcome history changes what the agent may do, not only how results rank. When a `git push`, `deploy`, `migrate`, `kubectl`, `rm -rf` … matches a learned workflow that is `untested`, inherits its record from an earlier version (`61% expected`), or sits below the bar (`58% reliable`, default 70), the hook answers `ask`: you see why, Claude gets the steps on record, nothing runs on the agent's say-so. A proven workflow stays silent. Works against the cloud, or fully offline against a [memfmt](https://github.com/alibaizhanov/memfmt) folder with `MENGRAM_MEMORY_DIR=./memory`. Only workflow-shaped commands trigger a lookup (one search each); `ls` and `cat` never do. Tune with `MENGRAM_POLICY_MIN_RELIABLE=80`, `MENGRAM_POLICY_PATTERN='\bmake\b'`; skip with `mengram hook install --no-policy`. The memory can ask; it never denies.
 
