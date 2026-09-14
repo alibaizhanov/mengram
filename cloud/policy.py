@@ -260,16 +260,36 @@ def decide(proc: dict, command: str, min_reliable: int = DEFAULT_MIN_RELIABLE) -
     else:
         return None
 
+    say = spoken_line(proc, label)
     return {
         "decision": "ask",
         "reason": f"Mengram: learned workflow {why}. Review the plan before it runs.",
-        "plan": _plan(proc, label),
+        "plan": _plan(proc, label, say),
+        "say": say,
         "name": name,
         "reliability": label,
     }
 
 
-def _plan(proc: dict, label: str) -> str:
+def spoken_line(proc: dict, label: str) -> str:
+    """The one line the agent says out loud when memory flags a workflow.
+
+    The gate's work is otherwise invisible: the question looks like any
+    permission prompt and the plan goes into context the user never reads.
+    This line is what makes the moment attributable — which workflow, what
+    its record is, and the last time it went wrong.
+    """
+    name = proc.get("name") or "unnamed workflow"
+    s_, f_ = int(proc.get("success_count") or 0), int(proc.get("fail_count") or 0)
+    counts = f" ({s_}✓/{f_}✗)" if (s_ or f_) and label.endswith("reliable") else ""
+    text = f"Mengram flagged this: '{name}' is {label}{counts}"
+    if proc.get("last_failure"):
+        when = f" {str(proc['last_failed'])[:10]}" if proc.get("last_failed") else ""
+        text += f"; last failure{when}: {str(proc['last_failure'])[:120]}"
+    return text + "."
+
+
+def _plan(proc: dict, label: str, say: str | None = None) -> str:
     lines = [f"[Mengram] Matched learned workflow '{proc.get('name')}' (v{proc.get('version') or 1}, {label})."]
     trig = proc.get("trigger_condition") or proc.get("trigger")
     if trig:
@@ -298,6 +318,9 @@ def _plan(proc: dict, label: str) -> str:
         lines.append(f"Last success: {str(proc['last_succeeded'])[:10]}")
     lines.append("The evidence for this workflow is weak, so the user was asked to confirm. "
                  "If they decline, show them the plan and what you would verify first.")
+    if say:
+        lines.append("Before you continue, tell the user in one visible line that memory flagged this. "
+                     f"Say exactly: {say}")
     return "\n".join(lines)
 
 

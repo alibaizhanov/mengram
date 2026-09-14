@@ -1,5 +1,28 @@
 # Changelog
 
+## 2.43.0 — 2026-09-14
+
+### Added
+- **The receipt: what memory did, said out loud.** A hook that works is
+  invisible — the recalled fact goes into the prompt, the gate's question
+  looks like any permission prompt, the recorded outcome is a number in a
+  file nobody opens. Each hook now leaves one line in
+  `~/.mengram/receipts.jsonl` (recalled on a prompt, asked before a weak
+  workflow, recorded a step, caught a failure from the transcript, saved a
+  turn), and the next session start shows the sum in one line: *"Mengram,
+  last session: recalled memories on 4 prompts · asked before 1 workflow with
+  a weak record · recorded 3 step outcomes (2 ok, 1 failed)"*. Shown once per
+  session, never on a resume or a compaction, and silent when nothing
+  happened. `mengram receipt` prints the last session and the past 7 days;
+  `mengram status` opens with the same line.
+- **The gate tells the user it fired.** The plan handed to Claude now ends
+  with a line to say before continuing — which workflow was flagged, its
+  record, and its last failure if there is one — so the moment is attributed
+  to memory instead of passing as an ordinary permission prompt.
+
+### Fixed
+- `__version__` had been left at 2.41.6 while the package was 2.42.0.
+
 ## 2.42.0 — 2026-09-11
 
 ### Fixed

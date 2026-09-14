@@ -256,6 +256,11 @@ def cmd_status(args):
     """Check setup status"""
     print("🧠 Mengram Status\n")
 
+    last = _last_session_receipt(None)
+    if last:
+        print(last)
+        print("   Full receipt: mengram receipt\n")
+
     # Cloud API key (set by `mengram signup` or `mengram setup`)
     cloud_key = _load_cloud_api_key()
     if cloud_key:
@@ -318,6 +323,35 @@ def cmd_status(args):
         print(f"✅ sentence-transformers installed")
     except ImportError:
         print(f"⚠️  sentence-transformers not installed: pip install sentence-transformers")
+
+
+def cmd_receipt(args):
+    """What memory did: last session, and the past N days."""
+    from local import receipt
+    import datetime as _dt
+    events = receipt.load()
+    if not events:
+        print("No receipt yet. The hooks write one line per thing memory does —")
+        print("recall on a prompt, a question before a weak workflow, a step recorded.")
+        print("Install them: mengram hook install   (or  --memory ./memory)")
+        return
+    days = getattr(args, "days", 7) or 7
+    print("🧠 Mengram receipt\n")
+    sid, evs = receipt.previous_session(None, events)
+    if evs:
+        s = receipt.summarise(evs)
+        when = _dt.datetime.fromtimestamp(s["first"]).strftime("%Y-%m-%d %H:%M") if s["first"] else "?"
+        print(f"Last session ({when}):")
+        print(f"   {receipt.phrase(s)}")
+    recent = receipt.since(days, events)
+    s = receipt.summarise(recent)
+    text = receipt.phrase(s)
+    if text:
+        print(f"\nPast {days} days, {s['sessions']} session{'s' if s['sessions'] != 1 else ''}:")
+        print(f"   {text}")
+    else:
+        print(f"\nNothing in the past {days} days.")
+    print(f"\nLedger: {receipt.path()}")
 
 
 def cmd_stats(args):
@@ -397,28 +431,52 @@ def _local_store(local_dir):
     return LocalStore(local_dir)
 
 
-def _local_auto_recall(args, EVENT, HOOK, local_dir, prompt):
+def _local_auto_recall(args, EVENT, HOOK, local_dir, prompt, session_id=None):
     context = _local_store(local_dir).recall(prompt, limit=3)
     if not context:
         _emit_hook_exit(EVENT, args, HOOK, "no memories found (local)")
+    _receipt("recall", session_id)
     _emit_hook_exit(EVENT, args, HOOK, "found memories (local)", context=context)
 
 
-def _local_auto_context(args, EVENT, HOOK, local_dir):
+def _local_auto_context(args, EVENT, HOOK, local_dir, system_message=None):
     profile = _local_store(local_dir).profile()
     if not profile:
-        _emit_hook_exit(EVENT, args, HOOK, "empty folder (local)")
+        _emit_hook_exit(EVENT, args, HOOK, "empty folder (local)", system_message=system_message)
     context = f"[Mengram Memory — context loaded from {local_dir}]\n{profile}"
-    _emit_hook_exit(EVENT, args, HOOK, f"context loaded ({len(profile)} chars, local)", context=context)
+    _emit_hook_exit(EVENT, args, HOOK, f"context loaded ({len(profile)} chars, local)",
+                    context=context, system_message=system_message)
 
 
-def _local_auto_save(args, EVENT, HOOK, local_dir, messages):
+def _local_auto_save(args, EVENT, HOOK, local_dir, messages, session_id=None):
     from local.config import llm_client
     client = llm_client(local_dir)
     if client is None:
         _emit_hook_exit(EVENT, args, HOOK, "no model configured (local) — nothing saved")
     _local_store(local_dir).add(messages, client)
+    _receipt("save", session_id)
     _emit_hook_exit(EVENT, args, HOOK, "saved (local)")
+
+
+def _receipt(kind, session_id, **fields):
+    """Leave a line in the receipt ledger. Never raises, never prints."""
+    try:
+        from local import receipt
+        receipt.note(kind, session_id, **fields)
+    except Exception:
+        pass
+
+
+def _read_hook_input():
+    """The JSON a Claude Code hook receives on stdin; {} when there is none.
+
+    A terminal is not a hook: reading from one would block a manual run."""
+    try:
+        if sys.stdin.isatty():
+            return {}
+        return json.loads(sys.stdin.read() or "{}") or {}
+    except Exception:
+        return {}
 
 
 def _local_import_claude_code(args, local_dir) -> int:
@@ -549,8 +607,9 @@ def cmd_auto_recall(args):
         if any(prompt_lower == p or prompt_lower.startswith(p + " ") for p in skip_prefixes):
             _emit_hook_exit(EVENT, args, HOOK, "skipped (short/command prompt)")
 
+        session_id = input_data.get("session_id")
         if local_dir:
-            _local_auto_recall(args, EVENT, HOOK, local_dir, prompt)
+            _local_auto_recall(args, EVENT, HOOK, local_dir, prompt, session_id)
 
         from cloud.client import CloudMemory
         base_url = _load_cloud_base_url()
@@ -586,6 +645,7 @@ def cmd_auto_recall(args):
                     lines.append(f"  - {fact}")
 
         context = "\n".join(lines)
+        _receipt("recall", session_id)
         _emit_hook_exit(EVENT, args, HOOK, f"found {len(results)} memories", context=context)
 
     except SystemExit:
@@ -605,6 +665,15 @@ def cmd_auto_recall(args):
 
 def _weekly_state_path():
     return Path.home() / ".mengram" / "weekly-shown.json"
+
+
+def _last_session_receipt(current_session_id):
+    """One line on what memory did last session, or None. Never raises."""
+    try:
+        from local import receipt
+        return receipt.session_line(current_session_id)
+    except Exception:
+        return None
 
 
 def _iso_week_now():
@@ -665,12 +734,20 @@ def cmd_auto_context(args):
     HOOK = "auto-context"
     EVENT = "SessionStart"
     try:
+        input_data = _read_hook_input()
+        # What memory did last session, said once, at the one moment the
+        # person is deciding whether it is worth keeping. A resumed or
+        # compacted session is the same session, so nothing is said there.
+        receipt_msg = None
+        if input_data.get("source", "startup") in ("startup", "clear"):
+            receipt_msg = _last_session_receipt(input_data.get("session_id"))
+
         local_dir = _local_dir(args)
         if local_dir:
-            _local_auto_context(args, EVENT, HOOK, local_dir)
+            _local_auto_context(args, EVENT, HOOK, local_dir, system_message=receipt_msg)
         api_key = _load_cloud_api_key()
         if not api_key:
-            _emit_hook_exit(EVENT, args, HOOK, "no API key")
+            _emit_hook_exit(EVENT, args, HOOK, "no API key", system_message=receipt_msg)
 
         from cloud.client import CloudMemory
         base_url = _load_cloud_base_url()
@@ -680,14 +757,15 @@ def cmd_auto_context(args):
         profile = mem.get_profile(user_id=user_id)
 
         weekly_msg = None if getattr(args, "no_weekly", False) else _maybe_weekly_message(mem, user_id)
+        shown = "\n\n".join(m for m in (receipt_msg, weekly_msg) if m) or None
 
         system_prompt = profile.get("system_prompt", "")
         if not system_prompt:
-            _emit_hook_exit(EVENT, args, HOOK, "no profile", system_message=weekly_msg)
+            _emit_hook_exit(EVENT, args, HOOK, "no profile", system_message=shown)
 
         context = f"[Mengram Memory — user context loaded from past sessions]\n{system_prompt}"
         _emit_hook_exit(EVENT, args, HOOK, f"context loaded ({len(system_prompt)} chars)",
-                        context=context, system_message=weekly_msg)
+                        context=context, system_message=shown)
 
     except SystemExit:
         raise
@@ -792,7 +870,7 @@ def cmd_auto_save(args):
         messages.append({"role": "assistant", "content": last_msg})
 
         if local_dir:
-            _local_auto_save(args, EVENT, HOOK, local_dir, messages)
+            _local_auto_save(args, EVENT, HOOK, local_dir, messages, session_id)
 
         # Send to Mengram API
         from cloud.client import CloudMemory
@@ -808,6 +886,7 @@ def cmd_auto_save(args):
             run_id=session_id,
         )
 
+        _receipt("save", session_id)
         _emit_hook_exit(EVENT, args, HOOK, "saved")
 
     except SystemExit:
@@ -893,6 +972,8 @@ def cmd_auto_policy(args):
         verdict = policy.decide(proc, command, min_reliable=min_reliable)
         if verdict is None:
             _exit(f"'{proc.get('name')}' {policy.reliability_of(proc)} — allowed")
+        _receipt("gate", input_data.get("session_id"),
+                 procedure=verdict["name"], reliability=verdict["reliability"])
         _exit(f"'{verdict['name']}' {verdict['reliability']} — ask", verdict)
 
     except SystemExit:
@@ -974,6 +1055,8 @@ def _settle_open_intents(local_root, store, current_tool_use_id, seen: list) -> 
             store.step_outcome(intent.get("procedure") or "unnamed workflow",
                                int(intent.get("step") or 0),
                                success=False, reason=tr._reason(body))
+            _receipt("step", intent.get("session_id"), procedure=intent.get("procedure"),
+                     step=int(intent.get("step") or 0), ok=False, source="transcript")
             seen.append(tid)
             charged += 1
     return f"; {charged} failure(s) from open intents" if charged else ""
@@ -1034,7 +1117,7 @@ def _failure_reason(tool_response) -> str | None:
     return line[:200] or None
 
 
-def _record_transcript_failures(transcript_path, local_root, procs, store) -> str:
+def _record_transcript_failures(transcript_path, local_root, procs, store, session_id=None) -> str:
     """Charge the steps whose commands failed, from the session transcript.
 
     Returns a fragment for the verbose marker, empty when nothing was found —
@@ -1055,6 +1138,8 @@ def _record_transcript_failures(transcript_path, local_root, procs, store) -> st
             proc, step_no, _score = hit
             store.step_outcome(proc.get("name") or "unnamed workflow", step_no,
                                success=False, reason=reason)
+            _receipt("step", session_id, procedure=proc.get("name"), step=step_no,
+                     ok=False, source="transcript")
             recorded += 1
         tr.write_cursor(local_root, cursor)
     except Exception:
@@ -1124,7 +1209,8 @@ def cmd_auto_outcome(args):
             cursor["seen"] = seen
             tr.write_cursor(local_root, cursor)
         failed = _record_transcript_failures(
-            input_data.get("transcript_path"), local_root, procs, store) + settled
+            input_data.get("transcript_path"), local_root, procs, store,
+            input_data.get("session_id")) + settled
 
         # Now this command. Its intent, if the gate noted one, names the step;
         # no second match. Otherwise a wider net than the gate upstream: the
@@ -1148,6 +1234,8 @@ def cmd_auto_outcome(args):
             name = proc.get("name") or "unnamed workflow"
         reason = None if worked else _failure_reason(input_data.get("tool_response"))
         store.step_outcome(name, step_no, success=worked, reason=reason)
+        _receipt("step", input_data.get("session_id"), procedure=name, step=step_no,
+                 ok=bool(worked), source="event")
         _exit(f"'{name}' step {step_no} recorded as "
               f"{'success' if worked else 'failure'}{failed}")
 
@@ -2655,6 +2743,10 @@ def main():
     # status
     sub.add_parser("status", help="Check setup status")
 
+    # receipt
+    p_receipt = sub.add_parser("receipt", help="What memory did: last session and the past days")
+    p_receipt.add_argument("--days", type=int, default=7, help="Window for the totals (default 7)")
+
     # stats
     p_stats = sub.add_parser("stats", help="Vault statistics")
     p_stats.add_argument("--config", help="Config path")
@@ -2822,6 +2914,8 @@ def main():
         cmd_server(args)
     elif args.command == "status":
         cmd_status(args)
+    elif args.command == "receipt":
+        cmd_receipt(args)
     elif args.command == "stats":
         cmd_stats(args)
     elif args.command == "rules":
