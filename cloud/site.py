@@ -5,10 +5,55 @@ dict from cloud/content. Kept out of cloud/api.py so editing a page never touche
 """
 
 import datetime
+import logging
+import re
 from pathlib import Path
+from urllib.parse import urlsplit
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
+
+logger = logging.getLogger("mengram")
+
+# Crawlers, previews and monitors: their fetches are not people reading the page.
+_BOT_UA = re.compile(r"bot|crawl|spider|slurp|preview|fetch|curl|wget|python-requests|"
+                     r"go-http|headless|lighthouse|monitor|uptime|facebookexternalhit|"
+                     r"whatsapp|telegram|discord|slack|embedly|pingdom", re.I)
+
+
+def _note_view(request: Request, page: str) -> None:
+    """One log line per human page view: `🌐 VIEW / ref=github.com ua=mac`.
+
+    Nothing about the visitor is kept, and the line is the only place visits
+    are counted at all. The 2026-09-14 baseline could say how many accounts
+    signed up but not how many people saw the page they signed up from, so
+    the landing could neither be blamed nor cleared. This is the missing
+    numerator: `railway logs | grep 'VIEW /'` gives visits per day, and the
+    referrer says where they came from.
+    """
+    try:
+        if request.method != "GET":
+            return
+        ua = request.headers.get("user-agent", "")
+        if not ua or _BOT_UA.search(ua):
+            return
+        ref = request.headers.get("referer", "")
+        ref_host = urlsplit(ref).netloc.lower() if ref else "direct"
+        if ref_host.endswith("mengram.io"):
+            ref_host = "internal"
+        if "Mobile" in ua or "Android" in ua:
+            device = "mobile"
+        elif "Mac" in ua:
+            device = "mac"
+        elif "Windows" in ua:
+            device = "win"
+        elif "Linux" in ua:
+            device = "linux"
+        else:
+            device = "other"
+        logger.info(f"🌐 VIEW {page} | ref={ref_host} | ua={device}")
+    except Exception:
+        return
 
 from cloud.content.blog_posts import BLOG_POSTS
 from cloud.content.usecase_pages import USECASE_PAGES
@@ -30,16 +75,18 @@ def build_site_router(version: str) -> APIRouter:
     # `/auth/github/callback` spends a one-time code, and a link checker or a
     # prefetching client hitting those would carry the side effect out.
     @router.api_route("/", methods=["GET", "HEAD"], response_class=HTMLResponse)
-    async def landing():
+    async def landing(request: Request):
         """Landing page."""
+        _note_view(request, "/")
         landing_path = Path(__file__).parent / "landing.html"
         html = landing_path.read_text(encoding="utf-8")
         html = html.replace("{{VERSION}}", __version__)
         return html
 
     @router.api_route("/pricing", methods=["GET", "HEAD"], response_class=HTMLResponse)
-    async def pricing():
+    async def pricing(request: Request):
         """Standalone pricing page (moved off the landing 2026-07)."""
+        _note_view(request, "/pricing")
         p = Path(__file__).parent / "pricing.html"
         html = p.read_text(encoding="utf-8")
         return html.replace("{{VERSION}}", __version__)
