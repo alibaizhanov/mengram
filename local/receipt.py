@@ -25,7 +25,7 @@ FILE = "receipts.jsonl"
 MAX_BYTES = 512 * 1024
 
 #: Event kinds a hook may note. Anything else is ignored on read.
-KINDS = ("recall", "gate", "step", "save")
+KINDS = ("recall", "gate", "step", "save", "checkpoint", "restore")
 
 
 def path() -> Path:
@@ -78,12 +78,17 @@ def summarise(events: list[dict]) -> dict:
     """Counts a person would quote: prompts recalled on, gate questions,
     step outcomes, failures found where the host reported nothing, saves."""
     s = {"recalls": 0, "gates": 0, "steps_ok": 0, "steps_failed": 0,
-         "caught": 0, "saves": 0, "sessions": len({e.get("session") for e in events}),
+         "caught": 0, "saves": 0, "checkpoints": 0, "restores": 0,
+         "sessions": len({e.get("session") for e in events}),
          "first": None, "last": None}
     for e in events:
         k = e.get("kind")
         if k == "recall":
             s["recalls"] += 1
+        elif k == "checkpoint":
+            s["checkpoints"] += 1
+        elif k == "restore":
+            s["restores"] += 1
         elif k == "gate":
             s["gates"] += 1
         elif k == "step":
@@ -118,6 +123,12 @@ def phrase(s: dict) -> str | None:
         parts.append(f"caught {s['caught']} failure{'s' if s['caught'] != 1 else ''} the host never reported")
     if s["saves"]:
         parts.append(f"saved {s['saves']} turn{'s' if s['saves'] != 1 else ''} to memory")
+    if s["restores"]:
+        parts.append(f"restored the working state after {s['restores']} "
+                     f"compaction{'s' if s['restores'] != 1 else ''}")
+    elif s["checkpoints"]:
+        parts.append(f"saved the working state before {s['checkpoints']} "
+                     f"compaction{'s' if s['checkpoints'] != 1 else ''}")
     return " · ".join(parts) if parts else None
 
 

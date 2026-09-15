@@ -1,5 +1,28 @@
 # Changelog
 
+## 2.44.0 — 2026-09-15
+
+### Added
+- **The working state survives compaction.** A compaction keeps the
+  conversation but not the work: the host's summary can drop which files were
+  just edited, what the person asked three prompts ago, where the agent left
+  off — and the agent carries on from the summary as if nothing were missing.
+  A new `PreCompact` hook (`mengram auto-checkpoint`) reads the transcript's
+  tail before the summary is written and keeps the few things that locate the
+  work: the last prompts, the files touched, the last commands, the last thing
+  the assistant said. `SessionStart` with `source: compact` (or `resume`) puts
+  it back verbatim, above the profile, and once — the file is consumed so a
+  later `/clear` does not replay it. Works with or without an account: the
+  checkpoint is written to `~/.mengram/checkpoints/` and never leaves the
+  machine. A cloud outage at session start still restores it.
+- **The same hooks under Codex.** `mengram hook install --codex` writes
+  `~/.codex/hooks.json` with session context, per-prompt recall and the
+  compaction checkpoint; Codex's hooks file has Claude Code's shape, so the
+  handlers are shared. The transcript reader accepts both hosts' JSON lines.
+  `mengram hook uninstall` removes them from both.
+- The receipt now counts it: *"restored the working state after 1
+  compaction"*.
+
 ## 2.43.0 — 2026-09-14
 
 ### Added

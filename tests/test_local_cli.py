@@ -177,7 +177,11 @@ def test_hook_install_in_local_mode_needs_no_key(folder, monkeypatch, capsys, tm
     assert code == 0 and "local mode" in out
     settings = json.loads((tmp_path / "settings.json").read_text())
     cmds = [h["command"] for groups in settings["hooks"].values() for g in groups for h in g["hooks"]]
-    assert len(cmds) == 5 and all("--memory" in c and str(folder.resolve()) in c for c in cmds)
+    # The checkpoint hook reads the transcript and writes under ~/.mengram: it
+    # never opens the memory folder, so it is the one command without it.
+    assert len(cmds) == 6
+    assert all("--memory" in c and str(folder.resolve()) in c
+               for c in cmds if "auto-checkpoint" not in c)
     # Both halves of the gate: the question before, the record after.
     assert any("auto-policy" in c for c in cmds) and any("auto-outcome" in c for c in cmds)
     assert settings["hooks"]["PreToolUse"][0]["matcher"] == "Bash"

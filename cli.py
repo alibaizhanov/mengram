@@ -439,11 +439,14 @@ def _local_auto_recall(args, EVENT, HOOK, local_dir, prompt, session_id=None):
     _emit_hook_exit(EVENT, args, HOOK, "found memories (local)", context=context)
 
 
-def _local_auto_context(args, EVENT, HOOK, local_dir, system_message=None):
+def _local_auto_context(args, EVENT, HOOK, local_dir, system_message=None, prefix=None):
     profile = _local_store(local_dir).profile()
     if not profile:
-        _emit_hook_exit(EVENT, args, HOOK, "empty folder (local)", system_message=system_message)
+        _emit_hook_exit(EVENT, args, HOOK, "empty folder (local)",
+                        context=prefix, system_message=system_message)
     context = f"[Mengram Memory — context loaded from {local_dir}]\n{profile}"
+    if prefix:
+        context = prefix + "\n\n" + context
     _emit_hook_exit(EVENT, args, HOOK, f"context loaded ({len(profile)} chars, local)",
                     context=context, system_message=system_message)
 
@@ -729,25 +732,84 @@ def _maybe_weekly_message(mem, user_id):
         return None
 
 
+def _restored_state(input_data) -> str | None:
+    """The working state written before compaction, read back once. None when
+    there is nothing on file for this session or directory."""
+    try:
+        from local import checkpoint
+        snap = checkpoint.consume(input_data.get("session_id"), input_data.get("cwd"))
+        if snap is None or checkpoint.is_empty(snap):
+            return None
+        _receipt("restore", input_data.get("session_id"),
+                 files=len(snap.get("files") or []), host=snap.get("host"))
+        return checkpoint.render(snap)
+    except Exception:
+        return None
+
+
+def cmd_auto_checkpoint(args):
+    """Hook handler — PreCompact. Writes the working state down before the
+    host summarises it away; `auto-context` reads it back after."""
+    HOOK = "auto-checkpoint"
+    EVENT = "PreCompact"
+    try:
+        input_data = _read_hook_input()
+        transcript = input_data.get("transcript_path")
+        session_id = input_data.get("session_id")
+        if not transcript or not os.path.isfile(transcript):
+            _emit_hook_exit(EVENT, args, HOOK, "no transcript")
+
+        from local import checkpoint
+        snap = checkpoint.snapshot(transcript, session_id, cwd=input_data.get("cwd"),
+                                   trigger=input_data.get("trigger"),
+                                   host=getattr(args, "host", None))
+        if checkpoint.is_empty(snap):
+            _emit_hook_exit(EVENT, args, HOOK, "nothing to keep")
+        if checkpoint.save(snap) is None:
+            _emit_hook_exit(EVENT, args, HOOK, "could not write checkpoint")
+        _receipt("checkpoint", session_id, files=len(snap["files"]),
+                 trigger=snap.get("trigger"), host=snap.get("host"))
+        _emit_hook_exit(EVENT, args, HOOK,
+                        f"working state saved ({len(snap['files'])} files, "
+                        f"{len(snap['prompts'])} prompts)")
+    except SystemExit:
+        raise
+    except Exception:
+        _emit_hook_exit(EVENT, args, HOOK, "error")
+
+
 def cmd_auto_context(args):
     """Hook handler — called by Claude Code on SessionStart. Loads cognitive profile as context."""
     HOOK = "auto-context"
     EVENT = "SessionStart"
+    restored = None
     try:
         input_data = _read_hook_input()
+        source = input_data.get("source", "startup")
         # What memory did last session, said once, at the one moment the
         # person is deciding whether it is worth keeping. A resumed or
         # compacted session is the same session, so nothing is said there.
         receipt_msg = None
-        if input_data.get("source", "startup") in ("startup", "clear"):
+        if source in ("startup", "clear"):
             receipt_msg = _last_session_receipt(input_data.get("session_id"))
+
+        # After a compaction or a resume, the work itself comes first: the
+        # person's last prompt and the files just edited matter more right
+        # now than their tech stack, and they are what the host's summary
+        # loses. Restored whether or not there is an account: the checkpoint
+        # was written on this machine and never left it.
+        if source in ("compact", "resume"):
+            restored = _restored_state(input_data)
 
         local_dir = _local_dir(args)
         if local_dir:
-            _local_auto_context(args, EVENT, HOOK, local_dir, system_message=receipt_msg)
+            _local_auto_context(args, EVENT, HOOK, local_dir,
+                                system_message=receipt_msg, prefix=restored)
         api_key = _load_cloud_api_key()
         if not api_key:
-            _emit_hook_exit(EVENT, args, HOOK, "no API key", system_message=receipt_msg)
+            _emit_hook_exit(EVENT, args, HOOK,
+                            "working state restored (no API key)" if restored else "no API key",
+                            context=restored, system_message=receipt_msg)
 
         from cloud.client import CloudMemory
         base_url = _load_cloud_base_url()
@@ -761,10 +823,14 @@ def cmd_auto_context(args):
 
         system_prompt = profile.get("system_prompt", "")
         if not system_prompt:
-            _emit_hook_exit(EVENT, args, HOOK, "no profile", system_message=shown)
+            _emit_hook_exit(EVENT, args, HOOK, "no profile", context=restored, system_message=shown)
 
         context = f"[Mengram Memory — user context loaded from past sessions]\n{system_prompt}"
-        _emit_hook_exit(EVENT, args, HOOK, f"context loaded ({len(system_prompt)} chars)",
+        if restored:
+            context = restored + "\n\n" + context
+        _emit_hook_exit(EVENT, args, HOOK,
+                        f"context loaded ({len(system_prompt)} chars"
+                        f"{', working state restored' if restored else ''})",
                         context=context, system_message=shown)
 
     except SystemExit:
@@ -774,11 +840,13 @@ def cmd_auto_context(args):
             _emit_hook_exit(
                 EVENT, args, HOOK, "quota exceeded",
                 context=(
-                    f"[Mengram] Memory profile load failed — quota exceeded. {e} "
+                    (restored + "\n\n" if restored else "")
+                    + f"[Mengram] Memory profile load failed — quota exceeded. {e} "
                     "Upgrade at https://mengram.io/dashboard"
                 ),
             )
-        _emit_hook_exit(EVENT, args, HOOK, "error")
+        # A cloud outage must not cost the work that was saved locally.
+        _emit_hook_exit(EVENT, args, HOOK, "error", context=restored)
 
 
 def cmd_auto_save(args):
@@ -2131,6 +2199,7 @@ def cmd_hook_install(args):
     context_cmd = f"{prog} auto-context"
     policy_cmd = f"{prog} auto-policy"
     outcome_cmd = f"{prog} auto-outcome"
+    checkpoint_cmd = f"{prog} auto-checkpoint"
     if user_id:
         save_cmd += f" --user-id {user_id}"
         recall_cmd += f" --user-id {user_id}"
@@ -2146,6 +2215,10 @@ def cmd_hook_install(args):
         context_cmd += mem_arg
         policy_cmd += mem_arg
         outcome_cmd += mem_arg
+
+    if getattr(args, "codex", False):
+        _install_codex_hooks(context_cmd, recall_cmd, checkpoint_cmd, mengram_bin)
+        return
 
     # Read existing settings
     settings_path = get_claude_code_settings_path()
@@ -2197,6 +2270,14 @@ def cmd_hook_install(args):
         "timeout": 10,
     }, matcher="Bash")
 
+    # 6. PreCompact hook — write the working state down before the host
+    #    summarises it; SessionStart (source: compact) reads it back verbatim.
+    _upsert_hook(settings, "PreCompact", "mengram auto-checkpoint", {
+        "type": "command",
+        "command": checkpoint_cmd,
+        "timeout": 10,
+    })
+
     # Write settings
     settings_path.parent.mkdir(parents=True, exist_ok=True)
     with open(settings_path, "w") as f:
@@ -2209,6 +2290,7 @@ def cmd_hook_install(args):
     if not getattr(args, "no_policy", False):
         print(f"  Policy gate:  confirm before running a workflow with a weak record")
     print(f"  Run outcomes: record whether a workflow's step worked")
+    print(f"  Checkpoint:   save the working state before compaction, restore it after")
     print(f"  Settings: {settings_path}")
 
     # Verify rather than assume. An install that cannot run is the failure
@@ -2228,12 +2310,89 @@ def cmd_hook_install(args):
     print(f"\nRestart Claude Code for hooks to take effect.")
 
 
+def get_codex_hooks_path() -> Path:
+    """Codex reads lifecycle hooks from `~/.codex/hooks.json` (or `CODEX_HOME`)."""
+    return Path(os.environ.get("CODEX_HOME") or (Path.home() / ".codex")) / "hooks.json"
+
+
+def _install_codex_hooks(context_cmd, recall_cmd, checkpoint_cmd, mengram_bin):
+    """The same memory under Codex. Its hooks file has Claude Code's shape —
+    events, matcher groups, `hookSpecificOutput.additionalContext` back — so
+    the handlers are shared and only the file differs. Codex has no `timeout`
+    key; it shows `statusMessage` while a hook runs."""
+    hooks_path = get_codex_hooks_path()
+    settings = {}
+    if hooks_path.exists():
+        try:
+            with open(hooks_path) as f:
+                settings = json.load(f)
+        except Exception:
+            settings = {}
+    if not settings.get("description"):
+        settings["description"] = "Mengram memory hooks"
+
+    _upsert_hook(settings, "SessionStart", "mengram auto-context", {
+        "type": "command", "command": context_cmd,
+        "statusMessage": "Mengram: loading memory",
+    })
+    _upsert_hook(settings, "UserPromptSubmit", "mengram auto-recall", {
+        "type": "command", "command": recall_cmd,
+        "statusMessage": "Mengram: recalling",
+    })
+    _upsert_hook(settings, "PreCompact", "mengram auto-checkpoint", {
+        "type": "command", "command": checkpoint_cmd + " --host codex",
+        "statusMessage": "Mengram: saving working state",
+    })
+
+    hooks_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(hooks_path, "w") as f:
+        json.dump(settings, f, indent=2)
+
+    print("Mengram hooks installed for Codex:")
+    print("  Session context: load profile on session start")
+    print("  Auto-recall:     search memory on each prompt")
+    print("  Checkpoint:      save the working state before compaction, restore it after")
+    print(f"  Hooks file: {hooks_path}")
+    ok, detail = _hook_command_runs(context_cmd)
+    if ok:
+        print(f"  Verified: {mengram_bin} runs from a plain shell")
+    else:
+        print(f"\n  WARNING: the hook command does not run: {detail}")
+        print(f"  Codex would launch: {context_cmd}")
+    print("\nRestart Codex for hooks to take effect.")
+
+
+def _uninstall_codex_hooks() -> bool:
+    hooks_path = get_codex_hooks_path()
+    if not hooks_path.exists():
+        return False
+    try:
+        with open(hooks_path) as f:
+            settings = json.load(f)
+    except Exception:
+        return False
+    removed = False
+    for event, marker in (("SessionStart", "mengram auto-context"),
+                          ("UserPromptSubmit", "mengram auto-recall"),
+                          ("PreCompact", "mengram auto-checkpoint")):
+        removed |= _remove_hook(settings, event, marker)
+    if removed:
+        with open(hooks_path, "w") as f:
+            json.dump(settings, f, indent=2)
+    return removed
+
+
 def cmd_hook_uninstall(args):
-    """Remove all Mengram hooks from Claude Code"""
+    """Remove all Mengram hooks from Claude Code (and Codex, if installed there)"""
     settings_path = get_claude_code_settings_path()
 
+    codex_removed = _uninstall_codex_hooks()
+    if codex_removed:
+        print(f"Mengram hooks removed from Codex ({get_codex_hooks_path()}).")
+
     if not settings_path.exists():
-        print("No Claude Code settings found. Nothing to uninstall.")
+        if not codex_removed:
+            print("No Claude Code settings found. Nothing to uninstall.")
         return
 
     try:
@@ -2250,9 +2409,11 @@ def cmd_hook_uninstall(args):
     removed |= _remove_hook(settings, "SessionStart", "mengram auto-context")
     removed |= _remove_hook(settings, "PreToolUse", "mengram auto-policy")
     removed |= _remove_hook(settings, "PostToolUse", "mengram auto-outcome")
+    removed |= _remove_hook(settings, "PreCompact", "mengram auto-checkpoint")
 
     if not removed:
-        print("No Mengram hooks found. Nothing to uninstall.")
+        if not codex_removed:
+            print("No Mengram hooks found. Nothing to uninstall.")
         return
 
     with open(settings_path, "w") as f:
@@ -2296,6 +2457,7 @@ def cmd_hook_status(args):
     context_cmd = _find_hook("SessionStart", "mengram auto-context")
     policy_cmd = _find_hook("PreToolUse", "mengram auto-policy")
     outcome_cmd = _find_hook("PostToolUse", "mengram auto-outcome")
+    checkpoint_cmd = _find_hook("PreCompact", "mengram auto-checkpoint")
 
     if save_cmd:
         every_n = 3
@@ -2312,12 +2474,16 @@ def cmd_hook_status(args):
     print(f"  Session context: {'installed' if context_cmd else 'not installed'}")
     print(f"  Policy gate:    {'installed' if policy_cmd else 'not installed'}")
     print(f"  Run outcomes:   {'installed' if outcome_cmd else 'not installed'}")
+    print(f"  Checkpoint:     {'installed' if checkpoint_cmd else 'not installed'}")
+    codex_path = get_codex_hooks_path()
+    if codex_path.exists() and "mengram auto-checkpoint" in codex_path.read_text(errors="ignore"):
+        print(f"  Codex:          installed ({codex_path})")
 
     # Installed is not the same as working: run what Claude Code would run.
     broken = []
     for label, cmd in (("Auto-save", save_cmd), ("Auto-recall", recall_cmd),
                        ("Session context", context_cmd), ("Policy gate", policy_cmd),
-                       ("Run outcomes", outcome_cmd)):
+                       ("Run outcomes", outcome_cmd), ("Checkpoint", checkpoint_cmd)):
         if not cmd:
             continue
         ok, detail = _hook_command_runs(cmd)
@@ -2824,6 +2990,8 @@ def main():
                                  help="Skip the PreToolUse policy gate")
     p_hook_install.add_argument("--memory", default=None,
                                  help="Local mode: memory folder (no account needed)")
+    p_hook_install.add_argument("--codex", action="store_true",
+                                 help="Install into Codex (~/.codex/hooks.json) instead of Claude Code")
     hook_sub.add_parser("uninstall", help="Remove auto-save hook")
     hook_sub.add_parser("status", help="Check hook status")
 
@@ -2866,6 +3034,13 @@ def main():
     p_autooutcome.add_argument("--memory", default=None)
     p_autooutcome.add_argument("--verbose", action="store_true",
                                 help="Emit a status marker for each hook invocation")
+
+    # auto-checkpoint (internal, called on PreCompact by Claude Code and Codex)
+    p_autocheckpoint = sub.add_parser("auto-checkpoint", help=argparse.SUPPRESS)
+    p_autocheckpoint.add_argument("--host", default=None,
+                                   help="Which agent fired the hook (claude-code, codex)")
+    p_autocheckpoint.add_argument("--verbose", action="store_true",
+                                   help="Emit a status marker for each hook invocation")
 
     # local — memory in a folder, no account
     from local.cli import add_parser as _add_local_parser
@@ -2940,6 +3115,8 @@ def main():
         cmd_auto_policy(args)
     elif args.command == "auto-outcome":
         cmd_auto_outcome(args)
+    elif args.command == "auto-checkpoint":
+        cmd_auto_checkpoint(args)
     elif args.command == "local":
         from local.cli import run as _run_local
         sys.exit(_run_local(args))
