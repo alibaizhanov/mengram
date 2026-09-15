@@ -8,6 +8,7 @@ files touched, the last commands, where the assistant left off — and that
 SessionStart hands them back verbatim, once, with or without an account.
 """
 import io
+import os
 import json
 import sys
 import time
@@ -275,19 +276,37 @@ def test_install_into_codex_writes_its_hooks_file(tmp_path, monkeypatch, capsys)
     assert not any(data.get("hooks", {}).get(ev) for ev in ("SessionStart", "UserPromptSubmit", "PreCompact"))
 
 
-def test_setup_finds_codex_and_installs_its_hooks_too(tmp_path, monkeypatch, capsys):
-    """One command on the welcome page covers both tools: setup --key installs
-    the Claude Code hooks and, when Codex has been run on this machine, its
-    hooks as well — no second command to find."""
-    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "codex"))
-    (tmp_path / "codex").mkdir()
+def _sandbox_setup(tmp_path, monkeypatch):
+    """`cmd_setup` writes the key to ~/.mengram/config.json and the shell
+    profile through paths fixed at import time — HOME alone does not move
+    them. On 2026-09-15 this test overwrote the developer's real key with
+    "om-test". Everything setup writes is redirected here."""
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    (tmp_path / "home").mkdir()
+    (tmp_path / "home").mkdir(exist_ok=True)
+    monkeypatch.setattr(cli, "DEFAULT_HOME", tmp_path / "home" / ".mengram")
+    monkeypatch.setattr(cli, "_save_api_key", lambda key: None)
     monkeypatch.setattr(cli, "get_claude_code_settings_path", lambda: tmp_path / "home" / "settings.json")
     monkeypatch.setattr(cli, "_resolve_mengram_bin", lambda: str(_fake_bin(tmp_path)))
     monkeypatch.setattr(cli, "_load_cloud_api_key", lambda: "om-test")
     monkeypatch.setattr(cli, "_detect_mcp_tools", lambda: [])
     monkeypatch.setattr(cli.shutil, "which", lambda n: None)
+
+
+def test_setup_writes_nothing_outside_the_sandbox(tmp_path, monkeypatch):
+    _sandbox_setup(tmp_path, monkeypatch)
+    real = Path.home() if "HOME" not in os.environ else None   # HOME is patched; use the constant below
+    import cli as _cli
+    assert str(_cli.DEFAULT_HOME).startswith(str(tmp_path))
+    assert str(_cli._cloud_config_path()).startswith(str(tmp_path))
+
+
+def test_setup_finds_codex_and_installs_its_hooks_too(tmp_path, monkeypatch, capsys):
+    """One command on the welcome page covers both tools: setup --key installs
+    the Claude Code hooks and, when Codex has been run on this machine, its
+    hooks as well — no second command to find."""
+    _sandbox_setup(tmp_path, monkeypatch)
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "codex"))
+    (tmp_path / "codex").mkdir()
     cli.cmd_setup(_Args(key="om-test", no_import=True, no_verify=True, every=3))
     out = capsys.readouterr().out
     assert "Codex found on this machine" in out
@@ -296,14 +315,8 @@ def test_setup_finds_codex_and_installs_its_hooks_too(tmp_path, monkeypatch, cap
 
 
 def test_setup_without_codex_says_nothing_about_it(tmp_path, monkeypatch, capsys):
+    _sandbox_setup(tmp_path, monkeypatch)
     monkeypatch.setenv("CODEX_HOME", str(tmp_path / "no-codex"))
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    (tmp_path / "home").mkdir()
-    monkeypatch.setattr(cli, "get_claude_code_settings_path", lambda: tmp_path / "home" / "settings.json")
-    monkeypatch.setattr(cli, "_resolve_mengram_bin", lambda: str(_fake_bin(tmp_path)))
-    monkeypatch.setattr(cli, "_load_cloud_api_key", lambda: "om-test")
-    monkeypatch.setattr(cli, "_detect_mcp_tools", lambda: [])
-    monkeypatch.setattr(cli.shutil, "which", lambda n: None)
     cli.cmd_setup(_Args(key="om-test", no_import=True, no_verify=True, every=3))
     assert "Codex" not in capsys.readouterr().out
 
