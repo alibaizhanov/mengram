@@ -52,7 +52,7 @@ Progress 2026-09-16: bench_memory.py written (generate/run/report; systems full,
   OPENAI_API_KEY (gpt-4o-mini, T=0). Bench sub-users are named
   bench-<run>-<type>-<scale> in the account; no wipe endpoint yet.
 
-## E1 [ ] Salience gate — a classifier that says "do not store this"
+## E1 [~] Salience gate — a classifier that says "do not store this"
 Hypothesis: a small classifier over the fact embedding + cheap features
   (entity is "Assistant", verb is session-chatter, fact length, novelty vs
   existing_context) cuts junk stored by >= 50% while dropping < 5% of facts

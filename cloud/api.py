@@ -43,6 +43,7 @@ from cloud.plans import PLAN_QUOTAS
 from cloud.site import build_site_router
 from cloud import source as _source
 from cloud import budget as _budget
+from cloud import salience as _salience
 from cloud.source import end_user_id as _mcp_end_user_id
 
 
@@ -2787,6 +2788,8 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 return created
             _deny_keywords = store._compile_capture_policy(capture_policy)
             _policy_dropped = 0
+            _gate_on = _salience.enabled()
+            _gate_dropped = []  # [{"entity", "fact", "reason"}]
 
             extractor = get_llm()
             from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -2910,6 +2913,21 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                             existing_id = store.get_entity_id(user_id, name, sub_user_id=sub_uid)
                             if not existing_id:
                                 continue
+
+                    # Salience gate (E1): rephrasings of a fact the entity
+                    # already has, facts about the conversation itself, and
+                    # relation echoes are not written. Reasons go to the job.
+                    if _gate_on and fact_strings:
+                        try:
+                            _eid = store.get_entity_id(user_id, name, sub_user_id=sub_uid)
+                            _have = store.entity_facts(_eid) if _eid else []
+                            fact_strings, _gd = _salience.gate(fact_strings, _have, entity=name)
+                            if _gd:
+                                _gate_dropped.extend({"entity": name, **d} for d in _gd)
+                            if not fact_strings and not entity_knowledge and not entity_relations and not _eid:
+                                continue
+                        except Exception as e:
+                            logger.warning(f"⚠️ Salience gate failed for '{name}': {e}")
 
                     archived = conflict_results.get(name)
                     if archived:
@@ -3227,7 +3245,12 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 "procedures": procedures_created,
                 "episodes_linked": episodes_linked,
                 "dropped_by_policy": _policy_dropped,
+                "dropped_by_gate": len(_gate_dropped),
+                "gate_dropped": _gate_dropped[:50],
             })
+            if _gate_dropped:
+                logger.info(f"🚪 Salience gate dropped {len(_gate_dropped)} fact(s) for {user_id[:8]}: "
+                            + "; ".join(f"{d['fact']!r} ({d['reason']})" for d in _gate_dropped[:5]))
 
             # ---- Post-completion tasks (fire-and-forget, don't block job) ----
             import threading as _thr

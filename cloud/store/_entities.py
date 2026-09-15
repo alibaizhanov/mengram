@@ -665,6 +665,14 @@ class EntityMixin:
                 ent["id"] = eid
             return [entity_map[str(e["id"])] for e in entities]
 
+    def entity_facts(self, entity_id: str) -> list[str]:
+        """Live facts of one entity, for the salience gate to compare against."""
+        with self._cursor(dict_cursor=True) as cur:
+            cur.execute(
+                "SELECT content FROM facts WHERE entity_id = %s AND archived = FALSE AND (expires_at IS NULL OR expires_at > NOW())",
+                (entity_id,))
+            return [r["content"] for r in cur.fetchall()]
+
     def get_existing_context(self, user_id: str, max_entities: int = 40, max_facts_per: int = 10, sub_user_id: str = "default") -> str:
         """Get compact summary of existing entities for extraction context.
         Resolves 'User' to primary person name.

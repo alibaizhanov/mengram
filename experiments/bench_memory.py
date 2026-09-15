@@ -393,7 +393,7 @@ def _mengram_key():
 
 def run_mengram(turns, truth, opts):
     from cloud.client import CloudMemory
-    mem = CloudMemory(api_key=_mengram_key())
+    mem = CloudMemory(api_key=_mengram_key(), base_url=os.environ.get("MENGRAM_BASE_URL") or None)
     sub = f"bench-{opts['run']}-{truth['type']}-{truth['scale']}"
     jobs = []
     for day in by_day(turns):
@@ -404,15 +404,22 @@ def run_mengram(turns, truth, opts):
     # wait for extraction
     deadline = time.time() + 900
     pending = set(jobs)
+    failed = 0
     while pending and time.time() < deadline:
         for j in list(pending):
             try:
                 st = mem._request("GET", f"/v1/jobs/{j}")
                 if st.get("status") in ("done", "completed", "failed", "error"):
                     pending.discard(j)
+                    if st.get("status") in ("failed", "error"):
+                        failed += 1
             except Exception:
                 pending.discard(j)
+                failed += 1
         time.sleep(3)
+    if failed or pending:
+        print(f"WARNING: {failed} add job(s) failed, {len(pending)} still pending — the run is not valid",
+              file=sys.stderr)
     rows = []
     for c in truth["cases"]:
         res = mem.search_all(c["question"], limit=5, user_id=sub, max_tokens=opts["max_tokens"])
@@ -428,7 +435,7 @@ def run_mengram(turns, truth, opts):
             stored += [f for f in (e.get("facts") or [])]
     except Exception:
         pass
-    return rows, junk_report(stored, truth)
+    return rows, {**junk_report(stored, truth), "jobs": len(jobs), "jobs_failed": failed + len(pending)}
 
 
 def render_search_all(res) -> str:
