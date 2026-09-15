@@ -86,3 +86,20 @@ def test_gate_is_off_unless_asked(monkeypatch):
     assert not salience.enabled()
     monkeypatch.setenv("MENGRAM_SALIENCE_GATE", "1")
     assert salience.enabled()
+
+
+def test_second_round_of_e0_leftovers():
+    """What an L run with the first gate still stored (2026-09-16 01:20)."""
+    for f in ["feels tired", "is tired", "feeling tired", "had a pretty good day", "has a good day",
+              "mentioned the weather looks grim", "noted the weather looks grim", "commented on the grim weather",
+              "observed grim weather", "mentioned grey skies all week according to the forecast",
+              "interested in film recommendations", "seeking film recommendations",
+              "wants a film recommendation for tonight", "asked for a good stretch after running"]:
+        assert reason_to_drop(f, "Ali") is not None, f
+    assert reason_to_drop("is the dog of User", "Pixel")
+    kept, _ = gate(["is tired", "feels tired", "feeling tired"], entity="Ali")
+    assert kept == []
+    # states that are not passing
+    for f in ["is diabetic", "is a vegetarian", "has a long commute to Oslo", "feels strongly about privacy",
+              "is good at chess", "was born in Riga"]:
+        assert reason_to_drop(f, "Ali") is None, f

@@ -34,7 +34,7 @@ as by from into than then there here so such very""".split())
 
 #: Words that may differ between two phrasings of the same fact. Stemmed.
 WEAK = set("""want need plan intend hope wish mean aim ask remind mention say tell
-talk note finish complete done read start begin try go get got make keep like
+talk note finish complete done read start begin try go get got make keep like feel
 love enjoy prefer usual always often sometime still already recent just current
 real also again task todo should would could will can may might must
 request receive express state report confirm decide claim describe""".split())
@@ -45,13 +45,26 @@ CHATTER = re.compile(
     r"more than once|again in the|the same \w+ again|tonight|this evening|"
     r"this morning|right now|at the moment)\b", re.I)
 
+#: Reported speech: what was said this session, not what is true of the person.
+REPORTED = re.compile(r"^(mentioned|mentions|noted|notes|commented|comments|observed|observes|remarked|"
+                      r"remarks|stated|states|said|says|expressed|discussed|talked about|brought up)\b", re.I)
+
+#: A passing state: true this afternoon, not worth a row.
+EPHEMERAL = re.compile(r"^(is|was|feels?|feeling|felt|had|has|having|seems|seemed|got|gets) (a |an )?"
+                       r"(pretty |really |very |so |quite |bit |little )?(tired|exhausted|sleepy|hungry|bored|"
+                       r"stressed|busy|fine|okay|ok|good|bad|great|rough|long|nice)( day| night| week| one| today)?$", re.I)
+
+#: A request made this session ("recommend a film"), stored as an interest.
+REQUEST = re.compile(r"\b(recommendations?|suggestions?)\b|^(seeking|looking for|requested|wants? (a |an |some )?"
+                     r"(idea|ideas|help|advice|tip|tips))\b", re.I)
+
 #: A question the person asked, recorded as if it were a fact about them.
 QUESTION = re.compile(r"^(asks?|asked|asking|wants to know|wonders|wondered|inquired) (for|about|how|what|whether|if|why|when|where)\b", re.I)
 
 #: A fact that only restates a relation from the other end.
 RELATION_ECHO = re.compile(
     r"^(is|was) (where|the (city|place|town|country|street|company|school) where|"
-    r"(the )?user'?s |(the )?user's )|^belongs to\b", re.I)
+    r"(the )?user'?s |(the )?user's )|^belongs to\b|^(is|was) (the |a |an )?\w+ of (the )?user\b", re.I)
 
 #: The assistant's own actions this session are a log, not memory.
 ASSISTANT_NAMES = {"assistant", "ai", "the assistant", "ai assistant", "claude", "chatgpt", "codex", "bot"}
@@ -114,6 +127,12 @@ def reason_to_drop(fact: str, entity: str | None = None) -> str | None:
         return "about the conversation, not the person"
     if QUESTION.match(text):
         return "a question asked, not a fact"
+    if REPORTED.match(text):
+        return "reported speech, not a fact"
+    if EPHEMERAL.match(text):
+        return "a passing state"
+    if REQUEST.search(text):
+        return "a request made this session"
     ent = (entity or "").strip().lower()
     if ent in ASSISTANT_NAMES and ASSISTANT_LOG.match(text):
         return "assistant's own action this session"

@@ -396,15 +396,33 @@ def run_mengram(turns, truth, opts):
     mem = CloudMemory(api_key=_mengram_key(), base_url=os.environ.get("MENGRAM_BASE_URL") or None)
     sub = f"bench-{opts['run']}-{truth['type']}-{truth['scale']}"
     jobs = []
+    failed = 0
+    # One day at a time, as a real app would send them: the next day's add
+    # must see what the previous one wrote (dedup, context, the gate). Firing
+    # all days at once also exhausted the API's connection pool locally.
     for day in by_day(turns):
         msgs = [{"role": t["role"], "content": t["text"]} for t in day]
         r = mem.add(msgs, user_id=sub)
-        if r.get("job_id"):
-            jobs.append(r["job_id"])
-    # wait for extraction
+        j = r.get("job_id")
+        if not j:
+            continue
+        jobs.append(j)
+        t_job = time.time()
+        while time.time() - t_job < 300:
+            try:
+                st = mem._request("GET", f"/v1/jobs/{j}")
+            except Exception:
+                failed += 1
+                break
+            if st.get("status") in ("done", "completed"):
+                break
+            if st.get("status") in ("failed", "error"):
+                failed += 1
+                break
+            time.sleep(1)
+    # wait for anything still running
     deadline = time.time() + 900
-    pending = set(jobs)
-    failed = 0
+    pending = set(jobs[-1:])
     while pending and time.time() < deadline:
         for j in list(pending):
             try:
