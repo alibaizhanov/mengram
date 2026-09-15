@@ -1,5 +1,25 @@
 # Changelog
 
+## 2.44.6 — 2026-09-15
+
+### Added
+- **The same hooks under Cursor.** `mengram hook install --cursor` writes
+  `~/.cursor/hooks.json` in Cursor's flat dialect (`{"version": 1, "hooks":
+  {event: [{command, timeout}]}}`): `sessionStart` loads the profile and the
+  newest working state saved in this workspace within a day; `preCompact`
+  writes the checkpoint; `postToolUse` puts it back on the first tool call
+  after compaction (Cursor opens no new session, so that is the door);
+  `afterAgentResponse` saves the answer. Hooks answer in Cursor's shape —
+  `{"additional_context": ...}` or `{}` — never Claude Code's. `mengram setup`
+  finds Cursor on the machine and installs these too; `hook uninstall` and
+  `hook status` know about it. Cursor has no per-prompt context hook
+  (`beforeSubmitPrompt` can only allow or block), so mid-conversation recall
+  there stays on request via MCP. Cursor's transcript format is undocumented;
+  the checkpoint reader takes plain `{"role", "content"}` lines and the
+  input/output text blocks, and says "nothing to keep" rather than guess.
+  A public correction owed on r/cursor, where the post had said Cursor has
+  no hooks.
+
 ## 2.44.5 — 2026-09-15
 
 ### Added

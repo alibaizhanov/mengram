@@ -86,13 +86,16 @@ No manual saves. No tool calls. Claude just knows what you worked on yesterday �
 
 Prefer CLI-managed hooks instead of the plugin? `pip install mengram-ai && mengram setup` does the same via `mengram hook install`.
 
-### Same memory in Codex
+### Same memory in Codex and Cursor
 
-Codex fires the same lifecycle events, so the same hooks run there — one memory across Claude Code and Codex:
+Codex and Cursor fire the same lifecycle events, so the same hooks run there — one memory across all three. `mengram setup` finds them on your machine and installs their hooks; or add them one by one:
 
 ```bash
-mengram hook install --codex      # writes ~/.codex/hooks.json: session context, recall, compaction checkpoint
+mengram hook install --codex      # ~/.codex/hooks.json: session context, recall on every prompt, compaction checkpoint
+mengram hook install --cursor     # ~/.cursor/hooks.json: session context, compaction checkpoint (back on the next tool call), auto-save
 ```
+
+Cursor has no per-prompt context hook (`beforeSubmitPrompt` can only allow or block), so mid-conversation recall there is on request via the MCP tools; session start and compaction are automatic.
 
 ### No account? Keep the memory in a folder
 

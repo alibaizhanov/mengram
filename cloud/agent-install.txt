@@ -211,6 +211,15 @@ command asks for confirmation and shows what was learned).
 ------- 4C. cursor -------
 Config file path:    ~/.cursor/mcp.json   (create if absent)
 Same JSON shape as claude-desktop (Section 4A).
+
+Then install the lifecycle hooks (v2.44.6+) — profile on a new conversation,
+working state saved before compaction and put back on the next tool call,
+the agent's answers saved after each response:
+  mengram hook install --cursor
+This writes ~/.cursor/hooks.json (merged if it exists). Cursor has no
+per-prompt context hook, so mid-conversation recall stays on request via
+the MCP tools `recall` / `context_for`.
+
 Tell user: "Restart Cursor (or use Cmd/Ctrl+Shift+P → 'Reload Window')."
 
 ------- 4D. windsurf -------

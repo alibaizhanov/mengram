@@ -756,6 +756,8 @@ def cmd_auto_checkpoint(args):
     EVENT = "PreCompact"
     try:
         input_data = _read_hook_input()
+        if getattr(args, "host", None) == "cursor":
+            input_data = _cursor_input(input_data)
         transcript = input_data.get("transcript_path")
         session_id = input_data.get("session_id")
         if not transcript or not os.path.isfile(transcript):
@@ -780,6 +782,71 @@ def cmd_auto_checkpoint(args):
         _emit_hook_exit(EVENT, args, HOOK, "error")
 
 
+def cmd_auto_restore(args):
+    """Hook handler — Cursor `postToolUse`. Cursor opens no new session after a
+    compaction, so the checkpoint written at `preCompact` comes back on the
+    first tool call after it, as `additional_context`. Says nothing when there
+    is nothing on file for this conversation; costs one file check."""
+    HOOK = "auto-restore"
+    EVENT = "PostToolUse"
+    try:
+        input_data = _cursor_input(_read_hook_input())
+        from local import checkpoint
+        snap = checkpoint.load(input_data.get("session_id"))
+        if snap is None or checkpoint.is_empty(snap):
+            _emit_hook_exit(EVENT, args, HOOK, "nothing to restore")
+        try:
+            checkpoint.path_for(snap.get("session") or "unknown").unlink()
+        except OSError:
+            pass
+        _receipt("restore", input_data.get("session_id"),
+                 files=len(snap.get("files") or []), host="cursor")
+        _emit_hook_exit(EVENT, args, HOOK, "working state restored",
+                        context=checkpoint.headline(snap) + "\n\n" + checkpoint.render(snap))
+    except SystemExit:
+        raise
+    except Exception:
+        _emit_hook_exit(EVENT, args, HOOK, "error")
+
+
+def _cursor_auto_context(args, input_data):
+    """Cursor `sessionStart`: a new conversation, not a resumed one. The profile
+    goes in, and the newest working state saved in this workspace within the
+    last day — the person who opens a new chat ten minutes after compaction
+    ate the old one is continuing, not starting over."""
+    HOOK = "auto-context"
+    EVENT = "SessionStart"
+    parts = []
+    try:
+        from local import checkpoint
+        snap = checkpoint.consume(input_data.get("session_id"), input_data.get("cwd"), max_age=86400)
+        if snap is not None and not checkpoint.is_empty(snap):
+            _receipt("restore", input_data.get("session_id"),
+                     files=len(snap.get("files") or []), host="cursor")
+            parts.append(checkpoint.headline(snap) + "\n\n" + checkpoint.render(snap))
+    except Exception:
+        pass
+    try:
+        local_dir = _local_dir(args)
+        if local_dir:
+            profile = _local_store(local_dir).profile()
+            if profile:
+                parts.append(f"[Mengram Memory — context loaded from {local_dir}]\n{profile}")
+        else:
+            api_key = _load_cloud_api_key()
+            if api_key:
+                from cloud.client import CloudMemory
+                user_id = getattr(args, "user_id", None) or os.environ.get("MENGRAM_USER_ID", "default")
+                mem = CloudMemory(api_key=api_key, base_url=_load_cloud_base_url())
+                system_prompt = (mem.get_profile(user_id=user_id) or {}).get("system_prompt", "")
+                if system_prompt:
+                    parts.append(f"[Mengram Memory — user context loaded from past sessions]\n{system_prompt}")
+    except Exception:
+        pass
+    _emit_hook_exit(EVENT, args, HOOK, "context loaded" if parts else "nothing to load",
+                    context="\n\n".join(parts) if parts else None)
+
+
 def cmd_auto_context(args):
     """Hook handler — called by Claude Code on SessionStart. Loads cognitive profile as context."""
     HOOK = "auto-context"
@@ -788,6 +855,8 @@ def cmd_auto_context(args):
     restored_line = None
     try:
         input_data = _read_hook_input()
+        if getattr(args, "host", None) == "cursor":
+            _cursor_auto_context(args, _cursor_input(input_data))
         source = input_data.get("source", "startup")
         # What memory did last session, said once, at the one moment the
         # person is deciding whether it is worth keeping. A resumed or
@@ -872,6 +941,12 @@ def cmd_auto_save(args):
             input_data = json.loads(sys.stdin.read())
         except Exception:
             _emit_hook_exit(EVENT, args, HOOK, "no input")
+        if getattr(args, "host", None) == "cursor":
+            # afterAgentResponse: the final text arrives as `text`; the transcript
+            # format is undocumented, so the user's side is left out rather than
+            # guessed at (see local/checkpoint.py for the tolerant reader).
+            input_data = _cursor_input(input_data)
+            input_data.pop("transcript_path", None)
 
         # Avoid infinite loops
         if input_data.get("stop_hook_active"):
@@ -1616,6 +1691,14 @@ def _emit_hook_exit(hook_event_name, args, hook_name, status, context=None, syst
     systemMessage only.
     """
     verbose = getattr(args, "verbose", False)
+
+    # Cursor's hooks speak a flatter dialect: `{"additional_context": ...}` at
+    # the top level is the only thing a hook may say back, and there is no
+    # systemMessage. Anything else is `{}`.
+    if getattr(args, "host", None) == "cursor":
+        print(json.dumps({"additional_context": context} if context else {}))
+        sys.exit(0)
+
     payload = {"continue": True}
 
     if context:
@@ -2113,6 +2196,7 @@ def cmd_setup(args):
     # Install hooks
     no_hooks = getattr(args, "no_hooks", False)
     codex_done = False
+    cursor_done = False
     if not no_hooks:
         try:
             os.environ["MENGRAM_API_KEY"] = api_key  # hook install reads env
@@ -2131,6 +2215,16 @@ def cmd_setup(args):
                 pass
             except Exception as e:
                 print(f"  Codex hooks skipped ({e}) — run `mengram hook install --codex` later.")
+        if _cursor_present():
+            try:
+                cursor_args = argparse.Namespace(**{**vars(args), "codex": False, "cursor": True})
+                print("\n  Cursor found on this machine — installing its hooks too.")
+                cmd_hook_install(cursor_args)
+                cursor_done = True
+            except SystemExit:
+                pass
+            except Exception as e:
+                print(f"  Cursor hooks skipped ({e}) — run `mengram hook install --cursor` later.")
     else:
         print("\n  Skipped hook install (--no-hooks).")
 
@@ -2186,7 +2280,7 @@ def cmd_setup(args):
             except Exception:
                 print("  Verify skipped — run `mengram doctor` later.")
 
-    restart = ["Claude Code"] + (["Codex"] if codex_done else []) + configured
+    restart = ["Claude Code"] + (["Codex"] if codex_done else []) + (["Cursor"] if cursor_done else []) + configured
     print("\n  Done! Restart " + ", ".join(restart) + " — it now remembers everything.")
     if imported:
         print('  Try asking: "What do you know about my projects?"')
@@ -2222,6 +2316,7 @@ def cmd_hook_install(args):
     policy_cmd = f"{prog} auto-policy"
     outcome_cmd = f"{prog} auto-outcome"
     checkpoint_cmd = f"{prog} auto-checkpoint"
+    restore_cmd = f"{prog} auto-restore"
     if user_id:
         save_cmd += f" --user-id {user_id}"
         recall_cmd += f" --user-id {user_id}"
@@ -2240,6 +2335,9 @@ def cmd_hook_install(args):
 
     if getattr(args, "codex", False):
         _install_codex_hooks(context_cmd, recall_cmd, checkpoint_cmd, mengram_bin)
+        return
+    if getattr(args, "cursor", False):
+        _install_cursor_hooks(context_cmd, checkpoint_cmd, restore_cmd, save_cmd, mengram_bin)
         return
 
     # Read existing settings
@@ -2343,6 +2441,122 @@ def _codex_present() -> bool:
     return home.is_dir() or shutil.which("codex") is not None
 
 
+# ---- Cursor ----------------------------------------------------------------
+# Cursor's hooks (cursor.com/docs/hooks) fire the same moments as Claude Code's
+# but the file is flatter: `{"version": 1, "hooks": {"sessionStart": [{"command":
+# ..., "timeout": ...}]}}`, no matcher groups, no "type". A hook gets the
+# conversation_id, workspace_roots and transcript_path on stdin and may answer
+# `{"additional_context": ...}` on sessionStart and postToolUse — the two doors
+# memory can walk through. `beforeSubmitPrompt` can only allow or block, so
+# there is no per-prompt recall; mid-conversation recall stays on request via MCP.
+
+def get_cursor_hooks_path() -> Path:
+    return Path(os.environ.get("CURSOR_HOME") or (Path.home() / ".cursor")) / "hooks.json"
+
+
+def _cursor_present() -> bool:
+    home = Path(os.environ.get("CURSOR_HOME") or (Path.home() / ".cursor"))
+    return home.is_dir() or shutil.which("cursor") is not None
+
+
+def _cursor_input(input_data: dict) -> dict:
+    """Cursor's stdin fields in the names the handlers already use."""
+    roots = input_data.get("workspace_roots") or []
+    cwd = input_data.get("cwd") or (roots[0] if roots else None)
+    out = dict(input_data)
+    out["session_id"] = input_data.get("session_id") or input_data.get("conversation_id")
+    out["cwd"] = cwd
+    # afterAgentResponse hands the final text as `text`; Stop-style handlers
+    # look for `last_assistant_message`.
+    if "text" in input_data and "last_assistant_message" not in input_data:
+        out["last_assistant_message"] = input_data.get("text") or ""
+    return out
+
+
+def _upsert_flat_hook(hooks: dict, event: str, marker: str, entry: dict) -> bool:
+    """Cursor's per-event list is flat: insert or replace the entry whose
+    command carries `marker`."""
+    items = hooks.setdefault(event, [])
+    for i, h in enumerate(items):
+        if marker in str(h.get("command", "")):
+            items[i] = entry
+            return True
+    items.append(entry)
+    return False
+
+
+def _remove_flat_hook(hooks: dict, event: str, marker: str) -> bool:
+    items = hooks.get(event) or []
+    kept = [h for h in items if marker not in str(h.get("command", ""))]
+    if len(kept) == len(items):
+        return False
+    if kept:
+        hooks[event] = kept
+    else:
+        hooks.pop(event, None)
+    return True
+
+
+def _install_cursor_hooks(context_cmd, checkpoint_cmd, restore_cmd, save_cmd, mengram_bin):
+    hooks_path = get_cursor_hooks_path()
+    data = {}
+    if hooks_path.exists():
+        try:
+            with open(hooks_path) as f:
+                data = json.load(f)
+        except Exception:
+            data = {}
+    data.setdefault("version", 1)
+    hooks = data.setdefault("hooks", {})
+    _upsert_flat_hook(hooks, "sessionStart", "mengram auto-context",
+                      {"command": context_cmd + " --host cursor", "timeout": 15})
+    _upsert_flat_hook(hooks, "preCompact", "mengram auto-checkpoint",
+                      {"command": checkpoint_cmd + " --host cursor", "timeout": 10})
+    # After compaction Cursor opens no new session, so the checkpoint comes
+    # back on the first tool call after it: postToolUse may add context.
+    _upsert_flat_hook(hooks, "postToolUse", "mengram auto-restore",
+                      {"command": restore_cmd + " --host cursor", "timeout": 5})
+    _upsert_flat_hook(hooks, "afterAgentResponse", "mengram auto-save",
+                      {"command": save_cmd + " --host cursor", "timeout": 30})
+    hooks_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(hooks_path, "w") as f:
+        json.dump(data, f, indent=2)
+
+    print("Mengram hooks installed for Cursor:")
+    print("  Session context: load profile on a new conversation (and the last working state in this workspace)")
+    print("  Checkpoint:      save the working state before compaction; put it back on the next tool call")
+    print("  Auto-save:       save the agent's answer after each response")
+    print("  Recall mid-conversation stays on request via MCP (Cursor has no per-prompt context hook)")
+    print(f"  Hooks file: {hooks_path}")
+    ok, detail = _hook_command_runs(context_cmd)
+    if ok:
+        print(f"  Verified: {mengram_bin} runs from a plain shell")
+    else:
+        print(f"\n  WARNING: the hook command does not run: {detail}")
+        print(f"  Cursor would launch: {context_cmd}")
+    print("\nRestart Cursor for hooks to take effect.")
+
+
+def _uninstall_cursor_hooks() -> bool:
+    hooks_path = get_cursor_hooks_path()
+    if not hooks_path.exists():
+        return False
+    try:
+        with open(hooks_path) as f:
+            data = json.load(f)
+    except Exception:
+        return False
+    hooks = data.get("hooks") or {}
+    removed = False
+    for event, marker in (("sessionStart", "mengram auto-context"), ("preCompact", "mengram auto-checkpoint"),
+                          ("postToolUse", "mengram auto-restore"), ("afterAgentResponse", "mengram auto-save")):
+        removed |= _remove_flat_hook(hooks, event, marker)
+    if removed:
+        with open(hooks_path, "w") as f:
+            json.dump(data, f, indent=2)
+    return removed
+
+
 def _install_codex_hooks(context_cmd, recall_cmd, checkpoint_cmd, mengram_bin):
     """The same memory under Codex. Its hooks file has Claude Code's shape —
     events, matcher groups, `hookSpecificOutput.additionalContext` back — so
@@ -2417,6 +2631,10 @@ def cmd_hook_uninstall(args):
     codex_removed = _uninstall_codex_hooks()
     if codex_removed:
         print(f"Mengram hooks removed from Codex ({get_codex_hooks_path()}).")
+    cursor_removed = _uninstall_cursor_hooks()
+    if cursor_removed:
+        print(f"Mengram hooks removed from Cursor ({get_cursor_hooks_path()}).")
+    codex_removed = codex_removed or cursor_removed
 
     if not settings_path.exists():
         if not codex_removed:
@@ -2506,6 +2724,9 @@ def cmd_hook_status(args):
     codex_path = get_codex_hooks_path()
     if codex_path.exists() and "mengram auto-checkpoint" in codex_path.read_text(errors="ignore"):
         print(f"  Codex:          installed ({codex_path})")
+    cursor_path = get_cursor_hooks_path()
+    if cursor_path.exists() and "mengram auto-checkpoint" in cursor_path.read_text(errors="ignore"):
+        print(f"  Cursor:         installed ({cursor_path})")
 
     # Installed is not the same as working: run what Claude Code would run.
     broken = []
@@ -3022,6 +3243,8 @@ def main():
                                  help="Local mode: memory folder (no account needed)")
     p_hook_install.add_argument("--codex", action="store_true",
                                  help="Install into Codex (~/.codex/hooks.json) instead of Claude Code")
+    p_hook_install.add_argument("--cursor", action="store_true",
+                                 help="Install into Cursor (~/.cursor/hooks.json) instead of Claude Code")
     hook_sub.add_parser("uninstall", help="Remove auto-save hook")
     hook_sub.add_parser("status", help="Check hook status")
 
@@ -3032,6 +3255,8 @@ def main():
     p_autosave.add_argument("--memory", default=None)
     p_autosave.add_argument("--verbose", action="store_true",
                              help="Emit a status marker for each hook invocation")
+    p_autosave.add_argument("--host", default=None,
+                             help="Which agent fired the hook (claude-code, codex, cursor)")
 
     # auto-recall (internal, called by Claude Code UserPromptSubmit hook)
     p_autorecall = sub.add_parser("auto-recall", help=argparse.SUPPRESS)
@@ -3048,6 +3273,8 @@ def main():
                                 help="Emit a status marker for each hook invocation")
     p_autocontext.add_argument("--no-weekly", action="store_true",
                                 help="Suppress the once-a-week memory report")
+    p_autocontext.add_argument("--host", default=None,
+                                help="Which agent fired the hook (claude-code, codex, cursor)")
 
     # auto-policy (internal, called by Claude Code PreToolUse hook on Bash)
     p_autopolicy = sub.add_parser("auto-policy", help=argparse.SUPPRESS)
@@ -3071,6 +3298,11 @@ def main():
                                    help="Which agent fired the hook (claude-code, codex)")
     p_autocheckpoint.add_argument("--verbose", action="store_true",
                                    help="Emit a status marker for each hook invocation")
+
+    # auto-restore (internal, Cursor postToolUse: checkpoint back after compaction)
+    p_autorestore = sub.add_parser("auto-restore", help=argparse.SUPPRESS)
+    p_autorestore.add_argument("--host", default=None)
+    p_autorestore.add_argument("--verbose", action="store_true")
 
     # local — memory in a folder, no account
     from local.cli import add_parser as _add_local_parser
@@ -3147,6 +3379,8 @@ def main():
         cmd_auto_outcome(args)
     elif args.command == "auto-checkpoint":
         cmd_auto_checkpoint(args)
+    elif args.command == "auto-restore":
+        cmd_auto_restore(args)
     elif args.command == "local":
         from local.cli import run as _run_local
         sys.exit(_run_local(args))

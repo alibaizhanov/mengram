@@ -63,6 +63,10 @@ def path_for(session_id: str) -> Path:
 
 # --- reading the transcript ---------------------------------------------------
 
+#: Content block types that carry the words of a message, across hosts.
+TEXT_TYPES = {"text", "input_text", "output_text"}
+
+
 def _text_of(content) -> str:
     """The human-readable text in a message's content, tool blocks left out."""
     if isinstance(content, str):
@@ -70,7 +74,7 @@ def _text_of(content) -> str:
     if isinstance(content, list):
         parts = []
         for block in content:
-            if isinstance(block, dict) and block.get("type") == "text":
+            if isinstance(block, dict) and block.get("type") in TEXT_TYPES:
                 parts.append(str(block.get("text") or ""))
             elif isinstance(block, str):
                 parts.append(block)
@@ -154,6 +158,26 @@ def _message(entry) -> tuple[str | None, object]:
             except Exception:
                 args = {}
             return "assistant", [{"type": "tool_use", "name": name, "input": args}]
+    # A plain chat line — {"role": ..., "content": ...} at the top level, the
+    # shape most transcripts share when nobody wrapped it. Cursor's transcript
+    # format is not documented; this is the tolerant default until it is.
+    if entry.get("role") in ("user", "assistant"):
+        content = entry.get("content")
+        if isinstance(content, str) or isinstance(content, list):
+            tools = entry.get("tool_calls") or []
+            blocks = [{"type": "text", "text": _text_of(content)}] if _text_of(content) else []
+            for t in tools:
+                if isinstance(t, dict):
+                    fn = t.get("function") or t
+                    args = fn.get("arguments") or fn.get("input") or {}
+                    if isinstance(args, str):
+                        try:
+                            args = json.loads(args)
+                        except Exception:
+                            args = {}
+                    blocks.append({"type": "tool_use", "name": fn.get("name") or t.get("name") or "",
+                                   "input": args})
+            return entry["role"], blocks or content
     return None, None
 
 
@@ -267,11 +291,13 @@ def latest_for(cwd: str | None, max_age: float = RESUME_MAX_AGE) -> dict | None:
     return best
 
 
-def consume(session_id: str | None, cwd: str | None = None) -> dict | None:
+def consume(session_id: str | None, cwd: str | None = None,
+            max_age: float = RESUME_MAX_AGE) -> dict | None:
     """The checkpoint a starting session should see: its own, else the newest
-    from the same directory. Restored once — the file is removed so a later
-    `/clear` in the same session does not replay old work."""
-    snap = load(session_id) or latest_for(cwd)
+    from the same directory (no older than `max_age`). Restored once — the
+    file is removed so a later `/clear` in the same session does not replay
+    old work."""
+    snap = load(session_id) or latest_for(cwd, max_age=max_age)
     if snap is None:
         return None
     try:
