@@ -41,6 +41,7 @@ from cloud.auth import AuthContext
 from cloud.billing import billing_router, _paddle_request, _sign_checkout_token, PADDLE_API_KEY
 from cloud.plans import PLAN_QUOTAS
 from cloud.site import build_site_router
+from cloud import source as _source
 
 
 FILE_SIZE_LIMITS = {
@@ -3731,10 +3732,11 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         return job
 
     @app.post("/v1/search", tags=["Search"])
-    async def search(req: SearchRequest, sub_user_id: str | None = Query(None), ctx: AuthContext = Depends(auth)):
+    async def search(req: SearchRequest, request: Request, sub_user_id: str | None = Query(None), ctx: AuthContext = Depends(auth)):
         """Semantic search across memories with LLM re-ranking."""
         user_id = ctx.user_id
-        use_quota(ctx, "search")  # atomic check+increment
+        if not _source.is_hook(request.headers):   # the user's own hooks are not charged (cloud/source.py)
+            use_quota(ctx, "search")  # atomic check+increment
         import hashlib as _hashlib
 
         sub_uid = _resolve_sub_user(req.user_id, sub_user_id)
@@ -5017,11 +5019,12 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
     # ---- Unified Search (all 3 memory types) ----
 
     @app.post("/v1/search/all", tags=["Search"])
-    async def search_all(req: SearchRequest, sub_user_id: str | None = Query(None), ctx: AuthContext = Depends(auth)):
+    async def search_all(req: SearchRequest, request: Request, sub_user_id: str | None = Query(None), ctx: AuthContext = Depends(auth)):
         """Search across all memory types: semantic, episodic, and procedural.
         Returns categorized results from each memory system."""
         user_id = ctx.user_id
-        use_quota(ctx, "search")  # atomic check+increment
+        if not _source.is_hook(request.headers):   # the user's own hooks are not charged (cloud/source.py)
+            use_quota(ctx, "search")  # atomic check+increment
         import hashlib as _hashlib
 
         sub_uid = _resolve_sub_user(req.user_id, sub_user_id)

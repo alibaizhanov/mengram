@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.44.1 — 2026-09-15
+
+### Changed
+- **Searches the hooks make are no longer charged to the search quota.** The
+  free plan allows 200 searches a month; with the hooks installed, auto-recall
+  runs one on every prompt, so a free account spent the month in a few days
+  and then saw `quota_exceeded` in its own context — the product switching
+  itself off. The 2026-09-15 snapshot: 54 accounts had hit the search wall,
+  5 were paying, and those 5 had paid on the day they signed up. The wall sold
+  nothing. `mengram auto-recall` now sends `X-Mengram-Source: hook`, and
+  `/v1/search` and `/v1/search/all` skip the quota for it. Still rate-limited,
+  still in the usage log. `add` stays counted: extraction is the expensive
+  step and the one worth paying for. Existing installs pick this up with
+  `pip install -U mengram-ai`; older CLIs keep being charged.
+
 ## 2.44.0 — 2026-09-15
 
 ### Added

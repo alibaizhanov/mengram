@@ -90,9 +90,14 @@ class CloudMemory:
 
     DEFAULT_BASE_URL = "https://mengram.io"
 
-    def __init__(self, api_key: str, base_url: str | None = None) -> None:
+    def __init__(self, api_key: str, base_url: str | None = None,
+                 source: str | None = None) -> None:
         self.api_key = api_key
         self.base_url = (base_url or self.DEFAULT_BASE_URL).rstrip("/")
+        # "hook" when the caller is the user's own automation (the Claude Code /
+        # Codex hooks): searches made that way are not charged to the search
+        # quota. See cloud/source.py.
+        self.source = source
 
     @property
     def quota(self) -> dict[str, Any]:
@@ -121,18 +126,17 @@ class CloudMemory:
                 url = f"{url}?{query_string}"
         body = json.dumps(data).encode() if data else None
 
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+            "User-Agent": _USER_AGENT,
+        }
+        if self.source:
+            headers["X-Mengram-Source"] = self.source
+
         last_err = None
         for attempt in range(3):
-            req = urllib.request.Request(
-                url,
-                data=body,
-                method=method,
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json",
-                    "User-Agent": _USER_AGENT,
-                }
-            )
+            req = urllib.request.Request(url, data=body, method=method, headers=headers)
             try:
                 with urllib.request.urlopen(req, context=_SSL_CTX) as resp:
                     self._last_headers = resp.headers

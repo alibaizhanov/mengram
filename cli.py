@@ -618,7 +618,8 @@ def cmd_auto_recall(args):
         base_url = _load_cloud_base_url()
         user_id = getattr(args, "user_id", None) or os.environ.get("MENGRAM_USER_ID", "default")
 
-        mem = CloudMemory(api_key=api_key, base_url=base_url)
+        # Marked as the user's own automation: not charged to the search quota.
+        mem = CloudMemory(api_key=api_key, base_url=base_url, source="hook")
         results = mem.search(prompt, user_id=user_id, limit=3, graph_depth=1)
 
         if not results:
