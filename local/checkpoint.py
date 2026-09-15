@@ -295,6 +295,29 @@ def _age(ts) -> str:
     return f"{h} h ago" if h < 48 else f"{h // 24} d ago"
 
 
+def headline(snap: dict) -> str:
+    """One line for the person, shown the moment the state comes back. The
+    restore is otherwise invisible — the block goes into the model's context,
+    and the person only notices when the agent *doesn't* redo finished work.
+    Said out loud, it is the moment they can point at."""
+    files = snap.get("files") or []
+    prompts = snap.get("prompts") or []
+    commands = snap.get("commands") or []
+    parts = []
+    if files:
+        parts.append(f"{len(files)} file{'s' if len(files) != 1 else ''} you edited")
+    if prompts:
+        last = prompts[-1].replace("\n", " ").strip()
+        if len(last) > 70:
+            last = last[:67].rstrip() + "…"
+        parts.append(f"your last request («{last}»)")
+    if commands:
+        parts.append("the last commands run")
+    what = ", ".join(parts) if parts else "where you left off"
+    when = "compaction" if snap.get("trigger") in ("auto", "manual") else "the break"
+    return f"🧠 Mengram put the working state back after {when}: {what}. The summary may have dropped it; this is exact."
+
+
 def render(snap: dict) -> str:
     """The block SessionStart adds to the context. Verbatim, labelled, short."""
     lines = ["[Mengram — working state saved before compaction "

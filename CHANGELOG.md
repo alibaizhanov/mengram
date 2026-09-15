@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.44.4 — 2026-09-15
+
+### Changed
+- **The restore says so.** When the working state comes back after a
+  compaction or a resume, the person now sees one line in the terminal —
+  *"🧠 Mengram put the working state back after compaction: 3 files you edited,
+  your last request («…»), the last commands run. The summary may have dropped
+  it; this is exact."* Until now the block went only into the model's context,
+  and the only way to notice the restore was that the agent did *not* redo
+  finished work — a moment nobody can point at. Shown through a cloud outage
+  too, since the checkpoint never left the machine.
+
 ## 2.44.3 — 2026-09-15
 
 ### Changed

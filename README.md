@@ -79,7 +79,7 @@ Every Prompt   →  Searches past sessions for relevant context (auto-recall)
 After Response →  Saves new knowledge in background (auto-save)
 Before a Bash  →  If the command matches a learned workflow with a weak record, asks you first (policy gate, CLI hooks)
 Before compact →  Writes the working state down — last prompts, files edited, last commands, where Claude left off (CLI hooks)
-After compact  →  Puts that state back, verbatim, next to the host's summary — the summary can drop it; the checkpoint can't
+After compact  →  Puts that state back, verbatim, next to the host's summary — and tells you so in one line
 ```
 
 No manual saves. No tool calls. Claude just knows what you worked on yesterday — even after compaction ate the transcript.

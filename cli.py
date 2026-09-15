@@ -733,19 +733,20 @@ def _maybe_weekly_message(mem, user_id):
         return None
 
 
-def _restored_state(input_data) -> str | None:
-    """The working state written before compaction, read back once. None when
+def _restored_state(input_data) -> tuple[str | None, str | None]:
+    """The working state written before compaction, read back once:
+    `(context for the model, one line for the person)`. `(None, None)` when
     there is nothing on file for this session or directory."""
     try:
         from local import checkpoint
         snap = checkpoint.consume(input_data.get("session_id"), input_data.get("cwd"))
         if snap is None or checkpoint.is_empty(snap):
-            return None
+            return None, None
         _receipt("restore", input_data.get("session_id"),
                  files=len(snap.get("files") or []), host=snap.get("host"))
-        return checkpoint.render(snap)
+        return checkpoint.render(snap), checkpoint.headline(snap)
     except Exception:
-        return None
+        return None, None
 
 
 def cmd_auto_checkpoint(args):
@@ -784,6 +785,7 @@ def cmd_auto_context(args):
     HOOK = "auto-context"
     EVENT = "SessionStart"
     restored = None
+    restored_line = None
     try:
         input_data = _read_hook_input()
         source = input_data.get("source", "startup")
@@ -800,7 +802,12 @@ def cmd_auto_context(args):
         # loses. Restored whether or not there is an account: the checkpoint
         # was written on this machine and never left it.
         if source in ("compact", "resume"):
-            restored = _restored_state(input_data)
+            restored, restored_line = _restored_state(input_data)
+            # Said to the person, not only to the model: the restore is the one
+            # moment memory visibly does something, and silent it is the moment
+            # nobody can point at.
+            if restored_line:
+                receipt_msg = restored_line if not receipt_msg else receipt_msg + "\n\n" + restored_line
 
         local_dir = _local_dir(args)
         if local_dir:
@@ -847,7 +854,7 @@ def cmd_auto_context(args):
                 ),
             )
         # A cloud outage must not cost the work that was saved locally.
-        _emit_hook_exit(EVENT, args, HOOK, "error", context=restored)
+        _emit_hook_exit(EVENT, args, HOOK, "error", context=restored, system_message=restored_line)
 
 
 def cmd_auto_save(args):

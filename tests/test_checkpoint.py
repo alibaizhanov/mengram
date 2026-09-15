@@ -194,6 +194,10 @@ def test_precompact_writes_and_session_start_after_compact_restores(tmp_path, mo
     assert "working state saved before compaction" in ctx
     assert "/repo/local/checkpoint.py" in ctx
     assert "Also cover Codex" in ctx
+    # Said to the person too — the one moment memory visibly does something.
+    line = out["systemMessage"]
+    assert "put the working state back after compaction" in line
+    assert "2 files you edited" in line and "Also cover Codex" in line
 
     kinds = [e["kind"] for e in receipt.load()]
     assert kinds == ["checkpoint", "restore"]
@@ -302,3 +306,28 @@ def test_setup_without_codex_says_nothing_about_it(tmp_path, monkeypatch, capsys
     monkeypatch.setattr(cli.shutil, "which", lambda n: None)
     cli.cmd_setup(_Args(key="om-test", no_import=True, no_verify=True, every=3))
     assert "Codex" not in capsys.readouterr().out
+
+
+def test_headline_names_what_came_back():
+    snap = {"trigger": "auto", "files": ["a.py"], "prompts": ["Fix the failing build please, it broke after the merge of the auth branch this morning"],
+            "commands": ["npm test"], "last_assistant": "x"}
+    line = checkpoint.headline(snap)
+    assert line.startswith("🧠 Mengram put the working state back after compaction: 1 file you edited, your last request («")
+    assert "…»)" in line and "the last commands run" in line
+    assert checkpoint.headline({"trigger": None, "prompts": [], "files": [], "commands": []}).endswith(
+        "after the break: where you left off. The summary may have dropped it; this is exact.")
+
+
+def test_restore_line_survives_a_cloud_failure(tmp_path, monkeypatch):
+    checkpoint.save(checkpoint.snapshot(_claude_transcript(tmp_path), "s9", cwd="/repo"))
+    monkeypatch.setattr(cli, "_load_cloud_api_key", lambda: "om-key")
+
+    class Boom:
+        def __init__(self, *a, **k):
+            raise RuntimeError("cloud down")
+    import cloud.client
+    monkeypatch.setattr(cloud.client, "CloudMemory", Boom)
+    out = _run_hook(monkeypatch, cli.cmd_auto_context, _Args(),
+                    {"hook_event_name": "SessionStart", "session_id": "s9",
+                     "source": "compact", "cwd": "/repo"})
+    assert "put the working state back" in out["systemMessage"]
