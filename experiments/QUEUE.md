@@ -15,7 +15,7 @@
 # model upgrade did not fix it; their published eval could not be reproduced
 # (18 votes). Nobody in this market holds a ruler. E0 is the ruler.
 
-## E0 [~] Memory benchmark v0 — "does the answer survive?" (the ruler)
+## E0 [x] Memory benchmark v0 (harness accepted 2026-09-16; variance rule amended: 3 repeats, report mean and spread) — "does the answer survive?" (the ruler)
 Hypothesis: a paired correct/distractor design (from densely/bench_recall.py)
   transfers to memory: the true fact sits in old history, a plausible wrong
   one sits in recent history, the question cannot be answered without recall.
@@ -84,3 +84,14 @@ Method: RunPod (see runpod-setup memory), Qwen-class base, SFT on pairs
   (dialogue chunk → accepted facts); evaluate on E0 M/L.
 Verify (pre-registered): recall@old within 3 points AND junk rate not worse
   AND cost per add <= 1/10. Decision date to be set when E0/E1 are done.
+
+## E0b [ ] Attribution and paraphrase defects found by E0 (gate for E1)
+Hypothesis: on companion/L the user's own facts land on a relative's entity
+  ("User's sister … has played the bass since school") after one sentence about
+  that relative, and one intention is stored as five paraphrases. Fixing
+  attribution alone lifts companion/L recall@old from 0.25-0.50 to >= 0.75
+  (full history: 0.88).
+Method: read engine/extractor prompt + cloud/store/_entities dedup; add a test
+  from the exact corpus turns; fix; re-run mengram companion S/M/L x3.
+Verify (pre-registered): companion/L mean recall@old over 3 repeats >= 0.75
+  with junk_rate not worse than r1 (0.50). Else reject with numbers.

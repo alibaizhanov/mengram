@@ -43,6 +43,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 from cloud.budget import estimate_tokens  # noqa: E402
+from cloud.client import _SSL_CTX  # noqa: E402  (certifi CAs: macOS python ships without a usable bundle)
 
 SCALES = {"S": 7, "M": 30, "L": 90}
 TYPES = ("companion", "support", "coding")
@@ -230,7 +231,7 @@ def llm(messages, max_tokens=300, json_mode=False) -> str:
                                  headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
     for attempt in range(4):
         try:
-            with urllib.request.urlopen(req, timeout=120) as r:
+            with urllib.request.urlopen(req, timeout=120, context=_SSL_CTX) as r:
                 return json.load(r)["choices"][0]["message"]["content"]
         except Exception as e:
             if attempt == 3:
@@ -251,11 +252,28 @@ def answer(question: str, context: str) -> str:
     ], max_tokens=40).strip()
 
 
+_STOP = {"the", "a", "an", "to", "in", "at", "of", "my", "our", "on", "sent", "is", "it", "and", "with"}
+
+
+def _keys(value: str) -> list[str]:
+    """The words that carry a value: lowercase, articles and glue dropped, so
+    "the Visa ending 4471" and "Visa ending in 4471." are the same answer and
+    "the airport desk" matches "airport desk". Exact-substring matching scored
+    the full-history baseline at 0.38 on support in r1 — a ruler defect, not a
+    memory one (see QUEUE.md)."""
+    toks = re.findall(r"[a-z0-9][a-z0-9\-']*", value.lower())
+    return [t for t in toks if t not in _STOP] or toks
+
+
+def _matches(answer: str, value: str) -> bool:
+    a = answer.lower()
+    return all(k in a for k in _keys(value))
+
+
 def score_answer(ans: str, correct: str, distractor: str) -> str:
-    a = ans.lower()
-    if correct.lower() in a:
+    if _matches(ans, correct):
         return "correct"
-    if distractor.lower() in a:
+    if _matches(ans, distractor):
         return "distractor"
     return "other"
 
@@ -270,7 +288,7 @@ def run_full(turns, truth, opts):
     for c in truth["cases"]:
         ans = answer(c["question"], context)
         rows.append({**c, "answer": ans, "verdict": score_answer(ans, c["correct"], c["distractor"]),
-                     "tokens": estimate_tokens(context), "recalled": c["correct"].lower() in context.lower()})
+                     "tokens": estimate_tokens(context), "recalled": _matches(context, c["correct"])})
     return rows, {"stored_facts": None, "junk": None}
 
 
@@ -349,9 +367,10 @@ def run_sandbox(turns, truth, opts):
         context = f"{summary_inj}\n\n--- grep results ---\n{grep}"
         ans = answer(c["question"], context)
         rows.append({**c, "answer": ans, "verdict": score_answer(ans, c["correct"], c["distractor"]),
-                     "tokens": estimate_tokens(context), "recalled": c["correct"].lower() in context.lower(),
-                     "keywords": keywords})
-    stored = [ln.strip("-# ").strip() for ln in memory_md.splitlines() if ln.strip().startswith("-")]
+                     "tokens": estimate_tokens(context), "recalled": _matches(context, c["correct"]),
+                     "keywords": keywords, "context": context[:1200]})
+    stored = [ln.lstrip("-*0123456789. ").strip() for ln in memory_md.splitlines()
+              if ln.strip() and not ln.strip().startswith("#")]
     return rows, junk_report(stored, truth)
 
 
@@ -401,7 +420,7 @@ def run_mengram(turns, truth, opts):
         ans = answer(c["question"], context)
         rows.append({**c, "answer": ans, "verdict": score_answer(ans, c["correct"], c["distractor"]),
                      "tokens": (res.get("budget") or {}).get("used_tokens") or estimate_tokens(context),
-                     "recalled": c["correct"].lower() in context.lower()})
+                     "recalled": _matches(context, c["correct"]), "context": context[:1200]})
     stored = []
     try:
         ents = mem.get_all_full(user_id=sub)
@@ -435,9 +454,9 @@ def junk_report(stored: list[str], truth) -> dict:
         return {"stored_facts": 0, "needed": 0, "distractor_stored": 0, "junk": 0, "junk_rate": None}
     needed_vals = [c["correct"].lower() for c in truth["cases"]]
     dist_vals = [c["distractor"].lower() for c in truth["cases"]]
-    needed = sum(1 for f in stored if any(v in f.lower() for v in needed_vals))
-    dist = sum(1 for f in stored if any(v in f.lower() for v in dist_vals)
-               and not any(v in f.lower() for v in needed_vals))
+    needed = sum(1 for f in stored if any(_matches(f, v) for v in needed_vals))
+    dist = sum(1 for f in stored if any(_matches(f, v) for v in dist_vals)
+               and not any(_matches(f, v) for v in needed_vals))
     junk = len(stored) - needed - dist
     return {"stored_facts": len(stored), "needed": needed, "distractor_stored": dist,
             "junk": junk, "junk_rate": round(junk / len(stored), 3)}
@@ -472,10 +491,32 @@ def cmd_run(a):
     print(json.dumps(summary))
 
 
+def cmd_rescore(a):
+    """Recompute verdicts from stored answers with the current matcher; no model calls."""
+    for p in Path(a.dir).glob("*/result.json"):
+        d = json.load(open(p))
+        rows = d["rows"]
+        if not rows or rows[0].get("answer") == "unscored":
+            continue
+        for r in rows:
+            r["verdict"] = score_answer(r["answer"], r["correct"], r["distractor"])
+            if "context" in r:
+                r["recalled"] = _matches(r["context"], r["correct"])
+        n = len(rows)
+        d["summary"]["recall_at_old"] = round(sum(r["verdict"] == "correct" for r in rows) / n, 3)
+        d["summary"]["distractor_rate"] = round(sum(r["verdict"] == "distractor" for r in rows) / n, 3)
+        d["summary"]["retrieved_rate"] = round(sum(bool(r["recalled"]) for r in rows) / n, 3)
+        json.dump(d, open(p, "w"), indent=1, ensure_ascii=False)
+    print("rescored")
+
+
 def cmd_report(a):
     rows = []
     for p in Path(a.dir).glob("*/result.json"):
-        rows.append(json.load(open(p))["summary"])
+        d = json.load(open(p))
+        if d["rows"] and d["rows"][0].get("answer") == "unscored":
+            continue   # a retrieval-only smoke run is not a scored run
+        rows.append(d["summary"])
     rows.sort(key=lambda r: (r["type"], r["scale"], r["system"], r["run"]))
     print(f"{'type':10} {'sc':2} {'system':8} {'run':6} {'recall@old':>10} {'distr':>6} {'retr':>6} {'tok/q':>7} {'junk':>6}")
     for r in rows:
@@ -505,11 +546,14 @@ def main():
     r.add_argument("--type", choices=TYPES, required=True); r.add_argument("--scale", choices=list(SCALES), required=True)
     r.add_argument("--run", default="r1"); r.add_argument("--max-tokens", type=int, default=600, dest="max_tokens")
     rp = sub.add_parser("report"); rp.add_argument("--dir", default=str(HERE / "results"))
+    rs = sub.add_parser("rescore"); rs.add_argument("--dir", default=str(HERE / "results"))
     a = p.parse_args()
     if a.cmd == "generate":
         generate_corpus(Path(a.out), a.seed)
     elif a.cmd == "run":
         cmd_run(a)
+    elif a.cmd == "rescore":
+        cmd_rescore(a)
     else:
         cmd_report(a)
 
