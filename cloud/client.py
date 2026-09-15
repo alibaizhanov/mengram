@@ -340,7 +340,8 @@ class CloudMemory:
                limit: int = 5, agent_id: str | None = None,
                run_id: str | None = None, app_id: str | None = None,
                graph_depth: int = 2,
-               filters: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+               filters: dict[str, Any] | None = None,
+               max_tokens: int | None = None) -> list[dict[str, Any]]:
         """
         Semantic search across memories.
 
@@ -353,12 +354,16 @@ class CloudMemory:
             app_id: Filter by application
             graph_depth: How many hops to traverse in the knowledge graph (default: 2)
             filters: Metadata filters, e.g. {"agent_id": "support-bot", "app_id": "prod"}
+            max_tokens: Room the reply may take (estimated tokens). Results are cut
+                in rank order to fit; `self.last_budget` holds the report.
 
         Returns:
             [{"entity": "...", "type": "...", "score": 0.85, "facts": [...], "knowledge": [...]}]
         """
         body = {"query": query, "user_id": user_id, "limit": limit,
                 "graph_depth": graph_depth}
+        if max_tokens is not None:
+            body["max_tokens"] = int(max_tokens)
         if agent_id:
             body["agent_id"] = agent_id
         if run_id:
@@ -368,6 +373,7 @@ class CloudMemory:
         if filters:
             body["filters"] = filters
         result = self._request("POST", "/v1/search", body)
+        self.last_budget = result.get("budget")
         return result.get("results", [])
 
     def ask(self, query: str, user_id: str = "default",
@@ -798,7 +804,8 @@ class CloudMemory:
 
     def search_all(self, query: str, limit: int = 5,
                    user_id: str = "default",
-                   graph_depth: int = 2) -> dict[str, Any]:
+                   graph_depth: int = 2,
+                   max_tokens: int | None = None) -> dict[str, Any]:
         """
         Search across all 3 memory types: semantic, episodic, procedural.
 
@@ -807,13 +814,16 @@ class CloudMemory:
             limit: Max results per type
             user_id: User identifier
             graph_depth: How many hops to traverse in the knowledge graph (default: 2)
+            max_tokens: Room the whole reply may take (estimated tokens); the
+                response then carries a `budget` report of what was cut.
 
         Returns:
-            {"semantic": [...], "episodic": [...], "procedural": [...]}
+            {"semantic": [...], "episodic": [...], "procedural": [...], "budget": {...}?}
         """
-        return self._request("POST", "/v1/search/all",
-                            data={"query": query, "limit": limit,
-                                  "user_id": user_id, "graph_depth": graph_depth})
+        data = {"query": query, "limit": limit, "user_id": user_id, "graph_depth": graph_depth}
+        if max_tokens is not None:
+            data["max_tokens"] = int(max_tokens)
+        return self._request("POST", "/v1/search/all", data=data)
 
     # ---- Agents ----
 

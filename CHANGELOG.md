@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.44.5 — 2026-09-15
+
+### Added
+- **`max_tokens` on search: a recall that fits.** The integrator's complaint
+  was size, not accuracy — a bot for a car-rental company sent 4,500–5,000
+  tokens of history on every request just to remember a customer. `POST
+  /v1/search` and `POST /v1/search/all` now take `max_tokens`; results are
+  cut in rank order to fit — entity by entity, fact by fact, sections in the
+  order a task needs them — and the response carries a `budget` report of
+  what was left out, so the cut is never silent. Tokens are estimated (the
+  server does not know which model reads the reply); the report says so.
+  SDK: `search(..., max_tokens=)`, `search_all(..., max_tokens=)`,
+  `client.last_budget`. MCP: `context_for` takes `max_tokens` (default 1200)
+  and ends with one line naming what was cut.
+
 ## 2.44.4 — 2026-09-15
 
 ### Changed

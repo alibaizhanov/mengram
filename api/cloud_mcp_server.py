@@ -732,6 +732,7 @@ def create_cloud_mcp_server(
                     "properties": {
                         "task": {"type": "string", "description": "Description of the task (e.g. 'deploy API to Railway', 'fix database connection pool issue')"},
                         "user_id": {"type": "string", "description": "Optional user ID override"},
+                        "max_tokens": {"type": "integer", "description": "Room the context pack may take, in tokens (estimated). Default 1200. Memory is cut in rank order to fit and the pack ends with one line saying what was left out."},
                     },
                     "required": ["task"],
                 },
@@ -1423,7 +1424,8 @@ def create_cloud_mcp_server(
             elif name == "context_for":
                 task = arguments["task"]
                 uid = arguments.get("user_id", user_id)
-                results = mem.search_all(task, limit=5, user_id=uid)
+                max_tokens = int(arguments.get("max_tokens") or 1200)
+                results = mem.search_all(task, limit=5, user_id=uid, max_tokens=max_tokens)
 
                 lines = [f"# Context for: {task}\n"]
 
@@ -1458,6 +1460,14 @@ def create_cloud_mcp_server(
 
                 if not semantic and not procedural and not episodic:
                     lines.append("No relevant context found in memory for this task.")
+
+                budget = results.get("budget") or {}
+                dropped = budget.get("dropped") or {}
+                left_out = sum(dropped.get(k, 0) for k in ("entities", "facts", "episodes", "procedures"))
+                if left_out:
+                    lines.append(f"_Cut to fit {budget.get('max_tokens')} tokens (~{budget.get('used_tokens')} used): "
+                                 f"{dropped.get('facts', 0)} facts, {dropped.get('episodes', 0)} events and "
+                                 f"{dropped.get('procedures', 0)} procedures left out. Raise max_tokens to see more._")
 
                 return [TextContent(type="text", text="\n".join(lines))]
 

@@ -42,6 +42,7 @@ from cloud.billing import billing_router, _paddle_request, _sign_checkout_token,
 from cloud.plans import PLAN_QUOTAS
 from cloud.site import build_site_router
 from cloud import source as _source
+from cloud import budget as _budget
 
 
 FILE_SIZE_LIMITS = {
@@ -115,6 +116,10 @@ class SearchRequest(SubUserScoped):
     graph_depth: int = 2  # 0=no graph, 1=1-hop, 2=2-hop (default)
     threshold: float | None = None  # min cosine 0..1; None = server defaults
     filters: dict | None = None  # metadata filters, e.g. {"agent_id": "support-bot"}
+    # How much room the reply may take, in tokens (estimated). Results are cut
+    # in rank order to fit and the response carries a `budget` report of what
+    # was left out. None = no cut. See cloud/budget.py.
+    max_tokens: int | None = None
 
 class AskRequest(SubUserScoped):
     """RAG-style ask: synthesize an answer from memory with citations.
@@ -711,6 +716,13 @@ Be strict — only include entities that directly answer or relate to the query.
         today = datetime.date.today()
         days_in_month = calendar.monthrange(today.year, today.month)[1]
         return (days_in_month - today.day + 1) * 86400
+
+    def _validate_max_tokens(value) -> None:
+        if value is None:
+            return
+        if not (_budget.MIN_BUDGET <= int(value) <= _budget.MAX_BUDGET):
+            raise HTTPException(status_code=400,
+                                detail=f"max_tokens must be between {_budget.MIN_BUDGET} and {_budget.MAX_BUDGET}")
 
     def _quality_label(top_score: float) -> str:
         """Scale-aware retrieval quality. query_score mixes two scales
@@ -3753,8 +3765,11 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         # Validate optional threshold (additive — None = server defaults)
         if req.threshold is not None and not (0.0 <= req.threshold <= 1.0):
             raise HTTPException(status_code=400, detail="threshold must be between 0.0 and 1.0")
+        _validate_max_tokens(req.max_tokens)
 
         # ---- Redis cache: same query → instant response ----
+        # The budget is applied after the cache on purpose: the ranked list is
+        # what is cached, and callers with different budgets share it.
         filter_str = json.dumps(meta_filters, sort_keys=True) if meta_filters else ""
         cache_input = f'{req.query}:{req.limit}:{req.graph_depth}:{req.threshold}:{filter_str}'
         cache_key = f"search:{user_id}:{sub_uid}:{_hashlib.md5(cache_input.encode('utf-8', errors='replace')).hexdigest()}"
@@ -3765,6 +3780,9 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                             query_score=top_score,
                             query_language=_detect_query_language(req.query),
                             result_quality=_quality_label(top_score))
+            if req.max_tokens:
+                kept, report = _budget.fit_search(cached, req.max_tokens)
+                return {"results": kept, "budget": report}
             return {"results": cached}
 
         embedder = get_embedder()
@@ -3877,6 +3895,8 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             "result_quality": result_quality,
             "top_score": round(top_score, 4),
         }
+        if req.max_tokens:
+            response["results"], response["budget"] = _budget.fit_search(results, req.max_tokens)
         if not results:
             try:
                 st = store.get_stats(user_id, sub_user_id=sub_uid)
@@ -5028,6 +5048,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         import hashlib as _hashlib
 
         sub_uid = _resolve_sub_user(req.user_id, sub_user_id)
+        _validate_max_tokens(req.max_tokens)
 
         # Build metadata filters
         meta_filters = dict(req.filters) if req.filters else {}
@@ -5054,6 +5075,10 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                             query_score=top_score,
                             query_language=_detect_query_language(req.query),
                             result_quality=_quality_label(top_score))
+            if req.max_tokens:
+                cut, report = _budget.fit_search_all(cached, req.max_tokens)
+                cut["budget"] = report
+                return cut
             return cached
 
         embedder = get_embedder()
@@ -5197,6 +5222,9 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                     )
             except Exception:
                 result["hint"] = "No memories found. Add your first memory with POST /v1/add — then search will return results."
+        if req.max_tokens:
+            result, report = _budget.fit_search_all(result, req.max_tokens)
+            result["budget"] = report
         return result
 
     # ============================================
