@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.44.7 — 2026-09-16
+
+### Added
+- **One MCP connection per end user.** A product built on the OpenAI Agents
+  API (public beta since 2026-09-10; its sandbox memory is per workspace, not
+  per customer) opens one connection to `https://mengram.io/mcp` per end
+  user and names them in `X-Mengram-User` (or `?user_id=`). Every `remember`,
+  `recall` and `context_for` on that connection is scoped to that user; the
+  model never has to pass a `user_id`. Ids are normalised (letters, digits,
+  `._:@+-`, ≤ 200 chars) and fall back to `default`. Example in
+  `examples/openai-agents-api/`, docs at docs.mengram.io/openai-agents.
+- **E0 benchmark gets two baselines** (experiments/QUEUE.md): full-history
+  replay, and a faithful reproduction of the Agents SDK sandbox memory
+  (summaries + raw notes, `memory_summary.md` at start, keyword search,
+  newest-kept consolidation). The number to publish, harness attached:
+  after 30 simulated days, what each recalls and at what tokens per request.
+
 ## 2.44.6 — 2026-09-15
 
 ### Added

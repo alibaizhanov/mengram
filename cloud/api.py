@@ -43,6 +43,7 @@ from cloud.plans import PLAN_QUOTAS
 from cloud.site import build_site_router
 from cloud import source as _source
 from cloud import budget as _budget
+from cloud.source import end_user_id as _mcp_end_user_id
 
 
 FILE_SIZE_LIMITS = {
@@ -6191,6 +6192,17 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
         _mcp_sse = SseServerTransport("/mcp/messages/")
 
+        def _mcp_end_user(request: Request) -> str:
+            """Which end user this MCP connection is for.
+
+            A product built on the OpenAI Agents API (or any agent framework)
+            opens one MCP connection per end user and names them here, so
+            every tool call on that connection is scoped to that user without
+            the model having to remember to pass `user_id`. The header wins
+            over the query parameter; both default to "default"."""
+            uid = (request.headers.get("x-mengram-user") or request.query_params.get("user_id") or "").strip()
+            return _mcp_end_user_id(uid)
+
         def _extract_mcp_key(request: Request) -> str:
             """Extract API key from Authorization header, apiKey header, or query param."""
             # 1. Standard Authorization: Bearer om-...
@@ -6282,7 +6294,8 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                     base = os.environ.get("MENGRAM_INTERNAL_URL") \
                         or f"http://127.0.0.1:{os.environ.get('PORT', '8000')}"
                     mem = _CloudMemory(api_key=key, base_url=base)
-                    mcp_server = _create_mcp(mem, tool_filter=self._tool_filter)
+                    mcp_server = _create_mcp(mem, user_id=_mcp_end_user(request),
+                                             tool_filter=self._tool_filter)
 
                     transport = StreamableHTTPServerTransport(
                         mcp_session_id=None,

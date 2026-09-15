@@ -29,6 +29,20 @@ Verify (pre-registered): the harness runs end-to-end on S/M/L for all three
   corpus types and produces the three numbers with a variance < 5% across two
   runs on the same seed. If variance is higher, the ruler is not a ruler —
   fix before any other experiment.
+Baselines (added 2026-09-16, after OpenAI's Agents API beta): every run reports
+  the same three numbers for at least two baselines next to Mengram —
+  (a) "full history": the whole dialogue replayed into context (the upper
+      bound on recall, the upper bound on tokens);
+  (b) "OpenAI sandbox memory": the Agents SDK `sandbox/memory` behaviour —
+      conversation summaries + raw extracts, `memory_summary.md` injected at
+      start, keyword search on demand, consolidation that keeps the newest
+      raw memories and drops older ones (max_raw_memories_for_consolidation
+      = 256). Reproduce it from its open source (see
+      growth/openai-agents-harness-2026-09-16.md), do not approximate it.
+  The claim we want to be able to make in public, with the harness attached:
+  "after 30 simulated days, baseline (b) recalls X% of planted facts, Mengram
+  recalls Y%, at Z tokens per request each". If Mengram does not win on
+  recall@old at M and L, that is the result and it gets published too.
 
 ## E1 [ ] Salience gate — a classifier that says "do not store this"
 Hypothesis: a small classifier over the fact embedding + cheap features

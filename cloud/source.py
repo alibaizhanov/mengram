@@ -28,3 +28,20 @@ def is_hook(headers) -> bool:
         return (headers.get(HEADER) or headers.get(HEADER.lower()) or "").strip().lower() == HOOK
     except Exception:
         return False
+
+
+#: Header a product sets on an MCP connection to say which of its end users
+#: the connection belongs to. `?user_id=` on the URL is the fallback.
+END_USER_HEADER = "X-Mengram-User"
+
+
+def end_user_id(raw) -> str:
+    """Normalise an end-user id sent on an MCP connection: trimmed, at most
+    200 chars, letters/digits and `._:@+-` only; anything else falls back to
+    "default" rather than becoming a surprising sub-user."""
+    raw = (raw or "").strip()
+    if not raw or len(raw) > 200:
+        return "default"
+    if any(not (c.isalnum() or c in "._:@+-") for c in raw):
+        return "default"
+    return raw

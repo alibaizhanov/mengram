@@ -10,6 +10,18 @@ Ready-to-run AI agents that showcase Mengram's 3 memory types. Each template is 
 
 ## Templates
 
+### OpenAI Agents API — memory per end user
+
+One MCP connection per customer, scoped by the `X-Mengram-User` header, for
+products built on OpenAI's Agents API / Agents SDK: the sandbox memory there
+is per workspace, this one is per user. [Setup and the hosted-MCP JSON](openai-agents-api/README.md).
+
+### Returning support — Dify + Mengram
+
+Recall a customer's previous troubleshooting attempts when they return to the
+same ticket. Includes a prior-session importer, a support workflow and a paired
+comparison with/without memory. [Setup, test cases and validation status](dify-support/README.md).
+
 ### 🌙 Kimi K3 + Memory — *give your Kimi agent long-term memory*
 
 **Stack:** `openai` client pointed at Moonshot + `mengram-ai` (offline mode needs neither)
