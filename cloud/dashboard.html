@@ -1356,37 +1356,38 @@
             <div class="path-card primary">
                 <span class="path-badge">Recommended</span>
                 <div class="path-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-                </div>
-                <div class="path-title">Claude Desktop</div>
-                <div class="path-sub">One-click config. No terminal needed.</div>
-                <a href="/#install" class="path-cta" target="_blank" rel="noopener">View setup →</a>
-            </div>
-            <div class="path-card">
-                <div class="path-icon">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
                 </div>
                 <div class="path-title">Claude Code</div>
-                <div class="path-sub">Persistent memory for the CLI.</div>
+                <div class="path-sub">Memory on every prompt, saved automatically, survives compaction. One command, key included.</div>
                 <div class="path-cmd">
-                    <code>mengram setup</code>
+                    <code class="welcome-setup-cmd">pip install mengram-ai &amp;&amp; mengram setup --key om-…</code>
                     <button onclick="_copyPathCmd(this)">Copy</button>
                 </div>
-                <a href="https://docs.mengram.io/claude-code" class="path-cta" target="_blank" rel="noopener">View guide →</a>
+                <a href="https://docs.mengram.io/claude-code" class="path-cta" target="_blank" rel="noopener">What the hooks do →</a>
             </div>
             <div class="path-card">
                 <div class="path-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h6a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z"/><path d="M20 17h-6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2z"/></svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M13 15h4"/></svg>
                 </div>
-                <div class="path-title">Python SDK</div>
-                <div class="path-sub">Build your own agents with memory.</div>
+                <div class="path-title">Codex</div>
+                <div class="path-sub">Same command. Setup finds Codex on your machine and installs its hooks too — one memory across both tools.</div>
                 <div class="path-cmd">
-                    <code>pip install mengram-ai</code>
+                    <code>mengram hook install --codex</code>
                     <button onclick="_copyPathCmd(this)">Copy</button>
                 </div>
-                <a href="https://docs.mengram.io/python" class="path-cta" target="_blank" rel="noopener">View docs →</a>
+                <a href="https://docs.mengram.io/claude-code#codex-the-same-hooks" class="path-cta" target="_blank" rel="noopener">If you add Codex later →</a>
+            </div>
+            <div class="path-card">
+                <div class="path-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+                </div>
+                <div class="path-title">Claude.ai &amp; Claude Desktop</div>
+                <div class="path-sub">One-click connector, no terminal. Recall when Claude asks for it; nothing is captured automatically.</div>
+                <a href="https://docs.mengram.io/claude-connector" class="path-cta" target="_blank" rel="noopener">Add the connector →</a>
             </div>
         </div>
+        <p style="font-size:12px;color:var(--text-3);text-align:center;margin:14px 0 0;">Building your own agents? <code>pip install mengram-ai</code> · <a href="https://docs.mengram.io/python" target="_blank" rel="noopener" style="color:var(--accent);">Python SDK docs</a> · <a href="https://docs.mengram.io/mcp-server" target="_blank" rel="noopener" style="color:var(--accent);">MCP server</a></p>
         <div class="welcome-footer">
             <button class="welcome-skip" onclick="closeWelcomeModal()">Skip for now — I'll connect later</button>
         </div>
@@ -1432,14 +1433,11 @@
             <div class="ob-wiz-icon"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="#a855f7" stroke-width="1.5" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
             <h2>Connect your tools</h2>
             <p>Set up auto-save and auto-recall for Claude Code</p>
-            <div class="ob-wiz-code-block" style="margin-bottom:12px;">
-                <code>pip install mengram-ai</code>
-                <button class="ob-wiz-copy" onclick="obWizCopy(this,'pip install mengram-ai')">Copy</button>
-            </div>
             <div class="ob-wiz-code-block">
-                <code>mengram setup</code>
-                <button class="ob-wiz-copy" onclick="obWizCopy(this,'mengram setup')">Copy</button>
+                <code class="welcome-setup-cmd">pip install mengram-ai &amp;&amp; mengram setup --key om-…</code>
+                <button class="ob-wiz-copy" onclick="obWizCopy(this, _setupCmd())">Copy</button>
             </div>
+            <p style="font-size:12px;color:var(--text-3);margin-top:8px;">Your key is already in the command. Codex on the same machine is detected and set up too.</p>
             <p style="font-size:13px;color:var(--text-3);margin-top:16px;margin-bottom:20px;">Also available as <a href="https://docs.mengram.io/mcp" style="color:var(--accent);">MCP server</a>, <a href="https://docs.mengram.io/sdks" style="color:var(--accent);">Python/JS SDKs</a>, and <a href="https://docs.mengram.io/api-reference" style="color:var(--accent);">REST API</a>.</p>
             <button class="ob-wiz-btn" onclick="obWizardFinish()">Open Console</button>
         </div>
@@ -2220,6 +2218,7 @@ async function obWizardShowResults() {
 }
 
 function obWizardToStep3() {
+    _fillSetupCmds();
     document.getElementById('ob-wiz-step-2').style.display = 'none';
     document.getElementById('ob-wiz-step-3').style.display = '';
     document.getElementById('ob-wiz-dot-2').classList.remove('active');
@@ -3359,11 +3358,21 @@ async function openEntity(name) {
 function closeModal() { document.getElementById('modal-bg').classList.remove('show'); }
 
 // ---- Welcome modal helpers ----
+function _setupCmd() {
+    const key = localStorage.getItem('mengram_key') || 'om-…';
+    return `pip install mengram-ai && mengram setup --key ${key}`;
+}
+function _fillSetupCmds() {
+    // The command a new person copies carries their key: `mengram setup` on its
+    // own asks an already-registered email to reset the key it was just given.
+    document.querySelectorAll('.welcome-setup-cmd').forEach(el => { el.textContent = _setupCmd(); });
+}
 function openWelcomeModal() {
     const key = localStorage.getItem('mengram_key');
     if (!key) return;
     const codeEl = document.getElementById('welcome-key');
     if (codeEl) codeEl.textContent = key;
+    _fillSetupCmds();
     const bg = document.getElementById('welcome-bg');
     if (bg) bg.classList.add('show');
 }

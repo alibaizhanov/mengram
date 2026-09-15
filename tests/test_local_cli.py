@@ -190,6 +190,7 @@ def test_hook_install_in_local_mode_needs_no_key(folder, monkeypatch, capsys, tm
 def test_hook_install_without_key_or_folder_points_at_local_mode(monkeypatch, capsys, tmp_path):
     monkeypatch.delenv("MENGRAM_API_KEY", raising=False)
     monkeypatch.delenv("MENGRAM_MEMORY_DIR", raising=False)
+    monkeypatch.setattr(cli, "_load_cloud_api_key", lambda: "")   # no env, no ~/.mengram/config.json
     code, out, err = _run(monkeypatch, capsys, ["hook", "install"])
     assert code == 1 and "--memory" in err
 

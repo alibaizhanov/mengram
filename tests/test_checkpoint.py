@@ -244,7 +244,7 @@ def test_install_adds_the_precompact_hook(tmp_path, monkeypatch, capsys):
     settings = tmp_path / "settings.json"
     monkeypatch.setattr(cli, "get_claude_code_settings_path", lambda: settings)
     monkeypatch.setattr(cli, "_resolve_mengram_bin", lambda: str(_fake_bin(tmp_path)))
-    monkeypatch.setenv("MENGRAM_API_KEY", "om-test")
+    monkeypatch.setattr(cli, "_load_cloud_api_key", lambda: "om-test")
     cli.cmd_hook_install(_Args(every=3))
     data = json.loads(settings.read_text())
     cmds = [h["command"] for g in data["hooks"]["PreCompact"] for h in g["hooks"]]
@@ -256,7 +256,7 @@ def test_install_into_codex_writes_its_hooks_file(tmp_path, monkeypatch, capsys)
     monkeypatch.setenv("CODEX_HOME", str(tmp_path / "codex"))
     monkeypatch.setattr(cli, "get_claude_code_settings_path", lambda: tmp_path / "unused.json")
     monkeypatch.setattr(cli, "_resolve_mengram_bin", lambda: str(_fake_bin(tmp_path)))
-    monkeypatch.setenv("MENGRAM_API_KEY", "om-test")
+    monkeypatch.setattr(cli, "_load_cloud_api_key", lambda: "om-test")
     cli.cmd_hook_install(_Args(every=3, codex=True))
     data = json.loads((tmp_path / "codex" / "hooks.json").read_text())
     assert set(data["hooks"]) == {"SessionStart", "UserPromptSubmit", "PreCompact"}
@@ -269,3 +269,36 @@ def test_install_into_codex_writes_its_hooks_file(tmp_path, monkeypatch, capsys)
     cli.cmd_hook_uninstall(_Args())
     data = json.loads((tmp_path / "codex" / "hooks.json").read_text())
     assert not any(data.get("hooks", {}).get(ev) for ev in ("SessionStart", "UserPromptSubmit", "PreCompact"))
+
+
+def test_setup_finds_codex_and_installs_its_hooks_too(tmp_path, monkeypatch, capsys):
+    """One command on the welcome page covers both tools: setup --key installs
+    the Claude Code hooks and, when Codex has been run on this machine, its
+    hooks as well — no second command to find."""
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "codex"))
+    (tmp_path / "codex").mkdir()
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    (tmp_path / "home").mkdir()
+    monkeypatch.setattr(cli, "get_claude_code_settings_path", lambda: tmp_path / "home" / "settings.json")
+    monkeypatch.setattr(cli, "_resolve_mengram_bin", lambda: str(_fake_bin(tmp_path)))
+    monkeypatch.setattr(cli, "_load_cloud_api_key", lambda: "om-test")
+    monkeypatch.setattr(cli, "_detect_mcp_tools", lambda: [])
+    monkeypatch.setattr(cli.shutil, "which", lambda n: None)
+    cli.cmd_setup(_Args(key="om-test", no_import=True, no_verify=True, every=3))
+    out = capsys.readouterr().out
+    assert "Codex found on this machine" in out
+    assert (tmp_path / "codex" / "hooks.json").exists()
+    assert "Restart Claude Code, Codex" in out
+
+
+def test_setup_without_codex_says_nothing_about_it(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "no-codex"))
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    (tmp_path / "home").mkdir()
+    monkeypatch.setattr(cli, "get_claude_code_settings_path", lambda: tmp_path / "home" / "settings.json")
+    monkeypatch.setattr(cli, "_resolve_mengram_bin", lambda: str(_fake_bin(tmp_path)))
+    monkeypatch.setattr(cli, "_load_cloud_api_key", lambda: "om-test")
+    monkeypatch.setattr(cli, "_detect_mcp_tools", lambda: [])
+    monkeypatch.setattr(cli.shutil, "which", lambda n: None)
+    cli.cmd_setup(_Args(key="om-test", no_import=True, no_verify=True, every=3))
+    assert "Codex" not in capsys.readouterr().out

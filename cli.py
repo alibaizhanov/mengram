@@ -716,8 +716,8 @@ def _maybe_weekly_message(mem, user_id):
         procs = stats.get("procedures_learned", 0)
         recalls = stats.get("recalls_served", 0)
         prevented = stats.get("prevented", [])
-        if not (facts or procs or recalls or prevented):
-            return None  # empty week — don't nag
+        if not (procs or recalls or prevented) and facts < 5:
+            return None  # an empty or barely-started week — don't nag
 
         lines = ["🧠 Mengram — your AI's memory, past 7 days:"]
         lines.append(f"   {facts} facts learned · {procs} procedures · {recalls} recalls served")
@@ -2105,12 +2105,25 @@ def cmd_setup(args):
 
     # Install hooks
     no_hooks = getattr(args, "no_hooks", False)
+    codex_done = False
     if not no_hooks:
         try:
             os.environ["MENGRAM_API_KEY"] = api_key  # hook install reads env
             cmd_hook_install(args)
         except SystemExit:
             pass
+        # Codex on this machine gets the same memory without a second command.
+        # The welcome page shows one line for both tools and says so.
+        if _codex_present():
+            try:
+                codex_args = argparse.Namespace(**{**vars(args), "codex": True})
+                print("\n  Codex found on this machine — installing its hooks too.")
+                cmd_hook_install(codex_args)
+                codex_done = True
+            except SystemExit:
+                pass
+            except Exception as e:
+                print(f"  Codex hooks skipped ({e}) — run `mengram hook install --codex` later.")
     else:
         print("\n  Skipped hook install (--no-hooks).")
 
@@ -2166,9 +2179,8 @@ def cmd_setup(args):
             except Exception:
                 print("  Verify skipped — run `mengram doctor` later.")
 
-    print("\n  Done! Restart Claude Code" + (
-        " (and " + ", ".join(configured) + ")" if configured else ""
-    ) + " — it now remembers everything.")
+    restart = ["Claude Code"] + (["Codex"] if codex_done else []) + configured
+    print("\n  Done! Restart " + ", ".join(restart) + " — it now remembers everything.")
     if imported:
         print('  Try asking: "What do you know about my projects?"')
     print()
@@ -2177,9 +2189,11 @@ def cmd_setup(args):
 def cmd_hook_install(args):
     """Install Claude Code memory hooks (auto-save + auto-recall + session context + policy gate + run outcomes)"""
     local_dir = _local_dir(args)
-    api_key = os.environ.get("MENGRAM_API_KEY", "")
+    # Env or ~/.mengram/config.json: `mengram setup --key` writes the file, and
+    # `hook install --codex` run right after it must not ask for the env var.
+    api_key = _load_cloud_api_key()
     if not local_dir and not api_key:
-        print("Set MENGRAM_API_KEY environment variable first", file=sys.stderr)
+        print("No API key: set MENGRAM_API_KEY or save one to ~/.mengram/config.json", file=sys.stderr)
         print("Run 'mengram setup' to create an account and configure automatically", file=sys.stderr)
         print("Or get a key at: https://mengram.io/#signup", file=sys.stderr)
         print("No account? Use a folder instead: mengram hook install --memory ./memory", file=sys.stderr)
@@ -2314,6 +2328,12 @@ def cmd_hook_install(args):
 def get_codex_hooks_path() -> Path:
     """Codex reads lifecycle hooks from `~/.codex/hooks.json` (or `CODEX_HOME`)."""
     return Path(os.environ.get("CODEX_HOME") or (Path.home() / ".codex")) / "hooks.json"
+
+
+def _codex_present() -> bool:
+    """Codex has been run on this machine: its home exists or its binary is on PATH."""
+    home = Path(os.environ.get("CODEX_HOME") or (Path.home() / ".codex"))
+    return home.is_dir() or shutil.which("codex") is not None
 
 
 def _install_codex_hooks(context_cmd, recall_cmd, checkpoint_cmd, mengram_bin):

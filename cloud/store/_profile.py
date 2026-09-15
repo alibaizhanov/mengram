@@ -11,6 +11,10 @@ from ._common import (  # noqa: F401
 )
 
 
+#: Facts needed before a cognitive profile is generated at all.
+MIN_FACTS_FOR_PROFILE = 3
+
+
 class ProfileMixin:
     """Stats, weekly stats, cognitive profile, rules file, intelligence dashboard."""
 
@@ -153,13 +157,17 @@ class ProfileMixin:
             sections.append(f"{ent['entity']} [type: {ent['type']}]:\n{facts_str}{rels_str}")
             total_facts += len(ent["facts"][:20])
 
-        if not sections:
+        # A profile written from one or two facts is filler — "very little is
+        # known, avoid assuming age or location" — and the hook pastes it into
+        # every session start. Below this line memory says nothing, which is
+        # the honest thing to say. The signup fact alone never counts.
+        if not sections or total_facts < MIN_FACTS_FOR_PROFILE:
             return {
                 "user_id": user_id,
                 "system_prompt": "",
-                "facts_used": 0,
+                "facts_used": total_facts,
                 "last_updated": None,
-                "status": "no_facts"
+                "status": "no_facts" if not sections else "too_few_facts"
             }
 
         memory_dump = "\n\n".join(sections[:50])  # Cap at 50 entities

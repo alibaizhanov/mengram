@@ -1,2 +1,2 @@
-__version__ = "2.44.1"
+__version__ = "2.44.2"
 """Mengram — AI memory layer for apps."""

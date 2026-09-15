@@ -1,5 +1,31 @@
 # Changelog
 
+## 2.44.2 — 2026-09-15
+
+### Fixed
+- **The welcome page pointed new accounts at a dead end.** After signup the
+  console said `mengram setup`; for an email that had just been registered,
+  that command answers "Email already registered. Reset API key? [y/N]" — the
+  key the person was given a minute earlier. Walked as a new user on
+  2026-09-15: this is where 14 of the last 18 signups stopped (they had a key
+  and never made one `add`). The console now shows one command with the key
+  in it, `pip install mengram-ai && mengram setup --key om-…`, for Claude
+  Code (recommended) and Codex; Claude.ai / Desktop keeps its one-click
+  connector with an honest note that nothing is captured automatically. The
+  "Recommended: Claude Desktop → View setup" card had led to the manual
+  MCP-only page that the agent install guide itself warns leaves memory empty.
+- **`mengram setup` finds Codex and installs its hooks too**, so one command
+  covers both tools. `mengram hook install` reads the key from
+  `~/.mengram/config.json` as well as the env var, so `--codex` right after
+  `setup --key` works.
+- **An account with one or two facts no longer gets a generated profile.**
+  The profile written from the signup fact alone was 1,170 characters of
+  "very little is known, avoid assuming age or location", pasted into every
+  session start. Below three facts memory says nothing.
+- **The weekly line no longer fires on a brand-new account** ("1 facts learned
+  · 0 procedures · 0 recalls served" on the first session). It needs recalls,
+  procedures, a prevented mistake, or at least five facts.
+
 ## 2.44.1 — 2026-09-15
 
 ### Changed
