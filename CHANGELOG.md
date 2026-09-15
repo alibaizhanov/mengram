@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.44.8 — 2026-09-16
+
+### Fixed
+- **An unnamed speaker's facts no longer land on a relative.** When extraction
+  does not know the speaker's name it calls them "User", and the store forwards
+  those facts to the account's primary person — the person entity with the most
+  facts — so a person who later introduces themselves is not split in two. With
+  an unnamed speaker that entity was whoever else got mentioned: the E0
+  benchmark (companion, 90 simulated days) put "I play the bass", "I'm allergic
+  to kiwi" and "my birthday is in March" on `User's sister` after one sentence
+  about the sister, and the answer model rightly said "unknown" — recall@old
+  0.25 with the value retrieved every time. A name that is by construction
+  someone else (a possessive, a relation, a role — `cloud/store/_naming.py`)
+  is never chosen as the speaker; facts then stay on `User`. A pinned identity
+  still wins. End users of a product are unnamed by default, so this was the
+  common case there.
+
 ## 2.44.7 — 2026-09-16
 
 ### Added

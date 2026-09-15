@@ -8,6 +8,7 @@ import re
 import threading
 from typing import Optional
 
+from ._naming import looks_like_someone_else
 from ._common import (  # noqa: F401
     psycopg2, logger, ENTITY_TYPES, CloudEntity,
 )
@@ -35,12 +36,16 @@ class EntityMixin:
                    WHERE e.user_id = %s AND e.sub_user_id = %s AND e.type = 'person' AND LOWER(e.name) != 'user'
                    GROUP BY e.id, e.name
                    ORDER BY pinned DESC, fact_count DESC, has_full_name DESC, e.updated_at DESC
-                   LIMIT 1""",
+                   LIMIT 5""",
                 (user_id, sub_user_id)
             )
-            row = cur.fetchone()
-            if row:
-                return (str(row[0]), row[1])
+            for row in cur.fetchall():
+                pinned = bool(row[4])
+                # A relative, a role, a possessive can never be the speaker,
+                # whatever its fact count — unless the account pinned it as
+                # its identity on purpose (cloud/store/_naming.py).
+                if pinned or not looks_like_someone_else(row[1]):
+                    return (str(row[0]), row[1])
             return None
 
     def set_user_identity(self, user_id: str, entity_name: str, sub_user_id: str = "default") -> Optional[dict]:
