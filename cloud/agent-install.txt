@@ -192,6 +192,15 @@ MCP-only alternative (ONLY if the user explicitly asks for no hooks):
 Then tell the user: "Plugin installed. Run /mcp inside Claude Code to
 confirm 'mengram' is listed, and restart the session."
 
+ALSO RECOMMENDED (compaction checkpoint, v2.44+): the plugin's hooks
+re-inject the profile after compaction, but the *working state* — last
+prompts, files just edited, last commands, where Claude left off — lives
+only in the CLI hooks. Install them too; they coexist with the plugin:
+  mengram hook install
+(reads the key from ~/.mengram/config.json or MENGRAM_API_KEY; adds a
+PreCompact hook that writes the state to ~/.mengram/checkpoints/ and a
+SessionStart restore after compact/resume. Nothing is uploaded.)
+
 RECOMMENDED FOLLOW-UP (kills the cold start): if ~/.claude/projects exists,
 offer the user:
   mengram import claude-code
@@ -218,6 +227,12 @@ Append (TOML, NOT JSON):
 
   [mcp_servers.mengram.env]
   MENGRAM_API_KEY = "<api-key>"
+
+Then install the lifecycle hooks (v2.44+) — same memory as in Claude Code,
+loaded on session start, recalled per prompt, working state saved before
+compaction and restored after:
+  mengram hook install --codex
+This writes ~/.codex/hooks.json (merged if it exists; nothing else touched).
 
 Tell user: "Restart Codex."
 

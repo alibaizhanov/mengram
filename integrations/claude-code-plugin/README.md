@@ -13,6 +13,18 @@ Unlike `CLAUDE.md` (static) or filesystem memory (per-machine), Mengram is a **h
 | **Stop hook** | Persists the conversation transcript at end-of-turn for fact / episode / procedure extraction |
 | **Skill** | Tells Claude when to recall and when to capture |
 
+Not in the plugin yet: the **compaction checkpoint** (v2.44+). Before a
+compaction, a `PreCompact` hook writes the working state down — the last
+prompts, the files just edited, the last commands, where Claude left off —
+and `SessionStart` puts it back verbatim after `compact` or `resume`. The
+host's summary can drop those; the checkpoint can't. It ships with the CLI
+hooks and coexists with the plugin:
+
+```bash
+pip install mengram-ai && mengram hook install          # Claude Code
+mengram hook install --codex                            # the same hooks under Codex
+```
+
 ## Setup
 
 ```bash
