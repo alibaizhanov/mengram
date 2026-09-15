@@ -2528,13 +2528,15 @@ def cmd_hook_status(args):
     elif save_cmd or recall_cmd or context_cmd or policy_cmd or outcome_cmd:
         print("  Hook commands:  verified, they run from a plain shell")
 
-    # Check API key
-    api_key = os.environ.get("MENGRAM_API_KEY", "")
+    # Check API key — env or ~/.mengram/config.json, the same way the hooks read it.
+    # Reading only the env here said "not set" on a working install for months.
+    api_key = _load_cloud_api_key()
     if api_key:
         masked = api_key[:6] + "..." + api_key[-4:]
-        print(f"  API Key:        {masked} (set)")
+        where = "env" if os.environ.get("MENGRAM_API_KEY") else "~/.mengram/config.json"
+        print(f"  API Key:        {masked} (set, {where})")
     else:
-        print("  API Key:        not set")
+        print("  API Key:        not set (MENGRAM_API_KEY or ~/.mengram/config.json)")
 
     # Check API connectivity
     if api_key:
