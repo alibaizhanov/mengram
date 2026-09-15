@@ -50,3 +50,6 @@ Thumbs.db
 # Node
 node_modules/
 package-lock.json
+experiments/corpus/*
+!experiments/corpus/README.md
+experiments/.mengram/
