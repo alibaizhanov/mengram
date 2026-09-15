@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.44.3 — 2026-09-15
+
+### Changed
+- **No cap on end users on any plan.** Isolated memory per `user_id` is the
+  product for people who build agents, and the number of end users a plan
+  allowed (3 free, 10 Starter, 50 Pro, 100 Growth) was a wall exactly where
+  the paying customers stand: a bot with 200 clients got `402 sub_users` on
+  its 51st under Pro. The isolation is unchanged; the count is unlimited
+  everywhere. What the plans meter is volume — `adds` run extraction and cost
+  money — not the right to have a 51st user.
+
 ## 2.44.2 — 2026-09-15
 
 ### Fixed
