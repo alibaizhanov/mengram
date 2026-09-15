@@ -85,7 +85,12 @@ Method: RunPod (see runpod-setup memory), Qwen-class base, SFT on pairs
 Verify (pre-registered): recall@old within 3 points AND junk rate not worse
   AND cost per add <= 1/10. Decision date to be set when E0/E1 are done.
 
-## E0b [ ] Attribution and paraphrase defects found by E0 (gate for E1)
+## E0b [x] Attribution and paraphrase defects found by E0 (gate for E1)
+Result 2026-09-16: recall clause MET — companion/L mean recall@old 0.83 over 3
+  repeats (0.75/0.875/0.875), from 0.25-0.50 before the fix; S 0.94, M 0.96.
+  Junk clause MISSED by 0.02: L junk mean 0.52 vs 0.50 (paraphrase duplication
+  untouched by an attribution fix) — carried into E1 as its baseline. Noise
+  floor: spread 0.12-0.17 across repeats. Fix shipped as 2.44.8.
 Hypothesis: on companion/L the user's own facts land on a relative's entity
   ("User's sister … has played the bass since school") after one sentence about
   that relative, and one intention is stored as five paraphrases. Fixing
