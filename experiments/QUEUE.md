@@ -15,7 +15,7 @@
 # model upgrade did not fix it; their published eval could not be reproduced
 # (18 votes). Nobody in this market holds a ruler. E0 is the ruler.
 
-## E0 [ ] Memory benchmark v0 — "does the answer survive?" (the ruler)
+## E0 [~] Memory benchmark v0 — "does the answer survive?" (the ruler)
 Hypothesis: a paired correct/distractor design (from densely/bench_recall.py)
   transfers to memory: the true fact sits in old history, a plausible wrong
   one sits in recent history, the question cannot be answered without recall.
@@ -43,6 +43,14 @@ Baselines (added 2026-09-16, after OpenAI's Agents API beta): every run reports
   "after 30 simulated days, baseline (b) recalls X% of planted facts, Mengram
   recalls Y%, at Z tokens per request each". If Mengram does not win on
   recall@old at M and L, that is the result and it gets published too.
+Progress 2026-09-16: bench_memory.py written (generate/run/report; systems full,
+  sandbox, mengram). Corpus generated, seed 20260916: 9 files, 76–730 turns,
+  6 cases at S and 8 at M/L (slot pool is 8 per type — extend before claiming
+  more). Smoke on mengram/support/S without the answer model: retrieved 5/6,
+  580 tokens/question at a 600 budget, stored 19 facts = 5 needed + 7
+  distractor + 7 junk (37%). Scoring and the sandbox baseline need
+  OPENAI_API_KEY (gpt-4o-mini, T=0). Bench sub-users are named
+  bench-<run>-<type>-<scale> in the account; no wipe endpoint yet.
 
 ## E1 [ ] Salience gate — a classifier that says "do not store this"
 Hypothesis: a small classifier over the fact embedding + cheap features

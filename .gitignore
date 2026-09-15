@@ -53,3 +53,4 @@ package-lock.json
 experiments/corpus/*
 !experiments/corpus/README.md
 experiments/.mengram/
+experiments/results/
