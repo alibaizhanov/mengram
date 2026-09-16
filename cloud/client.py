@@ -836,6 +836,11 @@ class CloudMemory:
             data["chunks"] = int(chunks)  # raw-conversation fallback; server default 1, 0 = off
         return self._request("POST", "/v1/search/all", data=data)
 
+    def draft_resume(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """One model call that drafts a task card (task, done, remaining) from
+        what a session recorded — see local/resume.py. Nothing is stored."""
+        return self._request("POST", "/v1/resume/draft", data=payload)
+
     # ---- Agents ----
 
     def run_agents(self, agent: str = "all", auto_fix: bool = False,

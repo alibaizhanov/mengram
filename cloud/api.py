@@ -130,6 +130,17 @@ class SearchRequest(SubUserScoped):
     # lost it (0.92). 0 turns them off, 10 is the ceiling.
     chunks: int = 1
 
+class ResumeDraftRequest(BaseModel):
+    """What a stopping session recorded (local/resume.py); the reply is the
+    agent's reading of it — task, done, remaining — marked a draft client-side."""
+    prompts: list[str] | None = None
+    files: list[str] | None = None
+    commands: list[str] | None = None
+    last_assistant: str | None = None
+    last_check: dict | None = None
+    branch: str | None = None
+    previous: dict | None = None
+
 class AskRequest(SubUserScoped):
     """RAG-style ask: synthesize an answer from memory with citations.
     Premium feature (Pro+) — uses Cohere Chat API on top of vector search."""
@@ -3963,6 +3974,47 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             except Exception:
                 response["hint"] = "No memories found. Add your first memory with POST /v1/add — then search will return results."
         return response
+
+    @app.post("/v1/resume/draft", tags=["Memory — Core"])
+    async def resume_draft(req: ResumeDraftRequest, request: Request, ctx: AuthContext = Depends(auth)):
+        """Draft a task card (task, done, remaining) from what a session
+        recorded. One model call, not charged to the search quota when the
+        hooks ask; the card marks the result as the agent's draft until a
+        person confirms it. Nothing is stored server-side."""
+        if not _source.is_hook(request.headers):
+            use_quota(ctx, "search")
+        prev = req.previous or {}
+        record = {
+            "last requests from the person": (req.prompts or [])[-4:],
+            "files edited": (req.files or [])[-20:],
+            "last commands": (req.commands or [])[-8:],
+            "last thing the agent said": (req.last_assistant or "")[-1500:],
+            "last test run": req.last_check or None,
+            "branch": req.branch,
+            "previous card (may be stale)": {k: prev.get(k) for k in ("task", "done", "remaining") if prev.get(k)},
+        }
+        prompt = (
+            "You write the handover card for a software task, for whoever continues it next.\n"
+            "From the record below, return ONLY JSON: {\"task\": <one line, what the person is trying to get done>, "
+            "\"done\": [<up to 6 short lines of what the record shows was completed>], "
+            "\"remaining\": [<up to 6 short lines of what is still open, including anything the person asked for that is not done>]}.\n"
+            "Rules: only what the record supports; a test that was not run is not done; the agent's suggestions are not "
+            "decisions; keep identifiers, file names, versions and numbers verbatim; no praise, no filler.\n\n"
+            f"RECORD:\n{json.dumps(record, ensure_ascii=False, indent=1)}"
+        )
+        try:
+            llm = get_llm().llm
+            raw = llm.complete(prompt, response_format={"type": "json_object"})
+            from cloud.store._common import _safe_parse_json
+            data = _safe_parse_json(raw)
+        except Exception as e:
+            logger.warning(f"resume draft failed: {e}")
+            raise HTTPException(status_code=502, detail="draft unavailable")
+        if not isinstance(data, dict):
+            raise HTTPException(status_code=502, detail="draft unavailable")
+        return {"task": str(data.get("task") or "")[:200],
+                "done": [str(x)[:200] for x in (data.get("done") or []) if str(x).strip()][:8],
+                "remaining": [str(x)[:200] for x in (data.get("remaining") or []) if str(x).strip()][:8]}
 
     @app.post("/v1/ask", tags=["Search"])
     async def ask(req: AskRequest, sub_user_id: str | None = Query(None), ctx: AuthContext = Depends(auth)):

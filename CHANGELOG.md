@@ -1,5 +1,32 @@
 # Changelog
 
+## 2.47.0 — 2026-09-16
+
+### Added
+- **`mengram resume`: a task card that follows the task across sessions and
+  agents.** The compaction checkpoint answers "what was I doing a minute ago"
+  for one session; this answers "where does this task stand" for whoever
+  picks it up next — tomorrow's session, another agent in another Orca
+  worktree, the same person on another laptop. At Stop the hooks write a card
+  keyed by `git remote` + branch (not the directory): files touched (edits
+  and shell writes), last commands, the last test command and its result,
+  the commit it ran on, the last request. With a cloud key one model call
+  drafts the task line, what is done and what remains; the card marks that
+  as the agent's draft until a person confirms it on the page — an agent's
+  proposal is not a decision. At the next SessionStart (startup, clear,
+  resume; Claude Code, Codex, Cursor) the card goes into context first, and
+  if the code moved since the last check it says so: "the last check ran on
+  57cdde9; HEAD is now a1b2c3d (4 commits later)". `mengram resume` prints
+  the card, `--open` serves a local page to correct it, confirm it, pick
+  another task, copy the context for a new session. Local only, works with
+  no account; the draft is the only part that needs one.
+  Pre-registered as E6 in `experiments/QUEUE.md`: ten real session
+  transitions, card vs an agent-maintained STATUS.md, scored on
+  re-explanations, missed constraints and redone work; if the card is not
+  better on two of three, STATUS.md is what we recommend.
+- `POST /v1/resume/draft` — the one model call behind the draft; nothing is
+  stored server-side; not charged to the search quota when the hooks ask.
+
 ## 2.46.0 — 2026-09-16
 
 ### Added

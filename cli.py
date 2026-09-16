@@ -828,6 +828,9 @@ def _cursor_auto_context(args, input_data):
             parts.append(checkpoint.headline(snap) + "\n\n" + checkpoint.render(snap))
     except Exception:
         pass
+    card_block, card_line = _resume_block(input_data)
+    if card_block:
+        parts.insert(0, card_line + "\n\n" + card_block)
     try:
         local_dir = _local_dir(args)
         if local_dir:
@@ -847,6 +850,69 @@ def _cursor_auto_context(args, input_data):
         pass
     _emit_hook_exit(EVENT, args, HOOK, "context loaded" if parts else "nothing to load",
                     context="\n\n".join(parts) if parts else None)
+
+
+def _write_resume_card(args, input_data, api_key=None):
+    """At Stop: record where the task stands (local/resume.py). Deterministic
+    parts always; the model draft only with a key and only when the record
+    changed. Never raises, never delays the hook noticeably."""
+    from local import resume
+    transcript = input_data.get("transcript_path")
+    cwd = input_data.get("cwd") or os.getcwd()
+    session_id = input_data.get("session_id", "unknown")
+    key = resume.card_key(resume.repo_info(cwd))
+    card = resume.build(transcript, session_id, cwd, host=_hook_tool(args, input_data),
+                        previous=resume.load(key))
+    if resume.is_empty(card):
+        return None
+    if api_key and resume.needs_draft(card):
+        try:
+            from cloud.client import CloudMemory
+            mem = CloudMemory(api_key=api_key, base_url=_load_cloud_base_url(), source="hook",
+                              host=_hook_host(args, input_data))
+            resume.apply_draft(card, mem.draft_resume(resume.draft_payload(card)))
+        except Exception:
+            pass
+    path = resume.save(card)
+    if path:
+        _receipt("resume", session_id, task=bool(card.get("task")), remaining=len(card.get("remaining") or []))
+    return card
+
+
+def _resume_block(input_data) -> tuple[str | None, str | None]:
+    """The task card a starting session should see, and the line for the person."""
+    try:
+        from local import resume
+        cwd = input_data.get("cwd") or os.getcwd()
+        card, relation = resume.load_for(cwd)
+        if card is None or resume.is_empty(card):
+            return None, None
+        return resume.render(card, cwd, relation), resume.headline(card, relation)
+    except Exception:
+        return None, None
+
+
+def cmd_resume(args):
+    """`mengram resume`: where the task in this repository stands."""
+    from local import resume
+    cwd = getattr(args, "path", None) or os.getcwd()
+    if getattr(args, "open", False):
+        from local import resume_page
+        print("Serving the resume page on localhost (Ctrl-C to stop)…")
+        resume_page.serve(cwd)
+        return
+    card, relation = resume.load_for(cwd, max_age=10 ** 9 if getattr(args, "any_age", False) else resume.MAX_AGE)
+    if card is None:
+        info = resume.repo_info(cwd)
+        print(f"No task card for {info.get('remote') or info.get('root')} yet. One is written when an agent "
+              f"with the Mengram hooks stops working here.")
+        return
+    if getattr(args, "json", False):
+        print(json.dumps(card, ensure_ascii=False, indent=1))
+        return
+    print(resume.render(card, cwd, relation))
+    if card.get("draft") and (card.get("task") or card.get("done")):
+        print("\nTask/done/remaining are the agent's draft. `mengram resume --open` to confirm or correct them.")
 
 
 def _hook_tool(args, input_data=None) -> str:
@@ -916,6 +982,15 @@ def cmd_auto_context(args):
             if restored_line:
                 receipt_msg = restored_line if not receipt_msg else receipt_msg + "\n\n" + restored_line
 
+        # A new session in a repository with a task card: where the task stands
+        # comes first (local/resume.py). Not after compaction — that session is
+        # still the one that wrote the card.
+        if source in ("startup", "clear", "resume"):
+            card_block, card_line = _resume_block(input_data)
+            if card_block:
+                restored = card_block if not restored else card_block + "\n\n" + restored
+                receipt_msg = card_line if not receipt_msg else receipt_msg + "\n\n" + card_line
+
         local_dir = _local_dir(args)
         if local_dir:
             _local_auto_context(args, EVENT, HOOK, local_dir,
@@ -971,8 +1046,6 @@ def cmd_auto_save(args):
     try:
         local_dir = _local_dir(args)
         api_key = None if local_dir else _load_cloud_api_key()
-        if not local_dir and not api_key:
-            _emit_hook_exit(EVENT, args, HOOK, "no API key")
 
         # Read hook input from stdin
         try:
@@ -989,6 +1062,16 @@ def cmd_auto_save(args):
         # Avoid infinite loops
         if input_data.get("stop_hook_active"):
             _emit_hook_exit(EVENT, args, HOOK, "skipped (stop_hook_active)")
+
+        # Where the task stands, for whoever continues it (local/resume.py).
+        # Local, before any account check: the card must exist without one.
+        try:
+            _write_resume_card(args, input_data, api_key=api_key)
+        except Exception:
+            pass
+
+        if not local_dir and not api_key:
+            _emit_hook_exit(EVENT, args, HOOK, "no API key")
 
         last_msg = input_data.get("last_assistant_message", "")
         if not last_msg or len(last_msg.strip()) < 10:
@@ -3200,6 +3283,12 @@ def main():
     sub.add_parser("status", help="Check setup status")
 
     # receipt
+    p_resume = sub.add_parser("resume", help="Where the task in this repository stands (card written at Stop)")
+    p_resume.add_argument("--open", action="store_true", help="Open the local page to confirm or correct the card")
+    p_resume.add_argument("--json", action="store_true", help="Print the card as JSON")
+    p_resume.add_argument("--any-age", action="store_true", dest="any_age", help="Show the card however old")
+    p_resume.add_argument("--path", help="Repository path (default: current directory)")
+
     p_receipt = sub.add_parser("receipt", help="What memory did: last session and the past days")
     p_receipt.add_argument("--days", type=int, default=7, help="Window for the totals (default 7)")
 
@@ -3390,6 +3479,8 @@ def main():
         cmd_server(args)
     elif args.command == "status":
         cmd_status(args)
+    elif args.command == "resume":
+        cmd_resume(args)
     elif args.command == "receipt":
         cmd_receipt(args)
     elif args.command == "stats":

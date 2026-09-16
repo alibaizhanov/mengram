@@ -99,6 +99,27 @@ Cursor has no per-prompt context hook (`beforeSubmitPrompt` can only allow or bl
 
 Every fact remembers which tool wrote it and when, and recall shows it: `deploys to Fly.io from main  (codex, 2026-09-15)`. Each hook also tells the server which OS and tool it runs under, so a workspace path recorded on your Mac never reaches a Claude Code session on a Linux box, and a Cursor settings fact never reaches Codex — those are left out and counted (`facts_left_out_for_host`).
 
+### Pick a task up where it was left — `mengram resume`
+
+When an agent stops, the hooks write a task card for the repository and branch: files touched, last commands, the last test run and the commit it ran on, plus the agent's draft of the task, what is done and what remains. The next session in that repository — tomorrow, another agent in another worktree, another machine — gets it first, and is told when the code has moved since the last check:
+
+```
+$ mengram resume
+[Mengram resume — where this task stands (2 h ago, from claude-code, branch main)]
+Task (agent draft, not confirmed): prepare the Dify example for publication
+Done:
+  - three workflows assembled
+  - save/recall round-trip checked through the API
+Remaining:
+  - import the workflows into Dify and check the model's answers
+Last check: `python3 -m pytest -q tests/test_dify.py` → 4 passed in 0.31s
+  The last check ran on 57cdde9; HEAD is now a1b2c3d (4 commits later). Its result describes the earlier state.
+Files touched: examples/dify-support/workflow.yml
+Sources: session 5d274778 · commit 57cdde9
+```
+
+`mengram resume --open` serves a local page to correct the card, confirm it (confirmed text is never redrafted), pick another task or copy the context for a new session. The card lives in `~/.mengram/resume/` and needs no account; only the draft of task/done/remaining uses a model.
+
 ### No account? Keep the memory in a folder
 
 ```bash

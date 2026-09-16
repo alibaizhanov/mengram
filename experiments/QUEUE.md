@@ -145,6 +145,28 @@ Verify (pre-registered): zero wrong archives on the E4 cases without the four
   guards enabled; support/companion recall@old within 0.05 of E4; no increase
   in stored duplicates (junk_rate not worse). Else keep the guards and reject.
 
+## E6 [~] `mengram resume` — a task card across sessions and agents (Orca)
+Hypothesis: a task card written at Stop (task, done, remaining, last check
+  with the commit it was run on, files, sources) and injected at the next
+  SessionStart — keyed by git remote + branch, so it follows a task across
+  Orca worktrees and machines — reduces the three costs of a session
+  transition: re-explaining the task, missing a constraint that was already
+  known, redoing work already done. The comparison is the honest alternative:
+  a STATUS.md the agent maintains in the repo.
+Method: local/resume.py; deterministic parts from the transcript tail
+  (files, commands, last test result, HEAD) as in the checkpoint; "done /
+  remaining / last check" drafted by one model call through the cloud API
+  when a key exists, marked as the agent's draft until the person confirms
+  on the page; `mengram resume` prints the card, `--open` renders a local
+  page to correct it, pick another task, copy context. Ten real session
+  transitions on our own work, alternating card / STATUS.md, at least four
+  inside Orca worktrees; each transition's first 10 minutes read from the
+  transcript and scored on the three counts.
+Verify (pre-registered): over 10 transitions the card is not worse than
+  STATUS.md on any of the three counts and better on at least two (fewer
+  re-explanations, fewer missed constraints, fewer redone steps). Else the
+  hypothesis stops here and STATUS.md is what we recommend.
+
 ## E3 [ ] Small extractor vs frontier — the CentML bet (gated on E0 + E1)
 Hypothesis: a 1–3B model fine-tuned on clean extractions (E1-filtered) matches
   the frontier model on E0 recall@old within 3 points at <= 1/10 the cost.
