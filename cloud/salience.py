@@ -39,6 +39,16 @@ love enjoy prefer usual always often sometime still already recent just current
 real also again task todo should would could will can may might must
 request receive express state report confirm decide claim describe""".split())
 
+#: What makes a reported remark or a request worth keeping anyway: a standing
+#: habit, a decision or its outcome, a version, a number, a name. E2 found the
+#: reported-speech and request rules dropping "noted that the service is pinned
+#: to Python 3.12" and "requested pickup at the airport desk as usual" — the
+#: extractor had phrased durable facts as speech, and the answers went with them.
+DURABLE = re.compile(
+    r"\b(always|never|every (time|rental|trip|week|day|morning)|as usual|usually|by default|"
+    r"prefers?|preferred|pinned|default|fixed|decided|switch(ed|ing)|chose|rejected|moved to|"
+    r"migrated|uses?|runs? on|version|v?\d+(\.\d+)+|\d{2,})\b", re.I)
+
 #: A fact about the conversation rather than about the entity.
 CHATTER = re.compile(
     r"\b(in (the|this) (conversation|chat|session)|multiple times|several times|"
@@ -69,9 +79,13 @@ RELATION_ECHO = re.compile(
 #: The assistant's own actions this session are a log, not memory.
 ASSISTANT_NAMES = {"assistant", "ai", "the assistant", "ai assistant", "claude", "chatgpt", "codex", "bot"}
 ASSISTANT_LOG = re.compile(
-    r"^(confirmed|checked|ran|tested|fixed|created|updated|wrote|suggested|recommended|"
+    r"^(confirmed|checked|ran|re-ran|tested|fixed|created|updated|wrote|suggested|recommended|"
     r"explained|said|told|plans? to|planned|will|helped|provided|offered|noted|"
-    r"apologi[sz]ed|agreed|responded|replied|asked)\b", re.I)
+    r"apologi[sz]ed|agreed|responded|replied|asked|bumped|estimated|identified|renamed|"
+    r"applied|informed|reviewed|indicated|(is|was) (re-)?\w+ing|\w+ed)\b", re.I)
+
+#: What an assistant entity may keep: how it should behave, not what it did.
+ASSISTANT_STANDING = re.compile(r"\b(prefers?|should|must|always|never|is expected to|is allowed to|may not)\b", re.I)
 
 _MONTHS = set("january february march april may june july august september october november december".split())
 
@@ -125,16 +139,16 @@ def reason_to_drop(fact: str, entity: str | None = None) -> str | None:
         return "one word"
     if CHATTER.search(text):
         return "about the conversation, not the person"
-    if QUESTION.match(text):
+    if QUESTION.match(text) and not DURABLE.search(text):
         return "a question asked, not a fact"
-    if REPORTED.match(text):
+    if REPORTED.match(text) and not DURABLE.search(text):
         return "reported speech, not a fact"
     if EPHEMERAL.match(text):
         return "a passing state"
-    if REQUEST.search(text):
+    if REQUEST.search(text) and not DURABLE.search(text):
         return "a request made this session"
     ent = (entity or "").strip().lower()
-    if ent in ASSISTANT_NAMES and ASSISTANT_LOG.match(text):
+    if ent in ASSISTANT_NAMES and ASSISTANT_LOG.match(text) and not ASSISTANT_STANDING.search(text):
         return "assistant's own action this session"
     if ent and ent not in ("user",) and RELATION_ECHO.match(text):
         return "restates a relation from the other end"

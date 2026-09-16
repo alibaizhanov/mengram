@@ -105,3 +105,24 @@ def test_second_round_of_e0_leftovers():
     for f in ["is diabetic", "is a vegetarian", "has a long commute to Oslo", "feels strongly about privacy",
               "is good at chess", "was born in Riga"]:
         assert reason_to_drop(f, "Ali") is None, f
+
+
+def test_e2_reported_or_requested_facts_that_carry_a_value_are_kept():
+    """E2 (2026-09-16): the extractor phrases durable facts as speech; the gate
+    dropped the answers to five benchmark questions with them."""
+    for f in ["noted that the service is pinned to Python 3.12",
+              "noted that the pool timeouts were fixed by switching to the session-mode pooler",
+              "requested full coverage every time", "requested pickup at the airport desk as usual",
+              "mentioned that production runs on port 5432", "asked for the Visa ending 4471 to be used by default"]:
+        assert reason_to_drop(f, "Ali") is None, f
+    for f in ["mentioned the weather looks grim", "requested pickup at the airport desk",
+              "asked for a good stretch after running", "noted that the day was long"]:
+        assert reason_to_drop(f, "Ali") is not None, f
+
+
+def test_assistant_work_log_is_dropped_whatever_the_verb():
+    for f in ["bumped the dependency", "identified a flaky integration test", "is re-running a flaky integration test",
+              "reviewed the PR and found two nits", "renamed a variable across the module", "estimated migration time to be about twenty minutes"]:
+        assert reason_to_drop(f, "Assistant"), f
+    assert reason_to_drop("should always answer in Russian", "Assistant") is None
+    assert reason_to_drop("bumped the dependency", "Ali") is None

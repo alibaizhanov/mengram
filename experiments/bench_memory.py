@@ -283,9 +283,26 @@ def _keys(value: str) -> list[str]:
     return [t for t in toks if t not in _STOP] or toks
 
 
+def _stem(w: str) -> str:
+    for suf in ("ing", "ies", "ed", "es", "s"):
+        if len(w) > len(suf) + 2 and w.endswith(suf):
+            return w[: -len(suf)]
+    return w
+
+
 def _matches(answer: str, value: str) -> bool:
+    """The answer carries the value: every key word of the value appears in
+    the answer (stems, so "raised pool_max" matches "raising pool_max"), or the
+    answer is a non-empty subset of the value's key words ("session-mode
+    pooler" for "switching to the session-mode pooler", "yes" for "yes, one
+    child seat"). E2 (2026-09-16) scored three correct answers as misses under
+    the all-keys rule."""
     a = answer.lower()
-    return all(k in a for k in _keys(value))
+    vk = [_stem(k) for k in _keys(value)]
+    ak = [_stem(k) for k in _keys(answer)] if answer.strip() else []
+    if all(k in a or k in ak for k in vk):
+        return True
+    return bool(ak) and len(ak) <= len(vk) and all(k in vk for k in ak)
 
 
 def score_answer(ans: str, correct: str, distractor: str) -> str:

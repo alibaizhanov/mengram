@@ -12,7 +12,9 @@ def main():
     ap.add_argument("--users", type=int, default=1000)
     a = ap.parse_args()
     rows = {}
-    for p in glob.glob(str(HERE / "results" / "e2-*" / "result.json")):
+    # full-history numbers from e2; memory numbers from the latest e2* run
+    # (e2b = after the gate fix E2 found), so the report reflects what ships.
+    for p in sorted(glob.glob(str(HERE / "results" / "e2*" / "result.json"))):
         s = json.load(open(p))["summary"]; rows[(s["system"], s["type"], s["scale"])] = s
     print(f"Context tokens per request (exact, o200k_base), full history vs Mengram (gate on, 1 chunk, 600-token budget)")
     print(f"{'type':10}{'sc':3}{'days':>5}{'full':>8}{'mem':>7}{'ratio':>7}{'recall full':>12}{'recall mem':>11}")
