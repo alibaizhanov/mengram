@@ -128,6 +128,23 @@ Verify (pre-registered): support M and L mean recall@old >= 0.75 over 3
   repeats, junk_rate not worse than e2b/e2c, companion/coding unchanged
   within 0.05.
 
+## E5 [ ] State transitions as a relation, not a yes/no (u/ThomasBuildLab, r/AI_Agents 2026-09-16)
+Hypothesis: the contradiction pass fails because it answers a binary question
+  ("does new contradict old?") and then archives. If the model instead labels
+  the relation of each new fact to the closest existing one — confirms /
+  contradicts / supersedes / refines / independent / insufficient — and
+  deterministic rules decide the transition per label (only "supersedes" may
+  archive, "refines" merges detail into the old row, "confirms" bumps
+  confidence, "insufficient" writes nothing), the four E4 guards become
+  consequences of the rules rather than patches, and the fifth case does not
+  need a fifth guard.
+Method: relation-labelling prompt with a JSON enum; transition table in code;
+  provenance kept on every superseded row; replay the E4 archive log and the
+  support/companion corpora; count wrong archives and missed supersessions.
+Verify (pre-registered): zero wrong archives on the E4 cases without the four
+  guards enabled; support/companion recall@old within 0.05 of E4; no increase
+  in stored duplicates (junk_rate not worse). Else keep the guards and reject.
+
 ## E3 [ ] Small extractor vs frontier — the CentML bet (gated on E0 + E1)
 Hypothesis: a 1–3B model fine-tuned on clean extractions (E1-filtered) matches
   the frontier model on E0 recall@old within 3 points at <= 1/10 the cost.

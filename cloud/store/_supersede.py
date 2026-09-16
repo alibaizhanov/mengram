@@ -13,12 +13,30 @@ A vaguer restatement dropped the value; a statement about one occasion
 overrode a standing habit; a one-off use overrode the default. None is a
 contradiction. The model is asked not to do this, and these checks make sure
 of it, because the archive is where an end user's identifiers go to die.
+
+The four rules are a taxonomy of transitions a newer fact may NOT make, named
+so the fifth has somewhere to go (u/alexpran, r/AI_Agents, 2026-09-16):
+
+    VAGUER_LOSES_VALUE     the new fact drops an identifier the old one carries
+    OCCASION_VS_STANDING   one occasion does not override a standing habit
+    ONE_OFF_VS_DEFAULT     a one-off past action does not override the default
+    SOMEONE_ELSES_VALUE    another person's value never replaces the person's
+
+`why_not_supersede` returns the rule's name-shaped reason. The larger reframing
+(a new assertion is a confirmation / contradiction / supersession / refinement /
+independent fact / insufficient evidence, with deterministic transition rules
+keyed on that relation and the model only proposing the relation) is queued as
+E5 in experiments/QUEUE.md; these rules are what shipped after four failures.
 """
 from __future__ import annotations
 
 import re
 
 from cloud.store._naming import RELATION_WORDS
+VAGUER_LOSES_VALUE = "vaguer-loses-value: new fact drops the value the old one carries"
+OCCASION_VS_STANDING = "occasion-vs-standing: a statement about one occasion does not override a standing fact"
+ONE_OFF_VS_DEFAULT = "one-off-vs-default: a one-off use does not override the default"
+SOMEONE_ELSES_VALUE = "someone-elses-value: new fact is about someone else"
 
 #: An identifier, a number, a version: the part of a fact that answers a question.
 VALUE = re.compile(r"\b(?:[A-Z]{1,5}-?\d{2,}[A-Z\d-]*|\d+(?:\.\d+)+|\d{2,}|#\d+)\b")
@@ -53,11 +71,11 @@ def why_not_supersede(old: str, new: str) -> str | None:
     old_s, new_s = (old or "").strip(), (new or "").strip()
     old_v, new_v = values(old_s), values(new_s)
     if old_v and not new_v:
-        return "new fact drops the value the old one carries"
+        return VAGUER_LOSES_VALUE
     if _RELATION.search(new_s) and not _RELATION.search(old_s):
-        return "new fact is about someone else"
+        return SOMEONE_ELSES_VALUE
     if STANDING.search(old_s) and SCOPED.search(new_s) and not STANDING.search(new_s):
-        return "a statement about one occasion does not override a standing fact"
+        return OCCASION_VS_STANDING
     if ONE_OFF.match(new_s) and not ONE_OFF.match(old_s) and (STANDING.search(old_s) or old_v):
-        return "a one-off use does not override the default"
+        return ONE_OFF_VS_DEFAULT
     return None
