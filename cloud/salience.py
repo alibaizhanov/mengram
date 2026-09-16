@@ -65,11 +65,12 @@ EPHEMERAL = re.compile(r"^(is|was|feels?|feeling|felt|had|has|having|seems|seeme
                        r"stressed|busy|fine|okay|ok|good|bad|great|rough|long|nice)( day| night| week| one| today)?$", re.I)
 
 #: A request made this session ("recommend a film"), stored as an interest.
-REQUEST = re.compile(r"\b(recommendations?|suggestions?)\b|^(seeking|looking for|requested|wants? (a |an |some )?"
-                     r"(idea|ideas|help|advice|tip|tips))\b", re.I)
+REQUEST = re.compile(r"\b(recommendations?|suggestions?)\b|^(seeking|looking for|requested|asked for|wants?) "
+                     r"(a |an |some |the )?(idea|ideas|help|advice|tip|tips|info|information|options?|list|link|"
+                     r"recommendation|suggestion)s?\b|^(asks?|asked|requested|wants?) (for )?[\w' -]{0,40} to (do|try|watch|read|eat|visit|listen to)\b", re.I)
 
 #: A question the person asked, recorded as if it were a fact about them.
-QUESTION = re.compile(r"^(asks?|asked|asking|wants to know|wonders|wondered|inquired) (for|about|how|what|whether|if|why|when|where)\b", re.I)
+QUESTION = re.compile(r"^(asks?|asked|asking|wants to know|wonders|wondered|inquired) (about|how|what|whether|if|why|when|where)\b", re.I)
 
 #: A fact that only restates a relation from the other end.
 RELATION_ECHO = re.compile(

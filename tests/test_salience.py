@@ -96,7 +96,7 @@ def test_second_round_of_e0_leftovers():
               "mentioned the weather looks grim", "noted the weather looks grim", "commented on the grim weather",
               "observed grim weather", "mentioned grey skies all week according to the forecast",
               "interested in film recommendations", "seeking film recommendations",
-              "wants a film recommendation for tonight", "asked for a good stretch after running"]:
+              "wants a film recommendation for tonight", "asked for some tips on stretching"]:
         assert reason_to_drop(f, "Ali") is not None, f
     assert reason_to_drop("is the dog of User", "Pixel")
     kept, _ = gate(["is tired", "feels tired", "feeling tired"], entity="Ali")
@@ -115,8 +115,8 @@ def test_e2_reported_or_requested_facts_that_carry_a_value_are_kept():
               "requested full coverage every time", "requested pickup at the airport desk as usual",
               "mentioned that production runs on port 5432", "asked for the Visa ending 4471 to be used by default"]:
         assert reason_to_drop(f, "Ali") is None, f
-    for f in ["mentioned the weather looks grim", "requested pickup at the airport desk",
-              "asked for a good stretch after running", "noted that the day was long"]:
+    for f in ["mentioned the weather looks grim", "requested a recommendation for a film",
+              "asked for some tips on stretching", "noted that the day was long"]:
         assert reason_to_drop(f, "Ali") is not None, f
 
 
@@ -126,3 +126,10 @@ def test_assistant_work_log_is_dropped_whatever_the_verb():
         assert reason_to_drop(f, "Assistant"), f
     assert reason_to_drop("should always answer in Russian", "Assistant") is None
     assert reason_to_drop("bumped the dependency", "Ali") is None
+
+
+def test_e4_requested_preference_is_a_fact_not_a_session_request():
+    for f in ["requested pickup at the central station office", "asked for an automatic car", "wants an e-receipt to work email"]:
+        assert reason_to_drop(f, "Ali") is None, f
+    for f in ["requested a recommendation for a film", "asked for help with the stretch", "wants some ideas for dinner", "asked for the list of options"]:
+        assert reason_to_drop(f, "Ali") is not None, f

@@ -8,6 +8,7 @@ import json
 import math
 import time
 
+from ._supersede import why_not_supersede as _why_not_supersede
 from ._common import (  # noqa: F401
     logger, _safe_parse_json,
 )
@@ -553,6 +554,13 @@ Rules:
 - DO NOT flag facts that are merely similar, overlapping, or about the same topic.
 - DO NOT flag a detailed fact because a vaguer new fact covers the same subject.
 - DO NOT flag duplicates or redundant facts — that is handled elsewhere.
+- NEVER flag an existing fact because a new fact is a vaguer version of it
+  ("has loyalty number LR-11560" is NOT contradicted by "has a loyalty number").
+- NEVER flag a standing fact ("always needs one child seat", "uses Visa ending 4471")
+  because of a statement about one occasion ("no child seat for the business trip",
+  "used Mastercard for a hotel"). The habit stands; the occasion is a separate fact.
+- NEVER flag a fact about the person because of a fact about someone else
+  (a wife's, colleague's or brother's number is not the person's new number).
 - If unsure, keep the existing fact.
 
 For each real contradiction return the EXACT old string (from EXISTING) and the EXACT new string (from NEW) that replaces it.
@@ -610,6 +618,14 @@ No markdown, no explanation."""
                     f"⚠️ Supersede skipped: truncation (old={len(old_fact)}ch, new={len(new_fact)}ch): "
                     f"old={old_fact[:80]!r} new={new_fact[:80]!r}"
                 )
+                continue
+
+            # Guard 5: the cases E4 found in the archive (cloud/store/_supersede.py):
+            # a vaguer restatement, one occasion vs a standing habit, a one-off
+            # use vs the default, someone else's value.
+            reason = _why_not_supersede(old_fact, new_fact)
+            if reason:
+                logger.info(f"⚠️ Supersede skipped ({reason}): old={old_fact[:80]!r} new={new_fact[:80]!r}")
                 continue
 
             with self._cursor() as cur:

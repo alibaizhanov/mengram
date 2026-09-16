@@ -109,7 +109,7 @@ Verify (pre-registered): the ratio holds on M and L with recall@old within 5
   points. If recall@old drops more, the budget cut is losing answers and the
   cost report must show that too.
 
-## E4 [ ] Value retention in extraction — the support defect E2 found
+## E4 [~] Value retention in extraction — the support defect E2 found
 Hypothesis: the extractor drops or misattributes concrete values (identifiers,
   card endings, office names, options) that a product's end-user memory
   exists to hold: on support M it stored "has a loyalty number with the
