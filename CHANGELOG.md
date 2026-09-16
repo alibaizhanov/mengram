@@ -1,5 +1,23 @@
 # Changelog
 
+## 2.45.2 — 2026-09-16
+
+### Fixed
+- **The salience gate keeps reported or requested facts that carry a value.**
+  The extractor sometimes phrases a durable fact as speech — "noted that the
+  service is pinned to Python 3.12", "requested pickup at the airport desk as
+  usual" — and 2.45.0's gate dropped those as reported speech and session
+  requests. E2 caught it: the answers to five benchmark questions went with
+  them. A remark, request or question now stays when it carries a standing
+  habit, a decision, a version, a number or a name; "mentioned the weather
+  looks grim" still goes. Measured after the fix: coding 90-day recall of old
+  facts 0.75 → 0.88, support 0.62 → 0.75, support 7-day 0.83 → 1.00.
+- **The assistant's work log is dropped whatever the verb.** "bumped the
+  dependency", "reviewed the PR and found two nits", "is re-running a flaky
+  test" on the Assistant entity are a session log, not memory; the rule used
+  to know only a dozen verbs. Standing instructions ("should always answer in
+  Russian") are kept.
+
 ## 2.45.1 — 2026-09-16
 
 ### Changed

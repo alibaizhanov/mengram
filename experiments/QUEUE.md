@@ -93,7 +93,12 @@ Verify (pre-registered): a policy is accepted if recall@old >= P0 - 0.05 and
   tokens/question <= 0.6 x P0 on the same three memories; among accepted, the
   cheapest wins and ships as the default. Else reject with numbers.
 
-## E2 [~] Cost report — measure before selling it
+## E2 [x] Cost report — measure before selling it
+Result 2026-09-16: tokens per request, memory vs full history, exact counts:
+  M 9.4-17x, L 23-62x (target 5x / 10x) — met. Recall: companion memory >=
+  full history; coding -12 (noise floor); support M 0.25 vs 0.62 — extraction
+  loses values (loyalty number, pickup office, card) → E4. Gate fix shipped
+  as 2.45.2. Report: experiments/cost_report.py (prices are stated inputs).
 Hypothesis: for a builder's account, "tokens of context per request with
   memory" vs "full history per request" differs by >= 5x at M scale and
   >= 10x at L scale, with recall@old within 5 points of full-history.
@@ -103,6 +108,22 @@ Method: on E0 corpora, run both strategies (max_tokens budget vs. concatenated
 Verify (pre-registered): the ratio holds on M and L with recall@old within 5
   points. If recall@old drops more, the budget cut is losing answers and the
   cost report must show that too.
+
+## E4 [ ] Value retention in extraction — the support defect E2 found
+Hypothesis: the extractor drops or misattributes concrete values (identifiers,
+  card endings, office names, options) that a product's end-user memory
+  exists to hold: on support M it stored "has a loyalty number with the
+  Assistant" (LR-11560 gone), never extracted "the central station office",
+  put the customer's card on the Assistant entity. An extraction rule that
+  keeps identifiers/numbers/named options verbatim on the person who owns
+  them lifts support M/L recall@old to >= 0.75 with junk not worse than now.
+Method: read engine/extractor prompt; add the exact support turns as tests;
+  fix; re-run mengram support S/M/L x3 on the local stack (under caffeinate).
+  Also decide what the contradiction pass should do with a scoped later
+  statement ("no child seat for the business trip" vs "needs one child seat").
+Verify (pre-registered): support M and L mean recall@old >= 0.75 over 3
+  repeats, junk_rate not worse than e2b/e2c, companion/coding unchanged
+  within 0.05.
 
 ## E3 [ ] Small extractor vs frontier — the CentML bet (gated on E0 + E1)
 Hypothesis: a 1–3B model fine-tuned on clean extractions (E1-filtered) matches
