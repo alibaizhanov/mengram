@@ -171,3 +171,170 @@ def test_render_shows_the_test_command_not_the_heredoc_behind_it(repo, tmp_path)
     card["last_check"]["command"] = "cd x && python3 - <<'EOF'\nlots of code\nEOF"
     block = resume.render(card, r)
     assert "Last check: `cd x && python3 - <<'EOF'` →" in block and "lots of code" not in block
+
+
+@pytest.mark.parametrize("cmd", [
+    "pytest -q tests/",
+    "cd x && python3 -m pytest tests/test_resume.py -q 2>&1 | tail -3",
+    ".venv/bin/pytest -x",
+    "/Library/Frameworks/Python.framework/Versions/3.12/bin/python3 -m pytest -q",
+    "PYTHONPATH=. uv run pytest -k 'resume or host'",
+    "python3 -m unittest discover",
+    "npm run test",
+    "timeout 600 cargo test --all",
+])
+def test_a_test_run_counts_as_the_last_check(cmd):
+    assert resume.is_test_command(cmd)
+
+
+@pytest.mark.parametrize("cmd", [
+    # 2026-09-16: this `ps` became the card's "last check" inside Orca.
+    "cd x; ps -eo pid,command | grep -Ei 'python|node|mengram|uvicorn|pytest|bench|run_' | grep -v grep",
+    "grep -rn pytest tests/",
+    "git commit -m \"fix: pytest collection\"",
+    "cat > t.sh <<'EOF'\npytest -q\nEOF",
+    "pip install pytest",
+    "ls tests | grep -i jest",
+])
+def test_a_command_that_only_mentions_a_runner_does_not(cmd):
+    assert not resume.is_test_command(cmd)
+
+
+@pytest.mark.parametrize("transcript,env,expected", [
+    # Orca exports CODEX_HOME into every terminal, Claude Code's included.
+    ("/Users/a/.claude/projects/-x/s.jsonl", {"CODEX_HOME": "/o/codex-runtime-home/home", "CLAUDECODE": "1"}, "claude-code"),
+    ("", {"CODEX_HOME": "/o/codex-runtime-home/home", "CLAUDECODE": "1"}, "claude-code"),
+    ("/Users/a/Library/Application Support/orca/codex-runtime-home/home/sessions/r.jsonl",
+     {"CODEX_HOME": "/o/codex-runtime-home/home", "CLAUDECODE": "1"}, "codex"),
+    ("/Users/a/.codex/sessions/2026/09/16/rollout.jsonl", {}, "codex"),
+    ("", {"CODEX_HOME": "/Users/a/.codex"}, "codex"),
+    ("", {}, "claude-code"),
+])
+def test_hook_tool_reads_the_transcript_before_the_environment(transcript, env, expected, monkeypatch):
+    for name in ("CODEX_HOME", "CLAUDECODE"):
+        monkeypatch.delenv(name, raising=False)
+    for name, value in env.items():
+        monkeypatch.setenv(name, value)
+    assert cli._hook_tool(argparse_ns(), {"transcript_path": transcript}) == expected
+
+
+def argparse_ns(**kw):
+    import argparse
+    return argparse.Namespace(**kw)
+
+
+def _start(monkeypatch, cwd, session_id):
+    """Run the SessionStart hook with no account; return (context, systemMessage)."""
+    monkeypatch.setattr(cli, "_load_cloud_api_key", lambda: "")
+    monkeypatch.delenv("MENGRAM_MEMORY_DIR", raising=False)
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps({"session_id": session_id, "source": "startup", "cwd": str(cwd)})))
+    out = io.StringIO(); monkeypatch.setattr(sys, "stdout", out)
+    with pytest.raises(SystemExit):
+        cli.cmd_auto_context(_Args(no_weekly=True))
+    d = json.loads(out.getvalue())
+    return (d.get("hookSpecificOutput") or {}).get("additionalContext", ""), d.get("systemMessage", "")
+
+
+def _stop(monkeypatch, cwd, session_id, transcript, **args):
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps({"session_id": session_id, "transcript_path": str(transcript),
+                                                              "cwd": str(cwd), "last_assistant_message": "Done for now, tests pass."})))
+    monkeypatch.setattr(sys, "stdout", io.StringIO())
+    with pytest.raises(SystemExit):
+        cli.cmd_auto_save(_Args(every=1, **args))
+
+
+def test_a_new_worktree_is_told_about_other_cards_not_handed_one(repo, tmp_path, monkeypatch):
+    """Orca: each agent gets its own worktree and branch. The newest card of
+    another branch is usually another agent's task, so it is not injected."""
+    r, git = repo
+    card = resume.build(_transcript(tmp_path / "t.jsonl"), "s1", str(r))
+    resume.apply_draft(card, {"task": "Prepare the Dify example", "remaining": ["import into Dify"]}); resume.save(card)
+    wt = tmp_path / "wt-agent2"
+    git("worktree", "add", "-q", "-b", "agent2/other-task", str(wt))
+    ctx, msg = _start(monkeypatch, wt, "s2")
+    assert "no task card for this branch" in ctx and "1 card(s)" in ctx and "from branch main" in ctx
+    assert "Prepare the Dify example" not in ctx and "import into Dify" not in ctx
+    assert resume.load(card["key"]).get("read_by") is None      # not handed, not recorded
+    # asked for explicitly, it is still there
+    found, relation = resume.load_for(wt)
+    assert relation == "other-branch" and found["task"] == "Prepare the Dify example"
+
+
+def test_a_parallel_session_on_the_same_branch_does_not_inherit_the_task(repo, tmp_path, monkeypatch):
+    """Two sessions on one checkout: B never saw A's card, so B's Stop must
+    not carry A's task into B's card (2026-09-16, a live card mixed them)."""
+    r, _ = repo
+    monkeypatch.setattr(cli, "_load_cloud_api_key", lambda: "")
+    monkeypatch.delenv("MENGRAM_MEMORY_DIR", raising=False)
+    a = resume.build(_transcript(tmp_path / "a.jsonl"), "A", str(r))
+    resume.apply_draft(a, {"task": "Release 2.47.0", "remaining": ["push tags"]}); resume.save(a)
+    _stop(monkeypatch, r, "B", _transcript(tmp_path / "b.jsonl", with_tests=False))
+    card = resume.load(a["key"])
+    assert card["session"] == "B" and card["task"] == "" and card["remaining"] == []
+    assert card["last_check"]["result"].startswith("4 passed")   # a verified fact with its commit stays
+
+
+def test_a_session_handed_the_card_carries_the_task_forward(repo, tmp_path, monkeypatch):
+    r, _ = repo
+    a = resume.build(_transcript(tmp_path / "a.jsonl"), "A", str(r))
+    resume.apply_draft(a, {"task": "Release 2.47.0", "remaining": ["push tags"]}); resume.save(a)
+    ctx, _ = _start(monkeypatch, r, "C")
+    assert ctx.startswith("[Mengram resume") and "Release 2.47.0" in ctx
+    assert resume.load(a["key"])["read_by"] == ["C"]
+    _stop(monkeypatch, r, "C", _transcript(tmp_path / "c.jsonl", with_tests=False))
+    card = resume.load(a["key"])
+    assert card["session"] == "C" and card["task"] == "Release 2.47.0" and card["remaining"] == ["push tags"]
+
+
+def test_a_confirmed_card_survives_any_session(repo, tmp_path, monkeypatch):
+    r, _ = repo
+    monkeypatch.setattr(cli, "_load_cloud_api_key", lambda: "")
+    monkeypatch.delenv("MENGRAM_MEMORY_DIR", raising=False)
+    a = resume.build(_transcript(tmp_path / "a.jsonl"), "A", str(r))
+    resume.confirm(a, task="Ship the Orca fixes", remaining=["release"]); resume.save(a)
+    _stop(monkeypatch, r, "B", _transcript(tmp_path / "b.jsonl", with_tests=False))
+    card = resume.load(a["key"])
+    assert card["task"] == "Ship the Orca fixes" and card["draft"] is False
+
+
+def _codex_rollout(path: Path):
+    lines = [
+        {"type": "response_item", "payload": {"type": "message", "role": "user", "content": [
+            {"type": "input_text", "text": "<environment_context>\n  <cwd>/repo</cwd>\n</environment_context>"}]}},
+        {"type": "response_item", "payload": {"type": "message", "role": "user", "content": [
+            {"type": "input_text", "text": "Move the export to a background job"}]}},
+        {"type": "response_item", "payload": {"type": "function_call", "name": "shell",
+                                               "arguments": json.dumps({"command": ["bash", "-lc", "pytest -q"]})}},
+        {"type": "response_item", "payload": {"type": "message", "role": "assistant", "content": [
+            {"type": "output_text", "text": "The export now runs in a job."}]}},
+    ]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(json.dumps(x) for x in lines) + "\n")
+    return path
+
+
+def test_codex_stop_writes_a_codex_card_and_saves_the_persons_words(repo, tmp_path, monkeypatch):
+    r, _ = repo
+    sent = {}
+
+    class FakeMemory:
+        def __init__(self, *a, **kw):
+            pass
+
+        def draft_resume(self, payload):
+            return None
+
+        def add(self, messages, **kw):
+            sent["messages"], sent["kw"] = messages, kw
+
+    import cloud.client
+    monkeypatch.setattr(cloud.client, "CloudMemory", FakeMemory)
+    monkeypatch.setattr(cli, "_load_cloud_api_key", lambda: "om-test")
+    monkeypatch.delenv("MENGRAM_MEMORY_DIR", raising=False)
+    monkeypatch.setenv("CLAUDECODE", "1")      # a Codex started from a Claude Code shell
+    t = _codex_rollout(tmp_path / ".codex" / "sessions" / "rollout-1.jsonl")
+    _stop(monkeypatch, r, "cx1", t, host="codex")
+    card = resume.load(resume.card_key(resume.repo_info(r)))
+    assert card["host"] == "codex" and card["prompts"] == ["Move the export to a background job"]
+    assert sent["messages"][0] == {"role": "user", "content": "Move the export to a background job"}
+    assert sent["kw"]["source"] == "codex"

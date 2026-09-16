@@ -37,6 +37,25 @@ TEST_COMMANDS = re.compile(r"\b(pytest|npm (run )?test|pnpm test|yarn test|go te
                            r"make test|python3? -m unittest|rspec|phpunit|mvn test|gradle test)\b")
 TEST_SUMMARY = re.compile(r"(\d+ passed[^\n]{0,80}|\d+ failed[^\n]{0,80}|\d+ errors?[^\n]{0,60}|"
                           r"\bFAILED\b[^\n]{0,80}|\bPASS(ED)?\b[^\n]{0,60}|\bok\b[^\n]{0,60}|Tests:[^\n]{0,80})")
+# A test runner only counts where the shell would run it: at the start of a
+# segment, after env assignments and wrappers. `grep 'pytest|bench'` is not a
+# test run (a `ps | grep` became the card's "last check" on 2026-09-16).
+_HEREDOC_BODY = re.compile(r"<<-?\s*(['\"]?)(\w+)\1[^\n]*\n.*?(?:\n\2\b|\Z)", re.S)
+_QUOTED = re.compile(r"'[^']*'|\"(?:\\.|[^\"\\])*\"")
+_SEGMENT_SPLIT = re.compile(r"&&|\|\||[;|\n()`]|\$\(")
+_RUNNER_PREFIX = re.compile(r"^(?:\w+=\S*\s+|(?:sudo|time|env|nice|timeout\s+\S+|npx|bunx|pnpm exec|"
+                            r"(?:uv|poetry|pipenv|hatch) run)\s+)*(?:\S*/)?")
+_RUNNER = re.compile(r"(?:python3?(?:\.\d+)?\s+-m\s+(?=pytest\b))?" + TEST_COMMANDS.pattern)
+
+
+def is_test_command(cmd: str) -> bool:
+    """Whether a shell command runs a test suite (not merely mentions one)."""
+    text = _QUOTED.sub("''", _HEREDOC_BODY.sub("", cmd or ""))
+    for segment in _SEGMENT_SPLIT.split(text):
+        segment = segment.strip()
+        if segment and _RUNNER.match(segment, _RUNNER_PREFIX.match(segment).end()):
+            return True
+    return False
 
 
 def directory() -> Path:
@@ -129,7 +148,7 @@ def last_test_result(transcript_path) -> dict | None:
             for name, tool_input in checkpoint._tool_uses(content):
                 if name in checkpoint.SHELL_TOOLS:
                     cmd = checkpoint._shell_command(tool_input) or ""
-                    if TEST_COMMANDS.search(cmd):
+                    if is_test_command(cmd):
                         runs.append({"command": cmd[:200], "result": None})
         elif role == "user" and runs and runs[-1]["result"] is None:
             text = _tool_result_text(content)
@@ -181,14 +200,26 @@ def build(transcript_path, session_id: str | None, cwd: str | None, host: str | 
         "task": "", "done": [], "remaining": [], "draft": True, "confirmed_ts": None,
         "draft_hash": None, "draft_ts": None,
     }
-    if previous:
+    if previous and (_continues(previous, session_id) or _confirmed(previous)):
         for k in ("task", "done", "remaining", "draft", "confirmed_ts", "draft_hash", "draft_ts"):
             if previous.get(k) not in (None, "", []):
                 card[k] = previous[k]
         # the person's confirmed text survives; the agent's draft is refreshed by draft()
-        if previous.get("confirmed_ts") and previous.get("draft") is False:
+        if _confirmed(previous):
             card["draft"] = False
     return card
+
+
+def _confirmed(card: dict) -> bool:
+    return bool(card.get("confirmed_ts")) and card.get("draft") is False
+
+
+def _continues(previous: dict, session_id: str | None) -> bool:
+    """Whether this session carries the previous card's draft forward: it wrote
+    that card, or was handed it at start. Two sessions working side by side on
+    one checkout do neither, and one's task must not become the other's."""
+    return bool(session_id) and (previous.get("session") == session_id
+                                 or session_id in (previous.get("read_by") or []))
 
 
 def content_hash(card: dict) -> str:
@@ -243,7 +274,7 @@ def path_for(key: str) -> Path:
 def save(card: dict) -> Path | None:
     try:
         d = directory(); d.mkdir(parents=True, exist_ok=True)
-        p = path_for(card["key"]); tmp = p.with_suffix(".json.tmp")
+        p = path_for(card["key"]); tmp = p.with_suffix(f".json.{os.getpid()}.tmp")
         tmp.write_text(json.dumps(card, ensure_ascii=False, indent=1), encoding="utf-8")
         os.replace(tmp, p)
         return p
@@ -284,6 +315,16 @@ def load_for(cwd, max_age: float = MAX_AGE) -> tuple[dict | None, str]:
             if c.get("remote") == info["remote"] and now - float(c.get("ts") or 0) <= max_age:
                 return c, "other-branch"
     return None, "none"
+
+
+def mark_read(card: dict, session_id: str | None) -> None:
+    """Record that a starting session was handed this card, so its Stop carries
+    the task forward instead of starting a new one."""
+    if not session_id or session_id == card.get("session"):
+        return
+    read_by = [s for s in (card.get("read_by") or []) if s != session_id]
+    card["read_by"] = (read_by + [session_id])[-20:]
+    save(card)
 
 
 def confirm(card: dict, task: str | None = None, done: list | None = None, remaining: list | None = None) -> dict:
@@ -366,6 +407,17 @@ def render(card: dict, cwd=None, relation: str = "exact") -> str:
     if card.get("draft") and (card.get("task") or card.get("done")):
         lines.append("Treat task/done/remaining as the previous agent's reading, not as decisions; the record above it is verbatim.")
     return "\n".join(lines)
+
+
+def other_branch_note(card: dict) -> str:
+    """What a session on a branch without a card is told instead of another
+    branch's task: that cards exist, and how to load one."""
+    now = time.time()
+    n = sum(1 for c in all_cards() if c.get("remote") and c.get("remote") == card.get("remote")
+            and now - float(c.get("ts") or 0) <= MAX_AGE)
+    return (f"🧠 Mengram resume: no task card for this branch. {n} card(s) for this repository, newest from "
+            f"branch {card.get('branch')} ({_age(card.get('ts'))}) — not loaded, it may be another agent's task. "
+            f"`mengram resume` shows it, `mengram resume --open` picks one.")
 
 
 def headline(card: dict, relation: str = "exact") -> str:

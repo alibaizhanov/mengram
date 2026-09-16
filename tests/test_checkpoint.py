@@ -264,16 +264,30 @@ def test_install_into_codex_writes_its_hooks_file(tmp_path, monkeypatch, capsys)
     monkeypatch.setattr(cli, "_load_cloud_api_key", lambda: "om-test")
     cli.cmd_hook_install(_Args(every=3, codex=True))
     data = json.loads((tmp_path / "codex" / "hooks.json").read_text())
-    assert set(data["hooks"]) == {"SessionStart", "UserPromptSubmit", "PreCompact"}
+    assert set(data["hooks"]) == {"SessionStart", "UserPromptSubmit", "PreCompact", "Stop"}
     pre = data["hooks"]["PreCompact"][0]["hooks"][0]
     assert "auto-checkpoint --host codex" in pre["command"]
+    stop = data["hooks"]["Stop"][0]["hooks"][0]
+    assert "auto-save --every 3 --host codex" in stop["command"]
     assert "timeout" not in pre and pre["statusMessage"]
     assert not (tmp_path / "unused.json").exists()   # Claude Code settings untouched
     assert "Codex" in capsys.readouterr().out
 
     cli.cmd_hook_uninstall(_Args())
     data = json.loads((tmp_path / "codex" / "hooks.json").read_text())
-    assert not any(data.get("hooks", {}).get(ev) for ev in ("SessionStart", "UserPromptSubmit", "PreCompact"))
+    assert not any(data.get("hooks", {}).get(ev) for ev in ("SessionStart", "UserPromptSubmit", "PreCompact", "Stop"))
+
+
+def test_inside_orca_codex_hooks_go_to_the_real_home(tmp_path, monkeypatch):
+    """Orca points CODEX_HOME at its runtime copy and rebuilds it from
+    ~/.codex; a hook written into the copy would be dropped."""
+    runtime = str(tmp_path / "orca" / "codex-runtime-home" / "home")
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("CODEX_HOME", runtime)
+    monkeypatch.setenv("ORCA_CODEX_HOME", runtime)
+    assert cli.get_codex_hooks_path() == tmp_path / "home" / ".codex" / "hooks.json"
+    monkeypatch.delenv("ORCA_CODEX_HOME")
+    assert cli.get_codex_hooks_path() == Path(runtime) / "hooks.json"
 
 
 def _sandbox_setup(tmp_path, monkeypatch):

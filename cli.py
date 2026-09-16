@@ -830,7 +830,7 @@ def _cursor_auto_context(args, input_data):
         pass
     card_block, card_line = _resume_block(input_data)
     if card_block:
-        parts.insert(0, card_line + "\n\n" + card_block)
+        parts.insert(0, card_block if card_block == card_line else card_line + "\n\n" + card_block)
     try:
         local_dir = _local_dir(args)
         if local_dir:
@@ -880,13 +880,21 @@ def _write_resume_card(args, input_data, api_key=None):
 
 
 def _resume_block(input_data) -> tuple[str | None, str | None]:
-    """The task card a starting session should see, and the line for the person."""
+    """The task card a starting session should see, and the line for the person.
+
+    Only this branch's card goes into context. In Orca every agent gets its own
+    worktree and branch, so another branch's card is usually another agent's
+    task; the session is told the cards exist and loads one on request."""
     try:
         from local import resume
         cwd = input_data.get("cwd") or os.getcwd()
         card, relation = resume.load_for(cwd)
         if card is None or resume.is_empty(card):
             return None, None
+        if relation != "exact":
+            note = resume.other_branch_note(card)
+            return note, note
+        resume.mark_read(card, input_data.get("session_id"))
         return resume.render(card, cwd, relation), resume.headline(card, relation)
     except Exception:
         return None, None
@@ -923,7 +931,16 @@ def _hook_tool(args, input_data=None) -> str:
     d = input_data or {}
     if "cursor_version" in d or "conversation_id" in d and "generation_id" in d:
         return "cursor"
-    if os.environ.get("CODEX_HOME") or "codex" in str(d.get("transcript_path", "")).lower():
+    # The transcript path names the host before the environment does: Orca
+    # exports CODEX_HOME into every terminal it opens, Claude Code included.
+    transcript = str(d.get("transcript_path", "")).replace("\\", "/").lower()
+    if "/.claude/" in transcript:
+        return "claude-code"
+    if "codex" in transcript:
+        return "codex"
+    if os.environ.get("CLAUDECODE") == "1":
+        return "claude-code"
+    if os.environ.get("CODEX_HOME"):
         return "codex"
     return "claude-code"
 
@@ -1102,7 +1119,16 @@ def cmd_auto_save(args):
         # Extract last user message from transcript
         user_message = ""
         transcript_path = input_data.get("transcript_path", "")
-        if transcript_path and Path(transcript_path).exists():
+        if transcript_path and _hook_tool(args, input_data) == "codex":
+            # A Codex rollout: the shared reader skips its environment and
+            # shell-command wrappers, which are not the person's words.
+            try:
+                from local import checkpoint
+                prompts = checkpoint.snapshot(transcript_path, session_id).get("prompts") or []
+                user_message = prompts[-1] if prompts else ""
+            except Exception:
+                user_message = ""
+        elif transcript_path and Path(transcript_path).exists():
             try:
                 with open(transcript_path, "r") as f:
                     lines = f.readlines()
@@ -2456,7 +2482,7 @@ def cmd_hook_install(args):
         outcome_cmd += mem_arg
 
     if getattr(args, "codex", False):
-        _install_codex_hooks(context_cmd, recall_cmd, checkpoint_cmd, mengram_bin)
+        _install_codex_hooks(context_cmd, recall_cmd, checkpoint_cmd, save_cmd, mengram_bin)
         return
     if getattr(args, "cursor", False):
         _install_cursor_hooks(context_cmd, checkpoint_cmd, restore_cmd, save_cmd, mengram_bin)
@@ -2553,8 +2579,13 @@ def cmd_hook_install(args):
 
 
 def get_codex_hooks_path() -> Path:
-    """Codex reads lifecycle hooks from `~/.codex/hooks.json` (or `CODEX_HOME`)."""
-    return Path(os.environ.get("CODEX_HOME") or (Path.home() / ".codex")) / "hooks.json"
+    """Codex reads lifecycle hooks from `~/.codex/hooks.json` (or `CODEX_HOME`).
+    Inside Orca, CODEX_HOME is Orca's runtime copy, rebuilt from ~/.codex on
+    launch; hooks written there would be dropped, so the real home is used."""
+    home = os.environ.get("CODEX_HOME")
+    if home and home == os.environ.get("ORCA_CODEX_HOME"):
+        home = None
+    return Path(home or (Path.home() / ".codex")) / "hooks.json"
 
 
 def _codex_present() -> bool:
@@ -2679,7 +2710,7 @@ def _uninstall_cursor_hooks() -> bool:
     return removed
 
 
-def _install_codex_hooks(context_cmd, recall_cmd, checkpoint_cmd, mengram_bin):
+def _install_codex_hooks(context_cmd, recall_cmd, checkpoint_cmd, save_cmd, mengram_bin):
     """The same memory under Codex. Its hooks file has Claude Code's shape —
     events, matcher groups, `hookSpecificOutput.additionalContext` back — so
     the handlers are shared and only the file differs. Codex has no `timeout`
@@ -2707,6 +2738,10 @@ def _install_codex_hooks(context_cmd, recall_cmd, checkpoint_cmd, mengram_bin):
         "type": "command", "command": checkpoint_cmd + " --host codex",
         "statusMessage": "Mengram: saving working state",
     })
+    _upsert_hook(settings, "Stop", "mengram auto-save", {
+        "type": "command", "command": save_cmd + " --host codex",
+        "statusMessage": "Mengram: saving",
+    })
 
     hooks_path.parent.mkdir(parents=True, exist_ok=True)
     with open(hooks_path, "w") as f:
@@ -2716,6 +2751,7 @@ def _install_codex_hooks(context_cmd, recall_cmd, checkpoint_cmd, mengram_bin):
     print("  Session context: load profile on session start")
     print("  Auto-recall:     search memory on each prompt")
     print("  Checkpoint:      save the working state before compaction, restore it after")
+    print("  Auto-save:       save the turn and the task card when Codex stops")
     print(f"  Hooks file: {hooks_path}")
     ok, detail = _hook_command_runs(context_cmd)
     if ok:
@@ -2738,7 +2774,8 @@ def _uninstall_codex_hooks() -> bool:
     removed = False
     for event, marker in (("SessionStart", "mengram auto-context"),
                           ("UserPromptSubmit", "mengram auto-recall"),
-                          ("PreCompact", "mengram auto-checkpoint")):
+                          ("PreCompact", "mengram auto-checkpoint"),
+                          ("Stop", "mengram auto-save")):
         removed |= _remove_hook(settings, event, marker)
     if removed:
         with open(hooks_path, "w") as f:
