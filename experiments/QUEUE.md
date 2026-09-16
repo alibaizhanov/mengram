@@ -52,7 +52,13 @@ Progress 2026-09-16: bench_memory.py written (generate/run/report; systems full,
   OPENAI_API_KEY (gpt-4o-mini, T=0). Bench sub-users are named
   bench-<run>-<type>-<scale> in the account; no wipe endpoint yet.
 
-## E1 [~] Salience gate — a classifier that says "do not store this"
+## E1 [x] Salience gate — a classifier that says "do not store this"
+Result 2026-09-16: lexical gate (cloud/salience.py), local stack, 3 valid repeats
+  per arm. recall@old 1.00 in all 18 runs (no needed fact lost). Junk S 0.13→0.08,
+  M 0.38→0.21 (−45%), L 0.58→0.42 (−28%). Junk clause met at M, missed at L: the
+  L remainder is true-but-unasked facts, not paraphrase; a write-time gate should
+  not remove those → E1b (demote by recall history). Classifier on prod labels not
+  done (needs a DB export run by Ali). Recommend shipping the gate on by default.
 Hypothesis: a small classifier over the fact embedding + cheap features
   (entity is "Assistant", verb is session-chatter, fact length, novelty vs
   existing_context) cuts junk stored by >= 50% while dropping < 5% of facts
@@ -65,6 +71,16 @@ Method: export labeled facts (aggregated, no emails), train logistic /
 Verify (pre-registered): junk rate on E0 falls by >= 50% AND recall@old falls
   by < 5 points, on M and L scales (slope must hold, not just S). Else reject
   with numbers.
+
+## E1b [ ] Demote by recall history — the L-scale remainder
+Hypothesis: facts never retrieved in N days are the junk E1 could not see at
+  write time (true, never asked). Demoting them (lower importance / excluded
+  from context_for unless directly matched) cuts L junk-in-context by >= 30%
+  with recall@old unchanged.
+Method: log recall hits per fact (already: usage_log?), replay the E1 L corpus
+  with a 60-day window, compare context contents before/after.
+Verify (pre-registered): junk share of the injected context at L falls >= 30%,
+  recall@old within 0.05 of E1-on, on 3 repeats.
 
 ## E2 [ ] Cost report — measure before selling it
 Hypothesis: for a builder's account, "tokens of context per request with

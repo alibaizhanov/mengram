@@ -161,3 +161,16 @@ reading the Codex source (its own compaction keeps prior user messages verbatim,
 free-form handoff summary, and drops every assistant/tool item, so the checkpoint adds exactly the
 assistant side); named "tried X, dropped it because Y" as the gap neither covers; explained the tolerant
 JSONL reader (rollout format already changed once between versions).
+
+## r/cursor, 2026-09-16 morning — five replies
+- cornmacabre (errata.md living corrections log): conceded it is the better answer to "tried and dropped";
+  offered the agent appending the errata line at stop; asked whether a tool writing into errata.md is acceptable.
+- AbleShower2801 (provenance shape): metadata beside each fact (JSON column: tool, session, timestamp, workspace
+  path), short source tag in the rendered line, host filter at injection time; his Mac-path-on-Linux case = the test.
+- kryptonite84 (plans/docs per solution): honest baseline; breaks across tools/machines; keep it if it works.
+- Frosty_Teeth ("ban memory", 7 upvotes): agreed for one repo/one team; the layer is for cross-tool and for
+  what was tried and dropped.
+- MacaroonAntique (asked for gate results): E1 numbers — recall@old 1.00 in 18 runs, junk 30d 0.38→0.21,
+  90d 0.58→0.42; L remainder is true-but-unasked facts; next signal = recall history; rejected approaches
+  still zero in extraction, the "one line at stop" heuristic came from this thread.
+Owed publicly now: the recall-history demotion (E1b), provenance + host filter, Cursor drift numbers.
