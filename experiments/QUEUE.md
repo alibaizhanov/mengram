@@ -93,7 +93,7 @@ Verify (pre-registered): a policy is accepted if recall@old >= P0 - 0.05 and
   tokens/question <= 0.6 x P0 on the same three memories; among accepted, the
   cheapest wins and ships as the default. Else reject with numbers.
 
-## E2 [ ] Cost report — measure before selling it
+## E2 [~] Cost report — measure before selling it
 Hypothesis: for a builder's account, "tokens of context per request with
   memory" vs "full history per request" differs by >= 5x at M scale and
   >= 10x at L scale, with recall@old within 5 points of full-history.

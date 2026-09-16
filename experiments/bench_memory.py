@@ -239,6 +239,24 @@ def llm(messages, max_tokens=300, json_mode=False) -> str:
             time.sleep(2 * (attempt + 1))
 
 
+_ENC = None
+
+def count_tokens(text: str) -> int:
+    """Exact token count for the answer model's tokenizer (o200k_base: gpt-4o
+    family) when tiktoken is installed; the chars/4 estimate otherwise. E2
+    reports both so the cost ratio does not rest on an estimate."""
+    global _ENC
+    if _ENC is None:
+        try:
+            import tiktoken
+            _ENC = tiktoken.get_encoding("o200k_base")
+        except Exception:
+            _ENC = False
+    if not _ENC:
+        return estimate_tokens(text)
+    return len(_ENC.encode(text or ""))
+
+
 def answer(question: str, context: str) -> str:
     # Without a model key the run still measures retrieval (did the correct
     # value reach the context?) and tokens; the answer column reads "unscored".
@@ -288,7 +306,8 @@ def run_full(turns, truth, opts):
     for c in truth["cases"]:
         ans = answer(c["question"], context)
         rows.append({**c, "answer": ans, "verdict": score_answer(ans, c["correct"], c["distractor"]),
-                     "tokens": estimate_tokens(context), "recalled": _matches(context, c["correct"])})
+                     "tokens": estimate_tokens(context), "tokens_exact": count_tokens(context),
+                     "recalled": _matches(context, c["correct"])})
     return rows, {"stored_facts": None, "junk": None}
 
 
@@ -445,6 +464,7 @@ def run_mengram(turns, truth, opts):
         ans = answer(c["question"], context)
         rows.append({**c, "answer": ans, "verdict": score_answer(ans, c["correct"], c["distractor"]),
                      "tokens": (res.get("budget") or {}).get("used_tokens") or estimate_tokens(context),
+                     "tokens_exact": count_tokens(context),
                      "recalled": _matches(context, c["correct"]), "context": context[:1200]})
     stored = []
     try:
@@ -508,6 +528,7 @@ def cmd_run(a):
         "model": ANSWER_MODEL, "cases": n,
         "recall_at_old": round(sum(r["verdict"] == "correct" for r in rows) / n, 3),
         "distractor_rate": round(sum(r["verdict"] == "distractor" for r in rows) / n, 3),
+        "tokens_exact_per_question": round(sum(r.get("tokens_exact") or 0 for r in rows) / n),
         "retrieved_rate": round(sum(bool(r["recalled"]) for r in rows) / n, 3),
         "tokens_per_question": round(sum(r["tokens"] for r in rows) / n),
         **junk, "seconds": round(time.time() - t0),
