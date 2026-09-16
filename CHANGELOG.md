@@ -1,8 +1,32 @@
 # Changelog
 
-## 2.47.1 — 2026-09-16
+## 2.48.0 — 2026-09-16
+
+Found while running the task card inside Orca, where several agents work in
+parallel worktrees and several sessions can share one checkout.
+
+### Added
+- **Codex writes the task card too.** `mengram hook install --codex` (and
+  `mengram setup`) now adds a Stop hook: the turn is saved as in Claude Code
+  and the card is written, so a task started in Codex can be picked up by
+  Claude Code and back. The person's words are read from Codex's rollout with
+  its environment and shell-command wrappers left out. Existing installs get
+  it by running the install command again; Codex asks to trust the new hook.
+
+### Changed
+- **Only this branch's card goes into a starting session.** A session on a
+  branch with no card used to get the newest card of any branch in the
+  repository; in Orca that is usually another agent's task. It now gets one
+  line — how many cards exist, the newest branch, `mengram resume` to see it.
+- **A card's draft task carries over only to the session that continues it**
+  (the one that wrote it, or one that was handed it at start). Two sessions
+  working side by side on one checkout no longer inherit each other's task;
+  a task the person confirmed still carries over to any session.
 
 ### Fixed
+- **Inside Orca, `hook install --codex` writes `~/.codex/hooks.json`.** Orca
+  points `CODEX_HOME` at its runtime copy and rebuilds it from `~/.codex`, so
+  hooks written into the copy were dropped.
 - **Claude Code inside Orca was recorded as Codex.** Orca exports
   `CODEX_HOME` into every terminal it opens, and the hooks read that before
   anything else, so facts saved from Claude Code in Orca carried

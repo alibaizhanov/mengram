@@ -200,14 +200,26 @@ def build(transcript_path, session_id: str | None, cwd: str | None, host: str | 
         "task": "", "done": [], "remaining": [], "draft": True, "confirmed_ts": None,
         "draft_hash": None, "draft_ts": None,
     }
-    if previous:
+    if previous and (_continues(previous, session_id) or _confirmed(previous)):
         for k in ("task", "done", "remaining", "draft", "confirmed_ts", "draft_hash", "draft_ts"):
             if previous.get(k) not in (None, "", []):
                 card[k] = previous[k]
         # the person's confirmed text survives; the agent's draft is refreshed by draft()
-        if previous.get("confirmed_ts") and previous.get("draft") is False:
+        if _confirmed(previous):
             card["draft"] = False
     return card
+
+
+def _confirmed(card: dict) -> bool:
+    return bool(card.get("confirmed_ts")) and card.get("draft") is False
+
+
+def _continues(previous: dict, session_id: str | None) -> bool:
+    """Whether this session carries the previous card's draft forward: it wrote
+    that card, or was handed it at start. Two sessions working side by side on
+    one checkout do neither, and one's task must not become the other's."""
+    return bool(session_id) and (previous.get("session") == session_id
+                                 or session_id in (previous.get("read_by") or []))
 
 
 def content_hash(card: dict) -> str:
@@ -262,7 +274,7 @@ def path_for(key: str) -> Path:
 def save(card: dict) -> Path | None:
     try:
         d = directory(); d.mkdir(parents=True, exist_ok=True)
-        p = path_for(card["key"]); tmp = p.with_suffix(".json.tmp")
+        p = path_for(card["key"]); tmp = p.with_suffix(f".json.{os.getpid()}.tmp")
         tmp.write_text(json.dumps(card, ensure_ascii=False, indent=1), encoding="utf-8")
         os.replace(tmp, p)
         return p
@@ -303,6 +315,16 @@ def load_for(cwd, max_age: float = MAX_AGE) -> tuple[dict | None, str]:
             if c.get("remote") == info["remote"] and now - float(c.get("ts") or 0) <= max_age:
                 return c, "other-branch"
     return None, "none"
+
+
+def mark_read(card: dict, session_id: str | None) -> None:
+    """Record that a starting session was handed this card, so its Stop carries
+    the task forward instead of starting a new one."""
+    if not session_id or session_id == card.get("session"):
+        return
+    read_by = [s for s in (card.get("read_by") or []) if s != session_id]
+    card["read_by"] = (read_by + [session_id])[-20:]
+    save(card)
 
 
 def confirm(card: dict, task: str | None = None, done: list | None = None, remaining: list | None = None) -> dict:
@@ -385,6 +407,17 @@ def render(card: dict, cwd=None, relation: str = "exact") -> str:
     if card.get("draft") and (card.get("task") or card.get("done")):
         lines.append("Treat task/done/remaining as the previous agent's reading, not as decisions; the record above it is verbatim.")
     return "\n".join(lines)
+
+
+def other_branch_note(card: dict) -> str:
+    """What a session on a branch without a card is told instead of another
+    branch's task: that cards exist, and how to load one."""
+    now = time.time()
+    n = sum(1 for c in all_cards() if c.get("remote") and c.get("remote") == card.get("remote")
+            and now - float(c.get("ts") or 0) <= MAX_AGE)
+    return (f"🧠 Mengram resume: no task card for this branch. {n} card(s) for this repository, newest from "
+            f"branch {card.get('branch')} ({_age(card.get('ts'))}) — not loaded, it may be another agent's task. "
+            f"`mengram resume` shows it, `mengram resume --open` picks one.")
 
 
 def headline(card: dict, relation: str = "exact") -> str:

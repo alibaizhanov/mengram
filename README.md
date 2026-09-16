@@ -91,7 +91,7 @@ Prefer CLI-managed hooks instead of the plugin? `pip install mengram-ai && mengr
 Codex and Cursor fire the same lifecycle events, so the same hooks run there — one memory across all three. `mengram setup` finds them on your machine and installs their hooks; or add them one by one:
 
 ```bash
-mengram hook install --codex      # ~/.codex/hooks.json: session context, recall on every prompt, compaction checkpoint
+mengram hook install --codex      # ~/.codex/hooks.json: session context, recall on every prompt, compaction checkpoint, auto-save + task card
 mengram hook install --cursor     # ~/.cursor/hooks.json: session context, compaction checkpoint (back on the next tool call), auto-save
 ```
 
@@ -101,7 +101,7 @@ Every fact remembers which tool wrote it and when, and recall shows it: `deploys
 
 ### Pick a task up where it was left — `mengram resume`
 
-When an agent stops, the hooks write a task card for the repository and branch: files touched, last commands, the last test run and the commit it ran on, plus the agent's draft of the task, what is done and what remains. The next session in that repository — tomorrow, another agent in another worktree, another machine — gets it first, and is told when the code has moved since the last check:
+When an agent stops, the hooks write a task card for the repository and branch: files touched, last commands, the last test run and the commit it ran on, plus the agent's draft of the task, what is done and what remains. The next session on that branch — tomorrow, another agent in another worktree of it, another machine — gets it first, and is told when the code has moved since the last check. A session on a branch with no card of its own (a fresh Orca worktree, say) is only told that cards exist, since another branch's card is usually another agent's task; `mengram resume` shows it on request:
 
 ```
 $ mengram resume
