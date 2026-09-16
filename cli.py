@@ -619,7 +619,8 @@ def cmd_auto_recall(args):
         user_id = getattr(args, "user_id", None) or os.environ.get("MENGRAM_USER_ID", "default")
 
         # Marked as the user's own automation: not charged to the search quota.
-        mem = CloudMemory(api_key=api_key, base_url=base_url, source="hook")
+        mem = CloudMemory(api_key=api_key, base_url=base_url, source="hook",
+                          host=_hook_host(args, input_data))
         results = mem.search(prompt, user_id=user_id, limit=3, graph_depth=1)
 
         if not results:
@@ -645,8 +646,9 @@ def cmd_auto_recall(args):
             facts = r.get("facts", [])
             if entity and facts:
                 lines.append(f"\n{entity}:")
-                for fact in facts[:5]:
-                    lines.append(f"  - {fact}")
+                metas = r.get("facts_meta") or []
+                for k, fact in enumerate(facts[:5]):
+                    lines.append(_fact_line(fact, metas[k] if k < len(metas) else None))
 
         context = "\n".join(lines)
         _receipt("recall", session_id)
@@ -847,6 +849,42 @@ def _cursor_auto_context(args, input_data):
                     context="\n\n".join(parts) if parts else None)
 
 
+def _hook_tool(args, input_data=None) -> str:
+    """Which tool this hook is running under: claude-code, codex or cursor."""
+    host = getattr(args, "host", None)
+    if host in ("cursor", "codex", "claude-code"):
+        return host
+    d = input_data or {}
+    if "cursor_version" in d or "conversation_id" in d and "generation_id" in d:
+        return "cursor"
+    if os.environ.get("CODEX_HOME") or "codex" in str(d.get("transcript_path", "")).lower():
+        return "codex"
+    return "claude-code"
+
+
+def _hook_os() -> str:
+    return {"darwin": "darwin", "win32": "windows"}.get(sys.platform, "linux" if sys.platform.startswith("linux") else sys.platform)
+
+
+def _hook_host(args, input_data=None) -> str:
+    """The X-Mengram-Host value: "<os>/<tool>" (cloud/provenance.py)."""
+    return f"{_hook_os()}/{_hook_tool(args, input_data)}"
+
+
+def _hook_provenance(args, input_data, session_id) -> dict:
+    """What a hook records on every fact it saves: tool, session, cwd, os."""
+    return {"source": _hook_tool(args, input_data),
+            "metadata": {"session_id": session_id, "cwd": input_data.get("cwd") or os.getcwd(),
+                         "os": _hook_os(), "tool": _hook_tool(args, input_data)}}
+
+
+def _fact_line(fact, meta=None) -> str:
+    """A recalled fact with its provenance tag: "  - fact  (claude-code, 2026-09-15)"."""
+    from cloud.provenance import tag
+    t = tag(meta)
+    return f"  - {fact}  ({t})" if t else f"  - {fact}"
+
+
 def cmd_auto_context(args):
     """Hook handler — called by Claude Code on SessionStart. Loads cognitive profile as context."""
     HOOK = "auto-context"
@@ -1035,6 +1073,7 @@ def cmd_auto_save(args):
             app_id="claude-code",
             agent_id="auto-save",
             run_id=session_id,
+            **_hook_provenance(args, input_data, session_id),
         )
 
         _receipt("save", session_id)

@@ -91,13 +91,16 @@ class CloudMemory:
     DEFAULT_BASE_URL = "https://mengram.io"
 
     def __init__(self, api_key: str, base_url: str | None = None,
-                 source: str | None = None) -> None:
+                 source: str | None = None, host: str | None = None) -> None:
         self.api_key = api_key
         self.base_url = (base_url or self.DEFAULT_BASE_URL).rstrip("/")
         # "hook" when the caller is the user's own automation (the Claude Code /
         # Codex hooks): searches made that way are not charged to the search
         # quota. See cloud/source.py.
         self.source = source
+        # "<os>/<tool>", e.g. "darwin/claude-code": the server then leaves out
+        # host-specific facts recorded on another host (cloud/provenance.py).
+        self.host = host
 
     @property
     def quota(self) -> dict[str, Any]:
@@ -133,6 +136,8 @@ class CloudMemory:
         }
         if self.source:
             headers["X-Mengram-Source"] = self.source
+        if self.host:
+            headers["X-Mengram-Host"] = self.host
 
         last_err = None
         for attempt in range(3):

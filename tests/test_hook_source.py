@@ -56,7 +56,7 @@ def test_auto_recall_marks_itself_as_a_hook(monkeypatch):
     seen = {}
 
     class Fake:
-        def __init__(self, api_key, base_url=None, source=None):
+        def __init__(self, api_key, base_url=None, source=None, host=None):
             seen["source"] = source
         def search(self, *a, **k):
             return []

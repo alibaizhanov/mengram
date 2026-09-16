@@ -9,6 +9,7 @@ import math
 import time
 
 from ._supersede import why_not_supersede as _why_not_supersede
+from cloud import provenance as _prov
 from ._common import (  # noqa: F401
     logger, _safe_parse_json,
 )
@@ -313,7 +314,7 @@ class SearchMixin:
 
             # Batch facts (exclude archived) — sorted by importance
             cur.execute(
-                """SELECT id, entity_id, content, importance, access_count, last_accessed, event_date
+                """SELECT id, entity_id, content, importance, access_count, last_accessed, event_date, metadata, created_at
                    FROM facts WHERE entity_id = ANY(%s::uuid[]) AND archived = FALSE AND (expires_at IS NULL OR expires_at > NOW())
                    ORDER BY importance DESC""",
                 (entity_ids,)
@@ -341,6 +342,8 @@ class SearchMixin:
                         "content": row["content"],
                         "importance": round(effective_imp, 3),
                         "event_date": row.get("event_date"),
+                        "meta": _prov.meta_summary(row.get("metadata"), row.get("created_at"),
+                                                   row.get("access_count"), row.get("last_accessed")),
                     })
                     fact_ids_accessed.append(str(row["id"]))
 
@@ -390,6 +393,8 @@ class SearchMixin:
                     else f["content"]
                     for f in sorted_facts
                 ]
+                # Provenance, one entry per fact, aligned with `facts` (cloud/provenance.py).
+                entity_map[eid]["facts_meta"] = [f.get("meta") or {} for f in sorted_facts]
 
             # Track fact access — update access_count and last_accessed
             if fact_ids_accessed:

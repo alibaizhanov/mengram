@@ -1,5 +1,28 @@
 # Changelog
 
+## 2.46.0 — 2026-09-16
+
+### Added
+- **Every recalled fact says where it came from.** The hooks now record the
+  tool (`claude-code`, `codex`, `cursor`), the session, the working directory
+  and the OS with every save; MCP saves are marked `mcp`, plain API saves
+  `api`. Search results carry `facts_meta`, one entry per fact aligned with
+  `facts`: `{source, os, cwd, session, when, recalled, last_recalled}` — the
+  last two are how often and when the fact was retrieved, so a fact nobody
+  has asked for in months is visible as such. The hooks and the MCP `recall`
+  tool render a short tag after each fact: `deploys to Fly.io from main
+  (codex, 2026-09-15)`. Facts themselves are not rewritten.
+- **A host does not inherit another host's paths.** A caller that says who it
+  is — `X-Mengram-Host: <os>/<tool>`, which the hooks now send — does not get
+  facts tied to another machine or tool: a `/Users/...` path recorded on a
+  Mac stays out of a Linux session, a `~/.cursor/hooks.json` fact recorded
+  from Cursor stays out of Claude Code. The result says how many were left
+  out (`facts_left_out_for_host`). Callers that send no host see everything,
+  and facts saved before this release carry no host and are never filtered.
+  This is the r/cursor case (2026-09-16): an agent on a Linux box tried to
+  `cd` into a Mac-only workspace path it had inherited through shared memory.
+  `CloudMemory(host="linux/claude-code")` sets the header from Python.
+
 ## 2.45.3 — 2026-09-16
 
 ### Fixed

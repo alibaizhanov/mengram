@@ -767,7 +767,7 @@ def create_cloud_mcp_server(
         try:
             if name == "remember":
                 uid = arguments.get("user_id", user_id)
-                result = mem.add(arguments["conversation"], user_id=uid)
+                result = mem.add(arguments["conversation"], user_id=uid, source="mcp")
                 if result.get("status") == "accepted":
                     text = "✅ Accepted! Processing in background — memories will appear shortly."
                 else:
@@ -788,7 +788,7 @@ def create_cloud_mcp_server(
                 uid = arguments.get("user_id", user_id)
                 result = mem.add([
                     {"role": "user", "content": arguments["text"]},
-                ], user_id=uid)
+                ], user_id=uid, source="mcp")
                 if result.get("status") == "accepted":
                     text = "✅ Accepted! Processing in background."
                 else:
@@ -813,8 +813,11 @@ def create_cloud_mcp_server(
                 lines = []
                 for r in results:
                     lines.append(f"## {r['entity']} ({r.get('type', '?')}) — score: {r.get('score', 0)}")
-                    for fact in r.get("facts", []):
-                        lines.append(f"- {fact}")
+                    metas = r.get("facts_meta") or []
+                    for k_, fact in enumerate(r.get("facts", [])):
+                        m = metas[k_] if k_ < len(metas) else None
+                        t = ", ".join(p for p in ((m or {}).get("source"), (m or {}).get("when")) if p)
+                        lines.append(f"- {fact}  ({t})" if t else f"- {fact}")
                     for k in r.get("knowledge", []):
                         lines.append(f"\n**[{k.get('type', '')}] {k.get('title', '')}**")
                         lines.append(k.get("content", ""))
@@ -1389,7 +1392,7 @@ def create_cloud_mcp_server(
                 result = mem.add([
                     {"role": "user", "content": checkpoint_text},
                     {"role": "assistant", "content": f"Checkpoint saved: {summary[:100]}"},
-                ], user_id=uid)
+                ], user_id=uid, source="mcp")
 
                 saved_items = []
                 if decisions:

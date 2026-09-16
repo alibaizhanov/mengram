@@ -99,7 +99,7 @@ def test_a_prompt_with_no_content_words_recalls_nothing():
 class _FakeMem:
     results = []
 
-    def __init__(self, api_key=None, base_url=None, source=None):
+    def __init__(self, api_key=None, base_url=None, source=None, host=None):
         pass
 
     def search(self, prompt, user_id="default", limit=3, graph_depth=1):

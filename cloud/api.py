@@ -44,6 +44,7 @@ from cloud.site import build_site_router
 from cloud import source as _source
 from cloud import budget as _budget
 from cloud import salience as _salience
+from cloud import provenance as _prov
 from cloud.source import end_user_id as _mcp_end_user_id
 
 
@@ -578,7 +579,9 @@ profile = m.get_profile()             # instant system prompt
                 for eidx in ordered_eidx:
                     r = dict(results[eidx])
                     scored_facts = sorted(entity_facts[eidx], key=lambda x: x[1], reverse=True)
+                    meta_by_fact = dict(zip(results[eidx].get("facts") or [], results[eidx].get("facts_meta") or []))
                     r["facts"] = [f[0] for f in scored_facts[:7]]
+                    r["facts_meta"] = [meta_by_fact.get(f, {}) for f in r["facts"]]
                     # Surface rerank confidence so downstream (and clients) see real relevance,
                     # not the tiny RRF score.
                     r["score"] = float(scored_facts[0][1])
@@ -724,6 +727,22 @@ Be strict — only include entities that directly answer or relate to the query.
         today = datetime.date.today()
         days_in_month = calendar.monthrange(today.year, today.month)[1]
         return (days_in_month - today.day + 1) * 86400
+
+    def _for_host(results, request):
+        """Drop host-specific facts recorded on another host when the caller
+        says who it is (X-Mengram-Host); count what was left out (cloud/provenance.py)."""
+        host = _prov.host_of(request.headers)
+        if not host:
+            return results
+        out = []
+        for r in results or []:
+            facts, metas, dropped = _prov.filter_for_host(r.get("facts") or [], r.get("facts_meta"), host)
+            r = dict(r); r["facts"] = facts; r["facts_meta"] = metas
+            if dropped:
+                r["facts_left_out_for_host"] = dropped
+            if facts or r.get("knowledge") or r.get("relations"):
+                out.append(r)
+        return out
 
     def _validate_max_tokens(value) -> None:
         if value is None:
@@ -3811,9 +3830,9 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                             query_language=_detect_query_language(req.query),
                             result_quality=_quality_label(top_score))
             if req.max_tokens:
-                kept, report = _budget.fit_search(cached, req.max_tokens)
+                kept, report = _budget.fit_search(_for_host(cached, request), req.max_tokens)
                 return {"results": kept, "budget": report}
-            return {"results": cached}
+            return {"results": _for_host(cached, request)}
 
         embedder = get_embedder()
 
@@ -4694,7 +4713,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         after/before: ISO datetime strings (e.g. 2025-02-01T00:00:00Z)"""
         user_id = ctx.user_id
         results = store.search_temporal(user_id, after=after, before=before, top_k=limit, sub_user_id=sub_user_id)
-        return {"results": results}
+        return {"results": _for_host(results, request)}
 
     @app.get("/v1/memories/full", tags=["Memory"])
     async def get_all_full(sub_user_id: str = Query("default"),
@@ -4945,7 +4964,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 user_id, emb, top_k=limit, after=after, before=before, sub_user_id=sub_user_id, query_text=query)
         else:
             results = store.search_episodes_text(user_id, query, top_k=limit, sub_user_id=sub_user_id)
-        return {"results": results}
+        return {"results": _for_host(results, request)}
 
     # ---- Procedural Memory ----
 
@@ -4977,7 +4996,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             results = store.search_procedures_vector(user_id, emb, top_k=limit, sub_user_id=sub_user_id, query_text=query)
         else:
             results = store.search_procedures_text(user_id, query, top_k=limit, sub_user_id=sub_user_id)
-        return {"results": results}
+        return {"results": _for_host(results, request)}
 
     @app.patch("/v1/procedures/{procedure_id}/feedback", tags=["Procedural Memory"])
     async def procedure_feedback(
@@ -5101,7 +5120,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         cache_key = f"searchall:{user_id}:{sub_uid}:{_hashlib.md5(cache_input.encode('utf-8', errors='replace')).hexdigest()}"
         cached = store.cache.get(cache_key)
         if cached:
-            sem = cached.get("semantic") or []
+            sem = _for_host(cached.get("semantic") or [], request)
             top_score = float(sem[0]["score"]) if sem and "score" in sem[0] else 0.0
             store.log_usage(user_id, "search_all",
                             query_score=top_score,
@@ -5156,7 +5175,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         graph_sem = [r for r in semantic if r.get("_graph")]
         if direct_sem and len(direct_sem) > 3:
             direct_sem = rerank_results(req.query, direct_sem, plan=ctx.plan)
-        semantic = (direct_sem + graph_sem)[:req.limit]
+        semantic = _for_host((direct_sem + graph_sem)[:req.limit], request)
         for r in semantic:
             r.pop("_graph", None)
 
