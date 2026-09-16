@@ -1,5 +1,26 @@
 # Changelog
 
+## 2.45.3 — 2026-09-16
+
+### Fixed
+- **The contradiction pass no longer archives a value for a vaguer restatement,
+  a standing fact for one occasion, or the person's fact for someone else's.**
+  E4 read what the pass had archived on a 30-day customer-support history and
+  found the answers to three questions there: "has loyalty number LR-11560"
+  superseded by "has a loyalty number", "always needs one child seat" by "does
+  not need a child seat for the business trip", "uses Visa ending 4471" by
+  "used Mastercard ending 9083 for a hotel". None is a contradiction. Four
+  deterministic guards in `cloud/store/_supersede.py` now refuse those
+  archives (a new fact that drops the identifier the old one carries; a
+  statement about one occasion against a habit; a one-off past action against
+  the default; a wife's, colleague's or brother's value against the person's),
+  and the model is told the same. Support recall of month-old facts went
+  0.25 → 0.875 over three repeats, 90-day 0.75 → 0.83; companion and coding
+  unchanged. A few more facts stay stored (they used to be archived by mistake).
+- **A requested preference is a fact.** The gate treated "requested pickup at
+  the central station office" as a session request; it now drops only asks for
+  advice, ideas, tips, lists and recommendations.
+
 ## 2.45.2 — 2026-09-16
 
 ### Fixed
