@@ -805,7 +805,8 @@ class CloudMemory:
     def search_all(self, query: str, limit: int = 5,
                    user_id: str = "default",
                    graph_depth: int = 2,
-                   max_tokens: int | None = None) -> dict[str, Any]:
+                   max_tokens: int | None = None,
+                   chunks: int | None = None) -> dict[str, Any]:
         """
         Search across all 3 memory types: semantic, episodic, procedural.
 
@@ -816,6 +817,9 @@ class CloudMemory:
             graph_depth: How many hops to traverse in the knowledge graph (default: 2)
             max_tokens: Room the whole reply may take (estimated tokens); the
                 response then carries a `budget` report of what was cut.
+            chunks: How many raw conversation chunks may come back as the
+                fallback for facts extraction missed (server default 1, 0 = off,
+                10 = ceiling). Five chunks were 78% of the tokens in E1b.
 
         Returns:
             {"semantic": [...], "episodic": [...], "procedural": [...], "budget": {...}?}
@@ -823,6 +827,8 @@ class CloudMemory:
         data = {"query": query, "limit": limit, "user_id": user_id, "graph_depth": graph_depth}
         if max_tokens is not None:
             data["max_tokens"] = int(max_tokens)
+        if chunks is not None:
+            data["chunks"] = int(chunks)  # raw-conversation fallback; server default 1, 0 = off
         return self._request("POST", "/v1/search/all", data=data)
 
     # ---- Agents ----

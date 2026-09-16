@@ -72,15 +72,26 @@ Verify (pre-registered): junk rate on E0 falls by >= 50% AND recall@old falls
   by < 5 points, on M and L scales (slope must hold, not just S). Else reject
   with numbers.
 
-## E1b [ ] Demote by recall history — the L-scale remainder
-Hypothesis: facts never retrieved in N days are the junk E1 could not see at
-  write time (true, never asked). Demoting them (lower importance / excluded
-  from context_for unless directly matched) cuts L junk-in-context by >= 30%
-  with recall@old unchanged.
-Method: log recall hits per fact (already: usage_log?), replay the E1 L corpus
-  with a 60-day window, compare context contents before/after.
-Verify (pre-registered): junk share of the injected context at L falls >= 30%,
-  recall@old within 0.05 of E1-on, on 3 repeats.
+## E1b [x] Junk in the injected context — it is the raw chunks, not the facts
+Result 2026-09-16: P2 (one chunk) accepted — recall@old 1.00 on all three
+  memories, 154 tokens/question vs 280 (−45%). P3 (no chunks) 0.92, rejected.
+  Shipped as `chunks` on /v1/search/all, default 1 (2.45.1).
+Measured first (2026-09-16, E1 L results, 24 questions x 2 arms): of the context
+  handed to the answer model, raw conversation chunks are 71-78% of the tokens
+  and facts 18-23%. Fact junk in context: 41% off-gate, 29% on-gate. Chunks
+  carried the answer alone in 2/24 questions (extraction had missed it), so
+  they are a real fallback, but 5 of them per query is where the tokens go.
+  The recall-history demotion idea targets the 18-23%; parked.
+Hypothesis: capping or deduplicating chunks under the token budget cuts
+  tokens per question by >= 40% with recall@old within 0.05 of baseline.
+Method: replay, no re-extraction — the E1 on-arm L memories on the local
+  stack (on-1, on-2, on-4), search/all uncut, then policies applied client-
+  side before the same 600-token budget and the same answer model:
+  P0 as today (5 chunks), P1 chunks <= 2, P2 chunks <= 1, P3 no chunks,
+  P4 chunks deduplicated (content-word Jaccard > 0.6) then <= 2.
+Verify (pre-registered): a policy is accepted if recall@old >= P0 - 0.05 and
+  tokens/question <= 0.6 x P0 on the same three memories; among accepted, the
+  cheapest wins and ships as the default. Else reject with numbers.
 
 ## E2 [ ] Cost report — measure before selling it
 Hypothesis: for a builder's account, "tokens of context per request with

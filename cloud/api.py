@@ -122,6 +122,12 @@ class SearchRequest(SubUserScoped):
     # in rank order to fit and the response carries a `budget` report of what
     # was left out. None = no cut. See cloud/budget.py.
     max_tokens: int | None = None
+    # `/v1/search/all` only: how many raw conversation chunks may come back as
+    # the fallback for facts extraction missed. E1b (experiments/RESULTS.jsonl,
+    # 2026-09-16): five chunks were 78% of the tokens handed to the model; one
+    # chunk kept recall of old facts at 1.00 for 45% fewer tokens, none at all
+    # lost it (0.92). 0 turns them off, 10 is the ceiling.
+    chunks: int = 1
 
 class AskRequest(SubUserScoped):
     """RAG-style ask: synthesize an answer from memory with citations.
@@ -5073,6 +5079,8 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
         sub_uid = _resolve_sub_user(req.user_id, sub_user_id)
         _validate_max_tokens(req.max_tokens)
+        if not (0 <= req.chunks <= 10):
+            raise HTTPException(status_code=422, detail="chunks must be between 0 and 10")
 
         # Build metadata filters
         meta_filters = dict(req.filters) if req.filters else {}
@@ -5089,7 +5097,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
         # ---- Redis cache ----
         filter_str = json.dumps(meta_filters, sort_keys=True) if meta_filters else ""
-        cache_input = f'{req.query}:{req.limit}:{req.graph_depth}:{req.threshold}:{filter_str}'
+        cache_input = f'{req.query}:{req.limit}:{req.graph_depth}:{req.threshold}:{filter_str}:{req.chunks}'
         cache_key = f"searchall:{user_id}:{sub_uid}:{_hashlib.md5(cache_input.encode('utf-8', errors='replace')).hexdigest()}"
         cached = store.cache.get(cache_key)
         if cached:
@@ -5155,10 +5163,10 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         # Raw conversation chunk search (fallback for extraction misses)
         chunks = []
         try:
-            if embedder and emb is not None:
+            if embedder and emb is not None and req.chunks > 0:
                 chunks = store.search_chunks_vector(
                     user_id, emb, query_text=req.query,
-                    top_k=max(req.limit // 2, 5), sub_user_id=sub_uid)
+                    top_k=min(req.chunks, 10), sub_user_id=sub_uid)
         except Exception as e:
             logger.warning(f"Chunk search failed: {e}")
 

@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.45.1 — 2026-09-16
+
+### Changed
+- **One raw conversation chunk per `/v1/search/all`, not five.** The chunks
+  are the fallback for what extraction missed, and they earn their place:
+  on the E1 90-day histories they alone carried the answer in 2 of 24
+  questions. But five per query were 71–78% of the tokens handed to the
+  model, and the words in them were "I'm tired", "recommend a film". E1b
+  replayed the same memories under the same 600-token budget: one chunk
+  kept recall of old facts at 1.00 for 45% fewer tokens per question
+  (154 vs 280); no chunks at all dropped it to 0.92. New request field
+  `chunks` (default 1, `0` turns the fallback off, 10 is the ceiling), also
+  on `CloudMemory.search_all(chunks=...)`. Callers who relied on five get
+  them back with `chunks: 5`.
+
 ## 2.45.0 — 2026-09-16
 
 ### Added
