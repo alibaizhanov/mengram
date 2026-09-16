@@ -97,6 +97,8 @@ mengram hook install --cursor     # ~/.cursor/hooks.json: session context, compa
 
 Cursor has no per-prompt context hook (`beforeSubmitPrompt` can only allow or block), so mid-conversation recall there is on request via the MCP tools; session start and compaction are automatic.
 
+Every fact remembers which tool wrote it and when, and recall shows it: `deploys to Fly.io from main  (codex, 2026-09-15)`. Each hook also tells the server which OS and tool it runs under, so a workspace path recorded on your Mac never reaches a Claude Code session on a Linux box, and a Cursor settings fact never reaches Codex — those are left out and counted (`facts_left_out_for_host`).
+
 ### No account? Keep the memory in a folder
 
 ```bash
