@@ -128,22 +128,34 @@ Verify (pre-registered): support M and L mean recall@old >= 0.75 over 3
   repeats, junk_rate not worse than e2b/e2c, companion/coding unchanged
   within 0.05.
 
-## E5 [ ] State transitions as a relation, not a yes/no (u/ThomasBuildLab, r/AI_Agents 2026-09-16)
+## E5 [ ] Typed state transitions — relation, policy, commit (u/ThomasBuildLab, r/AI_Agents 2026-09-16, two rounds)
 Hypothesis: the contradiction pass fails because it answers a binary question
-  ("does new contradict old?") and then archives. If the model instead labels
-  the relation of each new fact to the closest existing one — confirms /
-  contradicts / supersedes / refines / independent / insufficient — and
-  deterministic rules decide the transition per label (only "supersedes" may
-  archive, "refines" merges detail into the old row, "confirms" bumps
-  confidence, "insufficient" writes nothing), the four E4 guards become
-  consequences of the rules rather than patches, and the fifth case does not
-  need a fifth guard.
-Method: relation-labelling prompt with a JSON enum; transition table in code;
-  provenance kept on every superseded row; replay the E4 archive log and the
-  support/companion corpora; count wrong archives and missed supersessions.
-Verify (pre-registered): zero wrong archives on the E4 cases without the four
-  guards enabled; support/companion recall@old within 0.05 of E4; no increase
-  in stored duplicates (junk_rate not worse). Else keep the guards and reject.
+  ("does new contradict old?") and archives on a yes. Three layers instead:
+  1. semantic judgement (probabilistic, the model): new evidence + current
+     state → proposed RELATION + the evidence, where RELATION ∈
+     {CONFIRMS, CONTRADICTS, SUPERSEDES, REFINES, INDEPENDENT, INSUFFICIENT};
+     the proposal is bound to the exact state version it was evaluated
+     against (fact ids + their versions), so a judgement made against stale
+     state cannot commit — the E1 parallel-adds race was exactly that.
+  2. transition policy (deterministic, code): what each relation MAY do —
+     SUPERSEDES may archive X, link superseded_by, create Y; REFINES merges
+     detail into X; CONFIRMS bumps confidence and touches last_confirmed;
+     CONTRADICTS without a replacement keeps both and flags; INDEPENDENT
+     writes Y; INSUFFICIENT writes nothing. The four E4 guards become
+     consequences of the policy, not patches on the model.
+  3. commit only after provenance/state/invariant checks pass; old rows are
+     never destroyed, so the sequence can be replayed when the rules improve.
+  New edge cases then land in one of three places: a missing relation type, a
+  bad classification (a model problem, measurable), or a missing rule.
+Method: relation-labelling prompt with the enum and evidence spans; state
+  version = (fact_id, updated_at) set read before judging, re-checked at
+  commit; transition table in cloud/store/_supersede.py; replay the E4 archive
+  log and the support/companion corpora; count wrong archives, missed
+  supersessions, and stale-version rejects.
+Verify (pre-registered): zero wrong archives on the E4 cases with the four
+  guards DISABLED; support/companion recall@old within 0.05 of E4; junk_rate
+  not worse; every committed transition carries the state version it was
+  judged against. Else keep the guards and reject.
 
 ## E6 [~] `mengram resume` — a task card across sessions and agents (Orca)
 Hypothesis: a task card written at Stop (task, done, remaining, last check
