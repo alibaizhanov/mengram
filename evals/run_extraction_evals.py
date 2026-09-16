@@ -2,7 +2,7 @@
 """Extraction quality evals — the boring moat.
 
 Runs golden cases from extraction_cases.yaml through the real
-ConversationExtractor (same construction path as cloud/api.py) and checks
+ConversationExtractor and provider clients, with eval-specific model settings, and checks
 expectations. Every real user complaint becomes a case; this suite must pass
 before any change to extraction prompts ships.
 
@@ -13,26 +13,31 @@ Usage:
 Exit code 0 = all pass.
 """
 import argparse
+import json
 import os
 import sys
+from dataclasses import asdict
 from pathlib import Path
 
 import yaml
+from jsonschema import ValidationError, validate
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from engine.extractor.llm_client import create_llm_client
-from engine.extractor.conversation_extractor import ConversationExtractor
+from engine.extractor.conversation_extractor import ConversationExtractor, EXTRACTION_SCHEMA
 
 
 def build_extractor() -> ConversationExtractor:
-    """Mirror cloud/api.py's construction exactly — evals must test prod's path."""
+    """Use the production factory; model/endpoint selection belongs to this harness."""
     llm_model = os.environ.get("LLM_MODEL", "")
     config = {
         "provider": os.environ.get("LLM_PROVIDER", "openai"),
         "anthropic": {"api_key": os.environ.get("ANTHROPIC_API_KEY", ""),
                       **({"model": llm_model} if llm_model else {})},
         "openai": {"api_key": os.environ.get("OPENAI_API_KEY", ""),
+                   **({"model": llm_model} if llm_model else {})},
+        "ollama": {"base_url": os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434"),
                    **({"model": llm_model} if llm_model else {})},
     }
     return ConversationExtractor(create_llm_client(config))
@@ -60,22 +65,37 @@ def everything_text(result) -> str:
     return " \n ".join(parts)
 
 
-def run_case(extractor, case, verbose=False):
+def run_case(extractor, case, verbose=False, prompt_version="v2"):
     failures = []
     result = extractor.extract(
         case["conversation"],
         existing_context=case.get("existing_context", ""),
-        prompt_version="v2",
+        prompt_version=prompt_version,
     )
     facts = all_fact_text(result)
     everything = everything_text(result)
+    extracted_text = json.dumps({k: v for k, v in asdict(result).items()
+                                 if k != "raw_response"}, ensure_ascii=False).lower()
+    if case.get("require_complete_json"):
+        try:
+            raw = json.loads(result.raw_response)
+            validate(raw, EXTRACTION_SCHEMA["json_schema"]["schema"])
+        except (ValueError, TypeError):
+            failures.append("incomplete or invalid JSON response")
+        except ValidationError as e:
+            failures.append(f"JSON schema violation: {e.message}")
+    for key in case.get("expect_nonempty_types", []):
+        if not getattr(result, key):
+            failures.append(f"missing output type: {key}")
 
     if verbose:
         print(f"    entities={[(e.name, len(e.facts)) for e in result.entities]}")
         print(f"    episodes={len(result.episodes)} procedures={len(result.procedures)}")
+        print(f"    raw_response={result.raw_response!r}")
 
     if case.get("expect_no_output"):
-        n = sum(len(e.facts) for e in result.entities) + len(result.knowledge) + len(result.procedures)
+        n = sum(len(getattr(result, key)) for key in
+                ("entities", "relations", "knowledge", "episodes", "procedures"))
         if n > 0:
             failures.append(f"expected nothing, extracted {n} items: {facts[:150]}")
 
@@ -84,7 +104,7 @@ def run_case(extractor, case, verbose=False):
             failures.append(f"missing required keyword: {kw!r}")
 
     for kw in case.get("must_not_extract", []):
-        if kw.lower() in everything:
+        if kw.lower() in extracted_text:
             failures.append(f"forbidden keyword present: {kw!r}")
 
     for kw in case.get("must_not_extract_as_current", []):
@@ -168,6 +188,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--case", help="run a single case id")
     ap.add_argument("--verbose", action="store_true")
+    ap.add_argument("--prompt-version", choices=("v1", "v2", "slim"), default="v2")
     args = ap.parse_args()
 
     cases = yaml.safe_load(open(Path(__file__).parent / "extraction_cases.yaml"))
@@ -177,11 +198,13 @@ def main():
             print(f"no case {args.case!r}"); sys.exit(2)
 
     extractor = build_extractor()
+    print(f"provider={os.environ.get('LLM_PROVIDER', 'openai')} "
+          f"model={getattr(extractor.llm, 'model', 'unknown')} prompt_version={args.prompt_version}")
     passed = failed = advisory = known = 0
     for case in cases:
         print(f"  {case['id']} ...", flush=True)
         try:
-            failures = run_case(extractor, case, verbose=args.verbose)
+            failures = run_case(extractor, case, verbose=args.verbose, prompt_version=args.prompt_version)
         except Exception as e:
             failures = [f"CRASH: {e}"]
         hard = [f for f in failures if not f.startswith("ADVISORY")]

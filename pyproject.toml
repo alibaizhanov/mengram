@@ -61,7 +61,7 @@ all = [
     "crewai>=0.80",
     "httpx>=0.25",
 ]
-dev = ["pytest>=7.0", "pytest-asyncio>=0.21"]
+dev = ["pytest>=7.0", "pytest-asyncio>=0.21", "jsonschema>=4.0"]
 
 [project.urls]
 Homepage = "https://github.com/alibaizhanov/mengram"
