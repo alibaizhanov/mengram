@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.47.1 — 2026-09-16
+
+### Fixed
+- **Claude Code inside Orca was recorded as Codex.** Orca exports
+  `CODEX_HOME` into every terminal it opens, and the hooks read that before
+  anything else, so facts saved from Claude Code in Orca carried
+  `source: codex`, the host filter treated the session as Codex, and the task
+  card said "from codex". The hooks now name the host from the transcript path
+  first (`~/.claude/…` or a Codex sessions path), then `CLAUDECODE`, and only
+  then `CODEX_HOME`.
+- **A command that only mentions a test runner is no longer the card's "last
+  check".** `ps … | grep -E 'python|pytest'` counted as a test run because the
+  word appeared anywhere in the command. A runner now counts only where the
+  shell would start it: at the head of a segment, after env assignments and
+  wrappers (`uv run`, `python -m`, `timeout`, a path), outside quotes and
+  heredoc bodies.
+
 ## 2.47.0 — 2026-09-16
 
 ### Added

@@ -37,6 +37,25 @@ TEST_COMMANDS = re.compile(r"\b(pytest|npm (run )?test|pnpm test|yarn test|go te
                            r"make test|python3? -m unittest|rspec|phpunit|mvn test|gradle test)\b")
 TEST_SUMMARY = re.compile(r"(\d+ passed[^\n]{0,80}|\d+ failed[^\n]{0,80}|\d+ errors?[^\n]{0,60}|"
                           r"\bFAILED\b[^\n]{0,80}|\bPASS(ED)?\b[^\n]{0,60}|\bok\b[^\n]{0,60}|Tests:[^\n]{0,80})")
+# A test runner only counts where the shell would run it: at the start of a
+# segment, after env assignments and wrappers. `grep 'pytest|bench'` is not a
+# test run (a `ps | grep` became the card's "last check" on 2026-09-16).
+_HEREDOC_BODY = re.compile(r"<<-?\s*(['\"]?)(\w+)\1[^\n]*\n.*?(?:\n\2\b|\Z)", re.S)
+_QUOTED = re.compile(r"'[^']*'|\"(?:\\.|[^\"\\])*\"")
+_SEGMENT_SPLIT = re.compile(r"&&|\|\||[;|\n()`]|\$\(")
+_RUNNER_PREFIX = re.compile(r"^(?:\w+=\S*\s+|(?:sudo|time|env|nice|timeout\s+\S+|npx|bunx|pnpm exec|"
+                            r"(?:uv|poetry|pipenv|hatch) run)\s+)*(?:\S*/)?")
+_RUNNER = re.compile(r"(?:python3?(?:\.\d+)?\s+-m\s+(?=pytest\b))?" + TEST_COMMANDS.pattern)
+
+
+def is_test_command(cmd: str) -> bool:
+    """Whether a shell command runs a test suite (not merely mentions one)."""
+    text = _QUOTED.sub("''", _HEREDOC_BODY.sub("", cmd or ""))
+    for segment in _SEGMENT_SPLIT.split(text):
+        segment = segment.strip()
+        if segment and _RUNNER.match(segment, _RUNNER_PREFIX.match(segment).end()):
+            return True
+    return False
 
 
 def directory() -> Path:
@@ -129,7 +148,7 @@ def last_test_result(transcript_path) -> dict | None:
             for name, tool_input in checkpoint._tool_uses(content):
                 if name in checkpoint.SHELL_TOOLS:
                     cmd = checkpoint._shell_command(tool_input) or ""
-                    if TEST_COMMANDS.search(cmd):
+                    if is_test_command(cmd):
                         runs.append({"command": cmd[:200], "result": None})
         elif role == "user" and runs and runs[-1]["result"] is None:
             text = _tool_result_text(content)

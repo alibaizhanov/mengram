@@ -171,3 +171,53 @@ def test_render_shows_the_test_command_not_the_heredoc_behind_it(repo, tmp_path)
     card["last_check"]["command"] = "cd x && python3 - <<'EOF'\nlots of code\nEOF"
     block = resume.render(card, r)
     assert "Last check: `cd x && python3 - <<'EOF'` →" in block and "lots of code" not in block
+
+
+@pytest.mark.parametrize("cmd", [
+    "pytest -q tests/",
+    "cd x && python3 -m pytest tests/test_resume.py -q 2>&1 | tail -3",
+    ".venv/bin/pytest -x",
+    "/Library/Frameworks/Python.framework/Versions/3.12/bin/python3 -m pytest -q",
+    "PYTHONPATH=. uv run pytest -k 'resume or host'",
+    "python3 -m unittest discover",
+    "npm run test",
+    "timeout 600 cargo test --all",
+])
+def test_a_test_run_counts_as_the_last_check(cmd):
+    assert resume.is_test_command(cmd)
+
+
+@pytest.mark.parametrize("cmd", [
+    # 2026-09-16: this `ps` became the card's "last check" inside Orca.
+    "cd x; ps -eo pid,command | grep -Ei 'python|node|mengram|uvicorn|pytest|bench|run_' | grep -v grep",
+    "grep -rn pytest tests/",
+    "git commit -m \"fix: pytest collection\"",
+    "cat > t.sh <<'EOF'\npytest -q\nEOF",
+    "pip install pytest",
+    "ls tests | grep -i jest",
+])
+def test_a_command_that_only_mentions_a_runner_does_not(cmd):
+    assert not resume.is_test_command(cmd)
+
+
+@pytest.mark.parametrize("transcript,env,expected", [
+    # Orca exports CODEX_HOME into every terminal, Claude Code's included.
+    ("/Users/a/.claude/projects/-x/s.jsonl", {"CODEX_HOME": "/o/codex-runtime-home/home", "CLAUDECODE": "1"}, "claude-code"),
+    ("", {"CODEX_HOME": "/o/codex-runtime-home/home", "CLAUDECODE": "1"}, "claude-code"),
+    ("/Users/a/Library/Application Support/orca/codex-runtime-home/home/sessions/r.jsonl",
+     {"CODEX_HOME": "/o/codex-runtime-home/home", "CLAUDECODE": "1"}, "codex"),
+    ("/Users/a/.codex/sessions/2026/09/16/rollout.jsonl", {}, "codex"),
+    ("", {"CODEX_HOME": "/Users/a/.codex"}, "codex"),
+    ("", {}, "claude-code"),
+])
+def test_hook_tool_reads_the_transcript_before_the_environment(transcript, env, expected, monkeypatch):
+    for name in ("CODEX_HOME", "CLAUDECODE"):
+        monkeypatch.delenv(name, raising=False)
+    for name, value in env.items():
+        monkeypatch.setenv(name, value)
+    assert cli._hook_tool(argparse_ns(), {"transcript_path": transcript}) == expected
+
+
+def argparse_ns(**kw):
+    import argparse
+    return argparse.Namespace(**kw)

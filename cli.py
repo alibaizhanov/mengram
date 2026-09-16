@@ -923,7 +923,16 @@ def _hook_tool(args, input_data=None) -> str:
     d = input_data or {}
     if "cursor_version" in d or "conversation_id" in d and "generation_id" in d:
         return "cursor"
-    if os.environ.get("CODEX_HOME") or "codex" in str(d.get("transcript_path", "")).lower():
+    # The transcript path names the host before the environment does: Orca
+    # exports CODEX_HOME into every terminal it opens, Claude Code included.
+    transcript = str(d.get("transcript_path", "")).replace("\\", "/").lower()
+    if "/.claude/" in transcript:
+        return "claude-code"
+    if "codex" in transcript:
+        return "codex"
+    if os.environ.get("CLAUDECODE") == "1":
+        return "claude-code"
+    if os.environ.get("CODEX_HOME"):
         return "codex"
     return "claude-code"
 
