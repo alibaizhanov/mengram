@@ -180,3 +180,9 @@ Provenance on every fact (source tool, session, cwd, os, when, recalled count), 
 recall; X-Mengram-Host filter keeps another host's paths and tool files out, counted in
 facts_left_out_for_host. Verified on prod: a /Users/... path saved from Cursor on a Mac is left out of a
 linux/claude-code search (left_out=1). PyPI 2.46.0 published. Reply owed in the r/cursor thread.
+- 2026-09-16 ~14:45 AbleShower2801: REPLIED "Shipped: 2.46.0" — facts_meta, host tag, X-Mengram-Host filter,
+  facts_left_out_for_host, verified on prod with his exact case. Promise closed.
+- piekwerk (new, ~14:20): decisions.md pattern — append-only, dated, one line why, "supersedes #12 because X",
+  rejected approaches get rows, weekly pruning by the agent, two-line wiring in CLAUDE.md/AGENTS.md; Cursor
+  via rules; mid-task drift still on you. Not answered yet. Product implication: this IS task item 10
+  (decisions.md as export/import + one line at Stop) with the supersede semantics we just built server-side.
