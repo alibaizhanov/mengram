@@ -81,8 +81,10 @@ def test_assistant_log_lines_are_dropped_but_standing_preferences_stay():
     assert reason_to_drop("confirmed the tests were green", "Ali") is None  # a person may confirm things
 
 
-def test_gate_is_off_unless_asked(monkeypatch):
+def test_gate_is_on_unless_switched_off(monkeypatch):
     monkeypatch.delenv("MENGRAM_SALIENCE_GATE", raising=False)
+    assert salience.enabled()
+    monkeypatch.setenv("MENGRAM_SALIENCE_GATE", "0")
     assert not salience.enabled()
     monkeypatch.setenv("MENGRAM_SALIENCE_GATE", "1")
     assert salience.enabled()

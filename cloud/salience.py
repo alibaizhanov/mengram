@@ -20,8 +20,8 @@ facts are duplicates only when the words exclusive to either side are all
 *weak*: auxiliaries, intention verbs, reporting verbs, adverbs. A noun, a
 number, a month or a name on one side and not the other keeps both.
 
-Off by default (MENGRAM_SALIENCE_GATE=1 turns it on) until E1 says what it
-costs in recall.
+On by default since 2.45.0; MENGRAM_SALIENCE_GATE=0 turns it off. E1 measured
+what it costs in recall: nothing, on 18 runs (experiments/RESULTS.jsonl).
 """
 from __future__ import annotations
 
@@ -166,4 +166,7 @@ def gate(facts: list[str], existing: list[str] | None = None, entity: str | None
 
 
 def enabled() -> bool:
-    return os.environ.get("MENGRAM_SALIENCE_GATE", "").strip().lower() in ("1", "true", "yes", "on")
+    """On unless MENGRAM_SALIENCE_GATE says otherwise. E1 (experiments/RESULTS.jsonl,
+    2026-09-16) measured the gate on 18 runs: recall of month-old facts unchanged
+    at 1.00, junk stored -45% on a 30-day history, -28% on 90 days."""
+    return os.environ.get("MENGRAM_SALIENCE_GATE", "1").strip().lower() not in ("0", "false", "no", "off")

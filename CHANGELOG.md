@@ -1,5 +1,28 @@
 # Changelog
 
+## 2.45.0 — 2026-09-16
+
+### Added
+- **A salience gate before every fact is written.** The E0 benchmark measured
+  what extraction stores over a simulated 90-day companion history: 37 facts,
+  21 of them needed by no question. The junk was ordinary — one intention
+  stored as seven phrasings ("wants to call the plumber", "needs to call the
+  plumber", "asked to be reminded to call the plumber"…), because the only
+  duplicate check was an exact-text index; facts about the conversation
+  instead of the person ("mentioned finishing the same book multiple times");
+  a request recorded as an interest; a relation echoed on the other entity
+  ("Bergen: is where the User's sister moved"); the assistant's own session
+  log. `cloud/salience.py` now drops those before `save_entity`, with a
+  reason a person can read: the job result carries `dropped_by_gate` and a
+  `gate_dropped` list of `{entity, fact, reason}`. It is lexical, so it costs
+  no model call and no latency, and it never merges two facts that differ in
+  a value — "birthday is in March" and "has a birthday in June" stay two
+  facts for the contradiction pass to settle. E1 measured it on 18 runs, gate
+  off against on, three repeats per scale: recall of month-old facts 1.00 in
+  every run; junk stored 0.38 → 0.21 on a 30-day history, 0.58 → 0.42 on 90
+  days. What survives at 90 days is true facts nobody asked about, which a
+  write-time gate should not remove. `MENGRAM_SALIENCE_GATE=0` turns it off.
+
 ## 2.44.8 — 2026-09-16
 
 ### Fixed
