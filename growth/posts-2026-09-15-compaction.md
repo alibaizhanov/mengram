@@ -184,5 +184,7 @@ linux/claude-code search (left_out=1). PyPI 2.46.0 published. Reply owed in the 
   facts_left_out_for_host, verified on prod with his exact case. Promise closed.
 - piekwerk (new, ~14:20): decisions.md pattern — append-only, dated, one line why, "supersedes #12 because X",
   rejected approaches get rows, weekly pruning by the agent, two-line wiring in CLAUDE.md/AGENTS.md; Cursor
-  via rules; mid-task drift still on you. Not answered yet. Product implication: this IS task item 10
+  via rules; mid-task drift still on you. REPLIED ~14:55: steal "supersedes #12 because X", same rule
+  built server-side today, agent writes the stop line / human prunes, scope exception; asked whether a tool
+  may read+write their decisions.md in their format. Product implication: this IS task item 10
   (decisions.md as export/import + one line at Stop) with the supersede semantics we just built server-side.
