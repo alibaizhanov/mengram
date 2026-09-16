@@ -349,7 +349,8 @@ def render(card: dict, cwd=None, relation: str = "exact") -> str:
         lines += [f"  - {r}" for r in card["remaining"]]
     lc = card.get("last_check") or {}
     if lc.get("command"):
-        lines.append(f"Last check: `{lc['command']}` → {lc.get('result') or 'result not captured'}")
+        cmd = lc["command"].strip().splitlines()[0][:120]   # the command, not the heredoc behind it
+        lines.append(f"Last check: `{cmd}` → {lc.get('result') or 'result not captured'}")
         st = staleness(card, cwd) if cwd else None
         if st:
             lines.append(f"  {st}")

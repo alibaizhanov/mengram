@@ -163,3 +163,11 @@ def test_files_written_from_the_shell_count_and_an_in_flight_test_does_not_hide_
     p = tmp_path / "t2.jsonl"; p.write_text("\n".join(lines) + "\n")
     lc = resume.last_test_result(p)
     assert lc["command"] == "pytest -q tests/" and lc["result"].startswith("652 passed")
+
+
+def test_render_shows_the_test_command_not_the_heredoc_behind_it(repo, tmp_path):
+    r, _ = repo
+    card = resume.build(_transcript(tmp_path / "t.jsonl"), "s1", str(r))
+    card["last_check"]["command"] = "cd x && python3 - <<'EOF'\nlots of code\nEOF"
+    block = resume.render(card, r)
+    assert "Last check: `cd x && python3 - <<'EOF'` →" in block and "lots of code" not in block
