@@ -174,3 +174,9 @@ JSONL reader (rollout format already changed once between versions).
   90d 0.58→0.42; L remainder is true-but-unasked facts; next signal = recall history; rejected approaches
   still zero in extraction, the "one line at stop" heuristic came from this thread.
 Owed publicly now: the recall-history demotion (E1b), provenance + host filter, Cursor drift numbers.
+
+## 2026-09-16 ~14:30 — promise to AbleShower2801 (r/cursor) kept: 2.46.0
+Provenance on every fact (source tool, session, cwd, os, when, recalled count), rendered as a tag in hook
+recall; X-Mengram-Host filter keeps another host's paths and tool files out, counted in
+facts_left_out_for_host. Verified on prod: a /Users/... path saved from Cursor on a Mac is left out of a
+linux/claude-code search (left_out=1). PyPI 2.46.0 published. Reply owed in the r/cursor thread.
