@@ -37,3 +37,79 @@ def test_someone_elses_fact_never_archives_the_persons():
     assert why_not_supersede("has loyalty number LR-11560", "wife's loyalty number is LR-48231")
     assert why_not_supersede("is allergic to kiwi", "has a colleague who is allergic to gluten")
     assert why_not_supersede("has a wife with loyalty number LR-48231", "wife's loyalty number is LR-50000") is None
+
+
+# ---- find vs archive (audit 2026-10-23) --------------------------------------
+# The pipeline used to archive old facts before the deny policy, the salience
+# gate and the save had run on the new ones; a new fact dropped by any of them
+# left the old fact archived and superseded by a fact that was never written.
+# Finding the pairs now writes nothing; archiving is a separate step.
+import json as _json
+from contextlib import contextmanager
+
+from cloud.store._search import SearchMixin
+
+
+class _Cur:
+    def __init__(self, db):
+        self.db = db
+
+    def execute(self, sql, params=None):
+        self.db.sql.append((sql, params))
+
+    def fetchall(self):
+        return [{"content": c} for c in self.db.live]
+
+
+class _Store(SearchMixin):
+    def __init__(self, live):
+        self.live = list(live)
+        self.sql = []
+
+    @contextmanager
+    def _cursor(self, dict_cursor=False):
+        yield _Cur(self)
+
+    def writes(self):
+        return [s for s, _ in self.sql if s.lstrip().upper().startswith("UPDATE")]
+
+
+class _LLM:
+    def __init__(self, pairs):
+        self.pairs = pairs
+
+    def complete(self, prompt, **kw):
+        return _json.dumps({"pairs": self.pairs})
+
+
+def test_finding_superseded_facts_writes_nothing():
+    store = _Store(["lives in Almaty"])
+    pairs = store.find_superseded_facts(
+        "e1", ["relocated to Dubai"], _LLM([{"old": "lives in Almaty", "new": "relocated to Dubai"}]))
+    assert pairs == [("lives in Almaty", "relocated to Dubai")]
+    assert store.writes() == []
+
+
+def test_finding_keeps_the_guards():
+    store = _Store(["has loyalty number LR-11560"])
+    pairs = store.find_superseded_facts(
+        "e1", ["has a loyalty number"],
+        _LLM([{"old": "has loyalty number LR-11560", "new": "has a loyalty number"}]))
+    assert pairs == []
+
+
+def test_archiving_writes_one_update_per_pair():
+    store = _Store(["lives in Almaty"])
+    archived = store.archive_superseded_facts("e1", [("lives in Almaty", "relocated to Dubai")])
+    assert archived == ["lives in Almaty"]
+    assert len(store.writes()) == 1
+    _, params = store.sql[-1]
+    assert params == ("relocated to Dubai", "e1", "lives in Almaty")
+
+
+def test_the_combined_call_still_archives():
+    store = _Store(["lives in Almaty"])
+    archived = store.archive_contradicted_facts(
+        "e1", ["relocated to Dubai"], _LLM([{"old": "lives in Almaty", "new": "relocated to Dubai"}]))
+    assert archived == ["lives in Almaty"]
+    assert len(store.writes()) == 1

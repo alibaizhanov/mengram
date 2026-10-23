@@ -13,6 +13,7 @@ Developers get API key, integrate in 3 lines:
 import os
 import sys
 import json
+import asyncio
 import logging
 import secrets
 import datetime
@@ -31,7 +32,7 @@ logger = logging.getLogger("mengram")
 from fastapi import FastAPI, HTTPException, Depends, Header, Form, Query, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from cloud.store import CloudStore, _normalize_fact
 from cloud.attribution import clean_source
@@ -39,7 +40,7 @@ from cloud.oauth_policy import redirect_uri_error as _redirect_uri_error
 from cloud.sub_user import SubUserScoped, resolve_sub_user as _resolve_sub_user
 from cloud.auth import AuthContext
 from cloud.billing import billing_router, _paddle_request, _sign_checkout_token, PADDLE_API_KEY
-from cloud.plans import PLAN_QUOTAS
+from cloud.plans import PLAN_QUOTAS, MAX_MESSAGE_CHARS, MAX_ADD_MESSAGES, add_units
 from cloud.site import build_site_router
 from cloud import source as _source
 from cloud import budget as _budget
@@ -87,10 +88,10 @@ DEMO_USER_ID = os.environ.get("DEMO_USER_ID", "")
 
 class Message(BaseModel):
     role: str
-    content: str
+    content: str = Field(max_length=MAX_MESSAGE_CHARS)
 
 class AddRequest(SubUserScoped):
-    messages: list[Message]
+    messages: list[Message] = Field(max_length=MAX_ADD_MESSAGES)
     agent_id: str | None = None
     run_id: str | None = None
     app_id: str | None = None
@@ -102,7 +103,7 @@ class AddRequest(SubUserScoped):
     agent_mode: bool = False           # True = extract from all speakers (agent actions + user), False = user-only (default)
 
 class AddTextRequest(SubUserScoped):
-    text: str
+    text: str = Field(max_length=MAX_MESSAGE_CHARS)
     agent_id: str | None = None
     run_id: str | None = None
     app_id: str | None = None
@@ -2864,25 +2865,29 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                     if existing_id and entity.facts:
                         conflict_tasks.append((entity, existing_id))
 
-                conflict_results = {}
+                # Only *finds* the (old, new) pairs. The old facts are archived
+                # after the entity is saved, and only for new facts that survived
+                # the deny policy and the salience gate — archiving here, before
+                # either, could retire a fact in favour of one never written.
+                conflict_results = {}  # name -> (existing_id, [(old, new)])
                 if conflict_tasks:
                     def _check_conflicts(entity, existing_id):
                         try:
                             plain_facts = [str(f.content) if hasattr(f, 'content') else str(f)
                                            for f in entity.facts]
-                            archived = store.archive_contradicted_facts(
+                            pairs = store.find_superseded_facts(
                                 existing_id, plain_facts, extractor.llm)
-                            return entity.name, archived
+                            return entity.name, existing_id, pairs
                         except Exception as e:
                             logger.error(f"⚠️ Conflict check failed for {entity.name}: {e}")
-                            return entity.name, []
+                            return entity.name, existing_id, []
 
                     with ThreadPoolExecutor(max_workers=5) as pool:
                         futures = [pool.submit(_check_conflicts, ent, eid)
                                    for ent, eid in conflict_tasks]
                         for future in as_completed(futures):
-                            name, archived = future.result()
-                            conflict_results[name] = archived
+                            name, eid, pairs = future.result()
+                            conflict_results[name] = (eid, pairs)
 
                 # -- Save this window's entities immediately --
                 for entity in win_extraction.entities:
@@ -2965,14 +2970,6 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                         except Exception as e:
                             logger.warning(f"⚠️ Salience gate failed for '{name}': {e}")
 
-                    archived = conflict_results.get(name)
-                    if archived:
-                        store.fire_webhooks(user_id, "memory_update", {
-                            "entity": name,
-                            "archived_facts": archived,
-                            "new_facts": fact_strings
-                        })
-
                     # Heuristic fallback: if LLM returned unknown/empty type, try to infer
                     etype = entity.entity_type
                     if not etype or etype == "unknown":
@@ -2995,6 +2992,22 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                         logger.warning(f"⚠️ Entity save failed for '{name}': {e}")
                         continue
                     created.append(name)
+
+                    # Supersede only now that the replacing facts are written.
+                    _eid_old, _pairs = conflict_results.get(name) or (None, [])
+                    _pairs = [(o, n) for o, n in _pairs if n in fact_strings]
+                    if _pairs:
+                        try:
+                            archived = store.archive_superseded_facts(_eid_old, _pairs)
+                        except Exception as e:
+                            logger.error(f"⚠️ Supersede failed for '{name}': {e}")
+                            archived = []
+                        if archived:
+                            store.fire_webhooks(user_id, "memory_update", {
+                                "entity": name,
+                                "archived_facts": archived,
+                                "new_facts": fact_strings
+                            })
 
                     # Chunks cover the entity's full current state, not just
                     # this conversation's facts — the embedding set is replaced
@@ -3394,7 +3407,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         # real add — it runs the same LLM extraction, so leaving it free made
         # /v1/add an unlimited extraction API for anyone passing dry_run.
         if req.dry_run:
-            use_quota(ctx, "add")
+            use_quota(ctx, "add", count=add_units(len(req.messages)))
             extractor = get_llm()
             existing_context = ""
             try:
@@ -3431,7 +3444,10 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 }
             }
 
-        use_quota(ctx, "add")  # atomic check+increment before background processing
+        # Atomic check+increment before background processing; long
+        # conversations cost one unit per MESSAGES_PER_ADD_UNIT messages
+        # (cloud/plans.py).
+        use_quota(ctx, "add", count=add_units(len(req.messages)))
         import threading
 
         # Enforce sub-user limit per plan
@@ -3984,14 +4000,23 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         if not _source.is_hook(request.headers):
             use_quota(ctx, "search")
         prev = req.previous or {}
+
+        def _cut(value, n):
+            """Bound a field: the hooks' calls are not charged, so the prompt's
+            size must not be the caller's to choose."""
+            if isinstance(value, str):
+                return value[:n]
+            return json.dumps(value, ensure_ascii=False, default=str)[:n] if value else value
+
         record = {
-            "last requests from the person": (req.prompts or [])[-4:],
-            "files edited": (req.files or [])[-20:],
-            "last commands": (req.commands or [])[-8:],
+            "last requests from the person": [_cut(str(x), 2000) for x in (req.prompts or [])[-4:]],
+            "files edited": [_cut(str(x), 300) for x in (req.files or [])[-20:]],
+            "last commands": [_cut(str(x), 500) for x in (req.commands or [])[-8:]],
             "last thing the agent said": (req.last_assistant or "")[-1500:],
-            "last test run": req.last_check or None,
-            "branch": req.branch,
-            "previous card (may be stale)": {k: prev.get(k) for k in ("task", "done", "remaining") if prev.get(k)},
+            "last test run": _cut(req.last_check, 1500) or None,
+            "branch": _cut(req.branch or "", 200) or None,
+            "previous card (may be stale)": {k: _cut(prev.get(k), 1500)
+                                             for k in ("task", "done", "remaining") if prev.get(k)},
         }
         prompt = (
             "You write the handover card for a software task, for whoever continues it next.\n"
@@ -4756,6 +4781,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
     @app.get("/v1/timeline", tags=["Memory"])
     async def timeline(
+        request: Request,
         after: str = None, before: str = None,
         limit: int = 20,
         sub_user_id: str = Query("default"),
@@ -5016,7 +5042,9 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 user_id, emb, top_k=limit, after=after, before=before, sub_user_id=sub_user_id, query_text=query)
         else:
             results = store.search_episodes_text(user_id, query, top_k=limit, sub_user_id=sub_user_id)
-        return {"results": _for_host(results, request)}
+        # No host filter: episodes carry no per-fact provenance, and
+        # _for_host would drop every row that has no `facts`.
+        return {"results": results}
 
     # ---- Procedural Memory ----
 
@@ -5048,7 +5076,8 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             results = store.search_procedures_vector(user_id, emb, top_k=limit, sub_user_id=sub_user_id, query_text=query)
         else:
             results = store.search_procedures_text(user_id, query, top_k=limit, sub_user_id=sub_user_id)
-        return {"results": _for_host(results, request)}
+        # No host filter: procedures carry no per-fact provenance (see search_episodes).
+        return {"results": results}
 
     @app.patch("/v1/procedures/{procedure_id}/feedback", tags=["Procedural Memory"])
     async def procedure_feedback(
@@ -6332,7 +6361,9 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             base = os.environ.get("MENGRAM_INTERNAL_URL") \
                 or f"http://127.0.0.1:{os.environ.get('PORT', '8000')}"
             mem = _CloudMemory(api_key=key, base_url=base)
-            mcp_server = _create_mcp(mem)
+            # Building the server fetches the profile over HTTP from this same
+            # app; in a thread, so the event loop stays free to answer it.
+            mcp_server = await asyncio.to_thread(_create_mcp, mem)
 
             async with _mcp_sse.connect_sse(
                 request.scope, request.receive, request._send
@@ -6396,8 +6427,12 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                     base = os.environ.get("MENGRAM_INTERNAL_URL") \
                         or f"http://127.0.0.1:{os.environ.get('PORT', '8000')}"
                     mem = _CloudMemory(api_key=key, base_url=base)
-                    mcp_server = _create_mcp(mem, user_id=_mcp_end_user(request),
-                                             tool_filter=self._tool_filter)
+                    # Building the server fetches the profile over HTTP from this
+                    # same app (see _create_mcp); a blocking call on the event loop
+                    # here can starve both workers, so it runs in a thread.
+                    mcp_server = await asyncio.to_thread(
+                        _create_mcp, mem, user_id=_mcp_end_user(request),
+                        tool_filter=self._tool_filter)
 
                     transport = StreamableHTTPServerTransport(
                         mcp_session_id=None,

@@ -1,5 +1,38 @@
 # Changelog
 
+## 2.48.1 — 2026-10-24
+
+Fixes from the full code audit of 2026-10-23.
+
+### Fixed
+- **A subscription's plan comes from the price paid.** The Paddle webhook took
+  the plan from `custom_data`, which the browser opening the checkout sets, so
+  a $5 checkout could name the $99 plan. An unknown price now grants no plan
+  (logged) instead of falling back to Pro.
+- **`/v1/timeline`, `/v1/episodes/search` and `/v1/procedures/search` answered
+  500 on every call since 2.46.0** (the host filter read a `request` the
+  functions did not take; the two searches charged quota first). Episodes and
+  procedures are no longer passed through the host filter, which only
+  understands entity facts and would have dropped every row.
+- **The cloud MCP server no longer blocks the event loop.** Every tool call,
+  resource read and the per-request server build made a blocking HTTP call
+  back into the same app; two at once on the two workers waited on each other
+  until the watchdog killed both. They now run in threads.
+- **A fact is archived as superseded only after the fact replacing it is
+  saved.** The contradiction pass archived old facts before the deny policy,
+  the salience gate and the save ran on the new ones, so a dropped new fact
+  left the old one archived with nothing in its place.
+- **`/v1/add` is bounded and charged by size**: at most 500 messages of
+  100,000 characters, and one `adds` unit per 24 messages (two extraction
+  windows). The hooks (2 messages) and the importer (20) still cost one unit.
+  `/v1/resume/draft` caps every field, so the hooks' uncharged call cannot be
+  turned into an unbounded model call.
+
+### Changed
+- **`CloudMemory` requests time out** after 300 s of silence (the server's own
+  limit; `timeout=` to change it), and a read timeout is not retried, so a long
+  operation is never sent twice.
+
 ## 2.48.0 — 2026-09-16
 
 Found while running the task card inside Orca, where several agents work in

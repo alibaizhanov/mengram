@@ -91,8 +91,15 @@ class CloudMemory:
     DEFAULT_BASE_URL = "https://mengram.io"
 
     def __init__(self, api_key: str, base_url: str | None = None,
-                 source: str | None = None, host: str | None = None) -> None:
+                 source: str | None = None, host: str | None = None,
+                 timeout: float = 300.0) -> None:
         self.api_key = api_key
+        # Seconds a socket may sit idle before the request fails. Without it a
+        # stalled server hangs the caller forever, including the MCP server,
+        # which calls back into the same app. 300 is the server's own limit
+        # (gunicorn --timeout in start.sh), so no request that could still
+        # succeed is cut short — some, like /v1/reflect, run a model inline.
+        self.timeout = timeout
         self.base_url = (base_url or self.DEFAULT_BASE_URL).rstrip("/")
         # "hook" when the caller is the user's own automation (the Claude Code /
         # Codex hooks): searches made that way are not charged to the search
@@ -143,7 +150,7 @@ class CloudMemory:
         for attempt in range(3):
             req = urllib.request.Request(url, data=body, method=method, headers=headers)
             try:
-                with urllib.request.urlopen(req, context=_SSL_CTX) as resp:
+                with urllib.request.urlopen(req, context=_SSL_CTX, timeout=self.timeout) as resp:
                     self._last_headers = resp.headers
                     return json.loads(resp.read())
             except urllib.error.HTTPError as e:
@@ -161,7 +168,12 @@ class CloudMemory:
                 if e.code == 402 and isinstance(detail, dict):
                     raise QuotaExceededError(detail)
                 raise Exception(f"API error {e.code}: {detail}")
-            except (urllib.error.URLError, ConnectionError, TimeoutError) as e:
+            except TimeoutError as e:
+                # The server took the request and went quiet. Sending it again
+                # would run a long operation (an extraction, a reflection)
+                # twice, so this is not retried.
+                raise Exception(f"Network error: timed out after {self.timeout:g}s") from e
+            except (urllib.error.URLError, ConnectionError) as e:
                 # Retry on network errors
                 if attempt < 2:
                     _time.sleep(1 * (attempt + 1))
@@ -286,7 +298,7 @@ class CloudMemory:
                 }
             )
             try:
-                with urllib.request.urlopen(req, context=_SSL_CTX) as resp:
+                with urllib.request.urlopen(req, context=_SSL_CTX, timeout=self.timeout) as resp:
                     self._last_headers = resp.headers
                     return json.loads(resp.read())
             except urllib.error.HTTPError as e:
@@ -302,7 +314,12 @@ class CloudMemory:
                 if e.code == 402 and isinstance(detail, dict):
                     raise QuotaExceededError(detail)
                 raise Exception(f"API error {e.code}: {detail}")
-            except (urllib.error.URLError, ConnectionError, TimeoutError) as e:
+            except TimeoutError as e:
+                # The server took the request and went quiet. Sending it again
+                # would run a long operation (an extraction, a reflection)
+                # twice, so this is not retried.
+                raise Exception(f"Network error: timed out after {self.timeout:g}s") from e
+            except (urllib.error.URLError, ConnectionError) as e:
                 if attempt < 2:
                     _time.sleep(1 * (attempt + 1))
                     last_err = e

@@ -532,7 +532,18 @@ class SearchMixin:
     def archive_contradicted_facts(self, entity_id: str, new_facts: list[str],
                                     llm_client) -> list[str]:
         """Use LLM to find old facts contradicted by new ones. Archive them.
-        Returns list of archived fact contents."""
+        Returns list of archived fact contents.
+
+        Only for callers whose new facts are already saved: the extraction
+        pipeline calls the two halves separately, so an old fact is archived
+        only once the fact replacing it has been written."""
+        return self.archive_superseded_facts(
+            entity_id, self.find_superseded_facts(entity_id, new_facts, llm_client))
+
+    def find_superseded_facts(self, entity_id: str, new_facts: list[str],
+                              llm_client) -> list[tuple[str, str]]:
+        """(old, new) pairs where a new fact directly contradicts a live old
+        one and every guard passes. Reads only; nothing is archived."""
         with self._cursor(dict_cursor=True) as cur:
             cur.execute(
                 "SELECT content FROM facts WHERE entity_id = %s AND archived = FALSE AND (expires_at IS NULL OR expires_at > NOW())",
@@ -595,8 +606,8 @@ No markdown, no explanation."""
             logger.error(f"⚠️ Conflict resolution failed: {e}")
             return []
 
-        # Archive contradicted facts with explicit old->new mapping + guards
-        archived = []
+        # Explicit old->new mapping + guards
+        found = []
         for pair in pairs:
             if not isinstance(pair, dict):
                 continue
@@ -633,6 +644,16 @@ No markdown, no explanation."""
                 logger.info(f"⚠️ Supersede skipped ({reason}): old={old_fact[:80]!r} new={new_fact[:80]!r}")
                 continue
 
+            found.append((old_fact, new_fact))
+
+        return found
+
+    def archive_superseded_facts(self, entity_id: str,
+                                 pairs: list[tuple[str, str]]) -> list[str]:
+        """Archive each old fact as superseded by its new one. Returns the old
+        facts archived."""
+        archived = []
+        for old_fact, new_fact in pairs:
             with self._cursor() as cur:
                 cur.execute(
                     """UPDATE facts SET archived = TRUE, superseded_by = %s
@@ -641,7 +662,6 @@ No markdown, no explanation."""
                 )
             archived.append(old_fact)
             logger.info(f"📦 Archived: '{old_fact}' → superseded by '{new_fact}'")
-
         return archived
 
     def dedup_entity_facts(self, entity_id: str, entity_name: str, llm_client) -> dict:

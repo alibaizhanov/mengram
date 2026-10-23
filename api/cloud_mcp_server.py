@@ -306,6 +306,11 @@ def create_cloud_mcp_server(
 
     @server.read_resource()
     async def read_resource(uri):
+        # Every branch makes blocking HTTP calls through `mem`, which in the
+        # cloud deployment are requests back into this same app.
+        return await asyncio.to_thread(_read_resource, uri)
+
+    def _read_resource(uri):
         uri_str = str(uri)
 
         if uri_str == "memory://profile":
@@ -758,6 +763,26 @@ def create_cloud_mcp_server(
             return [t for t in all_tools if t.name in tool_filter]
         return all_tools
 
+    class _InThread:
+        """`mem` with every method awaited in a worker thread.
+
+        CloudMemory blocks on urllib, and in the cloud deployment it calls back
+        into this same app over 127.0.0.1. Run on the event loop, two tool calls
+        landing on the two workers at once each wait on the other until the
+        gunicorn watchdog kills both."""
+
+        def __init__(self, target):
+            self._target = target
+
+        def __getattr__(self, attr):
+            fn = getattr(self._target, attr)
+
+            async def call(*args, **kwargs):
+                return await asyncio.to_thread(fn, *args, **kwargs)
+            return call
+
+    amem = _InThread(mem)
+
     @server.call_tool()
     async def call_tool(name: str, arguments: dict):
         if tool_filter is not None and name not in tool_filter:
@@ -767,7 +792,7 @@ def create_cloud_mcp_server(
         try:
             if name == "remember":
                 uid = arguments.get("user_id", user_id)
-                result = mem.add(arguments["conversation"], user_id=uid, source="mcp")
+                result = await amem.add(arguments["conversation"], user_id=uid, source="mcp")
                 if result.get("status") == "accepted":
                     text = "✅ Accepted! Processing in background — memories will appear shortly."
                 else:
@@ -786,7 +811,7 @@ def create_cloud_mcp_server(
 
             elif name == "remember_text":
                 uid = arguments.get("user_id", user_id)
-                result = mem.add([
+                result = await amem.add([
                     {"role": "user", "content": arguments["text"]},
                 ], user_id=uid, source="mcp")
                 if result.get("status") == "accepted":
@@ -806,7 +831,7 @@ def create_cloud_mcp_server(
 
             elif name == "recall":
                 uid = arguments.get("user_id", user_id)
-                results = mem.search(arguments["query"], user_id=uid)
+                results = await amem.search(arguments["query"], user_id=uid)
                 if not results:
                     return [TextContent(type="text", text="Nothing found in memory.")]
 
@@ -835,7 +860,7 @@ def create_cloud_mcp_server(
                 if max_facts > 30:
                     max_facts = 30
                 try:
-                    result = mem.ask(arguments["query"], user_id=uid, max_facts=max_facts)
+                    result = await amem.ask(arguments["query"], user_id=uid, max_facts=max_facts)
                 except Exception as e:
                     # Surface plan-gating (403) and other server errors as text the
                     # LLM can reason about (and surface to the user).
@@ -877,7 +902,7 @@ def create_cloud_mcp_server(
             elif name == "search":
                 top_k = arguments.get("top_k", 5)
                 uid = arguments.get("user_id", user_id)
-                results = mem.search(arguments["query"], user_id=uid, limit=top_k)
+                results = await amem.search(arguments["query"], user_id=uid, limit=top_k)
                 return [TextContent(
                     type="text",
                     text=json.dumps(results, ensure_ascii=False, indent=2),
@@ -885,7 +910,7 @@ def create_cloud_mcp_server(
 
             elif name == "timeline":
                 uid = arguments.get("user_id", user_id)
-                results = mem.timeline(
+                results = await amem.timeline(
                     after=arguments.get("after"),
                     before=arguments.get("before"),
                     user_id=uid,
@@ -902,7 +927,7 @@ def create_cloud_mcp_server(
 
             elif name == "vault_stats":
                 uid = arguments.get("user_id", user_id)
-                stats = mem.stats(user_id=uid)
+                stats = await amem.stats(user_id=uid)
                 return [TextContent(
                     type="text",
                     text=json.dumps(stats, ensure_ascii=False, indent=2),
@@ -912,7 +937,7 @@ def create_cloud_mcp_server(
                 agent = arguments.get("agent", "all")
                 auto_fix = arguments.get("auto_fix", True)
                 uid = arguments.get("user_id", user_id)
-                result = mem.run_agents(agent=agent, auto_fix=auto_fix, user_id=uid)
+                result = await amem.run_agents(agent=agent, auto_fix=auto_fix, user_id=uid)
                 
                 lines = [f"🤖 Agent run complete ({agent})"]
                 
@@ -948,7 +973,7 @@ def create_cloud_mcp_server(
 
             elif name == "get_insights":
                 uid = arguments.get("user_id", user_id)
-                insights = mem.insights(user_id=uid)
+                insights = await amem.insights(user_id=uid)
                 
                 if not insights.get("has_insights"):
                     return [TextContent(type="text", text="No insights yet. Run agents first or add more memories.")]
@@ -968,7 +993,7 @@ def create_cloud_mcp_server(
                 query = arguments.get("query")
                 limit = arguments.get("limit", 10)
                 uid = arguments.get("user_id", user_id)
-                procs = mem.procedures(query=query, limit=limit, user_id=uid)
+                procs = await amem.procedures(query=query, limit=limit, user_id=uid)
                 if not procs:
                     return [TextContent(type="text", text="No learned procedures yet.")]
 
@@ -1001,7 +1026,7 @@ def create_cloud_mcp_server(
                 failed_at_step = arguments.get("failed_at_step")
 
                 uid = arguments.get("user_id", user_id)
-                result = mem.procedure_feedback(
+                result = await amem.procedure_feedback(
                     proc_id, success=success,
                     context=context, failed_at_step=failed_at_step,
                     user_id=uid)
@@ -1037,7 +1062,7 @@ def create_cloud_mcp_server(
             elif name == "procedure_history":
                 proc_id = arguments["procedure_id"]
                 uid = arguments.get("user_id", user_id)
-                history = mem.procedure_history(proc_id, user_id=uid)
+                history = await amem.procedure_history(proc_id, user_id=uid)
 
                 versions = history.get("versions", [])
                 evolution = history.get("evolution_log", [])
@@ -1091,7 +1116,7 @@ def create_cloud_mcp_server(
 
             elif name == "get_entity":
                 uid = arguments.get("user_id", user_id)
-                entity = mem.get(arguments["name"], user_id=uid)
+                entity = await amem.get(arguments["name"], user_id=uid)
                 if not entity:
                     return [TextContent(type="text", text=f"Entity '{arguments['name']}' not found.")]
 
@@ -1123,7 +1148,7 @@ def create_cloud_mcp_server(
 
             elif name == "delete_entity":
                 uid = arguments.get("user_id", user_id)
-                success = mem.delete(arguments["name"], user_id=uid)
+                success = await amem.delete(arguments["name"], user_id=uid)
                 if success:
                     text = f"🗑️ Deleted entity '{arguments['name']}' and all its data."
                     try:
@@ -1138,7 +1163,7 @@ def create_cloud_mcp_server(
                 uid = arguments.get("user_id", user_id)
                 query = arguments.get("query")
                 limit = arguments.get("limit", 20)
-                episodes = mem.episodes(query=query, limit=limit, user_id=uid)
+                episodes = await amem.episodes(query=query, limit=limit, user_id=uid)
 
                 if not episodes:
                     return [TextContent(type="text", text="No episodes found.")]
@@ -1168,7 +1193,7 @@ def create_cloud_mcp_server(
             elif name == "search_all":
                 uid = arguments.get("user_id", user_id)
                 limit = arguments.get("limit", 5)
-                results = mem.search_all(arguments["query"], limit=limit, user_id=uid)
+                results = await amem.search_all(arguments["query"], limit=limit, user_id=uid)
 
                 lines = [f"🔍 **Unified search: '{arguments['query']}'**\n"]
 
@@ -1205,7 +1230,7 @@ def create_cloud_mcp_server(
 
             elif name == "get_graph":
                 uid = arguments.get("user_id", user_id)
-                graph = mem.graph(user_id=uid)
+                graph = await amem.graph(user_id=uid)
 
                 nodes = graph.get("nodes", [])
                 edges = graph.get("edges", [])
@@ -1228,7 +1253,7 @@ def create_cloud_mcp_server(
             elif name == "get_triggers":
                 uid = arguments.get("user_id", user_id)
                 include_fired = arguments.get("include_fired", False)
-                triggers = mem.get_triggers(include_fired=include_fired, user_id=uid)
+                triggers = await amem.get_triggers(include_fired=include_fired, user_id=uid)
 
                 if not triggers:
                     return [TextContent(type="text", text="No triggers found.")]
@@ -1256,7 +1281,7 @@ def create_cloud_mcp_server(
             elif name == "get_feed":
                 uid = arguments.get("user_id", user_id)
                 limit = arguments.get("limit", 20)
-                feed = mem.feed(limit=limit, user_id=uid)
+                feed = await amem.feed(limit=limit, user_id=uid)
 
                 if not feed:
                     return [TextContent(type="text", text="No activity yet.")]
@@ -1265,7 +1290,7 @@ def create_cloud_mcp_server(
 
             elif name == "archive_fact":
                 uid = arguments.get("user_id", user_id)
-                result = mem.archive_fact(
+                result = await amem.archive_fact(
                     arguments["entity_name"],
                     arguments["fact_content"],
                     user_id=uid,
@@ -1279,7 +1304,7 @@ def create_cloud_mcp_server(
 
             elif name == "merge_entities":
                 uid = arguments.get("user_id", user_id)
-                result = mem.merge(arguments["source"], arguments["target"], user_id=uid)
+                result = await amem.merge(arguments["source"], arguments["target"], user_id=uid)
                 text = (
                     f"🔗 Merged '{arguments['source']}' → '{arguments['target']}'\n"
                     f"All facts, relations, and knowledge have been combined."
@@ -1292,7 +1317,7 @@ def create_cloud_mcp_server(
 
             elif name == "reflect":
                 uid = arguments.get("user_id", user_id)
-                result = mem.reflect(user_id=uid)
+                result = await amem.reflect(user_id=uid)
 
                 lines = ["🧠 **Reflection triggered**\n"]
                 if result.get("reflections"):
@@ -1311,19 +1336,19 @@ def create_cloud_mcp_server(
 
             elif name == "dismiss_trigger":
                 trigger_id = arguments["trigger_id"]
-                result = mem.dismiss_trigger(trigger_id)
+                result = await amem.dismiss_trigger(trigger_id)
                 return [TextContent(type="text", text=f"✅ Trigger {trigger_id} dismissed.")]
 
             elif name == "fix_entity_type":
                 entity_name = arguments["name"]
                 new_type = arguments["new_type"]
                 uid = arguments.get("user_id", user_id)
-                mem.fix_entity_type(entity_name, new_type, user_id=uid)
+                await amem.fix_entity_type(entity_name, new_type, user_id=uid)
                 return [TextContent(type="text", text=f"✅ Entity **{entity_name}** type changed to **{new_type}**.")]
 
             elif name == "list_memories":
                 uid = arguments.get("user_id", user_id)
-                memories = mem.get_all(user_id=uid)
+                memories = await amem.get_all(user_id=uid)
 
                 if not memories:
                     return [TextContent(type="text", text="No memories stored yet.")]
@@ -1340,7 +1365,7 @@ def create_cloud_mcp_server(
             elif name == "get_reflections":
                 uid = arguments.get("user_id", user_id)
                 scope = arguments.get("scope")
-                reflections = mem.reflections(scope=scope, user_id=uid)
+                reflections = await amem.reflections(scope=scope, user_id=uid)
 
                 if not reflections:
                     return [TextContent(type="text", text="No reflections yet. Use the `reflect` tool first to generate insights.")]
@@ -1360,7 +1385,7 @@ def create_cloud_mcp_server(
 
             elif name == "dedup":
                 uid = arguments.get("user_id", user_id)
-                result = mem.dedup(user_id=uid)
+                result = await amem.dedup(user_id=uid)
                 merged = result.get("merged", [])
                 count = result.get("count", 0)
 
@@ -1389,7 +1414,7 @@ def create_cloud_mcp_server(
 
                 checkpoint_text = "\n".join(parts)
                 uid = arguments.get("user_id", user_id)
-                result = mem.add([
+                result = await amem.add([
                     {"role": "user", "content": checkpoint_text},
                     {"role": "assistant", "content": f"Checkpoint saved: {summary[:100]}"},
                 ], user_id=uid, source="mcp")
@@ -1428,7 +1453,7 @@ def create_cloud_mcp_server(
                 task = arguments["task"]
                 uid = arguments.get("user_id", user_id)
                 max_tokens = int(arguments.get("max_tokens") or 1200)
-                results = mem.search_all(task, limit=5, user_id=uid, max_tokens=max_tokens)
+                results = await amem.search_all(task, limit=5, user_id=uid, max_tokens=max_tokens)
 
                 lines = [f"# Context for: {task}\n"]
 
@@ -1477,7 +1502,7 @@ def create_cloud_mcp_server(
             elif name == "generate_rules_file":
                 fmt = arguments.get("format", "claude_md")
                 uid = arguments.get("user_id", user_id)
-                result = mem.rules(format=fmt, user_id=uid)
+                result = await amem.rules(format=fmt, user_id=uid)
 
                 if result.get("status") != "ok":
                     return [TextContent(type="text", text=f"Could not generate rules file: {result.get('status', 'unknown error')}. {result.get('error', '')}")]
