@@ -26,6 +26,15 @@ DEFAULT_CONFIG = DEFAULT_HOME / "config.yaml"
 DEFAULT_VAULT = DEFAULT_HOME / "vault"
 
 
+def _configure_console_streams() -> None:
+    """Keep intentional Unicode CLI output from crashing legacy consoles."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        encoding = (getattr(stream, "encoding", None) or "").lower().replace("-", "")
+        if reconfigure and encoding != "utf8":
+            reconfigure(errors="replace")
+
+
 def get_claude_desktop_config_path() -> Path:
     """Path to Claude Desktop MCP config"""
     system = platform.system()
@@ -3295,6 +3304,7 @@ def cmd_web(args):
 
 
 def main():
+    _configure_console_streams()
     parser = argparse.ArgumentParser(
         prog="mengram",
         description="🧠 Mengram — AI memory layer for apps",
