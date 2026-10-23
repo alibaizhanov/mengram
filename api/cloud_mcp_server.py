@@ -28,7 +28,7 @@ from urllib.parse import unquote
 try:
     from mcp.server import Server
     from mcp.server.stdio import stdio_server
-    from mcp.types import Tool, TextContent, Resource, ResourceTemplate, Icon
+    from mcp.types import Tool, TextContent, Resource, ResourceTemplate, Icon, CallToolResult
     MCP_AVAILABLE = True
 except ImportError:
     MCP_AVAILABLE = False
@@ -783,10 +783,15 @@ def create_cloud_mcp_server(
 
     amem = _InThread(mem)
 
+    def _tool_error(text: str) -> "CallToolResult":
+        # Plain TextContent goes out with isError=false, so the client model
+        # reads a failure as a successful answer and carries on.
+        return CallToolResult(content=[TextContent(type="text", text=text)], isError=True)
+
     @server.call_tool()
     async def call_tool(name: str, arguments: dict):
         if tool_filter is not None and name not in tool_filter:
-            return [TextContent(type="text", text=f"Tool '{name}' is not available on this connector.")]
+            return _tool_error(f"Tool '{name}' is not available on this connector.")
         if "user_id" in arguments:
             print(f"[mcp] user_id override: tool={name} sub_uid={arguments['user_id']}", file=sys.stderr)
         try:
@@ -871,7 +876,7 @@ def create_cloud_mcp_server(
                             text=("⚠️ The 'ask' tool requires a Pro / Growth / Business plan. "
                                   "Use 'recall' instead, or upgrade at https://mengram.io/pricing.")
                         )]
-                    return [TextContent(type="text", text=f"❌ Ask failed: {msg[:300]}")]
+                    return _tool_error(f"❌ Ask failed: {msg[:300]}")
 
                 answer = (result.get("answer") or "").strip()
                 citations = result.get("citations") or []
@@ -1518,10 +1523,10 @@ def create_cloud_mcp_server(
                 )
                 return [TextContent(type="text", text=header + content)]
 
-            return [TextContent(type="text", text=f"Unknown tool: {name}")]
+            return _tool_error(f"Unknown tool: {name}")
 
         except Exception as e:
-            return [TextContent(type="text", text=f"❌ Error: {str(e)}")]
+            return _tool_error(f"❌ Error: {str(e)}")
 
     return server
 

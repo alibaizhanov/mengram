@@ -96,11 +96,9 @@ mengram/
 │   │   └── vault_manager.py          # .md file manager
 │   ├── graph/
 │   │   └── knowledge_graph.py        # SQLite knowledge graph
-│   ├── vector/
-│   │   ├── embedder.py               # Local embeddings
-│   │   └── vector_store.py           # SQLite vector search
-│   └── retrieval/
-│       └── hybrid_search.py          # Vector + graph retrieval
+│   └── vector/
+│       ├── embedder.py               # Local embeddings
+│       └── vector_store.py           # SQLite vector search
 ├── api/
 │   ├── mcp_server.py        # MCP Server (local vault)
 │   ├── cloud_mcp_server.py  # MCP Server (cloud API)

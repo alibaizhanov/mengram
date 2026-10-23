@@ -34,6 +34,33 @@ from engine.extractor.redact import redact_secrets
 _logger = logging.getLogger("mengram")
 
 EXTRACTION_PROMPT_VERSION = os.environ.get("EXTRACTION_PROMPT_VERSION", "v1")
+_KNOWN_PROMPT_VERSIONS = ("v1", "v2")
+
+
+class ExtractionParseError(ValueError):
+    """The model answered, but not with a JSON object we can read — most often
+    output cut off at the token limit. Raised so callers count the extraction
+    as failed instead of storing it as "nothing to remember"."""
+
+
+# Provider errors (openai and anthropic share these class names) that mean the
+# request itself failed. Repeating it without the schema doesn't help, it only
+# doubles the wait: a timeout used to cost two full calls, each with an SDK retry.
+_TRANSPORT_ERROR_NAMES = frozenset({
+    "APITimeoutError", "APIConnectionError", "RateLimitError",
+    "InternalServerError", "OverloadedError",
+})
+
+
+def _is_transport_error(e: BaseException) -> bool:
+    """Timeout, rate limit, connection or server failure — as opposed to the
+    provider rejecting the structured-output request itself (a 400)."""
+    if isinstance(e, (TimeoutError, ConnectionError, OSError)):  # urllib / Ollama
+        return True
+    status = getattr(e, "status_code", None)
+    if isinstance(status, int) and (status == 429 or status >= 500):
+        return True
+    return any(c.__name__ in _TRANSPORT_ERROR_NAMES for c in type(e).__mro__)
 
 # OpenAI Structured Outputs schema — guarantees valid JSON with correct types
 EXTRACTION_SCHEMA = {
@@ -692,18 +719,43 @@ class ConversationExtractor:
         else:
             context_block = ""
 
-        version = prompt_version or EXTRACTION_PROMPT_VERSION
+        version = self._resolve_prompt_version(prompt_version)
         prompt_template = EXTRACTION_PROMPT_V2 if version == "v2" else EXTRACTION_PROMPT
         prompt = prompt_template.format(
             conversation=conv_text,
             existing_context=context_block
         )
+        window = f"{len(conversation)} messages, {len(conv_text)} chars"
         try:
             raw_response = self.llm.complete(prompt, response_format=EXTRACTION_SCHEMA)
         except Exception as e:
+            if _is_transport_error(e):
+                raise
+            # The provider rejected the schema request itself: plain completion.
             _logger.warning(f"Structured output failed ({type(e).__name__}: {e}), falling back to plain completion")
-            raw_response = self.llm.complete(prompt)
-        return self._parse_response(raw_response)
+            return self._parse_or_raise(self.llm.complete(prompt), window)
+        try:
+            return self._parse_response(raw_response)
+        except ExtractionParseError as e:
+            _logger.warning(f"Unparseable extraction output ({e}; window: {window}), "
+                            f"retrying once without the schema")
+            return self._parse_or_raise(self.llm.complete(prompt), window)
+
+    @staticmethod
+    def _resolve_prompt_version(prompt_version: Optional[str]) -> str:
+        version = (prompt_version or EXTRACTION_PROMPT_VERSION or "v1").strip().lower()
+        if version not in _KNOWN_PROMPT_VERSIONS:
+            _logger.warning(f"Unknown extraction prompt_version {prompt_version!r}, using v1")
+            return "v1"
+        return version
+
+    def _parse_or_raise(self, raw, window: str) -> ExtractionResult:
+        try:
+            return self._parse_response(raw)
+        except ExtractionParseError as e:
+            _logger.warning(f"Extraction output unparseable ({e}; window: {window}) — "
+                            f"likely truncated at the token limit")
+            raise
 
     def extract_from_text(self, text: str) -> ExtractionResult:
         conversation = [{"role": "user", "content": text}]
@@ -716,7 +768,14 @@ class ConversationExtractor:
             lines.append(f"{role}: {redact_secrets(str(msg['content']))}")
         return "\n\n".join(lines)
 
-    def _parse_response(self, raw: str) -> ExtractionResult:
+    def _parse_response(self, raw: Optional[str]) -> ExtractionResult:
+        """Raises ExtractionParseError when there is output but no JSON object
+        in it; empty output (an OpenAI refusal returns content=None) is an
+        empty extraction."""
+        if not isinstance(raw, str) or not raw.strip():
+            _logger.warning(f"⚠️ LLM returned no extraction content ({type(raw).__name__}) — "
+                            f"refusal or empty reply, treating as nothing extracted")
+            return ExtractionResult(raw_response=raw if isinstance(raw, str) else "")
         result = ExtractionResult(raw_response=raw)
 
         # Parse JSON with fallback strategies
@@ -752,9 +811,8 @@ class ConversationExtractor:
                 except (json.JSONDecodeError, ValueError):
                     pass
 
-        if data is None:
-            _logger.warning(f"⚠️ Failed to parse JSON from LLM (length: {len(raw)})")
-            return result
+        if not isinstance(data, dict):
+            raise ExtractionParseError(f"no JSON object in {len(raw)} chars of output")
 
         # Entities
         for e in data.get("entities", []):
