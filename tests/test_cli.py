@@ -1,11 +1,35 @@
 """Unit tests for cli.py helper functions used by Claude Code hooks."""
 
+import io
 import json
 import sys
 
 import pytest
 
 import cli
+
+
+def test_configure_console_streams_replaces_unencodable_output(monkeypatch):
+    stdout_bytes = io.BytesIO()
+    stderr_bytes = io.BytesIO()
+    stdout = io.TextIOWrapper(stdout_bytes, encoding="cp1252", errors="strict")
+    stderr = io.TextIOWrapper(stderr_bytes, encoding="cp1252", errors="strict")
+    monkeypatch.setattr(cli.sys, "stdout", stdout)
+    monkeypatch.setattr(cli.sys, "stderr", stderr)
+
+    try:
+        cli._configure_console_streams()
+        print("🧠 status", file=stdout)
+        print("⚠️ quota", file=stderr)
+        stdout.flush()
+        stderr.flush()
+        assert stdout.errors == "replace"
+        assert stderr.errors == "replace"
+        assert b"? status" in stdout_bytes.getvalue()
+        assert b"? quota" in stderr_bytes.getvalue()
+    finally:
+        stdout.close()
+        stderr.close()
 
 
 def test_load_cloud_base_url_from_env(monkeypatch, tmp_path):
