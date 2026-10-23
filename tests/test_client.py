@@ -466,3 +466,26 @@ class TestQuotaExceededError:
         assert err.limit == 0
         assert err.current == 0
         assert err.plan == "free"
+
+
+# ---- Timeouts (audit 2026-10-23) ----
+
+class TestTimeout:
+    @patch("urllib.request.urlopen")
+    def test_every_request_has_a_socket_timeout(self, mock_urlopen):
+        mock_urlopen.return_value = _mock_response({"results": []})
+        CloudMemory(api_key="om-test-key-123", timeout=7).search("x")
+        assert mock_urlopen.call_args.kwargs["timeout"] == 7
+
+    @patch("urllib.request.urlopen")
+    def test_default_timeout_is_the_servers_own_limit(self, mock_urlopen, client):
+        mock_urlopen.return_value = _mock_response({"results": []})
+        client.search("x")
+        assert mock_urlopen.call_args.kwargs["timeout"] == 300
+
+    @patch("urllib.request.urlopen")
+    def test_a_read_timeout_is_not_retried(self, mock_urlopen, client):
+        mock_urlopen.side_effect = TimeoutError("timed out")
+        with pytest.raises(Exception, match="timed out"):
+            client.search("x")
+        assert mock_urlopen.call_count == 1

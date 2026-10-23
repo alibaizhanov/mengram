@@ -33,6 +33,27 @@ PADDLE_PRICES_ANNUAL = {
     "business": os.environ.get("PADDLE_PRICE_BUSINESS_ANNUAL", ""),
 }
 
+def plan_for_price(price_id: str) -> str | None:
+    """The plan a Paddle price id pays for; None for an unknown or empty id.
+
+    The price is the only source of truth for the plan: `custom_data` is set
+    by the browser that opens the checkout, so it can name any plan.
+    """
+    if not price_id:
+        return None
+    for plan in ("business", "growth", "pro", "starter"):
+        if price_id in (PADDLE_PRICES.get(plan), PADDLE_PRICES_ANNUAL.get(plan)):
+            return plan
+    return None
+
+
+def _plan_from_items(data: dict) -> str | None:
+    items = data.get("items") or []
+    if not items:
+        return None
+    return plan_for_price((items[0].get("price") or {}).get("id", ""))
+
+
 def _paddle_request(method: str, path: str, body: dict = None) -> dict:
     """Make authenticated Paddle API request."""
     import urllib.request, urllib.error
@@ -319,30 +340,22 @@ def billing_router(store, auth) -> APIRouter:
             if not user_id and customer_id:
                 user_id = store.get_user_by_paddle_customer(customer_id)
 
-            # Detect plan from custom_data or items price_id
-            plan = custom.get("plan")
-            if not plan:
-                items = data.get("items", [])
-                if items:
-                    price_id = items[0].get("price", {}).get("id", "")
-                    if price_id in (PADDLE_PRICES.get("business"), PADDLE_PRICES_ANNUAL.get("business")):
-                        plan = "business"
-                    elif price_id in (PADDLE_PRICES.get("growth"), PADDLE_PRICES_ANNUAL.get("growth")):
-                        plan = "growth"
-                    elif price_id in (PADDLE_PRICES.get("pro"), PADDLE_PRICES_ANNUAL.get("pro")):
-                        plan = "pro"
-                    elif price_id in (PADDLE_PRICES.get("starter"), PADDLE_PRICES_ANNUAL.get("starter")):
-                        plan = "starter"
-            if not plan:
-                plan = "pro"
+            # The plan comes from the price actually paid, never from
+            # custom_data (the browser sets that and could name any plan).
+            plan = _plan_from_items(data)
 
             if user_id:
                 updates = {
-                    "plan": plan,
                     "status": "active",
                     "paddle_customer_id": customer_id,
                     "paddle_subscription_id": subscription_id,
                 }
+                if plan:
+                    updates["plan"] = plan
+                else:
+                    logger.error(f"Subscription activated with an unknown price: user={user_id} "
+                                 f"subscription={subscription_id} custom_plan={custom.get('plan')!r}; "
+                                 f"plan left unchanged")
                 current_period = data.get("current_billing_period") or {}
                 if current_period.get("starts_at"):
                     updates["current_period_start"] = current_period["starts_at"]
@@ -392,18 +405,9 @@ def billing_router(store, auth) -> APIRouter:
                 user_id = store.get_user_by_paddle_customer(customer_id)
             if user_id:
                 updates = {"status": data.get("status", "active")}
-                # Detect plan from items → price_id
-                items = data.get("items", [])
-                if items:
-                    price_id = items[0].get("price", {}).get("id", "")
-                    if price_id in (PADDLE_PRICES.get("business"), PADDLE_PRICES_ANNUAL.get("business")):
-                        updates["plan"] = "business"
-                    elif price_id in (PADDLE_PRICES.get("growth"), PADDLE_PRICES_ANNUAL.get("growth")):
-                        updates["plan"] = "growth"
-                    elif price_id in (PADDLE_PRICES.get("pro"), PADDLE_PRICES_ANNUAL.get("pro")):
-                        updates["plan"] = "pro"
-                    elif price_id in (PADDLE_PRICES.get("starter"), PADDLE_PRICES_ANNUAL.get("starter")):
-                        updates["plan"] = "starter"
+                plan = _plan_from_items(data)
+                if plan:
+                    updates["plan"] = plan
                 current_period = data.get("current_billing_period") or {}
                 if current_period.get("starts_at"):
                     updates["current_period_start"] = current_period["starts_at"]

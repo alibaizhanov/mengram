@@ -16,3 +16,17 @@ PLAN_QUOTAS = {
     "business":   {"adds": 8_000, "searches": 30_000, "agents": -1,  "reflects": -1,  "dedups": -1,  "reindexes": -1,  "rules": -1,   "rate_limit": 300, "webhooks": 50, "teams": -1, "sub_users": -1},
     "selfhosted": {"adds": -1,    "searches": -1,     "agents": -1,  "reflects": -1,  "dedups": -1,  "reindexes": -1,  "rules": -1,   "rate_limit": 600, "webhooks": -1, "teams": -1, "sub_users": -1},
 }
+
+
+#: Bounds on one /v1/add. Every 12 messages are one extraction call, so an
+#: unbounded request was an unbounded number of model calls for one quota unit.
+MAX_MESSAGE_CHARS = 100_000
+MAX_ADD_MESSAGES = 500
+#: One `adds` unit covers this many messages (two extraction windows). The
+#: hooks send 2 per add and the importer 20, so both still cost one unit.
+MESSAGES_PER_ADD_UNIT = 24
+
+
+def add_units(n_messages: int) -> int:
+    """`adds` quota units a /v1/add with `n_messages` messages costs."""
+    return max(1, -(-n_messages // MESSAGES_PER_ADD_UNIT))
