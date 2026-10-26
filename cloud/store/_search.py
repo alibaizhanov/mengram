@@ -733,3 +733,50 @@ Return ONLY this JSON (no markdown):
         kept = result.get("keep", [])
         logger.info(f"🧹 Dedup '{entity_name}': {len(facts)} → {len(facts)-len(archived)} facts ({len(archived)} archived)")
         return {"kept": kept, "archived": archived}
+
+    #: Entities deduplicated per /v1/dedup_all call. Each is one model call
+    #: (two on a bad JSON reply), run back to back; uncapped, an account with
+    #: a few hundred entities ran far past the 300 s worker and client timeouts.
+    DEDUP_ALL_BATCH = 25
+
+    def dedup_all_entities(self, user_id: str, llm_client, sub_user_id: str = "default",
+                           after: str | None = None, batch: int | None = None) -> dict:
+        """Deduplicate the next batch of this user's entities, in id order.
+
+        Only entities with 3+ live facts are candidates — dedup_entity_facts
+        skips smaller ones without a model call, so they must not use up the
+        batch. Counted from `facts` directly, not the entity_overview matview,
+        which can lag. The cursor is the last entity id handled rather than an
+        offset, because archiving facts can drop an entity out of the
+        candidate list and shift every offset after it.
+        """
+        batch = batch or self.DEDUP_ALL_BATCH
+        with self._cursor() as cur:
+            cur.execute(
+                """SELECT e.id, e.name FROM entities e
+                   WHERE e.user_id = %s AND e.sub_user_id = %s AND e.name NOT LIKE '\\_%%'
+                     AND (%s::uuid IS NULL OR e.id > %s::uuid)
+                     AND (SELECT COUNT(*) FROM facts f
+                          WHERE f.entity_id = e.id AND f.archived = FALSE
+                            AND (f.expires_at IS NULL OR f.expires_at > NOW())) >= 3
+                   ORDER BY e.id""",
+                (user_id, sub_user_id, after, after)
+            )
+            candidates = [(str(r[0]), r[1]) for r in cur.fetchall()]
+
+        todo = candidates[:batch]
+        total_archived = 0
+        results = []
+        for entity_id, name in todo:
+            r = self.dedup_entity_facts(entity_id, name, llm_client)
+            if r["archived"]:
+                total_archived += len(r["archived"])
+                results.append({"entity": name, "archived": len(r["archived"])})
+        remaining = len(candidates) - len(todo)
+        return {
+            "total_archived": total_archived,
+            "entities": results,
+            "processed": len(todo),
+            "remaining": remaining,
+            "next_after": todo[-1][0] if remaining else None,
+        }

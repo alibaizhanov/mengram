@@ -104,6 +104,46 @@ class CoreMixin:
             finally:
                 cur.close()
 
+    @contextmanager
+    def _transaction(self, dict_cursor=False):
+        """A cursor whose statements commit together or not at all.
+
+        Pooled connections run in autocommit, so a multi-statement write
+        through `_cursor` lands piece by piece and stops half-way on the first
+        error. This turns autocommit off for the block, commits on a clean
+        exit, rolls back on any exception and hands the connection back in
+        autocommit. Without a pool the one shared connection would pull other
+        threads' statements into the transaction, so it gets its own.
+        """
+        factory = psycopg2.extras.DictCursor if dict_cursor else None
+
+        @contextmanager
+        def _own_conn():
+            conn = psycopg2.connect(self.database_url)
+            try:
+                yield conn
+            finally:
+                conn.close()
+
+        with (self._get_conn() if self._pool else _own_conn()) as conn:
+            conn.autocommit = False
+            cur = conn.cursor(cursor_factory=factory)
+            try:
+                yield cur
+                conn.commit()
+            except BaseException:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+                raise
+            finally:
+                cur.close()
+                try:
+                    conn.autocommit = True
+                except Exception:
+                    pass
+
     def _migrate(self):
         """Auto-migrate: add new columns if missing.
         Uses advisory lock to prevent race conditions when multiple

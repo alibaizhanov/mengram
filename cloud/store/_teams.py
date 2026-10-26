@@ -20,7 +20,15 @@ class TeamMixin:
     # =====================================================
 
     def ensure_teams_table(self):
-        """Create teams infrastructure."""
+        """Create teams infrastructure. Runs its DDL at most once per process.
+
+        It is called from every team path, including the search path on each
+        60 s team-cache miss. The ALTER below takes ACCESS EXCLUSIVE on
+        `entities` before it finds out the column already exists, so running it
+        per request queued every read and write of entities behind it.
+        """
+        if getattr(self, "_teams_table_ready", False):
+            return
         with self._cursor() as cur:
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS teams (
@@ -57,6 +65,7 @@ class TeamMixin:
                 CREATE INDEX IF NOT EXISTS idx_team_members_user
                 ON team_members(user_id)
             """)
+        self._teams_table_ready = True
 
     def create_team(self, user_id: str, name: str, description: str = "") -> dict:
         """Create a new team. Creator becomes owner."""

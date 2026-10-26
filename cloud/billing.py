@@ -4,6 +4,7 @@ Module level: Paddle configuration and the one-click checkout token used by the 
 and drip emails. `billing_router` mounts the five billing routes on the API.
 """
 
+import asyncio
 import datetime
 import json
 import logging
@@ -54,8 +55,75 @@ def _plan_from_items(data: dict) -> str | None:
     return plan_for_price((items[0].get("price") or {}).get("id", ""))
 
 
+# Events that move a subscription between states. Paddle sends .canceled when
+# access actually ends (at period end for a scheduled cancel, at once for an
+# immediate one or a refund) and .paused when billing stops; .updated carries
+# the new status for every other change, .resumed brings a paused one back.
+_STATE_EVENTS = ("subscription.canceled", "subscription.paused",
+                 "subscription.resumed", "subscription.updated")
+_EVENT_STATUS = {"subscription.canceled": "canceled", "subscription.paused": "paused",
+                 "subscription.resumed": "active"}
+
+
+def subscription_state_updates(event_type: str, data: dict) -> dict:
+    """The subscription row fields a Paddle state event sets.
+
+    Canceled or paused → the free plan now. Paddle sends no billing period on
+    a canceled subscription (current_billing_period is null), so "keep the
+    plan until the period ends" left canceled accounts on the paid plan.
+    Anything else re-derives the plan from the price, never from custom_data.
+    past_due keeps the plan: Paddle is still retrying the payment, and access
+    stays on during dunning — if the retries fail Paddle cancels or pauses
+    the subscription and that event downgrades it.
+    """
+    status = _EVENT_STATUS.get(event_type) or data.get("status") or "active"
+    updates = {"status": status}
+    if status in ("canceled", "paused"):
+        updates["plan"] = "free"
+        if status == "canceled":
+            updates["canceled_at"] = (data.get("canceled_at")
+                                      or datetime.datetime.now(datetime.timezone.utc).isoformat())
+        return updates
+    plan = _plan_from_items(data)
+    if plan:
+        updates["plan"] = plan
+    current_period = data.get("current_billing_period") or {}
+    if current_period.get("starts_at"):
+        updates["current_period_start"] = current_period["starts_at"]
+    if current_period.get("ends_at"):
+        updates["current_period_end"] = current_period["ends_at"]
+    return updates
+
+
+def effective_plan(sub: dict | None, known_plans, now: datetime.datetime | None = None) -> str:
+    """The plan a subscription row grants right now.
+
+    Rows written before canceled/paused events downgraded the plan can still
+    say status=canceled with a paid plan and no period end (Paddle sends none
+    on cancel); those end now rather than never. A canceled row whose period
+    end is still ahead keeps its plan until then.
+    """
+    plan = (sub or {}).get("plan", "free") or "free"
+    if plan not in known_plans:
+        return "free"
+    if plan == "free" or (sub or {}).get("status") not in ("canceled", "paused"):
+        return plan
+    period_end = sub.get("current_period_end")
+    if not period_end:
+        return "free"
+    try:
+        end_dt = datetime.datetime.fromisoformat(str(period_end).replace("Z", "+00:00"))
+    except ValueError:
+        return plan
+    if end_dt.tzinfo is None:
+        end_dt = end_dt.replace(tzinfo=datetime.timezone.utc)
+    now = now or datetime.datetime.now(datetime.timezone.utc)
+    return "free" if end_dt < now else plan
+
+
 def _paddle_request(method: str, path: str, body: dict = None) -> dict:
-    """Make authenticated Paddle API request."""
+    """Make authenticated Paddle API request. Blocking: async callers run it
+    via asyncio.to_thread so a slow Paddle cannot stall the event loop."""
     import urllib.request, urllib.error
     url = f"{PADDLE_API_BASE}{path}"
     data = json.dumps(body).encode() if body else None
@@ -67,7 +135,7 @@ def _paddle_request(method: str, path: str, body: dict = None) -> dict:
         }
     )
     try:
-        with urllib.request.urlopen(req) as resp:
+        with urllib.request.urlopen(req, timeout=30) as resp:
             return json.loads(resp.read())
     except urllib.error.HTTPError as e:
         err_body = e.read().decode()
@@ -133,7 +201,7 @@ def billing_router(store, auth) -> APIRouter:
             txn_body["customer_id"] = customer_id
 
         try:
-            result = _paddle_request("POST", "/transactions", txn_body)
+            result = await asyncio.to_thread(_paddle_request, "POST", "/transactions", txn_body)
             data = result.get("data", {})
             checkout_url = data.get("checkout", {}).get("url", "")
             transaction_id = data.get("id", "")
@@ -202,7 +270,7 @@ def billing_router(store, auth) -> APIRouter:
         # If user already has an active subscription → update it (change plan)
         if subscription_id and sub.get("status") in ("active", "past_due"):
             try:
-                result = _paddle_request("PATCH", f"/subscriptions/{subscription_id}", {
+                result = await asyncio.to_thread(_paddle_request, "PATCH", f"/subscriptions/{subscription_id}", {
                     "items": [{"price_id": price_id, "quantity": 1}],
                     "proration_billing_mode": "prorated_immediately",
                     "custom_data": {"mengram_user_id": user_id, "plan": plan},
@@ -225,7 +293,7 @@ def billing_router(store, auth) -> APIRouter:
             txn_body["customer_id"] = customer_id
 
         try:
-            result = _paddle_request("POST", "/transactions", txn_body)
+            result = await asyncio.to_thread(_paddle_request, "POST", "/transactions", txn_body)
             data = result.get("data", {})
             checkout_url = data.get("checkout", {}).get("url", "")
             transaction_id = data.get("id", "")
@@ -256,7 +324,8 @@ def billing_router(store, auth) -> APIRouter:
             raise HTTPException(status_code=400, detail="No billing account. Subscribe first.")
 
         try:
-            result = _paddle_request(
+            result = await asyncio.to_thread(
+                _paddle_request,
                 "POST",
                 f"/customers/{customer_id}/portal-sessions",
                 {}
@@ -371,22 +440,10 @@ def billing_router(store, auth) -> APIRouter:
             else:
                 logger.error(f"Subscription activated but no user found: customer={customer_id}")
 
-        elif event_type == "subscription.canceled":
-            custom = data.get("custom_data") or {}
-            user_id = custom.get("mengram_user_id")
-            customer_id = data.get("customer_id", "")
-            if not user_id and customer_id:
-                user_id = store.get_user_by_paddle_customer(customer_id)
-            if user_id:
-                # Keep current plan until period ends — only change status
-                updates = {"status": "canceled"}
-                current_period = data.get("current_billing_period") or {}
-                if current_period.get("ends_at"):
-                    updates["current_period_end"] = current_period["ends_at"]
-                store.update_subscription(user_id, **updates)
-                logger.info(f"Subscription canceled: user={user_id} (access until period end)")
-
         elif event_type == "subscription.past_due":
+            # Status only, plan kept: Paddle retries the payment and access
+            # stays on during dunning. Failed retries end in a canceled or
+            # paused event, which downgrades.
             custom = data.get("custom_data") or {}
             user_id = custom.get("mengram_user_id")
             customer_id = data.get("customer_id", "")
@@ -396,25 +453,26 @@ def billing_router(store, auth) -> APIRouter:
                 store.update_subscription(user_id, status="past_due")
                 logger.warning(f"Payment past due: user={user_id}")
 
-        elif event_type == "subscription.updated":
-            # Handle plan changes (upgrade/downgrade) and status updates
+        elif event_type in _STATE_EVENTS:
             custom = data.get("custom_data") or {}
             user_id = custom.get("mengram_user_id")
             customer_id = data.get("customer_id", "")
             if not user_id and customer_id:
                 user_id = store.get_user_by_paddle_customer(customer_id)
             if user_id:
-                updates = {"status": data.get("status", "active")}
-                plan = _plan_from_items(data)
-                if plan:
-                    updates["plan"] = plan
-                current_period = data.get("current_billing_period") or {}
-                if current_period.get("starts_at"):
-                    updates["current_period_start"] = current_period["starts_at"]
-                if current_period.get("ends_at"):
-                    updates["current_period_end"] = current_period["ends_at"]
-                store.update_subscription(user_id, **updates)
-                logger.info(f"Subscription updated: user={user_id} updates={updates}")
+                current_sub_id = (store.get_subscription(user_id) or {}).get("paddle_subscription_id")
+                event_sub_id = data.get("id", "")
+                if current_sub_id and event_sub_id and event_sub_id != current_sub_id:
+                    # A late event for a subscription the user has since
+                    # replaced must not downgrade (or re-grant) the new one.
+                    logger.warning(f"Ignoring {event_type} for old subscription {event_sub_id}: "
+                                   f"user={user_id} current={current_sub_id}")
+                else:
+                    updates = subscription_state_updates(event_type, data)
+                    store.update_subscription(user_id, **updates)
+                    logger.info(f"Subscription {event_type}: user={user_id} updates={updates}")
+            else:
+                logger.error(f"{event_type} but no user found: customer={customer_id}")
 
         return {"received": True}
 
