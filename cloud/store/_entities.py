@@ -896,11 +896,13 @@ class EntityMixin:
 
         Every table is wiped explicitly (children before parents) in one
         transaction — no reliance on ON DELETE CASCADE, because production
-        tables created by older schema versions lack those constraints.
+        tables created by older schema versions lack those constraints. Any
+        error rolls the whole deletion back: the account is either gone or
+        untouched, never half-erased.
         Returns per-table deleted counts."""
         email = self.get_user_email(user_id)
         counts = {}
-        with self._cursor() as cur:
+        with self._transaction() as cur:
             # Collect API key hashes first — their 60s auth-cache entries must
             # be invalidated after deletion, or dead keys 500 (FK-less lazy
             # subscription insert) instead of 401 until the cache expires.
@@ -954,6 +956,20 @@ class EntityMixin:
                 cur.execute(f"DELETE FROM {table} WHERE user_id::text = %s", (user_id,))  # noqa: S608 — fixed list above
                 counts[table] = cur.rowcount
             if "teams" in present:
+                # Other members may have shared their entities into these
+                # teams, and entities.team_id references teams(id) with no
+                # ON DELETE in production: detach those entities (they stay
+                # theirs, just no longer shared) and drop the other members'
+                # rows before the teams themselves.
+                cur.execute(
+                    "UPDATE entities SET team_id = NULL "
+                    "WHERE team_id IN (SELECT id FROM teams WHERE created_by = %s)", (user_id,))
+                counts["entities_unshared"] = cur.rowcount
+                if "team_members" in present:
+                    cur.execute(
+                        "DELETE FROM team_members "
+                        "WHERE team_id IN (SELECT id FROM teams WHERE created_by = %s)", (user_id,))
+                    counts["team_members"] = counts.get("team_members", 0) + cur.rowcount
                 cur.execute("DELETE FROM teams WHERE created_by = %s", (user_id,))
                 counts["teams"] = cur.rowcount
             if email:

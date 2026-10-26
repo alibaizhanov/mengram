@@ -121,9 +121,15 @@ class ProfileMixin:
 
     # ---- Cognitive Profile ----
 
-    def get_profile(self, user_id: str, force: bool = False, sub_user_id: str = "default") -> dict:
+    def get_profile(self, user_id: str, force: bool = False, sub_user_id: str = "default",
+                    charge=None) -> dict:
         """Generate a cognitive profile — a ready-to-use system prompt from all user memory.
-        Cached for 1 hour unless force=True."""
+        Cached for 1 hour unless force=True.
+
+        `charge` is called right before the model call and nowhere else, so
+        cached and empty-memory reads stay free while a generation is paid
+        for before it runs; if it raises (quota exhausted), no model call is
+        made and nothing is cached."""
         cache_key = f"profile:{user_id}:{sub_user_id}"
         if not force:
             cached = self.cache.get(cache_key)
@@ -204,6 +210,9 @@ class ProfileMixin:
         if not openai_key:
             return {"user_id": user_id, "system_prompt": "", "facts_used": total_facts,
                     "status": "no_llm_key"}
+
+        if charge is not None:
+            charge()
 
         try:
             import openai

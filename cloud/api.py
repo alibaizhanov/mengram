@@ -31,7 +31,7 @@ logger = logging.getLogger("mengram")
 
 from fastapi import FastAPI, HTTPException, Depends, Header, Form, Query, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from pydantic import BaseModel, Field
 
 from cloud.store import CloudStore, _normalize_fact
@@ -39,7 +39,9 @@ from cloud.attribution import clean_source
 from cloud.oauth_policy import redirect_uri_error as _redirect_uri_error
 from cloud.sub_user import SubUserScoped, resolve_sub_user as _resolve_sub_user
 from cloud.auth import AuthContext
-from cloud.billing import billing_router, _paddle_request, _sign_checkout_token, PADDLE_API_KEY
+from cloud.client_ip import client_ip as _client_ip
+from cloud.embed_summary import summarize_for_embedding
+from cloud.billing import billing_router, _paddle_request, _sign_checkout_token, PADDLE_API_KEY, effective_plan
 from cloud.plans import PLAN_QUOTAS, MAX_MESSAGE_CHARS, MAX_ADD_MESSAGES, add_units
 from cloud.site import build_site_router
 from cloud import source as _source
@@ -506,26 +508,8 @@ profile = m.get_profile()             # instant system prompt
     _cohere_client = None
     _openai_rerank_client = None
 
-    def _summarize_for_embedding(text: str, max_chars: int = 1500) -> str:
-        """Summarize long text for embedding. Preserves key facts for search."""
-        if len(text) <= max_chars:
-            return text
-        try:
-            openai_key = os.environ.get("OPENAI_API_KEY", "")
-            if not openai_key:
-                return text[:max_chars]
-            import openai
-            client = openai.OpenAI(api_key=openai_key)
-            resp = client.chat.completions.create(
-                model=os.environ.get("LLM_MODEL", "gpt-4o-mini"),
-                messages=[{"role": "user", "content": f"Summarize this into a dense, fact-rich paragraph under {max_chars} characters. Keep all key facts, names, technologies, and outcomes:\n\n{text[:30000]}"}],
-                max_completion_tokens=500,
-            )
-            summary = (resp.choices[0].message.content or "").strip()
-            return summary if summary else text[:max_chars]
-        except Exception as e:
-            logger.debug(f"Summarize for embedding failed, truncating: {e}")
-            return text[:max_chars]
+    # Bounded timeout, reasoning-aware, cached per text: cloud/embed_summary.py
+    _summarize_for_embedding = summarize_for_embedding
 
     def rerank_results(query: str, results: list[dict], plan: str = "business") -> list[dict]:
         """Re-rank search results based on subscription plan.
@@ -1135,20 +1119,12 @@ Be strict — only include entities that directly answer or relate to the query.
         else:
             # Look up subscription (cached 5 min)
             sub = store.get_subscription(user_id)
-            plan = sub.get("plan", "free") if sub else "free"
-            if plan not in PLAN_QUOTAS:
-                plan = "free"
-            # Canceled subscription past period end → downgrade to free
-            if sub and sub.get("status") == "canceled" and plan != "free":
-                period_end = sub.get("current_period_end")
-                if period_end:
-                    try:
-                        end_dt = datetime.datetime.fromisoformat(str(period_end).replace("Z", "+00:00"))
-                        if end_dt < datetime.datetime.now(datetime.timezone.utc):
-                            plan = "free"
-                            store.update_subscription(user_id, plan="free")
-                    except Exception:
-                        pass
+            plan = effective_plan(sub, PLAN_QUOTAS)
+            # A canceled/paused row still naming a paid plan whose access has
+            # ended: write the downgrade back once (cloud/billing.py).
+            if sub and plan == "free" and sub.get("plan") not in (None, "free") \
+                    and sub.get("status") in ("canceled", "paused"):
+                store.update_subscription(user_id, plan="free")
 
         rate_limit = PLAN_QUOTAS[plan]["rate_limit"]
 
@@ -1783,7 +1759,7 @@ m.add("I love hiking in the mountains")</code></pre>
         if not DEMO_USER_ID:
             raise HTTPException(status_code=503, detail="Playground not configured")
 
-        client_ip = request.client.host if request and request.client else "unknown"
+        client_ip = _client_ip(request)
         if not _check_playground_rate_limit(client_ip, 30):
             raise HTTPException(
                 status_code=429,
@@ -1852,7 +1828,7 @@ m.add("I love hiking in the mountains")</code></pre>
         if len(text) > 2000:
             raise HTTPException(400, "Text must be 2000 characters or less")
 
-        client_ip = request.client.host if request and request.client else "unknown"
+        client_ip = _client_ip(request)
         if not _check_playground_rate_limit(client_ip, 5, prefix="pg_extract"):
             raise HTTPException(
                 status_code=429,
@@ -1863,7 +1839,9 @@ m.add("I love hiking in the mountains")</code></pre>
         try:
             extractor = get_llm()
             conversation = [{"role": "user", "content": text}]
-            result = extractor.extract(conversation, existing_context="")
+            # The model call blocks; off the event loop so one visitor's
+            # extraction does not stall every request on this worker.
+            result = await asyncio.to_thread(extractor.extract, conversation, existing_context="")
             return {
                 "entities": [
                     {"name": e.name, "type": e.entity_type,
@@ -1949,18 +1927,6 @@ m.add("I love hiking in the mountains")</code></pre>
         html += '<p style="margin-top:24px"><a href="https://mengram.io">Back to Mengram</a></p></div></body></html>'
         return html
 
-    @app.get("/extension/download")
-    async def download_extension():
-        """Download Chrome extension zip."""
-        ext_path = Path(__file__).parent / "mengram-chrome-extension.zip"
-        if not ext_path.exists():
-            raise HTTPException(status_code=404, detail="Extension not available")
-        return FileResponse(
-            path=str(ext_path),
-            filename="mengram-chrome-extension.zip",
-            media_type="application/zip"
-        )
-
     @app.get("/v1/me", tags=["System"])
     async def me(ctx: AuthContext = Depends(auth)):
         """Current account info."""
@@ -1985,7 +1951,7 @@ m.add("I love hiking in the mountains")</code></pre>
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid email address")
 
-        client_ip = request.client.host if request.client else "unknown"
+        client_ip = _client_ip(request)
 
         # Honeypot — bots fill this invisible field, real users don't. Respond
         # with the usual success message so bots don't learn they were blocked.
@@ -2013,13 +1979,17 @@ m.add("I love hiking in the mountains")</code></pre>
         if not _check_rate_limit(f"signup_email:{email}", 3):
             raise HTTPException(status_code=429, detail="Too many attempts for this email.")
 
+        # An account the connector sign-in made before anyone proved the email
+        # (and never used) does not count as registered: the code sent below
+        # is what proves ownership, and /v1/verify then issues the key on that
+        # same account rather than creating a second one.
         existing = store.get_user_by_email(email)
-        if existing:
+        if existing and not store.is_unclaimed_account(existing):
             raise HTTPException(status_code=409, detail="Email already registered")
 
         # Self-hosted: skip email verification, create account immediately
         if DISABLE_EMAIL_VERIFICATION:
-            user_id = store.create_user(email, clean_source(req.source))
+            user_id = existing or store.create_user(email, clean_source(req.source))
             api_key = store.create_api_key(user_id)
             _seed_initial_memory(user_id, email)
             logger.info(f"✅ Account created (email verification disabled) for {email}")
@@ -2044,19 +2014,20 @@ m.add("I love hiking in the mountains")</code></pre>
         # Rate limit: 5/min per email, 20/min per IP
         if not _check_rate_limit(f"verify_signup:{email}", 5):
             raise HTTPException(status_code=429, detail="Too many attempts. Try again in 60 seconds.")
-        client_ip = request.client.host if request.client else "unknown"
+        client_ip = _client_ip(request)
         if not _check_rate_limit(f"verify_signup_ip:{client_ip}", 20):
             raise HTTPException(status_code=429, detail="Too many attempts.")
 
         if not store.verify_email_code(email, code):
             raise HTTPException(status_code=400, detail="Invalid or expired code. Request a new one.")
 
-        # Race condition guard
+        # Race condition guard. An unclaimed connector account (see /v1/signup)
+        # is taken over by the code just verified: same user, first real key.
         existing = store.get_user_by_email(email)
-        if existing:
+        if existing and not store.is_unclaimed_account(existing):
             raise HTTPException(status_code=409, detail="Email already registered")
 
-        user_id = store.create_user(email, clean_source(req.source))
+        user_id = existing or store.create_user(email, clean_source(req.source))
         api_key = store.create_api_key(user_id)
         # Eagerly create free subscription so user isn't stuck in no_sub state
         # (lazy creation in get_subscription only happens on first API call)
@@ -2078,7 +2049,7 @@ m.add("I love hiking in the mountains")</code></pre>
             raise HTTPException(status_code=400, detail="Invalid email address")
 
         # Rate limit: 3/min per IP, 3/min per email
-        client_ip = request.client.host if request.client else "unknown"
+        client_ip = _client_ip(request)
         if not _check_rate_limit(f"reset:{client_ip}", 3):
             raise HTTPException(status_code=429, detail="Too many reset attempts. Try again in 60 seconds.")
         if not _check_rate_limit(f"reset_email:{email}", 3):
@@ -2112,7 +2083,7 @@ m.add("I love hiking in the mountains")</code></pre>
         # Rate limit: 5/min per email, 20/min per IP
         if not _check_rate_limit(f"verify_reset:{email}", 5):
             raise HTTPException(status_code=429, detail="Too many attempts. Try again in 60 seconds.")
-        client_ip = request.client.host if request.client else "unknown"
+        client_ip = _client_ip(request)
         if not _check_rate_limit(f"verify_reset_ip:{client_ip}", 20):
             raise HTTPException(status_code=429, detail="Too many attempts.")
 
@@ -2579,18 +2550,13 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         # Rate limit: 3 codes/min per email, 10/min per IP
         if not _check_rate_limit(f"code:{email}", 3):
             return {"ok": False, "error": "Too many attempts. Try again in 60 seconds."}
-        client_ip = request.client.host if request.client else "unknown"
+        client_ip = _client_ip(request)
         if not _check_rate_limit(f"code_ip:{client_ip}", 10):
             return {"ok": False, "error": "Too many attempts. Try again in 60 seconds."}
 
-        # Check if user exists, if not create
-        user_id = store.get_user_by_email(email)
-        if not user_id:
-            # No landing page was involved: this account exists because someone
-            # added the connector inside their MCP client, which is itself the
-            # most precise answer to "where did they come from".
-            user_id = store.create_user(email, "oauth-connector")
-            store.create_api_key(user_id)
+        # No account is created here: anyone can type any address, and an
+        # account made before the code is entered blocked the real owner's
+        # /v1/signup. /oauth/verify creates it once the code proves the email.
 
         # Generate and send 6-digit code
         code = f"{secrets.randbelow(900000) + 100000}"
@@ -2629,7 +2595,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         # Brute-force protection: 5 attempts/min per email, 20/min per IP
         if not _check_rate_limit(f"verify:{email}", 5):
             return {"error": "Too many attempts. Try again in 60 seconds."}
-        client_ip = request.client.host if request.client else "unknown"
+        client_ip = _client_ip(request)
         if not _check_rate_limit(f"verify_ip:{client_ip}", 20):
             return {"error": "Too many attempts. Try again in 60 seconds."}
 
@@ -2645,7 +2611,11 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
         user_id = store.get_user_by_email(email)
         if not user_id:
-            return {"error": "User not found"}
+            # No landing page was involved: this account exists because someone
+            # added the connector inside their MCP client, which is itself the
+            # most precise answer to "where did they come from".
+            user_id = store.create_user(email, "oauth-connector")
+            store.create_api_key(user_id)
 
         # Create OAuth authorization code (with PKCE challenge when provided)
         oauth_code = secrets.token_urlsafe(32)
@@ -3411,13 +3381,15 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             extractor = get_llm()
             existing_context = ""
             try:
-                existing_context = store.get_existing_context(user_id, sub_user_id=sub_uid)
+                existing_context = await asyncio.to_thread(
+                    store.get_existing_context, user_id, sub_user_id=sub_uid)
             except Exception:
                 pass
             conversation = [{"role": m.role, "content": _sanitize_text(m.content)} for m in req.messages]
             dry_prompt = "v1" if (req.agent_mode or req.agent_id) else req.prompt_version
-            result = extractor.extract(conversation, existing_context=existing_context,
-                                       prompt_version=dry_prompt)
+            result = await asyncio.to_thread(extractor.extract, conversation,
+                                             existing_context=existing_context,
+                                             prompt_version=dry_prompt)
             return {
                 "dry_run": True,
                 "extraction": {
@@ -4029,7 +4001,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         )
         try:
             llm = get_llm().llm
-            raw = llm.complete(prompt, response_format={"type": "json_object"})
+            raw = await asyncio.to_thread(llm.complete, prompt, response_format={"type": "json_object"})
             from cloud.store._common import _safe_parse_json
             data = _safe_parse_json(raw)
         except Exception as e:
@@ -4431,27 +4403,27 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         if not entity_id:
             raise HTTPException(status_code=404, detail=f"Entity '{name}' not found")
         extractor = get_llm()
-        result = store.dedup_entity_facts(entity_id, name, extractor.llm)
-        return result
+        return await asyncio.to_thread(store.dedup_entity_facts, entity_id, name, extractor.llm)
 
     @app.post("/v1/dedup_all", tags=["Memory"])
-    async def dedup_all_entities(sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
-        """Deduplicate facts across ALL entities for this user."""
+    async def dedup_all_entities(sub_user_id: str = Query("default"),
+                                 after: str | None = Query(None, description="next_after from the previous call"),
+                                 ctx: AuthContext = Depends(auth)):
+        """Deduplicate facts across this user's entities, up to 25 per call
+        (one model call each). `remaining` says how many are left; pass the
+        returned `next_after` to continue."""
         user_id = ctx.user_id
+        if after is not None:
+            try:
+                after = str(_uuid.UUID(after))
+            except ValueError:
+                raise HTTPException(status_code=400, detail="after must be the next_after value from a previous call")
         use_quota(ctx, "dedup")  # atomic check+increment
-        entities = store.get_all_entities(user_id, sub_user_id=sub_user_id)
         extractor = get_llm()
-        total_archived = 0
-        results = []
-        for e in entities:
-            entity_id = store.get_entity_id(user_id, e["name"], sub_user_id=sub_user_id)
-            if not entity_id:
-                continue
-            r = store.dedup_entity_facts(entity_id, e["name"], extractor.llm)
-            if r["archived"]:
-                total_archived += len(r["archived"])
-                results.append({"entity": e["name"], "archived": len(r["archived"])})
-        return {"total_archived": total_archived, "entities": results}
+        # One model call per entity: a large account ran past the 300 s worker
+        # timeout on the event loop, so it is batched and run in a thread.
+        return await asyncio.to_thread(store.dedup_all_entities, user_id, extractor.llm,
+                                       sub_user_id=sub_user_id, after=after)
 
     # ---- Reflection ----
 
@@ -4461,8 +4433,9 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         user_id = ctx.user_id
         use_quota(ctx, "reflect")  # atomic check+increment
         extractor = get_llm()
-        stats = store.get_reflection_stats(user_id, sub_user_id=sub_user_id)
-        result = store.generate_reflections(user_id, extractor.llm, sub_user_id=sub_user_id)
+        stats = await asyncio.to_thread(store.get_reflection_stats, user_id, sub_user_id=sub_user_id)
+        result = await asyncio.to_thread(store.generate_reflections, user_id, extractor.llm,
+                                         sub_user_id=sub_user_id)
 
         entity_count = len(result.get("entity_reflections", []))
         cross_count = len(result.get("cross_entity", []))
@@ -4899,6 +4872,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
 
         sub = store.get_subscription(user_id) or {}
         paddle_sub_id = sub.get("paddle_subscription_id")
+        subscription_canceled = False
         if paddle_sub_id and sub.get("status") in ("active", "past_due"):
             if not PADDLE_API_KEY:
                 raise HTTPException(
@@ -4907,8 +4881,9 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                            "Cancel the subscription first, then retry."
                 )
             try:
-                _paddle_request("POST", f"/subscriptions/{paddle_sub_id}/cancel",
-                                {"effective_from": "immediately"})
+                await asyncio.to_thread(_paddle_request, "POST", f"/subscriptions/{paddle_sub_id}/cancel",
+                                        {"effective_from": "immediately"})
+                subscription_canceled = True
                 logger.info(f"Subscription {paddle_sub_id} canceled for account deletion | user={user_id[:8]}")
             except Exception as e:
                 logger.error(f"Paddle cancel failed during account deletion | user={user_id[:8]} | {e}")
@@ -4918,7 +4893,21 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                            "Cancel it via the billing portal first, then retry account deletion."
                 )
 
-        counts = store.delete_account(user_id)
+        # The subscription is canceled first so a deleted account can never
+        # keep being billed. If the deletion then fails it rolls back whole,
+        # so the account is intact (subscription already canceled) and the
+        # call can simply be retried — say so instead of a bare 500.
+        try:
+            counts = await asyncio.to_thread(store.delete_account, user_id)
+        except Exception as e:
+            logger.error(f"Account deletion failed and was rolled back | user={user_id[:8]} | "
+                         f"subscription_canceled={subscription_canceled} | {e}")
+            raise HTTPException(
+                status_code=500,
+                detail="Account deletion failed and nothing was deleted. "
+                       + ("Your subscription has already been canceled. " if subscription_canceled else "")
+                       + "Please retry, or contact support if this keeps happening."
+            )
         logger.warning(f"🗑️ ACCOUNT DELETED | user={user_id[:8]} | email={email} | {counts}")
         return {"status": "deleted", "account": email, "deleted": counts}
 
@@ -4966,12 +4955,11 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         # force=true bypasses cache → LLM call, restrict to paid plans
         if force and ctx.plan in ("free", "starter"):
             force = False
-        # Meter "rules" only for a real LLM (re)generation; cached/empty reads are free.
-        was_cached = (not force) and store.cache.get(f"profile:{target_user_id}:{sub_user_id}") is not None
-        result = store.get_profile(target_user_id, force=force, sub_user_id=sub_user_id)
-        if not was_cached and result.get("status") == "ok":
-            use_quota(ctx, "rules")
-        return result
+        # Meter "rules" only for a real LLM (re)generation; cached/empty reads
+        # are free. The charge runs before the model call (see get_profile).
+        return await asyncio.to_thread(
+            store.get_profile, target_user_id, force=force, sub_user_id=sub_user_id,
+            charge=lambda: use_quota(ctx, "rules"))
 
     @app.get("/v1/profile", tags=["Memory"])
     async def get_own_profile(force: bool = False, sub_user_id: str = Query("default"), ctx: AuthContext = Depends(auth)):
@@ -4982,12 +4970,12 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         # Meter "rules" only for a real LLM (re)generation. A cached profile or an
         # empty-memory profile is a free read — important because the MCP connector
         # fetches this per request while building server instructions, which used
-        # to exhaust the small free "rules" quota on the first connect.
-        was_cached = (not force) and store.cache.get(f"profile:{user_id}:{sub_user_id}") is not None
-        result = store.get_profile(user_id, force=force, sub_user_id=sub_user_id)
-        if not was_cached and result.get("status") == "ok":
-            use_quota(ctx, "rules")
-        return result
+        # to exhaust the small free "rules" quota on the first connect. The charge
+        # runs right before the model call, so an exhausted quota stops the call
+        # instead of being checked after the model already ran (and cached).
+        return await asyncio.to_thread(
+            store.get_profile, user_id, force=force, sub_user_id=sub_user_id,
+            charge=lambda: use_quota(ctx, "rules"))
 
     @app.get("/v1/rules", tags=["Memory"])
     async def generate_rules(
