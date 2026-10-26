@@ -30,7 +30,10 @@ The rest of the 2026-10-23 audit.
   proxy's shared one.
 - `/v1/profile` checks quota before the model call.
 - Outbound webhooks do not follow redirects and block hosts that do not resolve.
-- Embedding summaries: bounded client, reasoning effort set, cached by content.
+- Model clients for embedding summaries, profile, rules, PDF vision and rerank
+  are bounded (no more 600 s SDK default); reasoning models get a low effort
+  and room to answer; an empty reply no longer crashes the profile. Embedding
+  summaries are cached by content.
 - Extraction: a refusal is an empty result, not a crash; unreadable JSON is
   reported and retried once, timeouts are not retried; one failed window no
   longer loses the episodes and procedures of the whole conversation; uploaded
