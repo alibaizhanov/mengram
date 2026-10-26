@@ -5,12 +5,60 @@ Part of :class:`cloud.store.CloudStore`; split out of the former single-file sto
 
 import datetime
 import hashlib
+import ipaddress
 import json
+import socket
 import time
+import urllib.parse
+import urllib.request
 
 from ._common import (  # noqa: F401
     logger,
 )
+
+
+def webhook_target_blocked(url: str) -> str | None:
+    """Why a webhook URL must not be called, or None when it may be.
+
+    A host that does not resolve is blocked, not waved through: the check and
+    the send resolve separately, so "unresolvable now" says nothing about
+    where the send would land.
+    """
+    hostname = urllib.parse.urlparse(url).hostname or ""
+    if not hostname:
+        return "no hostname"
+    if hostname in ("localhost", "0.0.0.0", "metadata.google.internal") or hostname.endswith(".internal") or hostname.endswith(".local"):
+        return f"internal hostname {hostname}"
+    try:
+        resolved = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
+    except (socket.gaierror, UnicodeError, OSError):
+        return f"{hostname} does not resolve"
+    if not resolved:
+        return f"{hostname} does not resolve"
+    for _family, _, _, _, sockaddr in resolved:
+        try:
+            ip = ipaddress.ip_address(sockaddr[0])
+        except ValueError:
+            return f"{hostname} resolved to an unparseable address"
+        # ::ffff:10.0.0.1 is 10.0.0.1 on the wire
+        if ip.version == 6 and ip.ipv4_mapped:
+            ip = ip.ipv4_mapped
+        if (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved
+                or ip.is_multicast or ip.is_unspecified):
+            return f"{hostname} → private IP {ip}"
+    return None
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Refuse redirects: the target was vetted, a Location header is not.
+    Returning None makes urllib raise the 3xx as an HTTPError, which the
+    sender records as a failed delivery."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+_WEBHOOK_OPENER = urllib.request.build_opener(_NoRedirect)
 
 
 class WebhookMixin:
@@ -22,7 +70,11 @@ class WebhookMixin:
     # =====================================================
 
     def ensure_webhooks_table(self):
-        """Create webhooks table if not exists."""
+        """Create webhooks table if not exists. Runs its DDL at most once per process:
+        fire_webhooks calls it on every add, and the ALTER takes ACCESS
+        EXCLUSIVE on webhooks even when the column is already there."""
+        if getattr(self, "_webhooks_table_ready", False):
+            return
         with self._cursor() as cur:
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS webhooks (
@@ -49,6 +101,7 @@ class WebhookMixin:
                 ALTER TABLE webhooks ADD COLUMN IF NOT EXISTS
                 consecutive_failures INTEGER DEFAULT 0
             """)
+        self._webhooks_table_ready = True
 
     def create_webhook(self, user_id: str, url: str, name: str = "",
                        event_types: list = None, secret: str = "") -> dict:
@@ -174,23 +227,10 @@ class WebhookMixin:
 
         def _send(hook_id, url, secret):
             # Validate URL before sending (prevent SSRF via DNS rebinding)
-            import urllib.parse
-            import socket
-            import ipaddress as _ipa
-            parsed = urllib.parse.urlparse(url)
-            hostname = parsed.hostname or ""
-            if hostname in ("localhost", "0.0.0.0", "metadata.google.internal") or hostname.endswith(".internal") or hostname.endswith(".local"):
-                logger.warning(f"⚠️ Webhook {hook_id} blocked: internal hostname {hostname}")
+            blocked = webhook_target_blocked(url)
+            if blocked:
+                logger.warning(f"⚠️ Webhook {hook_id} blocked: {blocked}")
                 return
-            try:
-                resolved = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
-                for family, _, _, _, sockaddr in resolved:
-                    ip = _ipa.ip_address(sockaddr[0])
-                    if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
-                        logger.warning(f"⚠️ Webhook {hook_id} blocked: {hostname} → private IP {ip}")
-                        return
-            except (socket.gaierror, ValueError):
-                pass
             try:
                 req = urllib.request.Request(
                     url, data=data,
@@ -208,7 +248,7 @@ class WebhookMixin:
                     try:
                         if attempt > 0:
                             time.sleep(min(2 ** attempt, 8))  # 2s, 4s backoff
-                        urllib.request.urlopen(req, timeout=10)
+                        _WEBHOOK_OPENER.open(req, timeout=10)
                         # Success — record it
                         with self._cursor() as cur2:
                             cur2.execute("""

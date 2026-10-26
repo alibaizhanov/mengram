@@ -146,7 +146,7 @@ def test_hook_never_denies():
 # --- the CLI command end to end (no network) --------------------------------
 
 class _FakeMem:
-    def __init__(self, api_key=None, base_url=None):
+    def __init__(self, api_key=None, base_url=None, timeout=None):
         self.calls = []
 
     def procedures(self, query=None, limit=20, user_id="default"):

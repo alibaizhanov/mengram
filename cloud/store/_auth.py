@@ -132,6 +132,35 @@ class AuthMixin:
             row = cur.fetchone()
             return str(row[0]) if row else None
 
+    def is_unclaimed_account(self, user_id: str) -> bool:
+        """True for an account the connector sign-in created before anyone
+        proved they own the email, and that was never used since.
+
+        /oauth/send-code used to create the user and a key the moment an email
+        was typed, so the real owner's /v1/signup later got "Email already
+        registered" for an account they never made. Such an account has
+        signup_source 'oauth-connector', only that one auto-made 'default'
+        key, and that key never authenticated a request. Any other key — the
+        connector token, a dashboard sign-in, a key made in Settings — or any
+        use at all means someone completed a verified flow, and it is claimed.
+        """
+        with self._cursor() as cur:
+            cur.execute(
+                """SELECT u.signup_source,
+                          ARRAY(SELECT k.name FROM api_keys k WHERE k.user_id = u.id),
+                          EXISTS (SELECT 1 FROM api_keys k
+                                  WHERE k.user_id = u.id AND k.last_used_at IS NOT NULL)
+                   FROM users u WHERE u.id = %s""",
+                (user_id,)
+            )
+            row = cur.fetchone()
+        if not row:
+            return False
+        source, key_names, any_used = row
+        return (source == "oauth-connector"
+                and not any_used
+                and all(name == "default" for name in (key_names or [])))
+
     def get_user_email(self, user_id: str) -> Optional[str]:
         """Get email by user_id."""
         with self._cursor() as cur:

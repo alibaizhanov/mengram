@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import stat
 import tempfile
+import time
 
 from memfmt import Entity, Memory
 
@@ -36,6 +37,54 @@ def folder_lock(root: Path):
         else:
             import fcntl
             fcntl.flock(handle, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            if os.name == "nt":
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(handle, fcntl.LOCK_UN)
+
+
+@contextmanager
+def file_lock(path: Path, timeout: float = 5.0):
+    """An advisory lock on `path` around a small read-modify-write.
+
+    For the hook bookkeeping files (intents, outcome cursor), which parallel
+    tool calls touch at once. Waits at most `timeout` seconds and then raises
+    TimeoutError, so a stuck holder costs one bookkeeping step, never the
+    hook's whole budget. Where the platform has no lock at all it runs
+    unlocked rather than not at all.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        if os.name == "nt":
+            import msvcrt
+        else:
+            import fcntl
+    except ImportError:
+        yield
+        return
+    with path.open("a+b") as handle:
+        if os.name == "nt":
+            handle.seek(0, os.SEEK_END)
+            if handle.tell() == 0:
+                handle.write(b"\0")
+                handle.flush()
+            handle.seek(0)
+        deadline = time.monotonic() + timeout
+        while True:
+            try:
+                if os.name == "nt":
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+                else:
+                    fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except OSError:
+                if time.monotonic() >= deadline:
+                    raise TimeoutError(f"lock busy: {path}")
+                time.sleep(0.02)
         try:
             yield
         finally:

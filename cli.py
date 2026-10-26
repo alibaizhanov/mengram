@@ -11,8 +11,10 @@ Usage:
 """
 
 import os
+import re
 import sys
 import json
+import shlex
 import yaml
 import shutil
 import platform
@@ -620,7 +622,8 @@ def cmd_auto_recall(args):
 
         # Marked as the user's own automation: not charged to the search quota.
         mem = CloudMemory(api_key=api_key, base_url=base_url, source="hook",
-                          host=_hook_host(args, input_data))
+                          host=_hook_host(args, input_data),
+                          timeout=_hook_cloud_timeout("auto-recall"))
         results = mem.search(prompt, user_id=user_id, limit=3, graph_depth=1)
 
         if not results:
@@ -735,15 +738,33 @@ def _maybe_weekly_message(mem, user_id):
         return None
 
 
+#: Checkpoints whose content this hook is about to print. Deleted by
+#: `_emit_hook_exit` after the print, not when read: a SessionStart hook that
+#: the host kills on its timeout (a slow profile call) must leave the saved
+#: work on disk for the next start, not take it down with it.
+_PENDING_RESTORES: list = []
+
+
+def _discard_pending_restores() -> None:
+    try:
+        from local import checkpoint
+        while _PENDING_RESTORES:
+            checkpoint.discard(_PENDING_RESTORES.pop())
+    except Exception:
+        pass
+
+
 def _restored_state(input_data) -> tuple[str | None, str | None]:
     """The working state written before compaction, read back once:
     `(context for the model, one line for the person)`. `(None, None)` when
-    there is nothing on file for this session or directory."""
+    there is nothing on file for this session or directory. The file goes
+    once the hook has printed it (`_PENDING_RESTORES`)."""
     try:
         from local import checkpoint
-        snap = checkpoint.consume(input_data.get("session_id"), input_data.get("cwd"))
+        snap = checkpoint.peek(input_data.get("session_id"), input_data.get("cwd"))
         if snap is None or checkpoint.is_empty(snap):
             return None, None
+        _PENDING_RESTORES.append(snap)
         _receipt("restore", input_data.get("session_id"),
                  files=len(snap.get("files") or []), host=snap.get("host"))
         return checkpoint.render(snap), checkpoint.headline(snap)
@@ -797,10 +818,7 @@ def cmd_auto_restore(args):
         snap = checkpoint.load(input_data.get("session_id"))
         if snap is None or checkpoint.is_empty(snap):
             _emit_hook_exit(EVENT, args, HOOK, "nothing to restore")
-        try:
-            checkpoint.path_for(snap.get("session") or "unknown").unlink()
-        except OSError:
-            pass
+        _PENDING_RESTORES.append(snap)        # deleted once printed
         _receipt("restore", input_data.get("session_id"),
                  files=len(snap.get("files") or []), host="cursor")
         _emit_hook_exit(EVENT, args, HOOK, "working state restored",
@@ -821,8 +839,9 @@ def _cursor_auto_context(args, input_data):
     parts = []
     try:
         from local import checkpoint
-        snap = checkpoint.consume(input_data.get("session_id"), input_data.get("cwd"), max_age=86400)
+        snap = checkpoint.peek(input_data.get("session_id"), input_data.get("cwd"), max_age=86400)
         if snap is not None and not checkpoint.is_empty(snap):
+            _PENDING_RESTORES.append(snap)    # deleted once printed
             _receipt("restore", input_data.get("session_id"),
                      files=len(snap.get("files") or []), host="cursor")
             parts.append(checkpoint.headline(snap) + "\n\n" + checkpoint.render(snap))
@@ -842,7 +861,8 @@ def _cursor_auto_context(args, input_data):
             if api_key:
                 from cloud.client import CloudMemory
                 user_id = getattr(args, "user_id", None) or os.environ.get("MENGRAM_USER_ID", "default")
-                mem = CloudMemory(api_key=api_key, base_url=_load_cloud_base_url())
+                mem = CloudMemory(api_key=api_key, base_url=_load_cloud_base_url(),
+                                  timeout=_hook_cloud_timeout("auto-context"))
                 system_prompt = (mem.get_profile(user_id=user_id) or {}).get("system_prompt", "")
                 if system_prompt:
                     parts.append(f"[Mengram Memory — user context loaded from past sessions]\n{system_prompt}")
@@ -865,15 +885,19 @@ def _write_resume_card(args, input_data, api_key=None):
                         previous=resume.load(key))
     if resume.is_empty(card):
         return None
+    # Saved before the model is asked: the draft is a network call, and a
+    # hook killed during it must still leave the recorded part on disk.
+    path = resume.save(card)
     if api_key and resume.needs_draft(card):
         try:
             from cloud.client import CloudMemory
             mem = CloudMemory(api_key=api_key, base_url=_load_cloud_base_url(), source="hook",
-                              host=_hook_host(args, input_data))
+                              host=_hook_host(args, input_data),
+                              timeout=_hook_cloud_timeout("auto-save", calls=2))
             resume.apply_draft(card, mem.draft_resume(resume.draft_payload(card)))
+            path = resume.save(card) or path
         except Exception:
             pass
-    path = resume.save(card)
     if path:
         _receipt("resume", session_id, task=bool(card.get("task")), remaining=len(card.get("remaining") or []))
     return card
@@ -954,6 +978,23 @@ def _hook_host(args, input_data=None) -> str:
     return f"{_hook_os()}/{_hook_tool(args, input_data)}"
 
 
+#: Seconds each hook may run before its host kills it. Written into every
+#: hooks file (Claude Code, Codex, Cursor), and the budget a hook's cloud calls
+#: are cut to fit inside.
+HOOK_TIMEOUTS = {"auto-save": 30, "auto-recall": 10, "auto-context": 15, "auto-policy": 10,
+                 "auto-outcome": 10, "auto-checkpoint": 10, "auto-restore": 5}
+
+
+def _hook_cloud_timeout(hook: str, calls: int = 1) -> float:
+    """Socket timeout for each cloud call `hook` makes, `calls` of them in a row.
+
+    The client's default (300 s) is the server's own limit; the host kills a
+    hook long before that, and a killed hook says nothing and saves nothing.
+    About 3 s of the budget is left for startup and local work.
+    """
+    return max(2.0, (HOOK_TIMEOUTS[hook] - 3) / calls)
+
+
 def _hook_provenance(args, input_data, session_id) -> dict:
     """What a hook records on every fact it saves: tool, session, cwd, os."""
     return {"source": _hook_tool(args, input_data),
@@ -1022,7 +1063,9 @@ def cmd_auto_context(args):
         base_url = _load_cloud_base_url()
         user_id = getattr(args, "user_id", None) or os.environ.get("MENGRAM_USER_ID", "default")
 
-        mem = CloudMemory(api_key=api_key, base_url=base_url)
+        # Two calls in a row: the profile, then (weekly) the stats.
+        mem = CloudMemory(api_key=api_key, base_url=base_url,
+                          timeout=_hook_cloud_timeout("auto-context", calls=2))
         profile = mem.get_profile(user_id=user_id)
 
         weekly_msg = None if getattr(args, "no_weekly", False) else _maybe_weekly_message(mem, user_id)
@@ -1175,7 +1218,9 @@ def cmd_auto_save(args):
         base_url = _load_cloud_base_url()
         user_id = getattr(args, "user_id", None) or os.environ.get("MENGRAM_USER_ID", "default")
 
-        mem = CloudMemory(api_key=api_key, base_url=base_url)
+        # The task card's draft may have used the first half of the budget.
+        mem = CloudMemory(api_key=api_key, base_url=base_url,
+                          timeout=_hook_cloud_timeout("auto-save", calls=2))
         mem.add(
             messages,
             user_id=user_id,
@@ -1257,7 +1302,8 @@ def cmd_auto_policy(args):
                 _exit("no API key")
             from cloud.client import CloudMemory
             user_id = getattr(args, "user_id", None) or os.environ.get("MENGRAM_USER_ID", "default")
-            mem = CloudMemory(api_key=api_key, base_url=_load_cloud_base_url())
+            mem = CloudMemory(api_key=api_key, base_url=_load_cloud_base_url(),
+                              timeout=_hook_cloud_timeout("auto-policy"))
             procs = mem.procedures(query=command[:300], limit=3, user_id=user_id)
 
         # The same bar the recorder uses: the command has to *be* a step of
@@ -1349,7 +1395,10 @@ def _settle_open_intents(local_root, store, current_tool_use_id, seen: list) -> 
                 intents.close_intent(local_root, tid)
             continue
         kind, body = result
-        intents.close_intent(local_root, tid)
+        # Charge only if this call is the one that closed it, and only once:
+        # a parallel hook may have settled the same intent a moment earlier.
+        if intents.close_intent(local_root, tid) is None or tid in seen:
+            continue
         if kind == "failed":
             store.step_outcome(intent.get("procedure") or "unnamed workflow",
                                int(intent.get("step") or 0),
@@ -1428,7 +1477,7 @@ def _record_transcript_failures(transcript_path, local_root, procs, store, sessi
     from local import transcript as tr
     try:
         cursor = tr.read_cursor(local_root)
-        failures, cursor = tr.new_failures(transcript_path, cursor)
+        failures, sub = tr.new_failures(transcript_path, tr.transcript_cursor(cursor, transcript_path))
         recorded = 0
         for command, reason in failures:
             hit = policy.best_step_match(procs, command)
@@ -1440,7 +1489,8 @@ def _record_transcript_failures(transcript_path, local_root, procs, store, sessi
             _receipt("step", session_id, procedure=proc.get("name"), step=step_no,
                      ok=False, source="transcript")
             recorded += 1
-        tr.write_cursor(local_root, cursor)
+        if "offset" in sub:
+            tr.write_cursor(local_root, tr.with_transcript(cursor, transcript_path, sub))
     except Exception:
         return ""        # bookkeeping must never disturb the session
     return f"; {recorded} failure(s) from the transcript" if recorded else ""
@@ -1501,15 +1551,18 @@ def cmd_auto_outcome(args):
         # leave failures unrecorded for as long as the session stayed quiet.
         from local import intents
         from local import transcript as tr
-        cursor = tr.read_cursor(local_root)
-        seen = list(cursor.get("seen") or [])
-        settled = _settle_open_intents(local_root, store, tool_use_id, seen)
-        if settled:
-            cursor["seen"] = seen
-            tr.write_cursor(local_root, cursor)
-        failed = _record_transcript_failures(
-            input_data.get("transcript_path"), local_root, procs, store,
-            input_data.get("session_id")) + settled
+        # One outcome hook at a time per folder: parallel Bash calls each fire
+        # one, and both reading the same cursor would charge a failure twice.
+        with tr.cursor_lock(local_root):
+            cursor = tr.read_cursor(local_root)
+            seen = list(cursor.get("seen") or [])
+            settled = _settle_open_intents(local_root, store, tool_use_id, seen)
+            if settled:
+                cursor["seen"] = seen
+                tr.write_cursor(local_root, cursor)
+            failed = _record_transcript_failures(
+                input_data.get("transcript_path"), local_root, procs, store,
+                input_data.get("session_id")) + settled
 
         # Now this command. Its intent, if the gate noted one, names the step;
         # no second match. Otherwise a wider net than the gate upstream: the
@@ -1565,8 +1618,41 @@ def _resolve_mengram_bin() -> str:
     return shutil.which("mengram") or "mengram"
 
 
-def _shell_quote(path: str) -> str:
-    return f'"{path}"' if " " in path else path
+def _shell_arg(value) -> str:
+    """One argument of a hook command, quoted for the shell that runs it.
+
+    Every interpolated value goes through here. `--user-id Ali B` unquoted is
+    two arguments, argparse exits 2, and to Claude Code a PreToolUse hook that
+    exits 2 blocks the tool call — every Bash call, for as long as it stays.
+    """
+    text = str(value)
+    if os.name == "nt":
+        # cmd.exe and PowerShell have no single quotes; double quotes are
+        # what both of them, and Git Bash, read the same way.
+        return f'"{text}"' if (not text or re.search(r'[\s&|<>^()%!;,\'`$]', text)) else text
+    return shlex.quote(text)
+
+
+def _hook_matches(command, marker: str) -> bool:
+    """Is `command` the Mengram hook `marker` ("mengram auto-save") names?
+
+    Parsed, not substring-matched: once the program path is quoted
+    (`'/Users/a b/bin/mengram' auto-save`) the command no longer contains
+    `mengram auto-save`, and reinstall duplicated, uninstall left, and status
+    missed every hook. Matches the program's file name and the subcommand
+    after it, so a quoted, unquoted or bare `mengram` all count.
+    """
+    sub = marker.split()[-1]
+    command = str(command or "")
+    try:
+        words = shlex.split(command, posix=os.name != "nt")
+    except ValueError:
+        words = command.split()
+    for prog, nxt in zip(words, words[1:]):
+        name = re.split(r"[\\/]", prog.strip("'\""))[-1].lower()
+        if nxt == sub and name.startswith("mengram"):
+            return True
+    return False
 
 
 def _broken_hook_commands() -> list[tuple[str, str]]:
@@ -1602,9 +1688,14 @@ def _hook_command_runs(command: str) -> tuple[bool, str]:
     healthy install that has never run once.
     """
     import subprocess
+    # The real argument list, parsed and nothing else (MENGRAM_PARSE_ONLY, see
+    # main): `--help` short-circuits the parse, so a command whose arguments
+    # argparse rejects passed this check and then blocked every Bash call.
+    # The cloud URL points nowhere in case an older binary runs it for real.
+    env = dict(os.environ, MENGRAM_PARSE_ONLY="1", MENGRAM_URL="http://127.0.0.1:9")
     try:
-        r = subprocess.run(f"{command} --help", shell=True, capture_output=True,
-                           text=True, timeout=20)
+        r = subprocess.run(command, shell=True, capture_output=True, text=True,
+                           timeout=20, env=env, stdin=subprocess.DEVNULL)
     except Exception as e:
         return False, type(e).__name__
     if r.returncode == 0:
@@ -1631,6 +1722,77 @@ def cmd_hook(args):
         sys.exit(1)
 
 
+def _read_hooks_file(path: Path) -> dict:
+    """A settings or hooks file to change: `{}` when absent or empty.
+
+    A file that is there and does not parse is somebody's configuration in a
+    state we do not understand. Install used to read it as `{}` and write
+    back only its own hooks, wiping everything else in ~/.claude/settings.json.
+    Now it stops, names the file, and changes nothing.
+    """
+    if not path.exists():
+        return {}
+    try:
+        text = path.read_text(encoding="utf-8")
+        data = json.loads(text) if text.strip() else {}
+    except (OSError, ValueError) as e:
+        data, why = None, str(e)
+    else:
+        why = f"top level is {type(data).__name__}, not an object"
+    if not isinstance(data, dict):
+        print(f"Cannot read {path}: {why}", file=sys.stderr)
+        print("Nothing was changed. Fix the file (or move it aside) and run this again.",
+              file=sys.stderr)
+        sys.exit(1)
+    return data
+
+
+def _write_hooks_file(path: Path, data: dict) -> None:
+    """Replace the file atomically, keeping the previous version as `<name>.bak`.
+
+    A temporary file in the same directory, then os.replace: a crash or a full
+    disk mid-write leaves the old file whole, never half of the new one.
+    """
+    from local.persistence import atomic_write
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists():
+        shutil.copy2(path, path.with_name(path.name + ".bak"))
+    atomic_write(path, json.dumps(data, indent=2) + "\n")
+
+
+def _file_has_hook(path: Path, marker: str) -> bool:
+    """Whether a hooks file (Claude Code/Codex groups or Cursor's flat lists)
+    holds the Mengram hook `marker`. Never raises."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return False
+    for entries in ((data or {}).get("hooks") or {}).values():
+        for entry in entries or []:
+            if not isinstance(entry, dict):
+                continue
+            for hook in [entry] + list(entry.get("hooks") or []):
+                if isinstance(hook, dict) and _hook_matches(hook.get("command", ""), marker):
+                    return True
+    return False
+
+
+def _verify_hook_commands(commands, mengram_bin, host_name) -> None:
+    """Run every command written, exactly as written, and say so if any fails."""
+    for cmd in commands:
+        ok, detail = _hook_command_runs(cmd)
+        if not ok:
+            print(f"\n  WARNING: the hook command does not run: {detail}")
+            print(f"  {host_name} would launch: {cmd}")
+            if mengram_bin == "mengram":
+                print("  `mengram` is not on PATH here, so the hooks would do nothing,")
+                print("  silently. Reinstall with the full path, or add the directory")
+                print("  holding the `mengram` script to PATH and run this again.")
+            print(f"  Nothing else in {host_name} is affected.")
+            return
+    print(f"  Verified: {mengram_bin} runs from a plain shell and accepts every hook's arguments")
+
+
 def _upsert_hook(settings, event_name, command_marker, hook_def, matcher=None):
     """Insert or update a hook in settings[hooks][event_name] matching command_marker.
 
@@ -1645,7 +1807,7 @@ def _upsert_hook(settings, event_name, command_marker, hook_def, matcher=None):
     for group in settings["hooks"][event_name]:
         hooks_list = group.get("hooks", [])
         for i, hook in enumerate(hooks_list):
-            if command_marker in hook.get("command", ""):
+            if _hook_matches(hook.get("command", ""), command_marker):
                 hooks_list[i] = hook_def
                 found = True
                 break
@@ -1671,7 +1833,7 @@ def _remove_hook(settings, event_name, command_marker):
     removed = False
     for group in hooks_list:
         hl = group.get("hooks", [])
-        filtered = [h for h in hl if command_marker not in h.get("command", "")]
+        filtered = [h for h in hl if not _hook_matches(h.get("command", ""), command_marker)]
         if len(filtered) < len(hl):
             removed = True
         if filtered:
@@ -1845,7 +2007,7 @@ def _emit_hook_exit(hook_event_name, args, hook_name, status, context=None, syst
     # systemMessage. Anything else is `{}`.
     if getattr(args, "host", None) == "cursor":
         print(json.dumps({"additional_context": context} if context else {}))
-        sys.exit(0)
+        _flush_and_finish()
 
     payload = {"continue": True}
 
@@ -1875,6 +2037,16 @@ def _emit_hook_exit(hook_event_name, args, hook_name, status, context=None, syst
         payload.pop("suppressOutput", None)
 
     print(json.dumps(payload))
+    _flush_and_finish()
+
+
+def _flush_and_finish():
+    """Exit 0 once the answer is out; only then delete what it restored."""
+    try:
+        sys.stdout.flush()
+    except Exception:
+        pass
+    _discard_pending_restores()
     sys.exit(0)
 
 
@@ -2457,8 +2629,8 @@ def cmd_hook_install(args):
     # Build hook commands
     # Absolute path, not a bare name: see _resolve_mengram_bin.
     mengram_bin = _resolve_mengram_bin()
-    prog = _shell_quote(mengram_bin)
-    save_cmd = f"{prog} auto-save --every {every}"
+    prog = _shell_arg(mengram_bin)
+    save_cmd = f"{prog} auto-save --every {_shell_arg(every)}"
     recall_cmd = f"{prog} auto-recall"
     context_cmd = f"{prog} auto-context"
     policy_cmd = f"{prog} auto-policy"
@@ -2466,15 +2638,16 @@ def cmd_hook_install(args):
     checkpoint_cmd = f"{prog} auto-checkpoint"
     restore_cmd = f"{prog} auto-restore"
     if user_id:
-        save_cmd += f" --user-id {user_id}"
-        recall_cmd += f" --user-id {user_id}"
-        context_cmd += f" --user-id {user_id}"
-        policy_cmd += f" --user-id {user_id}"
-        outcome_cmd += f" --user-id {user_id}"
+        uid_arg = f" --user-id {_shell_arg(user_id)}"
+        save_cmd += uid_arg
+        recall_cmd += uid_arg
+        context_cmd += uid_arg
+        policy_cmd += uid_arg
+        outcome_cmd += uid_arg
     if local_dir:
         # Hooks run without the user's shell profile, so the folder travels
         # in the command rather than in an env var that may not be there.
-        mem_arg = f' --memory "{local_dir.resolve()}"'
+        mem_arg = f" --memory {_shell_arg(local_dir.resolve())}"
         save_cmd += mem_arg
         recall_cmd += mem_arg
         context_cmd += mem_arg
@@ -2488,21 +2661,15 @@ def cmd_hook_install(args):
         _install_cursor_hooks(context_cmd, checkpoint_cmd, restore_cmd, save_cmd, mengram_bin)
         return
 
-    # Read existing settings
+    # Read existing settings; an unreadable file stops the install untouched.
     settings_path = get_claude_code_settings_path()
-    settings = {}
-    if settings_path.exists():
-        try:
-            with open(settings_path) as f:
-                settings = json.load(f)
-        except (json.JSONDecodeError, Exception):
-            settings = {}
+    settings = _read_hooks_file(settings_path)
 
     # 1. Stop hook — auto-save conversations (async, background)
     _upsert_hook(settings, "Stop", "mengram auto-save", {
         "type": "command",
         "command": save_cmd,
-        "timeout": 30,
+        "timeout": HOOK_TIMEOUTS["auto-save"],
         "async": True,
     })
 
@@ -2510,14 +2677,14 @@ def cmd_hook_install(args):
     _upsert_hook(settings, "UserPromptSubmit", "mengram auto-recall", {
         "type": "command",
         "command": recall_cmd,
-        "timeout": 10,
+        "timeout": HOOK_TIMEOUTS["auto-recall"],
     })
 
     # 3. SessionStart hook — load cognitive profile on session start + after compaction
     _upsert_hook(settings, "SessionStart", "mengram auto-context", {
         "type": "command",
         "command": context_cmd,
-        "timeout": 15,
+        "timeout": HOOK_TIMEOUTS["auto-context"],
     })
 
     # 4. PreToolUse hook — a Bash command that matches a learned workflow with
@@ -2527,7 +2694,7 @@ def cmd_hook_install(args):
         _upsert_hook(settings, "PreToolUse", "mengram auto-policy", {
             "type": "command",
             "command": policy_cmd,
-            "timeout": 10,
+            "timeout": HOOK_TIMEOUTS["auto-policy"],
         }, matcher="Bash")
 
     # 5. PostToolUse hook — write back what actually happened, so the gate above
@@ -2535,7 +2702,7 @@ def cmd_hook_install(args):
     _upsert_hook(settings, "PostToolUse", "mengram auto-outcome", {
         "type": "command",
         "command": outcome_cmd,
-        "timeout": 10,
+        "timeout": HOOK_TIMEOUTS["auto-outcome"],
     }, matcher="Bash")
 
     # 6. PreCompact hook — write the working state down before the host
@@ -2543,13 +2710,10 @@ def cmd_hook_install(args):
     _upsert_hook(settings, "PreCompact", "mengram auto-checkpoint", {
         "type": "command",
         "command": checkpoint_cmd,
-        "timeout": 10,
+        "timeout": HOOK_TIMEOUTS["auto-checkpoint"],
     })
 
-    # Write settings
-    settings_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(settings_path, "w") as f:
-        json.dump(settings, f, indent=2)
+    _write_hooks_file(settings_path, settings)
 
     print("Mengram hooks installed" + (f" (local mode: {local_dir.resolve()})" if local_dir else "") + ":")
     print(f"  Auto-save:    every {every} response(s) (background)")
@@ -2563,17 +2727,10 @@ def cmd_hook_install(args):
 
     # Verify rather than assume. An install that cannot run is the failure
     # this whole path is here to stop being invisible.
-    ok, detail = _hook_command_runs(save_cmd)
-    if ok:
-        print(f"  Verified: {mengram_bin} runs from a plain shell")
-    else:
-        print(f"\n  WARNING: the hook command does not run: {detail}")
-        print(f"  Claude Code would launch: {save_cmd}")
-        if mengram_bin == "mengram":
-            print("  `mengram` is not on PATH here, so the hooks would do nothing,")
-            print("  silently. Reinstall with the full path, or add the directory")
-            print("  holding the `mengram` script to PATH and run this again.")
-        print("  Nothing else in Claude Code is affected.")
+    written = [save_cmd, recall_cmd, context_cmd, outcome_cmd, checkpoint_cmd]
+    if not getattr(args, "no_policy", False):
+        written.insert(3, policy_cmd)
+    _verify_hook_commands(written, mengram_bin, "Claude Code")
 
     print(f"\nRestart Claude Code for hooks to take effect.")
 
@@ -2631,7 +2788,7 @@ def _upsert_flat_hook(hooks: dict, event: str, marker: str, entry: dict) -> bool
     command carries `marker`."""
     items = hooks.setdefault(event, [])
     for i, h in enumerate(items):
-        if marker in str(h.get("command", "")):
+        if _hook_matches(h.get("command", ""), marker):
             items[i] = entry
             return True
     items.append(entry)
@@ -2640,7 +2797,7 @@ def _upsert_flat_hook(hooks: dict, event: str, marker: str, entry: dict) -> bool
 
 def _remove_flat_hook(hooks: dict, event: str, marker: str) -> bool:
     items = hooks.get(event) or []
-    kept = [h for h in items if marker not in str(h.get("command", ""))]
+    kept = [h for h in items if not _hook_matches(h.get("command", ""), marker)]
     if len(kept) == len(items):
         return False
     if kept:
@@ -2652,28 +2809,20 @@ def _remove_flat_hook(hooks: dict, event: str, marker: str) -> bool:
 
 def _install_cursor_hooks(context_cmd, checkpoint_cmd, restore_cmd, save_cmd, mengram_bin):
     hooks_path = get_cursor_hooks_path()
-    data = {}
-    if hooks_path.exists():
-        try:
-            with open(hooks_path) as f:
-                data = json.load(f)
-        except Exception:
-            data = {}
+    data = _read_hooks_file(hooks_path)
     data.setdefault("version", 1)
     hooks = data.setdefault("hooks", {})
     _upsert_flat_hook(hooks, "sessionStart", "mengram auto-context",
-                      {"command": context_cmd + " --host cursor", "timeout": 15})
+                      {"command": context_cmd + " --host cursor", "timeout": HOOK_TIMEOUTS["auto-context"]})
     _upsert_flat_hook(hooks, "preCompact", "mengram auto-checkpoint",
-                      {"command": checkpoint_cmd + " --host cursor", "timeout": 10})
+                      {"command": checkpoint_cmd + " --host cursor", "timeout": HOOK_TIMEOUTS["auto-checkpoint"]})
     # After compaction Cursor opens no new session, so the checkpoint comes
     # back on the first tool call after it: postToolUse may add context.
     _upsert_flat_hook(hooks, "postToolUse", "mengram auto-restore",
-                      {"command": restore_cmd + " --host cursor", "timeout": 5})
+                      {"command": restore_cmd + " --host cursor", "timeout": HOOK_TIMEOUTS["auto-restore"]})
     _upsert_flat_hook(hooks, "afterAgentResponse", "mengram auto-save",
-                      {"command": save_cmd + " --host cursor", "timeout": 30})
-    hooks_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(hooks_path, "w") as f:
-        json.dump(data, f, indent=2)
+                      {"command": save_cmd + " --host cursor", "timeout": HOOK_TIMEOUTS["auto-save"]})
+    _write_hooks_file(hooks_path, data)
 
     print("Mengram hooks installed for Cursor:")
     print("  Session context: load profile on a new conversation (and the last working state in this workspace)")
@@ -2681,12 +2830,8 @@ def _install_cursor_hooks(context_cmd, checkpoint_cmd, restore_cmd, save_cmd, me
     print("  Auto-save:       save the agent's answer after each response")
     print("  Recall mid-conversation stays on request via MCP (Cursor has no per-prompt context hook)")
     print(f"  Hooks file: {hooks_path}")
-    ok, detail = _hook_command_runs(context_cmd)
-    if ok:
-        print(f"  Verified: {mengram_bin} runs from a plain shell")
-    else:
-        print(f"\n  WARNING: the hook command does not run: {detail}")
-        print(f"  Cursor would launch: {context_cmd}")
+    _verify_hook_commands([c + " --host cursor" for c in (context_cmd, checkpoint_cmd, restore_cmd, save_cmd)],
+                          mengram_bin, "Cursor")
     print("\nRestart Cursor for hooks to take effect.")
 
 
@@ -2705,47 +2850,41 @@ def _uninstall_cursor_hooks() -> bool:
                           ("postToolUse", "mengram auto-restore"), ("afterAgentResponse", "mengram auto-save")):
         removed |= _remove_flat_hook(hooks, event, marker)
     if removed:
-        with open(hooks_path, "w") as f:
-            json.dump(data, f, indent=2)
+        _write_hooks_file(hooks_path, data)
     return removed
 
 
 def _install_codex_hooks(context_cmd, recall_cmd, checkpoint_cmd, save_cmd, mengram_bin):
     """The same memory under Codex. Its hooks file has Claude Code's shape —
     events, matcher groups, `hookSpecificOutput.additionalContext` back — so
-    the handlers are shared and only the file differs. Codex has no `timeout`
-    key; it shows `statusMessage` while a hook runs."""
+    the handlers are shared and only the file differs. `timeout` is in seconds,
+    as in Claude Code; without it Codex waits 600 s on a hook stuck on the
+    network. It shows `statusMessage` while a hook runs."""
     hooks_path = get_codex_hooks_path()
-    settings = {}
-    if hooks_path.exists():
-        try:
-            with open(hooks_path) as f:
-                settings = json.load(f)
-        except Exception:
-            settings = {}
+    settings = _read_hooks_file(hooks_path)
     if not settings.get("description"):
         settings["description"] = "Mengram memory hooks"
 
     _upsert_hook(settings, "SessionStart", "mengram auto-context", {
-        "type": "command", "command": context_cmd,
+        "type": "command", "command": context_cmd, "timeout": HOOK_TIMEOUTS["auto-context"],
         "statusMessage": "Mengram: loading memory",
     })
     _upsert_hook(settings, "UserPromptSubmit", "mengram auto-recall", {
-        "type": "command", "command": recall_cmd,
+        "type": "command", "command": recall_cmd, "timeout": HOOK_TIMEOUTS["auto-recall"],
         "statusMessage": "Mengram: recalling",
     })
     _upsert_hook(settings, "PreCompact", "mengram auto-checkpoint", {
         "type": "command", "command": checkpoint_cmd + " --host codex",
+        "timeout": HOOK_TIMEOUTS["auto-checkpoint"],
         "statusMessage": "Mengram: saving working state",
     })
     _upsert_hook(settings, "Stop", "mengram auto-save", {
         "type": "command", "command": save_cmd + " --host codex",
+        "timeout": HOOK_TIMEOUTS["auto-save"],
         "statusMessage": "Mengram: saving",
     })
 
-    hooks_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(hooks_path, "w") as f:
-        json.dump(settings, f, indent=2)
+    _write_hooks_file(hooks_path, settings)
 
     print("Mengram hooks installed for Codex:")
     print("  Session context: load profile on session start")
@@ -2753,12 +2892,8 @@ def _install_codex_hooks(context_cmd, recall_cmd, checkpoint_cmd, save_cmd, meng
     print("  Checkpoint:      save the working state before compaction, restore it after")
     print("  Auto-save:       save the turn and the task card when Codex stops")
     print(f"  Hooks file: {hooks_path}")
-    ok, detail = _hook_command_runs(context_cmd)
-    if ok:
-        print(f"  Verified: {mengram_bin} runs from a plain shell")
-    else:
-        print(f"\n  WARNING: the hook command does not run: {detail}")
-        print(f"  Codex would launch: {context_cmd}")
+    _verify_hook_commands([context_cmd, recall_cmd, checkpoint_cmd + " --host codex",
+                           save_cmd + " --host codex"], mengram_bin, "Codex")
     print("\nRestart Codex for hooks to take effect.")
 
 
@@ -2778,8 +2913,7 @@ def _uninstall_codex_hooks() -> bool:
                           ("Stop", "mengram auto-save")):
         removed |= _remove_hook(settings, event, marker)
     if removed:
-        with open(hooks_path, "w") as f:
-            json.dump(settings, f, indent=2)
+        _write_hooks_file(hooks_path, settings)
     return removed
 
 
@@ -2821,8 +2955,7 @@ def cmd_hook_uninstall(args):
             print("No Mengram hooks found. Nothing to uninstall.")
         return
 
-    with open(settings_path, "w") as f:
-        json.dump(settings, f, indent=2)
+    _write_hooks_file(settings_path, settings)
 
     # Clean up counter files
     import tempfile, glob as glob_mod
@@ -2852,7 +2985,7 @@ def cmd_hook_status(args):
     def _find_hook(event_name, marker):
         for group in settings.get("hooks", {}).get(event_name, []):
             for hook in group.get("hooks", []):
-                if marker in hook.get("command", ""):
+                if _hook_matches(hook.get("command", ""), marker):
                     return hook.get("command", "")
         return None
 
@@ -2881,10 +3014,10 @@ def cmd_hook_status(args):
     print(f"  Run outcomes:   {'installed' if outcome_cmd else 'not installed'}")
     print(f"  Checkpoint:     {'installed' if checkpoint_cmd else 'not installed'}")
     codex_path = get_codex_hooks_path()
-    if codex_path.exists() and "mengram auto-checkpoint" in codex_path.read_text(errors="ignore"):
+    if _file_has_hook(codex_path, "mengram auto-checkpoint"):
         print(f"  Codex:          installed ({codex_path})")
     cursor_path = get_cursor_hooks_path()
-    if cursor_path.exists() and "mengram auto-checkpoint" in cursor_path.read_text(errors="ignore"):
+    if _file_has_hook(cursor_path, "mengram auto-checkpoint"):
         print(f"  Cursor:         installed ({cursor_path})")
 
     # Installed is not the same as working: run what Claude Code would run.
@@ -3508,7 +3641,19 @@ def main():
         help="Verify the cloud install works end-to-end (add + search round-trip).",
     )
 
-    args = parser.parse_args()
+    try:
+        args = parser.parse_args()
+    except SystemExit as e:
+        # A hook whose arguments the parser rejects must still fail open:
+        # argparse exits 2, and a PreToolUse hook exiting 2 blocks the call.
+        # Not under MENGRAM_PARSE_ONLY, which is install's check asking
+        # exactly whether the arguments parse.
+        if (e.code not in (0, None) and len(sys.argv) > 1 and sys.argv[1].startswith("auto-")
+                and os.environ.get("MENGRAM_PARSE_ONLY") != "1"):
+            sys.exit(0)
+        raise
+    if os.environ.get("MENGRAM_PARSE_ONLY") == "1":
+        sys.exit(0)        # see _hook_command_runs
 
     if args.command == "init":
         cmd_init(args)

@@ -56,9 +56,10 @@ def test_a_non_executable_file_is_not_the_program(tmp_path, monkeypatch):
     assert cli._resolve_mengram_bin() == "mengram"
 
 
+@pytest.mark.skipif(os.name == "nt", reason="POSIX quoting")
 def test_paths_with_spaces_are_quoted():
-    assert cli._shell_quote("/Users/a b/bin/mengram") == '"/Users/a b/bin/mengram"'
-    assert cli._shell_quote("/usr/bin/mengram") == "/usr/bin/mengram"
+    assert cli._shell_arg("/Users/a b/bin/mengram") == "'/Users/a b/bin/mengram'"
+    assert cli._shell_arg("/usr/bin/mengram") == "/usr/bin/mengram"
 
 
 # --- asking the question the way Claude Code asks it -----------------------

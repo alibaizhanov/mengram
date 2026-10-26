@@ -68,6 +68,22 @@ def test_add_search_procedures_feedback_stat(folder, monkeypatch, capsys):
     assert code == 0 and "entities" in out and "model: mock" in out
 
 
+class _BrokenJSON:
+    """A small local model that cut its answer off mid-JSON."""
+
+    def complete(self, prompt, **kw):
+        return '{"entities": [{"name": "Uzum Bank", "facts": ["works'
+
+
+def test_add_with_unreadable_model_output_is_a_message_not_a_traceback(folder, monkeypatch, capsys):
+    import local.cli as lcli
+    monkeypatch.setattr(lcli, "llm_client", lambda root: _BrokenJSON())
+    code, out, err = _run(monkeypatch, capsys, ["local", "add", "I work at Uzum Bank", "--memory", str(folder)])
+    assert code == 1
+    assert "nothing saved" in err and "not readable JSON" in err
+    assert "Traceback" not in err
+
+
 def test_add_without_a_model_says_so(tmp_path, monkeypatch, capsys):
     root = tmp_path / "m"
     root.mkdir()

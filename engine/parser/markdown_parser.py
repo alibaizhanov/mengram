@@ -290,8 +290,9 @@ def parse_vault(vault_path: str) -> list[ParsedNote]:
     notes = []
 
     for md_file in sorted(vault.rglob("*.md")):
-        # Skip hidden files and .obsidian folder
-        if any(part.startswith(".") for part in md_file.parts):
+        # Skip hidden files and .obsidian folder — inside the vault only: a vault
+        # that itself lives under a dot-directory must still be read.
+        if any(part.startswith(".") for part in md_file.relative_to(vault).parts):
             continue
 
         try:

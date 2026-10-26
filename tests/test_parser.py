@@ -1,5 +1,7 @@
 """Tests for Markdown Parser"""
 
+from pathlib import Path
+
 import pytest
 from engine.parser.markdown_parser import (
     parse_frontmatter,
@@ -88,9 +90,15 @@ class TestSections:
         assert sections[0].title == "(root)"
 
 
+#: Seven notes plus a `.obsidian/` file that must be skipped. Addressed by its
+#: absolute path on purpose: a checkout under a dot-directory (~/.something,
+#: .claude/worktrees) once made parse_vault skip every note.
+VAULT = str(Path(__file__).parent / "fixtures" / "obsidian_notes")
+
+
 class TestParseVault:
     def test_parse_test_vault(self):
-        notes = parse_vault("test_vault")
+        notes = parse_vault(VAULT)
         assert len(notes) == 7
 
         # Verify all filenames became titles
@@ -100,7 +108,7 @@ class TestParseVault:
         assert "Ali" in titles
 
     def test_graph_connections(self):
-        notes = parse_vault("test_vault")
+        notes = parse_vault(VAULT)
         alpha = next(n for n in notes if n.title == "Проект Alpha")
 
         link_targets = {l.target for l in alpha.wikilinks}
@@ -110,7 +118,7 @@ class TestParseVault:
         assert "Doston" in link_targets
 
     def test_frontmatter_extracted(self):
-        notes = parse_vault("test_vault")
+        notes = parse_vault(VAULT)
         alpha = next(n for n in notes if n.title == "Проект Alpha")
 
         assert alpha.frontmatter["status"] == "active"

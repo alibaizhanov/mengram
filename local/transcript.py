@@ -22,7 +22,14 @@ import os
 import re
 from pathlib import Path
 
+from .persistence import atomic_write, file_lock
+
 CURSOR_FILE = "outcome-cursor.json"
+
+#: Transcripts whose read position is kept. Sessions in one folder are a
+#: handful a day; the oldest positions are dropped, and a dropped transcript
+#: that comes back is read as new (charging nothing from its past).
+MAX_TRANSCRIPTS = 200
 
 #: Ids kept to stop a re-read from charging the same step twice. Bash failures
 #: are rare — three in a twelve-thousand-line session — so this never fills.
@@ -41,19 +48,58 @@ def cursor_path(root) -> Path:
 
 
 def read_cursor(root) -> dict:
-    """`{"offset": int, "seen": [tool_use_id]}` — empty when there is none."""
+    """`{"transcripts": {path: {"offset": int}}, "seen": [tool_use_id]}` — empty when there is none.
+
+    One offset per transcript. A single offset for the whole folder was the
+    position in whichever session wrote last, so two sessions side by side
+    rescanned each other from the start, and a resumed old session had its
+    past failures charged as new.
+    """
     try:
-        return json.loads(cursor_path(root).read_text())
+        data = json.loads(cursor_path(root).read_text())
     except Exception:
         return {}
+    return data if isinstance(data, dict) else {}
 
 
 def write_cursor(root, cursor: dict) -> None:
-    p = cursor_path(root)
-    p.parent.mkdir(parents=True, exist_ok=True)
     cursor = dict(cursor)
     cursor["seen"] = list(cursor.get("seen") or [])[-MAX_SEEN:]
-    p.write_text(json.dumps(cursor, indent=2) + "\n", encoding="utf-8")
+    atomic_write(cursor_path(root), json.dumps(cursor, indent=2) + "\n")
+
+
+def cursor_lock(root):
+    """Held around read_cursor … write_cursor by the outcome hook, which runs
+    once per Bash call and so, with parallel calls, several at a time."""
+    return file_lock(Path(root) / ".mengram" / "outcome-cursor.lock")
+
+
+def transcript_cursor(cursor: dict, transcript_path) -> dict:
+    """The `{"offset"?, "seen"}` view of one transcript that `new_failures` reads.
+
+    No offset when this transcript has never been read, which is what makes
+    the first read of *each* transcript charge nothing. A cursor from before
+    offsets were per transcript does not say whose offset it held, so it is
+    not trusted for any of them.
+    """
+    sub = {"seen": list(cursor.get("seen") or [])}
+    entry = (cursor.get("transcripts") or {}).get(str(transcript_path))
+    if isinstance(entry, dict) and isinstance(entry.get("offset"), int):
+        sub["offset"] = entry["offset"]
+    return sub
+
+
+def with_transcript(cursor: dict, transcript_path, sub: dict) -> dict:
+    """`cursor` with this transcript's position and the shared `seen` from `sub`."""
+    out = {k: v for k, v in cursor.items() if k != "offset"}
+    transcripts = dict(out.get("transcripts") or {})
+    key = str(transcript_path)
+    transcripts.pop(key, None)                 # re-inserted last: newest last
+    if "offset" in sub:
+        transcripts[key] = {"offset": int(sub["offset"])}
+    out["transcripts"] = dict(list(transcripts.items())[-MAX_TRANSCRIPTS:])
+    out["seen"] = list(sub.get("seen") or [])
+    return out
 
 
 def _reason(body: str) -> str | None:

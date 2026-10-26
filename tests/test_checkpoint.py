@@ -269,7 +269,9 @@ def test_install_into_codex_writes_its_hooks_file(tmp_path, monkeypatch, capsys)
     assert "auto-checkpoint --host codex" in pre["command"]
     stop = data["hooks"]["Stop"][0]["hooks"][0]
     assert "auto-save --every 3 --host codex" in stop["command"]
-    assert "timeout" not in pre and pre["statusMessage"]
+    # Seconds, as in Claude Code: without it Codex waits 600 s on a stuck hook.
+    assert pre["timeout"] == cli.HOOK_TIMEOUTS["auto-checkpoint"] and pre["statusMessage"]
+    assert stop["timeout"] == cli.HOOK_TIMEOUTS["auto-save"]
     assert not (tmp_path / "unused.json").exists()   # Claude Code settings untouched
     assert "Codex" in capsys.readouterr().out
 
