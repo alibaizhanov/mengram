@@ -108,7 +108,18 @@ def cmd_add(args) -> int:
         conversation = json.loads(text) if text.lstrip().startswith("[") else text
     except json.JSONDecodeError:
         conversation = text
-    stats = store.add(conversation, client)
+    from engine.extractor.conversation_extractor import ExtractionParseError
+    try:
+        stats = store.add(conversation, client)
+    except ExtractionParseError as e:
+        # Small local models often cut the JSON off or drift out of it.
+        print(f"nothing saved: the model's answer was not readable JSON ({e}).\n"
+              f"  Try again, shorten the text, or use a larger model "
+              f"(mengram local init --provider ...).", file=sys.stderr)
+        return 1
+    except Exception as e:
+        print(f"nothing saved: extraction failed — {type(e).__name__}: {e}", file=sys.stderr)
+        return 1
     procs = stats["procedures"]
     print(f"entities +{stats['entities_created']} (updated {stats['entities_updated']}), "
           f"facts +{stats['facts_added']}, episodes +{stats['episodes_saved']}, "
