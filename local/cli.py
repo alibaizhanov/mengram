@@ -141,8 +141,10 @@ def cmd_procedures(args) -> int:
     if not procs:
         print("no procedures yet")
         return 1
+    from cloud.policy import record_of
     for p in procs:
-        print(f"{p['name']}  v{p['version']}  {p['success_count']}✓/{p['fail_count']}✗  {p['reliability']}")
+        ok, bad = record_of(p)     # the counts the percentage was computed from
+        print(f"{p['name']}  v{p['version']}  {ok}✓/{bad}✗  {p['reliability']}")
         if p.get("trigger_condition"):
             print(f"  when: {p['trigger_condition']}")
         for i, s in enumerate(p["steps"], 1):

@@ -28,7 +28,7 @@ from cloud.evolution import EVOLVE_ON_FAILURE_PROMPT
 from cloud.regression_gate import find_regressions
 from cloud.reliability import carry_step_history
 
-from .store import LocalStore, _steps_as_dicts, _to_steps
+from .store import LocalStore, _steps_as_dicts, _to_steps, procedure_reliability
 from .persistence import atomic_write
 
 logger = logging.getLogger("mengram.local")
@@ -179,4 +179,4 @@ def _apply_revision(store: LocalStore, p, result: dict) -> dict:
     store.save()
     return {"status": status, "name": p.name, "version": p.version,
             "violated_assumption": assumption or None, "precondition_check": precondition or None,
-            "reliability": p.reliability}
+            "reliability": procedure_reliability(p)}
