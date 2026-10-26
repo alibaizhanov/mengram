@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import re
 
-from cloud.reliability import estimate, from_steps
+from cloud.reliability import estimate, from_steps, prior_from_lineage
 
 #: Commands that look like a workflow rather than a lookup. Anything else is
 #: waved through without a search, which keeps the hook cheap: a `ls` should
@@ -208,18 +208,33 @@ def best_step_match(procs: list[dict], command: str) -> tuple[dict, int, int] | 
     return best
 
 
-def reliability_of(proc: dict) -> str:
-    """The record in words, computed here when the source did not include it."""
-    label = proc.get("reliability")
-    if isinstance(label, str) and label:
-        return label
+def record_of(proc: dict) -> tuple[int, int]:
+    """The `(successes, failures)` a workflow's reliability is computed from.
+
+    Its own whole-run counters when anyone reported a run; otherwise what its
+    steps imply (`from_steps`). One function so the percentage and the counts
+    printed beside it can never come from two different records.
+    """
     success = int(proc.get("success_count") or 0)
     fail = int(proc.get("fail_count") or 0)
     if success == 0 and fail == 0:
         # No whole-run report, which is the normal case. The steps have been
         # watched one command at a time, and that is the evidence there is.
         success, fail = from_steps(proc.get("steps") or [])
-    return estimate(success, fail)
+    return success, fail
+
+
+def reliability_of(proc: dict) -> str:
+    """The record in words, computed here when the source did not include it.
+
+    The local store, the map and this gate all read it from here, so a
+    workflow cannot be "untested" in one place and "20% reliable" in another.
+    """
+    label = proc.get("reliability")
+    if isinstance(label, str) and label:
+        return label
+    success, fail = record_of(proc)
+    return estimate(success, fail, prior_from_lineage(proc.get("evolution")))
 
 
 def parse_reliability(label: str) -> tuple[str, int | None]:
@@ -247,8 +262,7 @@ def decide(proc: dict, command: str, min_reliable: int = DEFAULT_MIN_RELIABLE) -
     version = proc.get("version") or 1
     label = reliability_of(proc)
     kind, pct = parse_reliability(label)
-    s = int(proc.get("success_count") or 0)
-    f = int(proc.get("fail_count") or 0)
+    s, f = record_of(proc)
 
     if kind == "untested":
         why = f"'{name}' has never been run"
@@ -280,7 +294,7 @@ def spoken_line(proc: dict, label: str) -> str:
     its record is, and the last time it went wrong.
     """
     name = proc.get("name") or "unnamed workflow"
-    s_, f_ = int(proc.get("success_count") or 0), int(proc.get("fail_count") or 0)
+    s_, f_ = record_of(proc)
     counts = f" ({s_}✓/{f_}✗)" if (s_ or f_) and label.endswith("reliable") else ""
     text = f"Mengram flagged this: '{name}' is {label}{counts}"
     if proc.get("last_failure"):
@@ -379,6 +393,10 @@ def memfmt_procedures(root: str) -> list[dict]:
             "last_failure": getattr(p, "last_failure", None),
             "last_failed": getattr(p, "last_failed", None),
             "last_succeeded": getattr(p, "last_succeeded", None),
+            # The lineage prior: without it a revised workflow read "untested"
+            # here and "N% expected" everywhere else.
+            "evolution": [{"success_count": r.success_count, "fail_count": r.fail_count}
+                          for r in (getattr(p, "evolution", None) or [])],
             "steps": [
                 {"action": s.action, "detail": s.detail,
                  "success_count": s.success_count, "fail_count": s.fail_count}

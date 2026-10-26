@@ -22,9 +22,11 @@ import unicodedata
 import memfmt
 from memfmt import Entity, Episode, Knowledge, Memory, Procedure, Relation, Step
 
+from cloud import policy
 from cloud.procedure_match import (
     apply_step_outcome, is_near_duplicate_procedure, normalize_step, procedure_similarity,
 )
+from cloud.reliability import carry_step_history
 from .persistence import ConcurrentWriteError, atomic_write, folder_lock, merge_memory
 
 _WORD = re.compile(r"[^\W_][\w./-]*", re.UNICODE)
@@ -227,8 +229,8 @@ class LocalStore:
         exact = self._procedure(name)
         if exact is not None:
             # The unique-name case: refresh the description, never the record.
-            if exact.success_count + exact.fail_count == 0:
-                exact.steps = new_steps
+            if not has_record(exact):
+                exact.steps = _refreshed_steps(exact.steps, steps)
                 exact.trigger = trigger or exact.trigger
                 _merge_entities(exact, ents)
                 return "refreshed"
@@ -244,9 +246,9 @@ class LocalStore:
             _merge_entities(proc, ents)
             self.memory.procedures.append(proc)
             return "created"
-        if best.success_count + best.fail_count > 0:
+        if has_record(best):
             return "kept"
-        best.steps = new_steps
+        best.steps = _refreshed_steps(best.steps, steps)
         best.trigger = trigger or best.trigger
         _merge_entities(best, ents)
         return "refreshed"
@@ -350,7 +352,7 @@ class LocalStore:
             "id": p.id, "name": p.name, "version": p.version,
             "entity_names": list(p.extra.get("entities") or []),
             "success_count": p.success_count, "fail_count": p.fail_count,
-            "reliability": p.reliability, "trigger_condition": p.trigger,
+            "reliability": procedure_reliability(p), "trigger_condition": p.trigger,
             "preconditions": list(p.preconditions), "steps": steps,
             "last_failure": p.last_failure, "last_failed": p.last_failed,
             "last_succeeded": p.last_succeeded, "days_since_success": _days_since(p.last_succeeded),
@@ -452,12 +454,13 @@ class LocalStore:
                 facts = "; ".join(e.facts[:2])
                 kind = f" ({e.entity_type})" if e.entity_type else ""
                 lines.append(f"- {e.name}{kind}" + (f": {facts}" if facts else ""))
-        tested = [p for p in m.procedures if p.success_count + p.fail_count]
+        tested = [p for p in m.procedures if has_record(p)]
         if tested:
             lines.append("")
             lines.append("Workflows with a record:")
-            for p in sorted(tested, key=lambda p: -(p.success_count + p.fail_count))[:10]:
-                lines.append(f"- {p.name} v{p.version}: {p.success_count}✓/{p.fail_count}✗ {p.reliability}")
+            for p in sorted(tested, key=lambda p: -sum(procedure_record(p)))[:10]:
+                ok, bad = procedure_record(p)
+                lines.append(f"- {p.name} v{p.version}: {ok}✓/{bad}✗ {procedure_reliability(p)}")
         return "\n".join(lines)
 
     def stats(self) -> dict:
@@ -467,8 +470,53 @@ class LocalStore:
             "facts": sum(len(e.facts) for e in m.entities),
             "episodes": len(m.episodes),
             "procedures": len(m.procedures),
-            "procedures_with_record": sum(1 for p in m.procedures if p.success_count + p.fail_count),
+            "procedures_with_record": sum(1 for p in m.procedures if has_record(p)),
         }
+
+
+def has_record(p: Procedure) -> bool:
+    """Has anything ever been observed about this workflow?
+
+    Whole runs or single steps: the outcome hook only ever moves per-step
+    counters, so a workflow judged by its run totals alone stayed "never run"
+    with a week of hook evidence on it, and the next extraction rewrote it.
+    """
+    return bool(p.success_count or p.fail_count
+                or any(s.success_count or s.fail_count for s in p.steps))
+
+
+def _gate_view(p: Procedure) -> dict:
+    """The fields `policy.reliability_of` reads, in the gate's shape."""
+    return {"success_count": p.success_count, "fail_count": p.fail_count,
+            "steps": [{"action": s.action, "success_count": s.success_count,
+                       "fail_count": s.fail_count} for s in p.steps],
+            "evolution": [{"success_count": r.success_count, "fail_count": r.fail_count}
+                          for r in p.evolution]}
+
+
+def procedure_reliability(p: Procedure) -> str:
+    """Reliability as the policy gate computes it.
+
+    memfmt's own `Procedure.reliability` reads run totals only, so the same
+    workflow read "untested" in `local procedures` while the gate stopped a
+    command for being 20% reliable.
+    """
+    return policy.reliability_of(_gate_view(p))
+
+
+def procedure_record(p: Procedure) -> tuple[int, int]:
+    """The `(successes, failures)` behind `procedure_reliability`."""
+    return policy.record_of(_gate_view(p))
+
+
+def _refreshed_steps(old_steps: list, steps: list) -> list:
+    """New wording for a workflow nobody has observed yet, keeping any step
+    history a verbatim step already has (`carry_step_history`)."""
+    fresh = [s if isinstance(s, dict) else
+             _steps_as_dicts([s])[0] if isinstance(s, Step) else {"action": normalize_step(s)}
+             for s in steps or []]
+    carried = carry_step_history(_steps_as_dicts(old_steps, with_counts=True), fresh)
+    return _to_steps(carried, keep_counts=True)
 
 
 def _merge_entities(proc: Procedure, entities: list) -> None:

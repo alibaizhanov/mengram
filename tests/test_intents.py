@@ -264,8 +264,8 @@ def test_an_unclear_outcome_closes_the_intent_and_records_nothing(monkeypatch, c
 
 def _seed_cursor(tmp_path, t):
     """Start the transcript sweep past the current history, as a real session would."""
-    _, cursor = tr.new_failures(t, {})
-    tr.write_cursor(tmp_path, cursor)
+    _, sub = tr.new_failures(t, {})
+    tr.write_cursor(tmp_path, tr.with_transcript({}, t, sub))
 
 
 def test_a_failed_command_is_charged_from_its_intent(monkeypatch, capsys, tmp_path):

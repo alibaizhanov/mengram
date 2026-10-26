@@ -99,7 +99,14 @@ def repo_info(cwd) -> dict:
 
 
 def card_key(info: dict) -> str:
-    base = f"{info.get('remote') or info.get('root')}#{info.get('branch') or ''}"
+    branch = info.get("branch") or ""
+    if branch == "HEAD":
+        # Detached HEAD: git names no branch, and every detached worktree of
+        # the repo would share one card. Keyed by the worktree's own path
+        # instead, not by the commit: a session committing while detached
+        # moves HEAD and must stay on the card it was writing.
+        branch = f"HEAD@{info.get('root') or ''}"
+    base = f"{info.get('remote') or info.get('root')}#{branch}"
     return hashlib.sha1(base.encode("utf-8")).hexdigest()[:16]
 
 

@@ -19,7 +19,7 @@ import json
 from html import escape
 from pathlib import Path
 
-from .store import LocalStore
+from .store import LocalStore, procedure_record, procedure_reliability
 
 MAP_FILE = "memory-map.html"
 
@@ -53,7 +53,9 @@ def _days_since(iso_date: str | None) -> int | None:
 
 
 def _reliability_word(p) -> str:
-    return getattr(p, "reliability", None) or "untested"
+    # The gate's computation, not memfmt's run-totals-only property: the map
+    # must not call "untested" what the gate calls 20% reliable.
+    return procedure_reliability(p) or "untested"
 
 
 def _record(success: int | None, fail: int | None) -> str:
@@ -174,7 +176,7 @@ def _procedure_card(p) -> str:
         evo = f'<details><summary>{len(p.evolution)} revision{"s" if len(p.evolution) != 1 else ""}</summary><ul class="evo">{items}</ul></details>'
     search = _e(" ".join([p.name, p.trigger or "", p.last_failure or ""] + [s.action for s in p.steps]).lower())
     return (f'<article class="card proc" data-search="{search}">'
-            f'<header><h4>{_e(p.name)}</h4><span class="rel {cls}">v{p.version} · {_e(rel)} · {_record(p.success_count, p.fail_count)}</span></header>'
+            f'<header><h4>{_e(p.name)}</h4><span class="rel {cls}">v{p.version} · {_e(rel)} · {_record(*procedure_record(p))}</span></header>'
             f'{trigger}{("<div class=chips>" + pre + "</div>") if pre else ""}'
             f'<ol class="steps">{steps}</ol>{fail}{evo}</article>')
 

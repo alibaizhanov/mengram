@@ -291,19 +291,31 @@ def latest_for(cwd: str | None, max_age: float = RESUME_MAX_AGE) -> dict | None:
     return best
 
 
-def consume(session_id: str | None, cwd: str | None = None,
-            max_age: float = RESUME_MAX_AGE) -> dict | None:
+def peek(session_id: str | None, cwd: str | None = None,
+         max_age: float = RESUME_MAX_AGE) -> dict | None:
     """The checkpoint a starting session should see: its own, else the newest
-    from the same directory (no older than `max_age`). Restored once — the
-    file is removed so a later `/clear` in the same session does not replay
-    old work."""
-    snap = load(session_id) or latest_for(cwd, max_age=max_age)
-    if snap is None:
-        return None
+    from the same directory (no older than `max_age`). Left on disk: a hook
+    deletes it with `discard` only once its content has been printed, so a
+    hook killed on its timeout before that loses nothing."""
+    return load(session_id) or latest_for(cwd, max_age=max_age)
+
+
+def discard(snap: dict | None) -> None:
+    """Remove a restored checkpoint, so a later `/clear` in the same session
+    does not replay old work. Never raises."""
+    if not snap:
+        return
     try:
         path_for(snap.get("session") or "unknown").unlink()
     except OSError:
         pass
+
+
+def consume(session_id: str | None, cwd: str | None = None,
+            max_age: float = RESUME_MAX_AGE) -> dict | None:
+    """`peek` and `discard` in one step, for callers with nothing slow between."""
+    snap = peek(session_id, cwd, max_age=max_age)
+    discard(snap)
     return snap
 
 
