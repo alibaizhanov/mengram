@@ -1,5 +1,59 @@
 # Changelog
 
+## 2.49.0 — 2026-10-26
+
+The rest of the 2026-10-23 audit.
+
+### Changed
+- **A canceled or paused subscription ends paid access when Paddle says so.**
+  `subscription.canceled` fires when access actually ends and carries no
+  billing period; the plan used to stay paid "until the period end". Cancel
+  and pause now downgrade to free, resume re-derives the plan from the price,
+  `past_due` keeps access while Paddle retries. Events for a subscription the
+  user has since replaced are ignored.
+- **The connector sign-in creates the account after the email code checks
+  out**, not when the code is sent. An unverified, never-used account made the
+  old way no longer blocks `/v1/signup` for that address.
+- **`/v1/dedup` (all entities) works in pages of 25** and returns `remaining`
+  and `next_after`; pass `?after=` to continue.
+- **Hook commands quote every value**, and `hook install` checks each command
+  it wrote by parsing it for real.
+
+### Fixed
+- Every search could take an exclusive lock on `entities` (team DDL ran on each
+  cache miss); the same for webhooks on each add. Each now runs once per process.
+- Account deletion runs in one transaction and detaches other members'
+  entities from the teams it removes, so it cannot stop half-way.
+- Paddle calls time out after 30 s and run off the event loop; so do model
+  calls in playground, dry-run add, resume draft, dedup, reflect and profile.
+- Rate limits use the client's address (Cloudflare / forwarded header), not the
+  proxy's shared one.
+- `/v1/profile` checks quota before the model call.
+- Outbound webhooks do not follow redirects and block hosts that do not resolve.
+- Embedding summaries: bounded client, reasoning effort set, cached by content.
+- Extraction: a refusal is an empty result, not a crash; unreadable JSON is
+  reported and retried once, timeouts are not retried; one failed window no
+  longer loses the episodes and procedures of the whole conversation; uploaded
+  files and voice calls are split into windows; `prompt_version` is normalised.
+- MCP tool failures are returned with `isError`.
+- Hooks: step evidence survives a workflow refresh; the gate and `local
+  procedures` report the same reliability; `hook install` never rewrites a
+  settings file it cannot parse and writes atomically with a backup; the
+  compaction checkpoint is deleted only after it was shown; the task card is
+  saved before the draft call; Codex hooks get timeouts; cloud calls from hooks
+  fit the hook's budget; the outcome cursor is per transcript; `intents.json`
+  is locked; hooks are found under paths with spaces; detached worktrees get
+  their own task card.
+- `mengram local add` reports unreadable model output instead of a traceback.
+- `parse_vault` reads a vault that lives under a dot-directory.
+
+### Removed
+- `GET /extension/download` (always 404) and `engine/retrieval` (unused).
+
+### Tests
+- The parser tests have a committed fixture; CI runs the suite on every push
+  and pull request.
+
 ## 2.48.1 — 2026-10-24
 
 Fixes from the full code audit of 2026-10-23.
