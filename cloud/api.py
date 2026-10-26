@@ -596,7 +596,8 @@ profile = m.get_profile()             # instant system prompt
             nonlocal _openai_rerank_client
             if _openai_rerank_client is None:
                 import openai
-                _openai_rerank_client = openai.OpenAI(api_key=openai_key)
+                # Rerank sits inside a search: fail fast and fall back.
+                _openai_rerank_client = openai.OpenAI(api_key=openai_key, timeout=20, max_retries=1)
             client = _openai_rerank_client
 
             candidates = []
@@ -3531,7 +3532,8 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         if not openai_key:
             raise ValueError("OPENAI_API_KEY not configured for vision extraction")
 
-        client = OpenAI(api_key=openai_key)
+        # Bounded: the SDK default is 600 s with two retries per page.
+        client = OpenAI(api_key=openai_key, timeout=120, max_retries=1)
 
         # Render all pages to PNG at 200 DPI
         doc = fitz.open(stream=file_bytes, filetype="pdf")

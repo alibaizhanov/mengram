@@ -15,6 +15,17 @@ from ._common import (  # noqa: F401
 MIN_FACTS_FOR_PROFILE = 3
 
 
+
+def _completion_budget(model: str, reply_tokens: int) -> dict:
+    """Token budget for a plain-text reply. On a reasoning model the hidden
+    reasoning counts against max_completion_tokens, and with the default
+    effort it could use the whole budget and leave an empty reply; same rule
+    as cloud/embed_summary.py. temperature=1 is the only value gpt-5 accepts."""
+    m = (model or "").lower()
+    if m.startswith(("gpt-5", "o1", "o3")):
+        return {"max_completion_tokens": reply_tokens * 4, "reasoning_effort": "low"}
+    return {"max_completion_tokens": reply_tokens, "temperature": 1}
+
 class ProfileMixin:
     """Stats, weekly stats, cognitive profile, rules file, intelligence dashboard."""
 
@@ -216,7 +227,9 @@ class ProfileMixin:
 
         try:
             import openai
-            client = openai.OpenAI(api_key=openai_key)
+            # SDK defaults are a 600 s timeout with two retries; this runs in
+            # a request.
+            client = openai.OpenAI(api_key=openai_key, timeout=60, max_retries=1)
 
             prompt = f"""You are a profile generator. Based on the memory below about a user, 
 create a concise system prompt that any AI assistant can use to personalize responses.
@@ -240,14 +253,15 @@ SEMANTIC MEMORY (facts about the user):
 {episodes_text}
 {procedures_text}"""
 
+            model = os.environ.get("LLM_MODEL", "gpt-4o-mini")
             resp = client.chat.completions.create(
-                model=os.environ.get("LLM_MODEL", "gpt-4o-mini"),
+                model=model,
                 messages=[{"role": "user", "content": prompt}],
-                max_completion_tokens=500,
-                temperature=1,
+                **_completion_budget(model, 500),
             )
 
-            system_prompt = resp.choices[0].message.content.strip()
+            # A refusal comes back as content=None.
+            system_prompt = (resp.choices[0].message.content or "").strip()
 
             from datetime import datetime, timezone
             result = {
@@ -363,14 +377,15 @@ REFLECTIONS/PATTERNS:
         import os
         try:
             import openai as _openai
-            client = _openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
+            client = _openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""),
+                                    timeout=60, max_retries=1)
+            model = os.environ.get("LLM_MODEL", "gpt-4o-mini")
             resp = client.chat.completions.create(
-                model=os.environ.get("LLM_MODEL", "gpt-4o-mini"),
+                model=model,
                 messages=[{"role": "user", "content": prompt}],
-                max_completion_tokens=2000,
-                temperature=1,
+                **_completion_budget(model, 2000),
             )
-            content = resp.choices[0].message.content.strip()
+            content = (resp.choices[0].message.content or "").strip()
 
             result = {
                 "content": content,
