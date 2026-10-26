@@ -2844,14 +2844,35 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
             all_procedures = []
             all_entities = []  # for smart triggers at end
             embedding_queue = []  # [(entity_id, chunks)]
+            # A failed window is skipped, not fatal: aborting here would lose
+            # the episodes, procedures and raw chunk of every window, which are
+            # only saved after the loop. Several failures in a row mean the
+            # provider is down — stop paying a full timeout per window.
+            _windows_total = 0
+            _windows_failed = 0
+            _consecutive_failed = 0
+            _last_window_error = None
 
             for win_start in range(0, max(len(conversation), 1), WINDOW_SIZE):
                 window = conversation[win_start:win_start + WINDOW_SIZE]
                 if not window:
                     break
+                _windows_total += 1
+                if _consecutive_failed >= 3:
+                    _windows_failed += 1
+                    continue
 
-                win_extraction = extractor.extract(window, existing_context=existing_context,
-                                                     prompt_version=prompt_version)
+                try:
+                    win_extraction = extractor.extract(window, existing_context=existing_context,
+                                                         prompt_version=prompt_version)
+                except Exception as e:
+                    _windows_failed += 1
+                    _consecutive_failed += 1
+                    _last_window_error = e
+                    logger.error(f"⚠️ Extraction failed for window {win_start // WINDOW_SIZE + 1} "
+                                 f"({len(window)} messages) of job {job_id}: {type(e).__name__}: {e}")
+                    continue
+                _consecutive_failed = 0
                 all_episodes.extend(win_extraction.episodes)
                 all_procedures.extend(win_extraction.procedures)
                 all_entities.extend(win_extraction.entities)
@@ -3025,6 +3046,10 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                             user_id, sub_user_id=sub_uid)
                     except Exception:
                         pass
+
+            if _windows_total and _windows_failed == _windows_total:
+                raise RuntimeError(f"extraction failed in all {_windows_total} window(s): "
+                                   f"{type(_last_window_error).__name__}: {_last_window_error}")
 
             # ---- Collect ALL embeddings: entities + conversation + episodes + procedures ----
             # Single batch API call instead of 4+ separate calls
@@ -3296,6 +3321,7 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                 "dropped_by_policy": _policy_dropped,
                 "dropped_by_gate": len(_gate_dropped),
                 "gate_dropped": _gate_dropped[:50],
+                "failed_windows": _windows_failed,
             })
             if _gate_dropped:
                 logger.info(f"🚪 Salience gate dropped {len(_gate_dropped)} fact(s) for {user_id[:8]}: "
@@ -3775,15 +3801,17 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
                     return
 
                 # ---- Convert to conversation and run standard pipeline ----
-                # Combine all pages into a single message for faster extraction
-                combined_text = ""
+                # One message per page/chunk, so the pipeline's 12-message
+                # windows bound each LLM call. As a single message the whole
+                # document went out in one call, failing on large files after
+                # every chunk had been charged to the quota.
+                conversation = []
                 for i, page_text in enumerate(page_texts):
                     label = f"Page {i+1}" if file_type == "pdf" else f"Chunk {i+1}"
-                    combined_text += f"--- {label} of {len(page_texts)} ---\n{page_text}\n\n"
-                conversation = [{
-                    "role": "user",
-                    "content": f"Document: {filename}\n\n{combined_text.strip()}",
-                }]
+                    conversation.append({
+                        "role": "user",
+                        "content": f"Document: {filename}\n--- {label} of {len(page_texts)} ---\n{page_text.strip()}",
+                    })
 
                 _run_extraction_pipeline(
                     user_id=owner_id,
@@ -5609,10 +5637,14 @@ document.getElementById('code').addEventListener('keydown', e => {{ if(e.key==='
         import threading
 
         def process_in_background():
+            # 4000-char chunks as separate messages, so a long call is split
+            # into windows like any conversation instead of one LLM request.
+            from importer import chunk_text
             _run_extraction_pipeline(
                 user_id=ctx.user_id,
                 sub_uid=sub_uid,
-                conversation=[{"role": "user", "content": _sanitize_text(transcript)}],
+                conversation=[{"role": "user", "content": c}
+                              for c in chunk_text(_sanitize_text(transcript), 4000)],
                 metadata=metadata,
                 expiration_date=None,
                 job_id=job_id,
