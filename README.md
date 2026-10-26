@@ -19,7 +19,7 @@
 </div>
 
 ```bash
-pip install mengram-ai   # or: npm install mengram-ai
+pip install mengram-ai   # the CLI; JS SDK: npm install mengram-ai
 
 mengram try              # see what memory would know about you — local only,
                          # no account, nothing leaves your machine
@@ -449,10 +449,10 @@ Auto-recall before every turn, auto-capture after. 12 tools, slash commands, Gra
 **CLI** — Full command-line interface
 
 ```bash
-mengram search "deployment" --cloud
-mengram profile --cloud
-mengram import chatgpt export.zip --cloud
-mengram hook install
+mengram hook install                        # auto-recall + auto-save in Claude Code
+mengram import chatgpt export.zip --cloud   # bring your ChatGPT history
+mengram rules --format claude_md            # CLAUDE.md from what memory knows
+mengram local search "deployment"           # search a local memory folder
 ```
 
 [Docs](https://mengram.io/docs/cli)

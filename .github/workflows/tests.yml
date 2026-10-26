@@ -1,0 +1,47 @@
+name: tests
+
+# The suite runs offline: no database, no model API, no network. Merging to
+# main deploys to production, so this is the check that runs before it.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e . pytest
+      - name: Test
+        run: python -m pytest -q
+
+  js:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: sdk/js
+        working-directory: sdk/js
+        run: node --test
+      - name: sdk/ai-sdk
+        working-directory: sdk/ai-sdk
+        run: |
+          npm install --no-audit --no-fund
+          node --test
