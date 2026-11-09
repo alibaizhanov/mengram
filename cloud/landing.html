@@ -927,6 +927,22 @@ m.search("how do we deploy?", user_id="u42")</pre><button class="copy" data-copy
         // Same-origin so self-hosted instances hit their own API (#36).
         const API_URL = window.location.origin;
 
+        // Anchors from the old landing are still linked from API 429 responses
+        // (upgrade_url = /#pricing), blog posts and older pages. Send them somewhere real.
+        (function () {
+            var moved = { '#how': '#product', '#playground': '#proof', '#agents': '#who', '#before-after': '#product', '#try-first': '#proof', '#claude-connector': '#install', '#claude-code-plugin': '#install', '#one-prompt': '#install' };
+            function route(onLoad) {
+                var h = window.location.hash;
+                if (h === '#pricing') { window.location.replace('/pricing'); return; }
+                if (!moved[h]) return;
+                history.replaceState(null, '', moved[h]);
+                var go = function () { var el = document.querySelector(moved[h]); if (el) el.scrollIntoView(); };
+                if (onLoad && document.readyState !== 'complete') window.addEventListener('load', go); else go();
+            }
+            route(true);
+            window.addEventListener('hashchange', function () { route(false); });
+        })();
+
         function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
         function _copyToClipboard(text) {
