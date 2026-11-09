@@ -29,6 +29,25 @@ except ImportError:
 logger = logging.getLogger("mengram")
 
 
+class EmbeddingQuotaExceeded(Exception):
+    """Raised when the embedding provider rejects a request for a non-retryable
+    reason (quota exhausted, bad/revoked API key). Retrying these wastes time
+    and — since embed_batch used to retry with a blocking time.sleep() — used
+    to also stall every other request on the same worker thread pool."""
+
+
+def _is_retryable(exc: Exception) -> bool:
+    """True for transient errors worth retrying (network blips, 5xx, genuine
+    rate limits). False for quota/auth errors, which will never succeed no
+    matter how many times we retry — those should fail immediately."""
+    msg = str(exc).lower()
+    if any(s in msg for s in ("trial key", "quota", "monthly limit", "insufficient_quota")):
+        return False
+    if any(s in msg for s in ("401", "403", "unauthorized", "invalid api key", "invalid_api_key")):
+        return False
+    return True
+
+
 class CloudEmbedder:
     """
     Generates embeddings via API.
@@ -103,6 +122,9 @@ class CloudEmbedder:
                 is_bad_request = "400" in str(e)
                 if is_bad_request and attempt == 0:
                     logger.error(f"Embedding 400 debug: {len(texts)} texts, lengths={[len(t) for t in texts]}, first_100={[t[:100] for t in texts[:3]]}")
+                if not _is_retryable(e):
+                    logger.error(f"Embedding provider quota/auth error, not retrying: {e}")
+                    raise EmbeddingQuotaExceeded(str(e)) from e
                 if attempt < max_retries:
                     wait = 2 * (attempt + 1) if not is_rate_limit else 3 * (attempt + 1)
                     logger.warning(f"Embedding attempt {attempt + 1} failed: {e}, retrying in {wait}s")
@@ -163,6 +185,9 @@ class CohereEmbedder:
                     break
                 except Exception as e:
                     is_rate_limit = "429" in str(e) or "rate" in str(e).lower()
+                    if not _is_retryable(e):
+                        logger.error(f"Cohere quota/auth error, not retrying: {e}")
+                        raise EmbeddingQuotaExceeded(str(e)) from e
                     if attempt < max_retries:
                         wait = 3 * (attempt + 1) if is_rate_limit else 2 * (attempt + 1)
                         logger.warning(
